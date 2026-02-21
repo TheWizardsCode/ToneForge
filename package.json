@@ -1,7 +1,7 @@
 {
   "name": "toneforge",
   "version": "0.1.0",
-  "description": "A procedural audio production platform that treats sound as deterministic, inspectable, and reusable behavior rather than static assets.",
+  "description": "Generate placeholder sound effects instantly so development never stalls waiting for final audio assets.",
   "type": "module",
   "main": "dist/index.js",
   "bin": {

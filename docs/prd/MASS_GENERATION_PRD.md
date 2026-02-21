@@ -25,7 +25,7 @@ This enables:
 - Preserve full provenance (recipe, seed, layers)
 - Enable fast search and reuse
 - Support offline and batch workflows
-- Avoid manual curation bottlenecks
+- Accelerate curation with automated classification
 
 ---
 
@@ -299,7 +299,7 @@ This system transforms ToneForge SFX into:
 - a **sound‑event compiler**
 - a **creative discovery engine**
 
-It eliminates manual sound‑design bottlenecks while preserving artistic control.
+It accelerates placeholder asset creation and sound discovery while preserving artistic control for final sound design.
 
 ---
 

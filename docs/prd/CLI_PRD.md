@@ -39,7 +39,7 @@ Its purpose is to:
 - enable reproducible builds
 - support large‑scale sound generation
 - integrate with existing toolchains
-- eliminate manual asset handling
+- automate placeholder asset generation
 
 ---
 

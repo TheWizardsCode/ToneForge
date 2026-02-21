@@ -31,7 +31,7 @@ Its purpose is to:
 - embed ToneForge into existing pipelines
 - automate sound generation and updates
 - ensure deterministic builds
-- reduce manual asset handling
+- streamline placeholder and prototype asset workflows
 - enable cross‑tool interoperability
 
 ---

@@ -32,7 +32,7 @@ Its purpose is to:
 - explore parameter and seed spaces efficiently
 - surface interesting outliers
 - cluster and rank generated sounds
-- reduce manual trial‑and‑error sound design
+- accelerate sound exploration during prototyping
 
 ---
 
