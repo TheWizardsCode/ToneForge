@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createRng } from "../core/rng.js";
-import { getUiSciFiConfirmParams } from "./ui-scifi-confirm.js";
+import { getUiSciFiConfirmParams } from "./ui-scifi-confirm-params.js";
 import { registry } from "./index.js";
 
 describe("ui-scifi-confirm recipe", () => {

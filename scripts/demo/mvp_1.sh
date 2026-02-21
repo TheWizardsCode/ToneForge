@@ -83,6 +83,13 @@ if [ ! -f "node_modules/.package-lock.json" ]; then
   npm install --silent
 fi
 
+if [ ! -f "dist/cli.js" ]; then
+  echo "Building ToneForge..."
+  npm run build --silent
+fi
+
+CLI="node dist/cli.js"
+
 # ── INTRO ────────────────────────────────────────────────────────────
 
 banner
@@ -115,7 +122,7 @@ problem "You're building a sci-fi game UI. You need a confirmation\n  sound to t
 
 solution "ToneForge generates placeholder sounds from recipes in\n  milliseconds. No assets needed. One command, one sound."
 
-run_cmd "npx tsx src/cli.ts generate --recipe ui-scifi-confirm --seed 42"
+run_cmd "$CLI generate --recipe ui-scifi-confirm --seed 42"
 
 echo ""
 echo -e "  ${DIM}That placeholder was synthesized entirely from code.${RESET}"
@@ -134,15 +141,15 @@ solution "Change the seed, change the sound. Same recipe, different\n  number, i
 
 echo ""
 echo -e "  ${DIM}Seed 100:${RESET}"
-run_cmd "npx tsx src/cli.ts generate --recipe ui-scifi-confirm --seed 100"
+run_cmd "$CLI generate --recipe ui-scifi-confirm --seed 100"
 echo ""
 
 echo -e "  ${DIM}Seed 9999:${RESET}"
-run_cmd "npx tsx src/cli.ts generate --recipe ui-scifi-confirm --seed 9999"
+run_cmd "$CLI generate --recipe ui-scifi-confirm --seed 9999"
 echo ""
 
 echo -e "  ${DIM}Seed 7:${RESET}"
-run_cmd "npx tsx src/cli.ts generate --recipe ui-scifi-confirm --seed 7"
+run_cmd "$CLI generate --recipe ui-scifi-confirm --seed 7"
 
 echo ""
 echo -e "  ${DIM}Three distinct placeholders. Same recipe. Three different integers.${RESET}"
@@ -159,7 +166,7 @@ problem "A colleague asks 'what was that sound you used in the\n  prototype?' Yo
 
 solution "ToneForge is deterministic. Same recipe + same seed = identical\n  audio, byte for byte. Share a seed, share a sound:"
 
-run_cmd "npx tsx src/cli.ts generate --recipe ui-scifi-confirm --seed 42"
+run_cmd "$CLI generate --recipe ui-scifi-confirm --seed 42"
 
 echo ""
 echo -e "  ${DIM}That is the exact same sound you heard in Act 1.${RESET}"
@@ -191,13 +198,13 @@ section_header "5/5" "Production-grade foundations"
 
 problem "Placeholder tooling that breaks or behaves unpredictably\n  slows you down instead of speeding you up. Is this\n  actually reliable enough to depend on?"
 
-solution "ToneForge has 58 tests across 7 test files covering the\n  RNG, recipe registry, renderer, WAV encoder, and CLI.\n  Strict TypeScript. Solid error handling. Let's prove it:"
+solution "ToneForge has 62 tests across 8 test files covering the\n  RNG, recipe registry, renderer, WAV encoder, and CLI.\n  Strict TypeScript. Solid error handling. Let's prove it:"
 
 echo ""
 run_cmd "npx vitest run 2>&1 | tail -12"
 
 echo ""
-echo -e "  ${DIM}58 tests. 7 files. All passing.${RESET}"
+echo -e "  ${DIM}62 tests. 8 files. All passing.${RESET}"
 echo -e "  ${DIM}Strict TypeScript. Vitest. No warnings.${RESET}"
 
 pause
@@ -213,7 +220,7 @@ echo -e "    ${GREEN}1.${RESET} Placeholder audio generated instantly — no wai
 echo -e "    ${GREEN}2.${RESET} Rapid variation — explore the design space with seed changes"
 echo -e "    ${GREEN}3.${RESET} Reproducible across your team — share a seed, share a sound"
 echo -e "    ${GREEN}4.${RESET} CI-verifiable determinism — proven by automated tests"
-echo -e "    ${GREEN}5.${RESET} Production-grade engineering — 58 tests, strict types"
+echo -e "    ${GREEN}5.${RESET} Production-grade engineering — 62 tests, strict types"
 echo ""
 echo -e "  ${BOLD}This is one recipe. One sound type. The beginning.${RESET}"
 echo ""
