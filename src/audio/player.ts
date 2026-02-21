@@ -2,20 +2,16 @@
  * Audio Player
  *
  * Writes rendered audio to a temporary WAV file and plays it through the
- * platform's system audio player.
+ * platform's system audio player. Cleans up the temp file after playback.
  *
  * Supported platforms:
  * - Linux:   aplay, paplay, ffplay, or sox play (first available)
- * - WSL:     mshta.exe (preferred, fire-and-forget) or powershell.exe fallback
+ * - WSL:     powershell.exe via Windows audio (auto-detected)
  * - macOS:   afplay
  * - Windows: powershell Start-Process / [System.Media.SoundPlayer]
- *
- * On WSL, uses fire-and-forget playback: the CLI spawns a detached Windows
- * player process and returns immediately without waiting for audio to finish.
- * This reduces perceived CLI latency from ~2.5s to near-instant.
  */
 
-import { execFile, execFileSync, spawn } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { writeFile, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -27,8 +23,6 @@ import { encodeWav } from "./wav-encoder.js";
 export interface PlayOptions {
   /** Sample rate in Hz (default: 44100). */
   sampleRate?: number;
-  /** Duration of the audio in seconds (used for fire-and-forget timeout). */
-  duration?: number;
 }
 
 /** A candidate audio player with its command and argument builder. */
@@ -37,19 +31,6 @@ interface PlayerCandidate {
   command: string;
   /** Build the argument list for this player given a WAV file path. */
   args: (filePath: string) => string[];
-}
-
-/** Result of resolving a player command, including spawn strategy. */
-export interface PlayerCommand {
-  /** Binary to execute. */
-  command: string;
-  /** Arguments to pass. */
-  args: string[];
-  /**
-   * If true, the player should be spawned detached and unref'd so the CLI
-   * can exit immediately while audio plays in the background.
-   */
-  fireAndForget: boolean;
 }
 
 /** Linux audio players in order of preference. */
@@ -114,70 +95,30 @@ function findLinuxPlayer(): PlayerCandidate | null {
 }
 
 /**
- * Build an mshta.exe command that plays a WAV file via WMPlayer ActiveX
- * and auto-closes after the audio finishes.
- *
- * mshta.exe runs an inline HTML Application (HTA) containing JavaScript
- * that creates a WMPlayer.OCX ActiveXObject. The setTimeout ensures the
- * HTA window closes after playback completes.
- *
- * @param winPath  - Windows-format path to the WAV file.
- * @param timeoutMs - How long to keep the HTA alive before closing (ms).
- * @returns The mshta.exe argument string.
- */
-function buildMshtaScript(winPath: string, timeoutMs: number): string {
-  // Escape backslashes for JavaScript string literal inside the HTA
-  const escaped = winPath.replace(/\\/g, "\\\\");
-  return (
-    `javascript:` +
-    `var p=new ActiveXObject('WMPlayer.OCX');` +
-    `p.URL='${escaped}';` +
-    `p.controls.play();` +
-    `setTimeout(function(){close()},${timeoutMs});`
-  );
-}
-
-/**
  * Get the system audio player command and arguments for the current platform.
  *
- * On WSL, prefers mshta.exe (fast, ~0.5s startup) for fire-and-forget
- * playback. Falls back to powershell.exe if mshta.exe is unavailable.
- * On native Linux, probes for aplay, paplay, ffplay, play (sox).
+ * On Linux, probes for available players in order of preference:
+ * aplay, paplay, ffplay, play (sox). On WSL, uses powershell.exe
+ * to play audio through the Windows host.
  *
- * @param filePath   - Path to the WAV file to play.
- * @param durationMs - Audio duration in milliseconds (for fire-and-forget timeout).
- * @returns Object with `command`, `args`, and `fireAndForget` flag.
+ * @param filePath - Path to the WAV file to play.
+ * @returns Object with `command` and `args` for execFile.
  * @throws If no supported audio player is found.
  */
-export function getPlayerCommand(filePath: string, durationMs = 2000): PlayerCommand {
+export function getPlayerCommand(filePath: string): { command: string; args: string[] } {
   switch (process.platform) {
     case "linux": {
-      if (isWSL()) {
+      // On WSL, use powershell.exe to play through Windows audio
+      if (isWSL() && isCommandAvailable("powershell.exe")) {
         const winPath = toWindowsPath(filePath);
-
-        // Prefer mshta.exe: fast startup, fire-and-forget
-        if (isCommandAvailable("mshta.exe")) {
-          // Add 1.5s buffer to ensure audio finishes before HTA closes
-          const timeoutMs = durationMs + 1500;
-          return {
-            command: "mshta.exe",
-            args: [buildMshtaScript(winPath, timeoutMs)],
-            fireAndForget: true,
-          };
-        }
-
-        // Fallback: powershell.exe (synchronous, ~2.4s startup)
-        if (isCommandAvailable("powershell.exe")) {
-          return {
-            command: "powershell.exe",
-            args: [
-              "-NoProfile",
-              "-Command",
-              `(New-Object System.Media.SoundPlayer '${winPath}').PlaySync()`,
-            ],
-            fireAndForget: false,
-          };
-        }
+        return {
+          command: "powershell.exe",
+          args: [
+            "-NoProfile",
+            "-Command",
+            `(New-Object System.Media.SoundPlayer '${winPath}').PlaySync()`,
+          ],
+        };
       }
 
       const player = findLinuxPlayer();
@@ -194,10 +135,10 @@ export function getPlayerCommand(filePath: string, durationMs = 2000): PlayerCom
           wslHint,
         );
       }
-      return { command: player.command, args: player.args(filePath), fireAndForget: false };
+      return { command: player.command, args: player.args(filePath) };
     }
     case "darwin":
-      return { command: "afplay", args: [filePath], fireAndForget: false };
+      return { command: "afplay", args: [filePath] };
     case "win32":
       return {
         command: "powershell",
@@ -206,7 +147,6 @@ export function getPlayerCommand(filePath: string, durationMs = 2000): PlayerCom
           "-Command",
           `(New-Object System.Media.SoundPlayer '${filePath}').PlaySync()`,
         ],
-        fireAndForget: false,
       };
     default:
       throw new Error(
@@ -218,14 +158,8 @@ export function getPlayerCommand(filePath: string, durationMs = 2000): PlayerCom
 /**
  * Play audio samples through the system speakers.
  *
- * Encodes the samples as a temporary WAV file and invokes the platform audio
- * player. On WSL with mshta.exe, uses fire-and-forget: spawns a detached
- * player process and returns immediately. The temp file is intentionally NOT
- * cleaned up in fire-and-forget mode since the player is still using it;
- * the OS will clean tmpdir eventually.
- *
- * For synchronous players, waits for playback to complete and cleans up
- * the temp file afterward.
+ * Encodes the samples as a temporary WAV file, invokes the platform audio
+ * player, and cleans up the temp file when playback completes.
  *
  * @param samples - Float32Array of audio samples in [-1, 1] range.
  * @param options - Playback options.
@@ -235,7 +169,7 @@ export async function playAudio(
   samples: Float32Array,
   options: PlayOptions = {},
 ): Promise<void> {
-  const { sampleRate = 44100, duration } = options;
+  const { sampleRate = 44100 } = options;
 
   // Encode to WAV
   const wavBuffer = encodeWav(samples, { sampleRate });
@@ -246,27 +180,9 @@ export async function playAudio(
 
   await writeFile(tempPath, wavBuffer);
 
-  // Compute duration in ms for fire-and-forget timeout
-  const durationMs = duration !== undefined
-    ? Math.ceil(duration * 1000)
-    : Math.ceil((samples.length / sampleRate) * 1000);
-
-  const { command, args, fireAndForget } = getPlayerCommand(tempPath, durationMs);
-
-  if (fireAndForget) {
-    // Spawn detached: the player runs in the background, CLI exits immediately.
-    // We intentionally skip temp file cleanup — the detached process needs
-    // the file, and the OS will clean tmpdir on its own schedule.
-    const child = spawn(command, args, {
-      detached: true,
-      stdio: "ignore",
-    });
-    child.unref();
-    return;
-  }
-
-  // Synchronous path: wait for playback, then clean up
   try {
+    const { command, args } = getPlayerCommand(tempPath);
+
     await new Promise<void>((resolve, reject) => {
       execFile(command, args, (error) => {
         if (error) {
