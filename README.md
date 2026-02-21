@@ -1,8 +1,8 @@
 # ToneForge
 
-A procedural audio production platform that treats sound as deterministic, inspectable, and reusable behavior rather than static assets.
+A procedural audio platform that generates placeholder sound effects instantly, so development never stalls waiting for final audio assets.
 
-ToneForge lets you define sound effects as code -- generated from recipes and seeds, composed into layered stacks, sequenced into time-based behaviors, and analyzed or classified at scale. Every output is reproducible: same seed + same recipe = same result.
+ToneForge lets developers generate placeholder sounds from recipes and seeds during prototyping — exploring variations in seconds, sharing reproducible results via seed numbers, and building with real audio feedback from day one. When the sound designer delivers final assets, swap them in. Every output is deterministic: same seed + same recipe = same result, across machines and runs.
 
 ## What It Does
 
@@ -17,11 +17,23 @@ ToneForge lets you define sound effects as code -- generated from recipes and se
 
 ## What It Is Not
 
-ToneForge is not a DAW, a music sequencer, a black-box AI audio generator, or a replacement for runtime audio engines like FMOD or Wwise. It produces the sound assets and behaviors those tools consume.
+ToneForge is not a DAW, a music sequencer, a black-box AI audio generator, or a replacement for sound designers. It generates placeholder and prototype audio so teams can develop with sound from the start. Final assets come from your sound designer — ToneForge makes sure you're never blocked waiting for them.
 
 ## Status
 
-This project is in the architecture and design phase. No source code has been written yet. The `docs/prd/` directory contains detailed product requirements documents for each module.
+MVP complete. The `generate` command renders and plays a procedural sci-fi UI confirm sound with seed-based variation and verified byte-level determinism. Run the interactive demo:
+
+```
+./mvp_1.sh
+```
+
+Or generate a sound directly:
+
+```
+npx tsx src/cli.ts generate --recipe ui-scifi-confirm --seed 42
+```
+
+The `docs/prd/` directory contains detailed product requirements documents for planned modules beyond the MVP.
 
 ## Planned Tech Stack
 

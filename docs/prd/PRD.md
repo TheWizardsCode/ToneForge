@@ -351,7 +351,7 @@ ToneForge is a **modular, deterministic sound‑behavior platform**.
 - Intelligence guides
 - CLI ships
 
-Together, these form a **coherent, future‑proof audio system** that replaces manual asset pipelines with intentional, scalable sound design.
+Together, these form a **coherent, future‑proof audio system** that accelerates development with instant placeholder audio and scales to production‑ready sound design.
 
 ---
 
