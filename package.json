@@ -4,12 +4,16 @@
   "description": "A procedural audio production platform that treats sound as deterministic, inspectable, and reusable behavior rather than static assets.",
   "type": "module",
   "main": "dist/index.js",
+  "bin": {
+    "toneforge": "dist/cli.js"
+  },
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "start": "tsx src/index.ts"
+    "start": "tsx src/cli.ts",
+    "generate": "tsx src/cli.ts generate"
   },
   "keywords": [
     "audio",
