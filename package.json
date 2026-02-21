@@ -1,0 +1,31 @@
+{
+  "name": "toneforge",
+  "version": "0.1.0",
+  "description": "A procedural audio production platform that treats sound as deterministic, inspectable, and reusable behavior rather than static assets.",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "start": "tsx src/index.ts"
+  },
+  "keywords": [
+    "audio",
+    "procedural",
+    "synthesis",
+    "tone.js",
+    "sfx"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "tone": "^15.1.22"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  }
+}
