@@ -81,8 +81,11 @@ export function getPlayerCommand(filePath: string): { command: string; args: str
       const player = findLinuxPlayer();
       if (!player) {
         throw new Error(
-          "No audio player found. Install one of: aplay (alsa-utils), " +
-          "paplay (pulseaudio-utils), ffplay (ffmpeg), or play (sox).",
+          "No audio player found. Install one of:\n" +
+          "  sudo apt install alsa-utils      # provides aplay\n" +
+          "  sudo apt install pulseaudio-utils # provides paplay\n" +
+          "  sudo apt install ffmpeg           # provides ffplay\n" +
+          "  sudo apt install sox              # provides play",
         );
       }
       return { command: player.command, args: player.args(filePath) };

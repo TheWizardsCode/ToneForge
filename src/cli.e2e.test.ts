@@ -37,7 +37,7 @@ function detectAudioPlayer(): { available: boolean; command?: string; reason?: s
 }
 
 describe("CLI E2E — audio player detection and playback", () => {
-  it("a supported audio player binary is installed on this system", () => {
+  it("fails if no supported audio player binary is installed", () => {
     const detection = detectAudioPlayer();
 
     if (!detection.available) {
