@@ -24,7 +24,7 @@ ToneForge is not a DAW, a music sequencer, a black-box AI audio generator, or a 
 MVP complete. The `generate` command renders and plays a procedural sci-fi UI confirm sound with seed-based variation and verified byte-level determinism. Run the interactive demo:
 
 ```
-./mvp_1.sh
+./scripts/demo/mvp_1.sh
 ```
 
 Or generate a sound directly:
