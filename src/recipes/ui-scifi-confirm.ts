@@ -5,40 +5,21 @@
  * Uses a sine oscillator through an amplitude envelope with optional
  * filter sweep. All parameters are seed-derived for deterministic variation.
  *
- * Seed-varied parameters:
- * - Base frequency: 400-1200 Hz
- * - Attack: 0.001-0.01s
- * - Decay: 0.05-0.3s
- * - Filter cutoff: 800-4000 Hz
+ * NOTE: This file imports Tone.js for the Recipe factory (used in browser/
+ * interactive contexts). The offline CLI render path imports only
+ * ui-scifi-confirm-params.ts which has zero heavy dependencies.
  *
  * Reference: docs/prd/CORE_PRD.md Section 6.3
  */
 
 import * as Tone from "tone";
-import { rr } from "../core/rng.js";
 import type { Rng } from "../core/rng.js";
 import type { Recipe } from "../core/recipe.js";
+import { getUiSciFiConfirmParams } from "./ui-scifi-confirm-params.js";
 
-/** Parameters derived from seed for the ui-scifi-confirm recipe. */
-export interface UiSciFiConfirmParams {
-  frequency: number;
-  attack: number;
-  decay: number;
-  filterCutoff: number;
-}
-
-/**
- * Extract the seed-derived parameters without constructing the Tone.js graph.
- * Useful for testing parameter variation without requiring audio context.
- */
-export function getUiSciFiConfirmParams(rng: Rng): UiSciFiConfirmParams {
-  return {
-    frequency: rr(rng, 400, 1200),
-    attack: rr(rng, 0.001, 0.01),
-    decay: rr(rng, 0.05, 0.3),
-    filterCutoff: rr(rng, 800, 4000),
-  };
-}
+// Re-export params API so existing consumers don't break
+export { getUiSciFiConfirmParams } from "./ui-scifi-confirm-params.js";
+export type { UiSciFiConfirmParams } from "./ui-scifi-confirm-params.js";
 
 /**
  * Creates a UI sci-fi confirm Recipe.

@@ -12,8 +12,7 @@
  * Reference: docs/prd/CLI_PRD.md Section 4.1, 5.1
  */
 
-import { renderRecipe } from "./core/renderer.js";
-import { registry } from "./recipes/index.js";
+import { renderRecipe, SUPPORTED_RECIPES } from "./core/renderer.js";
 import { playAudio } from "./audio/player.js";
 import { VERSION } from "./index.js";
 
@@ -77,7 +76,7 @@ Options:
   --help, -h        Show this help message
 
 Available recipes:
-  ${registry.list().join(", ") || "(none registered)"}
+  ${SUPPORTED_RECIPES.join(", ") || "(none registered)"}
 
 Examples:
   toneforge generate --recipe ui-scifi-confirm --seed 42
@@ -116,12 +115,11 @@ export async function main(argv: string[] = process.argv): Promise<number> {
   }
 
   // Validate recipe exists
-  if (!registry.getRecipe(recipeName as string)) {
-    const available = registry.list();
+  if (!SUPPORTED_RECIPES.includes(recipeName as typeof SUPPORTED_RECIPES[number])) {
     console.error(
       `Error: Unknown recipe '${recipeName}'.${
-        available.length > 0
-          ? ` Available recipes: ${available.join(", ")}`
+        SUPPORTED_RECIPES.length > 0
+          ? ` Available recipes: ${SUPPORTED_RECIPES.join(", ")}`
           : ""
       }`,
     );

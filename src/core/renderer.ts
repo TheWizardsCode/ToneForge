@@ -10,8 +10,10 @@
 import { OfflineAudioContext } from "node-web-audio-api";
 import { createRng } from "./rng.js";
 import type { Rng } from "./rng.js";
-import { registry } from "../recipes/index.js";
-import { getUiSciFiConfirmParams } from "../recipes/ui-scifi-confirm.js";
+import { getUiSciFiConfirmParams } from "../recipes/ui-scifi-confirm-params.js";
+
+/** Recipe names that have offline graph builders. */
+export const SUPPORTED_RECIPES = ["ui-scifi-confirm"] as const;
 
 /** Result of an offline render containing sample data. */
 export interface RenderResult {
@@ -43,8 +45,7 @@ export async function renderRecipe(
   seed: number,
   duration?: number,
 ): Promise<RenderResult> {
-  const factory = registry.getRecipe(recipeName);
-  if (!factory) {
+  if (!SUPPORTED_RECIPES.includes(recipeName as typeof SUPPORTED_RECIPES[number])) {
     throw new Error(`Recipe not found: ${recipeName}`);
   }
 
