@@ -116,7 +116,7 @@ pause
 
 # ── ACT 1: Generate a single sound ──────────────────────────────────
 
-section_header "1/5" "Unblock your build on day one"
+section_header "1/4" "Unblock your build on day one"
 
 problem "You're building a sci-fi game UI. You need a confirmation\n  sound to test your button flow, but final audio assets\n  are weeks away. Development stalls — or proceeds in silence."
 
@@ -133,7 +133,7 @@ pause
 
 # ── ACT 2: Variation through seeds ──────────────────────────────────
 
-section_header "2/5" "Explore the design space before your sound designer does"
+section_header "2/4" "Explore the design space before your sound designer does"
 
 problem "Your prototype has five different confirm actions and each\n  needs to feel distinct. Searching asset libraries for five\n  'close enough' temps is slow and none of them quite fit."
 
@@ -160,7 +160,7 @@ pause
 
 # ── ACT 3: Determinism ──────────────────────────────────────────────
 
-section_header "3/5" "Reproducible placeholders across your team"
+section_header "3/4" "Reproducible placeholders across your team"
 
 problem "A colleague asks 'what was that sound you used in the\n  prototype?' You need to reproduce it exactly — not hunt\n  through a downloads folder or re-scrub an asset library."
 
@@ -177,7 +177,7 @@ pause
 
 # ── ACT 4: Programmatic proof ────────────────────────────────────────
 
-section_header "4/5" "Determinism you can verify in CI"
+section_header "4/4" "Determinism you can verify in CI"
 
 problem "Placeholder or not, if your integration tests depend on\n  audio output, you need a guarantee that the output never\n  drifts between runs. 'Probably the same' is not enough."
 
@@ -192,23 +192,6 @@ echo -e "  ${DIM}Every one of those renders produced the exact same buffer.${RES
 
 pause
 
-# ── ACT 5: The full test suite ───────────────────────────────────────
-
-section_header "5/5" "Production-grade foundations"
-
-problem "Placeholder tooling that breaks or behaves unpredictably\n  slows you down instead of speeding you up. Is this\n  actually reliable enough to depend on?"
-
-solution "ToneForge has 62 tests across 8 test files covering the\n  RNG, recipe registry, renderer, WAV encoder, and CLI.\n  Strict TypeScript. Solid error handling. Let's prove it:"
-
-echo ""
-run_cmd "npx vitest run 2>&1 | tail -12"
-
-echo ""
-echo -e "  ${DIM}62 tests. 8 files. All passing.${RESET}"
-echo -e "  ${DIM}Strict TypeScript. Vitest. No warnings.${RESET}"
-
-pause
-
 # ── FINALE ───────────────────────────────────────────────────────────
 
 divider
@@ -220,7 +203,6 @@ echo -e "    ${GREEN}1.${RESET} Placeholder audio generated instantly — no wai
 echo -e "    ${GREEN}2.${RESET} Rapid variation — explore the design space with seed changes"
 echo -e "    ${GREEN}3.${RESET} Reproducible across your team — share a seed, share a sound"
 echo -e "    ${GREEN}4.${RESET} CI-verifiable determinism — proven by automated tests"
-echo -e "    ${GREEN}5.${RESET} Production-grade engineering — 62 tests, strict types"
 echo ""
 echo -e "  ${BOLD}This is one recipe. One sound type. The beginning.${RESET}"
 echo ""

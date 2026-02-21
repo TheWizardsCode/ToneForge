@@ -155,7 +155,10 @@ export async function main(argv: string[] = process.argv): Promise<number> {
 
     // Play
     console.log("Playing...");
-    await playAudio(result.samples, { sampleRate: result.sampleRate });
+    await playAudio(result.samples, {
+      sampleRate: result.sampleRate,
+      duration: result.duration,
+    });
     console.log("Done.");
 
     return 0;
