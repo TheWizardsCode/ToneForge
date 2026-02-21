@@ -5,12 +5,12 @@
  * platform's system audio player. Cleans up the temp file after playback.
  *
  * Supported platforms:
- * - Linux:   aplay (ALSA utils)
+ * - Linux:   aplay, paplay, ffplay, or sox play (first available)
  * - macOS:   afplay
  * - Windows: powershell Start-Process / [System.Media.SoundPlayer]
  */
 
-import { execFile } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { writeFile, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -23,17 +23,70 @@ export interface PlayOptions {
   sampleRate?: number;
 }
 
+/** A candidate audio player with its command and argument builder. */
+interface PlayerCandidate {
+  /** Binary name to look up via `which`. */
+  command: string;
+  /** Build the argument list for this player given a WAV file path. */
+  args: (filePath: string) => string[];
+}
+
+/** Linux audio players in order of preference. */
+const LINUX_PLAYERS: PlayerCandidate[] = [
+  { command: "aplay", args: (f) => ["-q", f] },
+  { command: "paplay", args: (f) => [f] },
+  { command: "ffplay", args: (f) => ["-nodisp", "-autoexit", "-loglevel", "quiet", f] },
+  { command: "play", args: (f) => ["-q", f] }, // sox
+];
+
+/**
+ * Check if a command is available on the system PATH.
+ */
+function isCommandAvailable(command: string): boolean {
+  try {
+    execFileSync("which", [command], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Find the first available audio player on Linux.
+ *
+ * @returns The player candidate, or null if none found.
+ */
+function findLinuxPlayer(): PlayerCandidate | null {
+  for (const candidate of LINUX_PLAYERS) {
+    if (isCommandAvailable(candidate.command)) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
 /**
  * Get the system audio player command and arguments for the current platform.
  *
+ * On Linux, probes for available players in order of preference:
+ * aplay, paplay, ffplay, play (sox).
+ *
  * @param filePath - Path to the WAV file to play.
  * @returns Object with `command` and `args` for execFile.
- * @throws If the platform is not supported.
+ * @throws If no supported audio player is found.
  */
-function getPlayerCommand(filePath: string): { command: string; args: string[] } {
+export function getPlayerCommand(filePath: string): { command: string; args: string[] } {
   switch (process.platform) {
-    case "linux":
-      return { command: "aplay", args: ["-q", filePath] };
+    case "linux": {
+      const player = findLinuxPlayer();
+      if (!player) {
+        throw new Error(
+          "No audio player found. Install one of: aplay (alsa-utils), " +
+          "paplay (pulseaudio-utils), ffplay (ffmpeg), or play (sox).",
+        );
+      }
+      return { command: player.command, args: player.args(filePath) };
+    }
     case "darwin":
       return { command: "afplay", args: [filePath] };
     case "win32":
