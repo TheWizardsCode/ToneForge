@@ -73,8 +73,10 @@ describe("CLI E2E — audio player detection and playback", () => {
     expect(command.length).toBeGreaterThan(0);
     expect(Array.isArray(args)).toBe(true);
     expect(args.length).toBeGreaterThan(0);
-    // The file path must appear somewhere in the args
-    expect(args.some((a) => a.includes("/tmp/test.wav"))).toBe(true);
+    // The file path (or a platform-converted equivalent) must appear in the args
+    // On WSL, the Linux path is converted to a Windows UNC path (e.g. \\wsl.localhost\...)
+    const hasPath = args.some((a) => a.includes("test.wav"));
+    expect(hasPath).toBe(true);
   });
 
   it("full CLI pipeline: generate renders and plays with exit code 0", async () => {
@@ -102,7 +104,15 @@ describe("CLI E2E — audio player detection and playback", () => {
 
       const stdout = stdoutLines.join("\n");
 
-      expect(code).toBe(0);
+      const stderr = stderrLines.join("\n");
+
+      if (code !== 0) {
+        expect.fail(
+          `CLI exited with code ${code}.\n` +
+          `stdout:\n${stdout}\n` +
+          `stderr:\n${stderr}`,
+        );
+      }
       expect(stdout).toContain("Generating");
       expect(stdout).toContain("ui-scifi-confirm");
       expect(stdout).toContain("seed 42");

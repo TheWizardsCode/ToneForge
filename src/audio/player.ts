@@ -6,11 +6,13 @@
  *
  * Supported platforms:
  * - Linux:   aplay, paplay, ffplay, or sox play (first available)
+ * - WSL:     powershell.exe via Windows audio (auto-detected)
  * - macOS:   afplay
  * - Windows: powershell Start-Process / [System.Media.SoundPlayer]
  */
 
 import { execFile, execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { writeFile, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -52,6 +54,33 @@ function isCommandAvailable(command: string): boolean {
 }
 
 /**
+ * Detect whether we are running inside WSL (Windows Subsystem for Linux).
+ */
+function isWSL(): boolean {
+  try {
+    const release = readFileSync("/proc/version", "utf-8");
+    return release.toLowerCase().includes("microsoft");
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Convert a Linux path to a Windows path using wslpath.
+ * Falls back to the \\wsl$ UNC convention if wslpath is unavailable.
+ */
+function toWindowsPath(linuxPath: string): string {
+  try {
+    return execFileSync("wslpath", ["-w", linuxPath], {
+      encoding: "utf-8",
+    }).trim();
+  } catch {
+    // Fallback: construct UNC path manually
+    return `\\\\wsl$\\${linuxPath}`;
+  }
+}
+
+/**
  * Find the first available audio player on Linux.
  *
  * @returns The player candidate, or null if none found.
@@ -69,7 +98,8 @@ function findLinuxPlayer(): PlayerCandidate | null {
  * Get the system audio player command and arguments for the current platform.
  *
  * On Linux, probes for available players in order of preference:
- * aplay, paplay, ffplay, play (sox).
+ * aplay, paplay, ffplay, play (sox). On WSL, falls back to powershell.exe
+ * to play audio through the Windows host.
  *
  * @param filePath - Path to the WAV file to play.
  * @returns Object with `command` and `args` for execFile.
@@ -78,14 +108,31 @@ function findLinuxPlayer(): PlayerCandidate | null {
 export function getPlayerCommand(filePath: string): { command: string; args: string[] } {
   switch (process.platform) {
     case "linux": {
+      // On WSL, prefer powershell.exe to play through Windows audio
+      if (isWSL() && isCommandAvailable("powershell.exe")) {
+        const winPath = toWindowsPath(filePath);
+        return {
+          command: "powershell.exe",
+          args: [
+            "-NoProfile",
+            "-Command",
+            `(New-Object System.Media.SoundPlayer '${winPath}').PlaySync()`,
+          ],
+        };
+      }
+
       const player = findLinuxPlayer();
       if (!player) {
+        const wslHint = isWSL()
+          ? "\n  Or ensure powershell.exe is on your PATH (WSL detected)."
+          : "";
         throw new Error(
           "No audio player found. Install one of:\n" +
           "  sudo apt install alsa-utils      # provides aplay\n" +
           "  sudo apt install pulseaudio-utils # provides paplay\n" +
           "  sudo apt install ffmpeg           # provides ffplay\n" +
-          "  sudo apt install sox              # provides play",
+          "  sudo apt install sox              # provides play" +
+          wslHint,
         );
       }
       return { command: player.command, args: player.args(filePath) };
