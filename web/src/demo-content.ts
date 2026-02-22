@@ -19,6 +19,7 @@ import type { ParsedDemoStep, ParsedDemo, DemoMeta } from "@toneforge/demo/parse
 
 // Import demo markdown files as raw strings via Vite ?raw
 import mvp1Raw from "@demos/mvp-1.md?raw";
+import recipeVarietyRaw from "@demos/recipe-variety.md?raw";
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -36,6 +37,7 @@ export interface LoadedDemo {
 /** Registry of raw markdown sources keyed by demo id. */
 const RAW_SOURCES: Record<string, string> = {
   "mvp-1": mvp1Raw,
+  "recipe-variety": recipeVarietyRaw,
 };
 
 function parseSafe(id: string, raw: string): ParsedDemo {

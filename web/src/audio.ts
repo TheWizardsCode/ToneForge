@@ -5,11 +5,17 @@
 // an AudioContext before a user gesture. Static imports of "tone" would trigger
 // AudioContext creation on page load, which Chrome blocks with:
 //   "The AudioContext was not allowed to start."
+//
+// Recipe factories are also lazy-loaded alongside Tone.js. All registered
+// recipes are supported — the recipe name is extracted from the CLI command
+// string and dispatched to the corresponding factory.
+
+import type { RecipeFactory } from "@toneforge/core/recipe.js";
 
 // Lazy-loaded module references (populated on first use inside a click handler)
 let Tone: typeof import("tone") | null = null;
 let createRng: typeof import("@toneforge/core/rng").createRng | null = null;
-let createUiSciFiConfirm: typeof import("@toneforge/recipes/ui-scifi-confirm").createUiSciFiConfirm | null = null;
+let recipeFactories: Record<string, RecipeFactory> | null = null;
 
 let audioContextStarted = false;
 
@@ -23,33 +29,60 @@ export function extractSeed(command: string): number | null {
 }
 
 /**
- * Check if a command is a generate command for a supported recipe.
+ * Extract recipe name from a CLI command string.
+ * Matches patterns like `--recipe weapon-laser-zap`.
+ */
+export function extractRecipeName(command: string): string | null {
+  const match = command.match(/--recipe\s+(\S+)/);
+  return match ? match[1] : null;
+}
+
+/**
+ * Check if a command is a generate command with a recipe and seed.
  */
 export function isGenerateCommand(command: string): boolean {
   return (
     command.includes("generate") &&
-    command.includes("--recipe ui-scifi-confirm") &&
+    extractRecipeName(command) !== null &&
     extractSeed(command) !== null
   );
 }
 
 /**
- * Lazily load Tone.js and recipe dependencies.
+ * Lazily load Tone.js and all recipe dependencies.
  * Must be called from within a user gesture handler (click, etc.)
  * to satisfy the browser autoplay policy.
  */
 async function loadAudioDeps(): Promise<void> {
   if (Tone) return; // already loaded
 
-  const [toneModule, rngModule, recipeModule] = await Promise.all([
+  const [
+    toneModule,
+    rngModule,
+    uiSciFiConfirmModule,
+    weaponLaserZapModule,
+    footstepStoneModule,
+    uiNotificationChimeModule,
+    ambientWindGustModule,
+  ] = await Promise.all([
     import("tone"),
     import("@toneforge/core/rng"),
     import("@toneforge/recipes/ui-scifi-confirm"),
+    import("@toneforge/recipes/weapon-laser-zap"),
+    import("@toneforge/recipes/footstep-stone"),
+    import("@toneforge/recipes/ui-notification-chime"),
+    import("@toneforge/recipes/ambient-wind-gust"),
   ]);
 
   Tone = toneModule;
   createRng = rngModule.createRng;
-  createUiSciFiConfirm = recipeModule.createUiSciFiConfirm;
+  recipeFactories = {
+    "ui-scifi-confirm": uiSciFiConfirmModule.createUiSciFiConfirm,
+    "weapon-laser-zap": weaponLaserZapModule.createWeaponLaserZap,
+    "footstep-stone": footstepStoneModule.createFootstepStone,
+    "ui-notification-chime": uiNotificationChimeModule.createUiNotificationChime,
+    "ambient-wind-gust": ambientWindGustModule.createAmbientWindGust,
+  };
 }
 
 /**
@@ -70,11 +103,17 @@ async function ensureAudioContext(): Promise<void> {
  * Uses Tone.Offline to render the audio graph, then plays it
  * through the browser's Web Audio API.
  */
-export async function renderAndPlay(seed: number): Promise<void> {
+export async function renderAndPlay(recipeName: string, seed: number): Promise<void> {
   await ensureAudioContext();
 
+  const factory = recipeFactories![recipeName];
+  if (!factory) {
+    console.warn(`Unknown recipe "${recipeName}" — skipping audio playback.`);
+    return;
+  }
+
   const rng = createRng!(seed);
-  const recipe = createUiSciFiConfirm!(rng);
+  const recipe = factory(rng);
   const duration = recipe.duration;
 
   // Render offline using Tone.Offline
@@ -98,13 +137,14 @@ export async function handleCommandAudio(command: string): Promise<boolean> {
     return false;
   }
 
+  const recipeName = extractRecipeName(command);
   const seed = extractSeed(command);
-  if (seed === null) {
+  if (recipeName === null || seed === null) {
     return false;
   }
 
   try {
-    await renderAndPlay(seed);
+    await renderAndPlay(recipeName, seed);
     return true;
   } catch (err) {
     console.error("Browser audio playback failed:", err);

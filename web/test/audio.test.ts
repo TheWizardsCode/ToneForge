@@ -1,15 +1,15 @@
 /**
  * Unit tests for browser audio utility functions.
  *
- * Tests extractSeed and isGenerateCommand — the pure functions in audio.ts
- * that don't require a browser or Tone.js runtime.
+ * Tests extractSeed, extractRecipeName, and isGenerateCommand — the pure
+ * functions in audio.ts that don't require a browser or Tone.js runtime.
  *
  * Since audio.ts now uses dynamic import() for tone (lazy-loaded on first
  * user gesture), these pure functions can be imported without triggering
  * any AudioContext creation.
  */
 import { describe, it, expect } from "vitest";
-import { extractSeed, isGenerateCommand } from "../src/audio.js";
+import { extractSeed, extractRecipeName, isGenerateCommand } from "../src/audio.js";
 
 describe("extractSeed", () => {
   it("extracts seed from --seed 42 format", () => {
@@ -33,11 +33,69 @@ describe("extractSeed", () => {
   });
 });
 
+describe("extractRecipeName", () => {
+  it("extracts recipe name from --recipe ui-scifi-confirm", () => {
+    expect(
+      extractRecipeName("node dist/cli.js generate --recipe ui-scifi-confirm --seed 42"),
+    ).toBe("ui-scifi-confirm");
+  });
+
+  it("extracts recipe name from --recipe weapon-laser-zap", () => {
+    expect(
+      extractRecipeName("node dist/cli.js generate --recipe weapon-laser-zap --seed 7"),
+    ).toBe("weapon-laser-zap");
+  });
+
+  it("extracts recipe name from --recipe footstep-stone", () => {
+    expect(
+      extractRecipeName("generate --recipe footstep-stone --seed 100"),
+    ).toBe("footstep-stone");
+  });
+
+  it("extracts recipe name from --recipe ui-notification-chime", () => {
+    expect(
+      extractRecipeName("generate --recipe ui-notification-chime --seed 1"),
+    ).toBe("ui-notification-chime");
+  });
+
+  it("extracts recipe name from --recipe ambient-wind-gust", () => {
+    expect(
+      extractRecipeName("generate --recipe ambient-wind-gust --seed 55"),
+    ).toBe("ambient-wind-gust");
+  });
+
+  it("returns null when no --recipe is present", () => {
+    expect(extractRecipeName("node dist/cli.js generate --seed 42")).toBeNull();
+  });
+
+  it("returns null for empty string", () => {
+    expect(extractRecipeName("")).toBeNull();
+  });
+});
+
 describe("isGenerateCommand", () => {
-  it("returns true for a valid generate command", () => {
+  it("returns true for a valid generate command with ui-scifi-confirm", () => {
     expect(isGenerateCommand("node dist/cli.js generate --recipe ui-scifi-confirm --seed 42")).toBe(
       true,
     );
+  });
+
+  it("returns true for a valid generate command with weapon-laser-zap", () => {
+    expect(isGenerateCommand("node dist/cli.js generate --recipe weapon-laser-zap --seed 7")).toBe(
+      true,
+    );
+  });
+
+  it("returns true for a valid generate command with footstep-stone", () => {
+    expect(isGenerateCommand("generate --recipe footstep-stone --seed 100")).toBe(true);
+  });
+
+  it("returns true for a valid generate command with ui-notification-chime", () => {
+    expect(isGenerateCommand("generate --recipe ui-notification-chime --seed 1")).toBe(true);
+  });
+
+  it("returns true for a valid generate command with ambient-wind-gust", () => {
+    expect(isGenerateCommand("generate --recipe ambient-wind-gust --seed 55")).toBe(true);
   });
 
   it("returns false when missing --seed", () => {
