@@ -20,12 +20,14 @@ import { VERSION } from "./index.js";
 /** Parse command-line arguments into a structured map. */
 function parseArgs(argv: string[]): {
   command: string | undefined;
+  subcommand: string | undefined;
   flags: Record<string, string | boolean>;
 } {
   // Skip node and script path
   const args = argv.slice(2);
   const flags: Record<string, string | boolean> = {};
   let command: string | undefined;
+  let subcommand: string | undefined;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
@@ -42,10 +44,12 @@ function parseArgs(argv: string[]): {
       }
     } else if (command === undefined) {
       command = arg;
+    } else if (subcommand === undefined) {
+      subcommand = arg;
     }
   }
 
-  return { command, flags };
+  return { command, subcommand, flags };
 }
 
 /** Print general help text. */
@@ -57,6 +61,7 @@ Usage:
 
 Commands:
   generate    Render and play a procedural sound
+  list        List available resources (e.g. recipes)
 
 Options:
   --help, -h  Show this help message
@@ -85,18 +90,59 @@ Examples:
   toneforge generate --recipe ui-scifi-confirm`);
 }
 
+/** Print help text for the list command. */
+function printListHelp(): void {
+  console.log(`ToneForge list — List available resources
+
+Usage:
+  toneforge list <resource>
+
+Resources:
+  recipes     List all registered recipe names
+
+Options:
+  --help, -h  Show this help message
+
+Examples:
+  toneforge list recipes`);
+}
+
 /** Main CLI entry point. Exported for testability. */
 export async function main(argv: string[] = process.argv): Promise<number> {
-  const { command, flags } = parseArgs(argv);
+  const { command, subcommand, flags } = parseArgs(argv);
 
   // Top-level help
   if (flags["help"] || command === undefined) {
     if (command === "generate") {
       printGenerateHelp();
+    } else if (command === "list") {
+      printListHelp();
     } else {
       printHelp();
     }
     return command === undefined && !flags["help"] ? 1 : 0;
+  }
+
+  if (command === "list") {
+    if (flags["help"]) {
+      printListHelp();
+      return 0;
+    }
+
+    if (subcommand !== "recipes") {
+      if (subcommand === undefined) {
+        console.error("Error: 'list' requires a resource type. Run 'toneforge list --help' for usage.");
+      } else {
+        console.error(`Error: Unknown resource '${subcommand}'. Run 'toneforge list --help' for usage.`);
+      }
+      return 1;
+    }
+
+    const recipes = registry.list();
+    for (const name of recipes) {
+      console.log(name);
+    }
+    return 0;
   }
 
   if (command !== "generate") {

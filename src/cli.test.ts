@@ -50,6 +50,7 @@ describe("CLI", () => {
       expect(code).toBe(0);
       expect(stdout).toContain("ToneForge");
       expect(stdout).toContain("generate");
+      expect(stdout).toContain("list");
     });
 
     it("prints help with -h flag", async () => {
@@ -140,6 +141,54 @@ describe("CLI", () => {
       const elapsed = performance.now() - start;
       expect(code).toBe(0);
       expect(elapsed).toBeLessThan(5000);
+    });
+  });
+
+  describe("list command", () => {
+    it("lists all registered recipes", async () => {
+      const { code, stdout } = await captureOutput(
+        () => main(argv("list", "recipes")),
+      );
+      expect(code).toBe(0);
+      expect(stdout).toContain("ui-scifi-confirm");
+      expect(stdout).toContain("weapon-laser-zap");
+      expect(stdout).toContain("footstep-stone");
+      expect(stdout).toContain("ui-notification-chime");
+      expect(stdout).toContain("ambient-wind-gust");
+    });
+
+    it("outputs one recipe per line", async () => {
+      const { code, stdout } = await captureOutput(
+        () => main(argv("list", "recipes")),
+      );
+      expect(code).toBe(0);
+      const lines = stdout.trim().split("\n");
+      expect(lines.length).toBeGreaterThanOrEqual(5);
+    });
+
+    it("prints list help with --help flag", async () => {
+      const { code, stdout } = await captureOutput(
+        () => main(argv("list", "--help")),
+      );
+      expect(code).toBe(0);
+      expect(stdout).toContain("recipes");
+      expect(stdout).toContain("resource");
+    });
+
+    it("returns 1 when no resource specified", async () => {
+      const { code, stderr } = await captureOutput(
+        () => main(argv("list")),
+      );
+      expect(code).toBe(1);
+      expect(stderr).toContain("requires a resource type");
+    });
+
+    it("returns 1 for unknown resource type", async () => {
+      const { code, stderr } = await captureOutput(
+        () => main(argv("list", "unknown")),
+      );
+      expect(code).toBe(1);
+      expect(stderr).toContain("Unknown resource");
     });
   });
 });
