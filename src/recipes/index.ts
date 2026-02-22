@@ -15,6 +15,8 @@ import { createUiSciFiConfirm } from "./ui-scifi-confirm.js";
 import { getUiSciFiConfirmParams } from "./ui-scifi-confirm-params.js";
 import { createWeaponLaserZap } from "./weapon-laser-zap.js";
 import { getWeaponLaserZapParams } from "./weapon-laser-zap-params.js";
+import { createFootstepStone } from "./footstep-stone.js";
+import { getFootstepStoneParams } from "./footstep-stone-params.js";
 
 /** The global recipe registry instance with all built-in recipes registered. */
 export const registry = new RecipeRegistry();
@@ -156,4 +158,94 @@ registry.register("weapon-laser-zap", {
   factory: createWeaponLaserZap,
   getDuration: weaponLaserZapDuration,
   buildOfflineGraph: weaponLaserZapOfflineGraph,
+});
+
+// ── footstep-stone ────────────────────────────────────────────────
+
+function footstepStoneDuration(rng: Rng): number {
+  const params = getFootstepStoneParams(rng);
+  return params.transientAttack + Math.max(params.bodyDecay, params.tailDecay);
+}
+
+function footstepStoneOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getFootstepStoneParams(rng);
+
+  const bufferSize = Math.ceil(ctx.sampleRate * duration);
+
+  // Body layer: bandpass-filtered noise for the main impact
+  const bodyBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const bodyData = bodyBuffer.getChannelData(0);
+  for (let i = 0; i < bodyData.length; i++) {
+    bodyData[i] = rng() * 2 - 1; // white noise
+  }
+
+  const bodySrc = ctx.createBufferSource();
+  bodySrc.buffer = bodyBuffer;
+
+  const bodyFilter = ctx.createBiquadFilter();
+  bodyFilter.type = "bandpass";
+  bodyFilter.frequency.value = params.filterFreq;
+  bodyFilter.Q.value = params.filterQ;
+
+  const bodyGain = ctx.createGain();
+  bodyGain.gain.value = params.bodyLevel;
+
+  // Body amplitude envelope
+  const bodyEnv = ctx.createGain();
+  bodyEnv.gain.setValueAtTime(0, 0);
+  bodyEnv.gain.linearRampToValueAtTime(1, params.transientAttack);
+  bodyEnv.gain.linearRampToValueAtTime(0, params.transientAttack + params.bodyDecay);
+
+  bodySrc.connect(bodyFilter);
+  bodyFilter.connect(bodyGain);
+  bodyGain.connect(bodyEnv);
+  bodyEnv.connect(ctx.destination);
+
+  // Tail layer: lowpass-filtered brownian noise for surface resonance
+  const tailBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const tailData = tailBuffer.getChannelData(0);
+  // Approximate brown noise: integrate white noise
+  let brownState = 0;
+  for (let i = 0; i < tailData.length; i++) {
+    brownState += rng() * 2 - 1;
+    brownState *= 0.998; // leaky integrator to prevent drift
+    tailData[i] = brownState * 0.1; // scale down
+  }
+
+  const tailSrc = ctx.createBufferSource();
+  tailSrc.buffer = tailBuffer;
+
+  const tailFilter = ctx.createBiquadFilter();
+  tailFilter.type = "lowpass";
+  tailFilter.frequency.value = params.filterFreq * 0.5;
+
+  const tailGain = ctx.createGain();
+  tailGain.gain.value = params.tailLevel;
+
+  // Tail amplitude envelope
+  const tailEnv = ctx.createGain();
+  tailEnv.gain.setValueAtTime(0, 0);
+  tailEnv.gain.linearRampToValueAtTime(1, params.transientAttack);
+  tailEnv.gain.linearRampToValueAtTime(0, params.transientAttack + params.tailDecay);
+
+  tailSrc.connect(tailFilter);
+  tailFilter.connect(tailGain);
+  tailGain.connect(tailEnv);
+  tailEnv.connect(ctx.destination);
+
+  // Schedule
+  bodySrc.start(0);
+  tailSrc.start(0);
+  bodySrc.stop(duration);
+  tailSrc.stop(duration);
+}
+
+registry.register("footstep-stone", {
+  factory: createFootstepStone,
+  getDuration: footstepStoneDuration,
+  buildOfflineGraph: footstepStoneOfflineGraph,
 });
