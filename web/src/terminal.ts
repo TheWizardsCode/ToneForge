@@ -77,11 +77,16 @@ export function createTerminal(
     }
   });
 
-  // Re-fit on window resize
+  // Re-fit on window resize and container resize
   const onWindowResize = (): void => {
     fitAddon.fit();
   };
   window.addEventListener("resize", onWindowResize);
+
+  const resizeObserver = new ResizeObserver(() => {
+    fitAddon.fit();
+  });
+  resizeObserver.observe(container);
 
   connect();
 
@@ -94,6 +99,7 @@ export function createTerminal(
     dispose(): void {
       disposed = true;
       window.removeEventListener("resize", onWindowResize);
+      resizeObserver.disconnect();
       if (ws) {
         ws.close();
         ws = null;
