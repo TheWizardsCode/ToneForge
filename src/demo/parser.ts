@@ -127,22 +127,25 @@ function extractCommentary(bq: Blockquote): string | null {
 
 /**
  * Serialize list and paragraph nodes into plain description text.
+ * Paragraphs and lists are separated by double newlines so renderers
+ * can distinguish paragraph breaks from line breaks within a list.
  */
 function nodesToDescription(nodes: Content[]): string {
-  const parts: string[] = [];
+  const blocks: string[] = [];
   for (const node of nodes) {
     if (node.type === "paragraph") {
-      parts.push(nodeToText(node));
+      blocks.push(nodeToText(node));
     } else if (node.type === "list") {
       const list = node as List;
-      list.children.forEach((item, i) => {
+      const items = list.children.map((item, i) => {
         const text = nodeToText(item).trim();
         const prefix = list.ordered ? `${(list.start ?? 1) + i}. ` : "- ";
-        parts.push(prefix + text);
+        return prefix + text;
       });
+      blocks.push(items.join("\n"));
     }
   }
-  return parts.join("\n").trim();
+  return blocks.join("\n\n").trim();
 }
 
 // ── Core parser ────────────────────────────────────────────────────
