@@ -158,9 +158,41 @@ export function createWizard(
     if (step.description) {
       const desc = document.createElement("div");
       desc.className = "wizard-description";
-      const pre = document.createElement("pre");
-      pre.textContent = step.description;
-      desc.appendChild(pre);
+
+      // Split on double newlines to get logical blocks (paragraphs / lists)
+      const blocks = step.description.split(/\n\n+/);
+      for (const block of blocks) {
+        const trimmed = block.trim();
+        if (!trimmed) continue;
+
+        // Detect ordered or unordered list blocks
+        const lines = trimmed.split("\n");
+        const isOrderedList = lines.every((l) => /^\d+\.\s/.test(l));
+        const isUnorderedList = lines.every((l) => /^[-*]\s/.test(l));
+
+        if (isOrderedList) {
+          const ol = document.createElement("ol");
+          for (const line of lines) {
+            const li = document.createElement("li");
+            li.textContent = line.replace(/^\d+\.\s/, "");
+            ol.appendChild(li);
+          }
+          desc.appendChild(ol);
+        } else if (isUnorderedList) {
+          const ul = document.createElement("ul");
+          for (const line of lines) {
+            const li = document.createElement("li");
+            li.textContent = line.replace(/^[-*]\s/, "");
+            ul.appendChild(li);
+          }
+          desc.appendChild(ul);
+        } else {
+          const p = document.createElement("p");
+          p.textContent = trimmed;
+          desc.appendChild(p);
+        }
+      }
+
       section.appendChild(desc);
     }
 
