@@ -9,6 +9,7 @@
     "build": "vite build && tsc -p tsconfig.server.json",
     "start": "node dist-server/index.js",
     "test": "vitest run",
+    "test:e2e": "playwright test",
     "typecheck": "tsc -p tsconfig.server.json --noEmit && vite build --mode development 2>&1 | head -1"
   },
   "dependencies": {
@@ -21,6 +22,7 @@
     "ws": "^8.18.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@types/express": "^5.0.2",
     "@types/node": "^22.15.0",
     "@types/ws": "^8.18.1",
