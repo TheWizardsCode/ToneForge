@@ -145,4 +145,46 @@ describe("WebSocket terminal", () => {
     // Should NOT connect; expect error or close
     expect(result).not.toBe("connected");
   });
+
+  it("executes a command sent via WebSocket and returns the output (Run button simulation)", async () => {
+    const ws = new WebSocket(`ws://localhost:${port}/terminal`);
+
+    await new Promise<void>((resolve, reject) => {
+      ws.on("open", () => resolve());
+      ws.on("error", (err) => reject(err));
+    });
+
+    // Collect all PTY output until we see the expected marker
+    const MARKER = "TONEFORGE_RUN_BTN_OK";
+    const output = await new Promise<string>((resolve, reject) => {
+      let data = "";
+
+      ws.on("message", (msg) => {
+        data += msg.toString();
+        if (data.includes(MARKER)) {
+          resolve(data);
+        }
+      });
+
+      // Simulate what the Run button does: send the command as PTY input
+      ws.send(
+        JSON.stringify({ type: "input", data: `echo ${MARKER}\n` }),
+      );
+
+      setTimeout(() => {
+        reject(
+          new Error(
+            `Timed out waiting for command output. Received so far: ${JSON.stringify(data)}`,
+          ),
+        );
+      }, 5000);
+    });
+
+    // The PTY should echo the command itself and then its output
+    expect(output).toContain(`echo ${MARKER}`); // command echo
+    expect(output).toContain(MARKER); // command output
+
+    ws.close();
+    await new Promise((r) => setTimeout(r, 200));
+  });
 });

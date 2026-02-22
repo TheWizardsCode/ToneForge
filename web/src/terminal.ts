@@ -42,6 +42,8 @@ export function createTerminal(
     ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
+      // Show connection banner so the user knows the terminal is live
+      term.write("\x1b[36mToneForge Terminal\x1b[0m\r\n");
       // Send initial size
       const dims = { type: "resize", cols: term.cols, rows: term.rows };
       ws!.send(JSON.stringify(dims));
