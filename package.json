@@ -15,6 +15,7 @@
     "test:watch": "vitest",
     "start": "node dist/cli.js",
     "generate": "node dist/cli.js generate",
+    "demo": "tsx scripts/demo/run.ts",
     "dev:web": "npm run build && npm run build --prefix web && concurrently -k -n backend,vite -c blue,green \"npm start --prefix web\" \"npm run dev --prefix web\""
   },
   "keywords": [
