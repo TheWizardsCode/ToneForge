@@ -19,6 +19,8 @@ import { createFootstepStone } from "./footstep-stone.js";
 import { getFootstepStoneParams } from "./footstep-stone-params.js";
 import { createUiNotificationChime } from "./ui-notification-chime.js";
 import { getUiNotificationChimeParams } from "./ui-notification-chime-params.js";
+import { createAmbientWindGust } from "./ambient-wind-gust.js";
+import { getAmbientWindGustParams } from "./ambient-wind-gust-params.js";
 
 /** The global recipe registry instance with all built-in recipes registered. */
 export const registry = new RecipeRegistry();
@@ -304,4 +306,88 @@ registry.register("ui-notification-chime", {
   factory: createUiNotificationChime,
   getDuration: uiNotificationChimeDuration,
   buildOfflineGraph: uiNotificationChimeOfflineGraph,
+});
+
+// ── ambient-wind-gust ─────────────────────────────────────────────
+
+function ambientWindGustDuration(rng: Rng): number {
+  const params = getAmbientWindGustParams(rng);
+  return params.attack + params.sustain + params.release;
+}
+
+function ambientWindGustOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getAmbientWindGustParams(rng);
+
+  const bufferSize = Math.ceil(ctx.sampleRate * duration);
+
+  // Pink noise approximation: filter white noise with -3dB/octave slope
+  // Use a lowpass at a moderate frequency to approximate pink spectrum
+  const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const noiseData = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < noiseData.length; i++) {
+    noiseData[i] = rng() * 2 - 1;
+  }
+
+  const noiseSrc = ctx.createBufferSource();
+  noiseSrc.buffer = noiseBuffer;
+
+  // Pink noise approximation filter (lowpass to roll off highs)
+  const pinkFilter = ctx.createBiquadFilter();
+  pinkFilter.type = "lowpass";
+  pinkFilter.frequency.value = 2000;
+
+  // Main bandpass filter
+  const filter = ctx.createBiquadFilter();
+  filter.type = "bandpass";
+  filter.frequency.value = params.filterFreq;
+  filter.Q.value = params.filterQ;
+
+  // LFO for filter cutoff modulation (manual via automation)
+  // Approximate sine LFO by scheduling value changes
+  const lfoMin = params.filterFreq - params.lfoDepth * 0.5;
+  const lfoMax = params.filterFreq + params.lfoDepth * 0.5;
+  const lfoSafeMin = Math.max(20, lfoMin); // prevent negative/zero freq
+  const lfoPeriod = 1 / params.lfoRate;
+  const lfoSteps = Math.ceil(duration / (lfoPeriod / 16)); // 16 steps per cycle
+  const lfoStepTime = duration / lfoSteps;
+
+  for (let i = 0; i <= lfoSteps; i++) {
+    const t = i * lfoStepTime;
+    const phase = (t * params.lfoRate * 2 * Math.PI);
+    const value = lfoSafeMin + (lfoMax - lfoSafeMin) * (0.5 + 0.5 * Math.sin(phase));
+    filter.frequency.setValueAtTime(value, t);
+  }
+
+  // Level control
+  const levelGain = ctx.createGain();
+  levelGain.gain.value = params.level;
+
+  // Amplitude envelope: swell, sustain, fade
+  const envGain = ctx.createGain();
+  envGain.gain.setValueAtTime(0, 0);
+  // Attack: swell up
+  envGain.gain.linearRampToValueAtTime(1, params.attack);
+  // Sustain: hold at 1
+  envGain.gain.setValueAtTime(1, params.attack + params.sustain);
+  // Release: fade out
+  envGain.gain.linearRampToValueAtTime(0, duration);
+
+  noiseSrc.connect(pinkFilter);
+  pinkFilter.connect(filter);
+  filter.connect(levelGain);
+  levelGain.connect(envGain);
+  envGain.connect(ctx.destination);
+
+  noiseSrc.start(0);
+  noiseSrc.stop(duration);
+}
+
+registry.register("ambient-wind-gust", {
+  factory: createAmbientWindGust,
+  getDuration: ambientWindGustDuration,
+  buildOfflineGraph: ambientWindGustOfflineGraph,
 });
