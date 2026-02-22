@@ -14,7 +14,8 @@
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "test:watch": "vitest",
     "start": "node dist/cli.js",
-    "generate": "node dist/cli.js generate"
+    "generate": "node dist/cli.js generate",
+    "dev:web": "npm run build && npm run build --prefix web && concurrently -k -n backend,vite -c blue,green \"npm start --prefix web\" \"npm run dev --prefix web\""
   },
   "keywords": [
     "audio",
@@ -30,6 +31,7 @@
     "tone": "^15.1.22"
   },
   "devDependencies": {
+    "concurrently": "^9.2.1",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
