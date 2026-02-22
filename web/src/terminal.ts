@@ -38,7 +38,7 @@ export function createTerminal(
     if (disposed) return;
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/terminal`;
+    const wsUrl = `${protocol}//${window.location.host}/ws/terminal`;
     ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {

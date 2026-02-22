@@ -67,7 +67,7 @@ httpServer.on("upgrade", (req: IncomingMessage, socket: Socket, head: Buffer) =>
   const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
   const origin = req.headers.origin;
 
-  if (url.pathname !== "/terminal") {
+  if (url.pathname !== "/ws/terminal") {
     socket.destroy();
     return;
   }

@@ -19,7 +19,7 @@ export default defineConfig({
   server: {
     port: parseInt(process.env.VITE_PORT || "5173", 10),
     proxy: {
-      "/terminal": {
+      "/ws": {
         target: `http://localhost:${BACKEND_PORT}`,
         ws: true,
       },

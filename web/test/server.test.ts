@@ -71,7 +71,7 @@ describe("Origin restriction", () => {
   it("rejects WebSocket upgrade with disallowed Origin header (403)", async () => {
     // Use the ws library with a custom origin — the server checks the Origin
     // header during the HTTP upgrade and responds with 403 + socket destroy.
-    const ws = new WebSocket(`ws://localhost:${port}/terminal`, {
+    const ws = new WebSocket(`ws://localhost:${port}/ws/terminal`, {
       headers: { Origin: "http://evil.example.com" },
     });
 
@@ -92,7 +92,7 @@ describe("Origin restriction", () => {
 
 describe("WebSocket terminal", () => {
   it("establishes a WebSocket connection to /terminal", async () => {
-    const ws = new WebSocket(`ws://localhost:${port}/terminal`);
+    const ws = new WebSocket(`ws://localhost:${port}/ws/terminal`);
 
     const connected = await new Promise<boolean>((resolve) => {
       ws.on("open", () => resolve(true));
@@ -147,7 +147,7 @@ describe("WebSocket terminal", () => {
   });
 
   it("executes a command sent via WebSocket and returns the output (Run button simulation)", async () => {
-    const ws = new WebSocket(`ws://localhost:${port}/terminal`);
+    const ws = new WebSocket(`ws://localhost:${port}/ws/terminal`);
 
     await new Promise<void>((resolve, reject) => {
       ws.on("open", () => resolve());
