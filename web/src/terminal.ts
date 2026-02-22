@@ -2,7 +2,9 @@
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 
-const RECONNECT_DELAY_MS = 3000;
+const INITIAL_RECONNECT_DELAY_MS = 1000;
+const MAX_RECONNECT_DELAY_MS = 15000;
+const MAX_RECONNECT_ATTEMPTS = 10;
 
 export interface TerminalController {
   /** Send a command string to the terminal (types it and presses Enter) */
@@ -33,6 +35,9 @@ export function createTerminal(
 
   let ws: WebSocket | null = null;
   let disposed = false;
+  let reconnectAttempts = 0;
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  let hasConnectedOnce = false;
 
   function connect(): void {
     if (disposed) return;
@@ -42,6 +47,8 @@ export function createTerminal(
     ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
+      reconnectAttempts = 0; // reset on successful connection
+      hasConnectedOnce = true;
       // Show connection banner so the user knows the terminal is live
       term.write("\x1b[36mToneForge Terminal\x1b[0m\r\n");
       // Send initial size
@@ -54,14 +61,38 @@ export function createTerminal(
     };
 
     ws.onclose = () => {
-      if (!disposed) {
-        term.write("\r\n\x1b[31m[Disconnected]\x1b[0m\r\n");
-        setTimeout(connect, RECONNECT_DELAY_MS);
+      if (disposed) return;
+
+      if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+        if (hasConnectedOnce) {
+          term.write("\r\n\x1b[31m[Disconnected — max reconnect attempts reached]\x1b[0m\r\n");
+        } else {
+          term.write(
+            "\r\n\x1b[33m[Backend not available]\x1b[0m\r\n" +
+              "\x1b[2mEnsure the backend server is running:\r\n" +
+              "  cd web && npm start\x1b[0m\r\n",
+          );
+        }
+        return;
       }
+
+      const delay = Math.min(
+        INITIAL_RECONNECT_DELAY_MS * Math.pow(2, reconnectAttempts),
+        MAX_RECONNECT_DELAY_MS,
+      );
+      reconnectAttempts++;
+
+      if (hasConnectedOnce) {
+        term.write("\r\n\x1b[31m[Disconnected]\x1b[0m ");
+        term.write(`\x1b[2mReconnecting in ${Math.round(delay / 1000)}s...\x1b[0m\r\n`);
+      }
+      // Silently retry if we've never connected (avoid spamming on page load)
+
+      reconnectTimer = setTimeout(connect, delay);
     };
 
     ws.onerror = () => {
-      // onclose will fire after onerror
+      // onclose will fire after onerror — handle reconnection there
     };
   }
 
@@ -100,6 +131,10 @@ export function createTerminal(
     },
     dispose(): void {
       disposed = true;
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
       window.removeEventListener("resize", onWindowResize);
       resizeObserver.disconnect();
       if (ws) {

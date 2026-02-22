@@ -3,20 +3,13 @@
  *
  * Tests extractSeed and isGenerateCommand — the pure functions in audio.ts
  * that don't require a browser or Tone.js runtime.
+ *
+ * Since audio.ts now uses dynamic import() for tone (lazy-loaded on first
+ * user gesture), these pure functions can be imported without triggering
+ * any AudioContext creation.
  */
-import { describe, it, expect, vi } from "vitest";
-
-// Mock the tone module since it requires a browser environment
-vi.mock("tone", () => ({
-  start: vi.fn(),
-  Offline: vi.fn(),
-  Player: vi.fn(() => ({
-    toDestination: vi.fn().mockReturnThis(),
-    start: vi.fn(),
-  })),
-}));
-
-const { extractSeed, isGenerateCommand } = await import("../src/audio.js");
+import { describe, it, expect } from "vitest";
+import { extractSeed, isGenerateCommand } from "../src/audio.js";
 
 describe("extractSeed", () => {
   it("extracts seed from --seed 42 format", () => {

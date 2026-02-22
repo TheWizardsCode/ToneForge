@@ -22,6 +22,7 @@ export default defineConfig({
       "/ws": {
         target: `http://localhost:${BACKEND_PORT}`,
         ws: true,
+        changeOrigin: true,
       },
     },
   },
