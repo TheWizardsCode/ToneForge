@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ToneForge Web Demo</title>
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      :root {
+        --bg: #0d1117;
+        --surface: #161b22;
+        --border: #30363d;
+        --text: #e6edf3;
+        --text-dim: #8b949e;
+        --accent: #58a6ff;
+        --green: #3fb950;
+        --yellow: #d29922;
+        --magenta: #bc8cff;
+      }
+
+      body {
+        font-family: "SF Mono", "Cascadia Code", "Fira Code", "Consolas",
+          monospace;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      header {
+        text-align: center;
+        padding: 2rem 1rem 1rem;
+        border-bottom: 1px solid var(--border);
+      }
+
+      header h1 {
+        font-size: 1.5rem;
+        color: var(--accent);
+        letter-spacing: 0.05em;
+      }
+
+      header p {
+        color: var(--text-dim);
+        font-size: 0.85rem;
+        margin-top: 0.5rem;
+      }
+
+      #app {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        max-width: 1200px;
+        width: 100%;
+        margin: 0 auto;
+        padding: 1rem;
+        gap: 1rem;
+      }
+
+      #wizard {
+        flex: 0 0 auto;
+      }
+
+      #terminal-container {
+        flex: 1;
+        min-height: 300px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.5rem;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>ToneForge Web Demo</h1>
+      <p>Placeholder audio at the speed of development</p>
+    </header>
+    <div id="app">
+      <div id="wizard"></div>
+      <div id="terminal-container"></div>
+    </div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
