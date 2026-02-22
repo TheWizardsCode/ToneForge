@@ -12,7 +12,8 @@
  * Reference: docs/prd/CLI_PRD.md Section 4.1, 5.1
  */
 
-import { renderRecipe, SUPPORTED_RECIPES } from "./core/renderer.js";
+import { renderRecipe } from "./core/renderer.js";
+import { registry } from "./recipes/index.js";
 import { playAudio } from "./audio/player.js";
 import { VERSION } from "./index.js";
 
@@ -65,6 +66,7 @@ Run 'toneforge <command> --help' for command-specific help.`);
 
 /** Print help text for the generate command. */
 function printGenerateHelp(): void {
+  const recipes = registry.list();
   console.log(`ToneForge generate — Render and play a procedural sound
 
 Usage:
@@ -76,7 +78,7 @@ Options:
   --help, -h        Show this help message
 
 Available recipes:
-  ${SUPPORTED_RECIPES.join(", ") || "(none registered)"}
+  ${recipes.join(", ") || "(none registered)"}
 
 Examples:
   toneforge generate --recipe ui-scifi-confirm --seed 42
@@ -115,11 +117,12 @@ export async function main(argv: string[] = process.argv): Promise<number> {
   }
 
   // Validate recipe exists
-  if (!SUPPORTED_RECIPES.includes(recipeName as typeof SUPPORTED_RECIPES[number])) {
+  if (!registry.getRegistration(recipeName as string)) {
+    const recipes = registry.list();
     console.error(
       `Error: Unknown recipe '${recipeName}'.${
-        SUPPORTED_RECIPES.length > 0
-          ? ` Available recipes: ${SUPPORTED_RECIPES.join(", ")}`
+        recipes.length > 0
+          ? ` Available recipes: ${recipes.join(", ")}`
           : ""
       }`,
     );
