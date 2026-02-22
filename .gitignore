@@ -20,4 +20,5 @@ Worklog Specific Ignores
 ##################################
 node_modules/
 dist/
+dist-server/
 *.tsbuildinfo

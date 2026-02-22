@@ -7,6 +7,7 @@ export default defineConfig({
       "**/dist/**",
       "**/.worklog/**",
       "**/*.e2e.test.*",
+      "web/**",
     ],
   },
 });

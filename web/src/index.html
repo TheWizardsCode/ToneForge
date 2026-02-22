@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ToneForge Web Demo</title>
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      :root {
+        --bg: #0d1117;
+        --surface: #161b22;
+        --border: #30363d;
+        --text: #e6edf3;
+        --text-dim: #8b949e;
+        --accent: #58a6ff;
+        --green: #3fb950;
+        --yellow: #d29922;
+        --magenta: #bc8cff;
+      }
+
+      body {
+        font-family: "SF Mono", "Cascadia Code", "Fira Code", "Consolas",
+          monospace;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      header {
+        text-align: center;
+        padding: 2rem 1rem 1rem;
+        border-bottom: 1px solid var(--border);
+      }
+
+      header h1 {
+        font-size: 1.5rem;
+        color: var(--accent);
+        letter-spacing: 0.05em;
+      }
+
+      header p {
+        color: var(--text-dim);
+        font-size: 0.85rem;
+        margin-top: 0.5rem;
+      }
+
+      #app {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        max-width: 1200px;
+        width: 100%;
+        margin: 0 auto;
+        padding: 1rem;
+        gap: 1rem;
+      }
+
+      #wizard {
+        flex: 0 0 auto;
+      }
+
+      #terminal-container {
+        flex: 1;
+        min-height: 300px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.5rem;
+      }
+
+      /* ── Wizard styles ──────────────────────────────────────── */
+
+      .wizard-nav {
+        display: flex;
+        gap: 0.25rem;
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 0.5rem;
+        margin-bottom: 1rem;
+        flex-wrap: wrap;
+      }
+
+      .wizard-nav-btn {
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--text-dim);
+        padding: 0.4rem 0.8rem;
+        border-radius: 4px;
+        cursor: pointer;
+        font-family: inherit;
+        font-size: 0.8rem;
+        transition: all 0.15s;
+      }
+
+      .wizard-nav-btn:hover {
+        color: var(--text);
+        border-color: var(--text-dim);
+      }
+
+      .wizard-nav-btn.active {
+        background: var(--accent);
+        color: var(--bg);
+        border-color: var(--accent);
+        font-weight: bold;
+      }
+
+      .wizard-content {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 1.25rem;
+      }
+
+      .wizard-step-title {
+        font-size: 1.15rem;
+        color: var(--magenta);
+        margin-bottom: 1rem;
+      }
+
+      .wizard-block {
+        margin-bottom: 1rem;
+        padding: 0.75rem;
+        border-radius: 4px;
+        border-left: 3px solid;
+      }
+
+      .wizard-problem {
+        border-left-color: var(--yellow);
+        background: rgba(210, 153, 34, 0.08);
+      }
+
+      .wizard-solution {
+        border-left-color: var(--green);
+        background: rgba(63, 185, 80, 0.08);
+      }
+
+      .wizard-block-label {
+        display: block;
+        font-size: 0.75rem;
+        font-weight: bold;
+        letter-spacing: 0.1em;
+        margin-bottom: 0.5rem;
+      }
+
+      .wizard-problem .wizard-block-label {
+        color: var(--yellow);
+      }
+
+      .wizard-solution .wizard-block-label {
+        color: var(--green);
+      }
+
+      .wizard-block p {
+        color: var(--text);
+        line-height: 1.5;
+        font-size: 0.85rem;
+      }
+
+      .wizard-description {
+        margin-bottom: 1rem;
+      }
+
+      .wizard-description pre {
+        white-space: pre-wrap;
+        font-size: 0.85rem;
+        line-height: 1.6;
+        color: var(--text);
+      }
+
+      .wizard-commands {
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 0.75rem;
+        margin-bottom: 1rem;
+      }
+
+      .wizard-cmd-line {
+        margin-bottom: 0.4rem;
+      }
+
+      .wizard-cmd-line code {
+        font-size: 0.8rem;
+        color: var(--accent);
+      }
+
+      .wizard-btn {
+        border: 1px solid var(--border);
+        padding: 0.5rem 1rem;
+        border-radius: 4px;
+        cursor: pointer;
+        font-family: inherit;
+        font-size: 0.85rem;
+        transition: all 0.15s;
+      }
+
+      .wizard-btn-run {
+        background: var(--green);
+        color: var(--bg);
+        border-color: var(--green);
+        font-weight: bold;
+        margin-top: 0.5rem;
+      }
+
+      .wizard-btn-run:hover {
+        opacity: 0.85;
+      }
+
+      .wizard-btn-prev,
+      .wizard-btn-next {
+        background: transparent;
+        color: var(--text-dim);
+      }
+
+      .wizard-btn-prev:hover,
+      .wizard-btn-next:hover {
+        color: var(--text);
+        border-color: var(--text);
+      }
+
+      .wizard-nav-bar {
+        display: flex;
+        align-items: center;
+        margin-top: 1rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid var(--border);
+      }
+
+      .wizard-commentary {
+        margin-top: 0.75rem;
+        padding: 0.75rem;
+        background: rgba(139, 148, 158, 0.06);
+        border-radius: 4px;
+      }
+
+      .wizard-commentary p {
+        color: var(--text-dim);
+        font-size: 0.8rem;
+        line-height: 1.5;
+        font-style: italic;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>ToneForge Web Demo</h1>
+      <p>Placeholder audio at the speed of development</p>
+    </header>
+    <div id="app">
+      <div id="wizard"></div>
+      <div id="terminal-container"></div>
+    </div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
