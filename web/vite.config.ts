@@ -14,6 +14,8 @@ export default defineConfig({
     alias: {
       // Allow importing from the main ToneForge src/ directory
       "@toneforge": resolve(projectRoot, "src"),
+      // Allow importing demo markdown files from the repo-root demos/ directory
+      "@demos": resolve(projectRoot, "demos"),
     },
   },
   server: {

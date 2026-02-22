@@ -1,5 +1,5 @@
 // Wizard UI component: stepped navigation through demo content
-import { DEMO_STEPS, type DemoStep } from "./demo-content.js";
+import { DEMO_STEPS, DEMO_LIST, getDemoById, type DemoStep } from "./demo-content.js";
 import { handleCommandAudio } from "./audio.js";
 import type { TerminalController } from "./terminal.js";
 
@@ -12,15 +12,59 @@ export function createWizard(
   getTerminal: () => TerminalController | null,
 ): WizardController {
   let currentStep = 0;
+  let steps: DemoStep[] = DEMO_STEPS;
+  let currentDemoId: string = DEMO_LIST.length > 0 ? DEMO_LIST[0].id : "";
+
+  function switchDemo(demoId: string): void {
+    const demo = getDemoById(demoId);
+    if (demo) {
+      steps = demo.steps;
+      currentDemoId = demoId;
+      currentStep = 0;
+      render();
+    }
+  }
 
   function render(): void {
     container.innerHTML = "";
+
+    // Demo selector (only shown when multiple demos are available)
+    if (DEMO_LIST.length > 1) {
+      const selectorBar = document.createElement("div");
+      selectorBar.className = "wizard-demo-selector";
+
+      const label = document.createElement("label");
+      label.textContent = "Demo: ";
+      label.setAttribute("for", "demo-select");
+      selectorBar.appendChild(label);
+
+      const select = document.createElement("select");
+      select.id = "demo-select";
+      select.className = "wizard-demo-select";
+
+      for (const demo of DEMO_LIST) {
+        const option = document.createElement("option");
+        option.value = demo.id;
+        option.textContent = demo.title;
+        if (demo.id === currentDemoId) {
+          option.selected = true;
+        }
+        select.appendChild(option);
+      }
+
+      select.addEventListener("change", () => {
+        switchDemo(select.value);
+      });
+
+      selectorBar.appendChild(select);
+      container.appendChild(selectorBar);
+    }
 
     // Step indicators
     const nav = document.createElement("nav");
     nav.className = "wizard-nav";
 
-    DEMO_STEPS.forEach((step, i) => {
+    steps.forEach((step, i) => {
       const btn = document.createElement("button");
       btn.className = `wizard-nav-btn${i === currentStep ? " active" : ""}`;
       btn.textContent = step.label;
@@ -35,7 +79,7 @@ export function createWizard(
     container.appendChild(nav);
 
     // Step content
-    const step = DEMO_STEPS[currentStep];
+    const step = steps[currentStep];
     const content = document.createElement("div");
     content.className = "wizard-content";
 
@@ -61,7 +105,7 @@ export function createWizard(
     spacer.style.flex = "1";
     navBar.appendChild(spacer);
 
-    if (currentStep < DEMO_STEPS.length - 1) {
+    if (currentStep < steps.length - 1) {
       const nextBtn = document.createElement("button");
       nextBtn.className = "wizard-btn wizard-btn-next";
       nextBtn.textContent = "Next \u2192";
