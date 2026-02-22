@@ -115,6 +115,12 @@ test.describe("Tutorial walkthrough", () => {
   });
 
   test("terminal connects and shows banner", async ({ page }) => {
+    // Collect browser console messages to verify connection logging
+    const consoleMessages: { type: string; text: string }[] = [];
+    page.on("console", (msg) => {
+      consoleMessages.push({ type: msg.type(), text: msg.text() });
+    });
+
     await page.goto("/");
 
     // Wait for the terminal to render something
@@ -122,10 +128,27 @@ test.describe("Tutorial walkthrough", () => {
 
     // The terminal should show the "ToneForge Terminal" banner on connect
     await waitForTerminalText(page, "ToneForge Terminal", 15_000);
+
+    // Verify console shows connection logs (no silent failures)
+    const toneForgeMessages = consoleMessages.filter((m) => m.text.includes("[ToneForge]"));
+    expect(toneForgeMessages.length).toBeGreaterThan(0);
+    expect(toneForgeMessages.some((m) => m.text.includes("WebSocket connected"))).toBe(true);
+
+    // No AudioContext errors on page load
+    const audioContextErrors = consoleMessages.filter(
+      (m) => m.type === "error" && m.text.includes("AudioContext"),
+    );
+    expect(audioContextErrors).toHaveLength(0);
   });
 
   test("full tutorial: click Run on every step and verify terminal output", async ({ page }) => {
     test.setTimeout(180_000); // 3 minutes for the full walkthrough
+
+    // Collect console messages to verify commands are sent
+    const consoleMessages: { type: string; text: string }[] = [];
+    page.on("console", (msg) => {
+      consoleMessages.push({ type: msg.type(), text: msg.text() });
+    });
 
     await page.goto("/");
 
@@ -212,6 +235,20 @@ test.describe("Tutorial walkthrough", () => {
         await page.waitForTimeout(1000);
       }
     }
+
+    // After the full walkthrough, verify that commands were actually sent
+    // (not silently swallowed by a disconnected WebSocket)
+    const sendMessages = consoleMessages.filter(
+      (m) => m.text.includes("[ToneForge] Sending command:"),
+    );
+    // Acts 1-4 send commands: 1 + 3 + 1 + 1 = 6 commands total
+    expect(sendMessages.length).toBe(6);
+
+    // No AudioContext errors during the walkthrough
+    const audioContextErrors = consoleMessages.filter(
+      (m) => m.type === "error" && m.text.includes("AudioContext"),
+    );
+    expect(audioContextErrors).toHaveLength(0);
   });
 
   test("wizard navigation with Next/Back buttons works", async ({ page }) => {

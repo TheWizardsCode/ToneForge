@@ -44,12 +44,21 @@ export function createTerminal(
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const wsUrl = `${protocol}//${window.location.host}/ws/terminal`;
+
+    // Show connecting message on first attempt so the terminal isn't blank
+    if (reconnectAttempts === 0 && !hasConnectedOnce) {
+      term.write("\x1b[2mConnecting to backend...\x1b[0m\r\n");
+    }
+
+    console.log(`[ToneForge] WebSocket connecting to ${wsUrl} (attempt ${reconnectAttempts + 1}/${MAX_RECONNECT_ATTEMPTS})`);
     ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
+      console.log("[ToneForge] WebSocket connected");
       reconnectAttempts = 0; // reset on successful connection
       hasConnectedOnce = true;
-      // Show connection banner so the user knows the terminal is live
+      // Clear the "Connecting..." message and show connection banner
+      term.clear();
       term.write("\x1b[36mToneForge Terminal\x1b[0m\r\n");
       // Send initial size
       const dims = { type: "resize", cols: term.cols, rows: term.rows };
@@ -65,10 +74,13 @@ export function createTerminal(
 
       if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
         if (hasConnectedOnce) {
+          console.warn("[ToneForge] WebSocket disconnected — max reconnect attempts reached");
           term.write("\r\n\x1b[31m[Disconnected — max reconnect attempts reached]\x1b[0m\r\n");
         } else {
+          console.warn("[ToneForge] Backend not available after max reconnect attempts");
+          term.clear();
           term.write(
-            "\r\n\x1b[33m[Backend not available]\x1b[0m\r\n" +
+            "\x1b[33m[Backend not available]\x1b[0m\r\n" +
               "\x1b[2mEnsure the backend server is running:\r\n" +
               "  cd web && npm start\x1b[0m\r\n",
           );
@@ -83,15 +95,18 @@ export function createTerminal(
       reconnectAttempts++;
 
       if (hasConnectedOnce) {
+        console.log(`[ToneForge] WebSocket disconnected, reconnecting in ${Math.round(delay / 1000)}s...`);
         term.write("\r\n\x1b[31m[Disconnected]\x1b[0m ");
         term.write(`\x1b[2mReconnecting in ${Math.round(delay / 1000)}s...\x1b[0m\r\n`);
+      } else {
+        console.log(`[ToneForge] WebSocket connection failed, retrying in ${Math.round(delay / 1000)}s... (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
       }
-      // Silently retry if we've never connected (avoid spamming on page load)
 
       reconnectTimer = setTimeout(connect, delay);
     };
 
-    ws.onerror = () => {
+    ws.onerror = (event) => {
+      console.error("[ToneForge] WebSocket error:", event);
       // onclose will fire after onerror — handle reconnection there
     };
   }
@@ -126,7 +141,10 @@ export function createTerminal(
   return {
     sendCommand(command: string): void {
       if (ws && ws.readyState === WebSocket.OPEN) {
+        console.log("[ToneForge] Sending command:", command);
         ws.send(JSON.stringify({ type: "input", data: command + "\n" }));
+      } else {
+        console.warn("[ToneForge] Cannot send command — WebSocket not connected (readyState:", ws?.readyState ?? "null", ")");
       }
     },
     dispose(): void {
