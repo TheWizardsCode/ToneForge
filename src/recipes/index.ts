@@ -17,6 +17,8 @@ import { createWeaponLaserZap } from "./weapon-laser-zap.js";
 import { getWeaponLaserZapParams } from "./weapon-laser-zap-params.js";
 import { createFootstepStone } from "./footstep-stone.js";
 import { getFootstepStoneParams } from "./footstep-stone-params.js";
+import { createUiNotificationChime } from "./ui-notification-chime.js";
+import { getUiNotificationChimeParams } from "./ui-notification-chime-params.js";
 
 /** The global recipe registry instance with all built-in recipes registered. */
 export const registry = new RecipeRegistry();
@@ -248,4 +250,58 @@ registry.register("footstep-stone", {
   factory: createFootstepStone,
   getDuration: footstepStoneDuration,
   buildOfflineGraph: footstepStoneOfflineGraph,
+});
+
+// ── ui-notification-chime ─────────────────────────────────────────
+
+function uiNotificationChimeDuration(rng: Rng): number {
+  const params = getUiNotificationChimeParams(rng);
+  return params.attack + params.decay + params.release;
+}
+
+function uiNotificationChimeOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getUiNotificationChimeParams(rng);
+
+  // Create harmonics: fundamental + overtones as separate oscillators
+  for (let h = 0; h < params.harmonicCount; h++) {
+    const freq = params.fundamentalFreq * (h + 1);
+    const level = Math.pow(params.harmonicDecayFactor, h);
+
+    const osc = ctx.createOscillator();
+    osc.type = "sine";
+    osc.frequency.value = freq;
+
+    const harmonicGain = ctx.createGain();
+    harmonicGain.gain.value = level;
+
+    // Per-harmonic amplitude envelope (attack -> decay -> sustain -> release)
+    const envGain = ctx.createGain();
+    envGain.gain.setValueAtTime(0, 0);
+    // Attack: ramp up to 1
+    envGain.gain.linearRampToValueAtTime(1, params.attack);
+    // Decay: ramp down to sustain level
+    envGain.gain.linearRampToValueAtTime(
+      params.sustainLevel,
+      params.attack + params.decay,
+    );
+    // Release: ramp down to 0
+    envGain.gain.linearRampToValueAtTime(0, duration);
+
+    osc.connect(harmonicGain);
+    harmonicGain.connect(envGain);
+    envGain.connect(ctx.destination);
+
+    osc.start(0);
+    osc.stop(duration);
+  }
+}
+
+registry.register("ui-notification-chime", {
+  factory: createUiNotificationChime,
+  getDuration: uiNotificationChimeDuration,
+  buildOfflineGraph: uiNotificationChimeOfflineGraph,
 });
