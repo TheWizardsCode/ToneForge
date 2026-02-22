@@ -7,6 +7,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@toneforge": resolve(projectRoot, "src"),
+      "@demos": resolve(projectRoot, "demos"),
     },
   },
   test: {
