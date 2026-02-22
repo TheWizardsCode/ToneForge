@@ -27,8 +27,11 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "gray-matter": "^4.0.3",
     "node-web-audio-api": "^1.0.8",
-    "tone": "^15.1.22"
+    "remark-parse": "^11.0.0",
+    "tone": "^15.1.22",
+    "unified": "^11.0.5"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",

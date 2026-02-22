@@ -1,0 +1,307 @@
+import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { parseDemoMarkdown } from "./parser.js";
+import type { ParsedDemo, ParsedDemoStep } from "./parser.js";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const DEMOS_DIR = resolve(__dirname, "../../demos");
+
+function readDemo(name: string): string {
+  return readFileSync(resolve(DEMOS_DIR, name), "utf-8");
+}
+
+// ── Golden snapshot: mvp-1.md ──────────────────────────────────────
+
+describe("parseDemoMarkdown — golden snapshot (mvp-1.md)", () => {
+  let result: ParsedDemo;
+
+  // Parse once for all golden tests
+  it("parses without error", () => {
+    const raw = readDemo("mvp-1.md");
+    result = parseDemoMarkdown(raw);
+    expect(result).toBeDefined();
+  });
+
+  it("extracts front matter metadata", () => {
+    expect(result.meta.title).toBe("ToneForge MVP Demo");
+    expect(result.meta.id).toBe("mvp-1");
+    expect(result.meta.description).toMatch(/interactive walkthrough/);
+  });
+
+  it("produces 6 steps (intro, 4 acts, recap)", () => {
+    expect(result.steps).toHaveLength(6);
+  });
+
+  it("parses intro step correctly", () => {
+    const intro = result.steps[0];
+    expect(intro.id).toBe("intro");
+    expect(intro.label).toBe("Intro");
+    expect(intro.title).toBe("ToneForge MVP Demo");
+    expect(intro.commands).toHaveLength(0);
+    expect(intro.problem).toBeUndefined();
+    expect(intro.solution).toBeUndefined();
+    expect(intro.commentary).toBeUndefined();
+    expect(intro.description).toMatch(/Every game, app/);
+    expect(intro.description).toMatch(/placeholder audio at the speed of development/);
+  });
+
+  it("parses Act 1 with problem, solution, command, and commentary", () => {
+    const act1 = result.steps[1];
+    expect(act1.id).toBe("act-1");
+    expect(act1.label).toBe("1/4");
+    expect(act1.title).toBe("Unblock your build on day one");
+    expect(act1.problem).toMatch(/sci-fi game UI/);
+    expect(act1.solution).toMatch(/placeholder sounds from recipes/);
+    expect(act1.commands).toHaveLength(1);
+    expect(act1.commands[0]).toContain("--recipe ui-scifi-confirm --seed 42");
+    expect(act1.commentary).toMatch(/synthesized entirely from code/);
+  });
+
+  it("parses Act 2 with multiple commands", () => {
+    const act2 = result.steps[2];
+    expect(act2.id).toBe("act-2");
+    expect(act2.label).toBe("2/4");
+    expect(act2.commands).toHaveLength(3);
+    expect(act2.commands[0]).toContain("--seed 100");
+    expect(act2.commands[1]).toContain("--seed 9999");
+    expect(act2.commands[2]).toContain("--seed 7");
+    expect(act2.commentary).toMatch(/Three distinct placeholders/);
+  });
+
+  it("parses Act 3 correctly", () => {
+    const act3 = result.steps[3];
+    expect(act3.id).toBe("act-3");
+    expect(act3.label).toBe("3/4");
+    expect(act3.problem).toMatch(/reproduce it exactly/);
+    expect(act3.solution).toMatch(/deterministic/i);
+    expect(act3.commands).toHaveLength(1);
+    expect(act3.commands[0]).toContain("--seed 42");
+    expect(act3.commentary).toMatch(/exact same sound/);
+  });
+
+  it("parses Act 4 correctly", () => {
+    const act4 = result.steps[4];
+    expect(act4.id).toBe("act-4");
+    expect(act4.label).toBe("4/4");
+    expect(act4.problem).toMatch(/integration tests/);
+    expect(act4.commands).toHaveLength(1);
+    expect(act4.commands[0]).toContain("vitest run");
+    expect(act4.commentary).toMatch(/11 tests pass/);
+  });
+
+  it("parses recap step correctly", () => {
+    const recap = result.steps[5];
+    expect(recap.id).toBe("recap");
+    expect(recap.label).toBe("Recap");
+    expect(recap.commands).toHaveLength(0);
+    expect(recap.problem).toBeUndefined();
+    expect(recap.commentary).toBeUndefined();
+    expect(recap.description).toMatch(/Placeholder audio generated instantly/);
+  });
+
+  it("contains no ANSI escape sequences in any step", () => {
+    const ansiPattern = /\x1B\[[0-9;]*m/;
+    for (const step of result.steps) {
+      expect(step.description).not.toMatch(ansiPattern);
+      if (step.problem) expect(step.problem).not.toMatch(ansiPattern);
+      if (step.solution) expect(step.solution).not.toMatch(ansiPattern);
+      if (step.commentary) expect(step.commentary).not.toMatch(ansiPattern);
+    }
+  });
+
+  it("step fields match DEMO_STEPS structure from demo-content.ts", () => {
+    // Verify structural compatibility with the web DemoStep interface
+    for (const step of result.steps) {
+      expect(typeof step.id).toBe("string");
+      expect(typeof step.label).toBe("string");
+      expect(typeof step.title).toBe("string");
+      expect(typeof step.description).toBe("string");
+      expect(Array.isArray(step.commands)).toBe(true);
+      // problem, solution, commentary are optional strings
+      if (step.problem !== undefined) expect(typeof step.problem).toBe("string");
+      if (step.solution !== undefined) expect(typeof step.solution).toBe("string");
+      if (step.commentary !== undefined) expect(typeof step.commentary).toBe("string");
+    }
+  });
+});
+
+// ── Edge cases ─────────────────────────────────────────────────────
+
+describe("parseDemoMarkdown — edge cases", () => {
+  it("returns empty steps for an empty string", () => {
+    const result = parseDemoMarkdown("");
+    expect(result.steps).toHaveLength(0);
+    expect(result.meta.title).toBe("");
+    expect(result.meta.id).toBe("");
+  });
+
+  it("returns empty steps for whitespace-only input", () => {
+    const result = parseDemoMarkdown("   \n\n  \n  ");
+    expect(result.steps).toHaveLength(0);
+  });
+
+  it("handles missing front matter", () => {
+    const md = `## Step One\n\nSome content here.\n`;
+    const result = parseDemoMarkdown(md);
+    expect(result.meta.title).toBe("");
+    expect(result.meta.id).toBe("");
+    expect(result.steps).toHaveLength(1);
+    expect(result.steps[0].id).toBe("step-one");
+  });
+
+  it("handles steps without commands", () => {
+    const md = `---
+title: Test
+id: test
+description: A test demo.
+---
+
+## Intro
+
+Just some text here with no commands.
+
+## Recap
+
+More text, still no commands.
+`;
+    const result = parseDemoMarkdown(md);
+    expect(result.steps).toHaveLength(2);
+    expect(result.steps[0].commands).toEqual([]);
+    expect(result.steps[1].commands).toEqual([]);
+  });
+
+  it("handles empty code blocks", () => {
+    const md = `---
+title: Test
+id: test
+description: Test.
+---
+
+## Step
+
+\`\`\`bash
+\`\`\`
+
+Some paragraph.
+`;
+    const result = parseDemoMarkdown(md);
+    expect(result.steps).toHaveLength(1);
+    // Empty code block should not add an empty command
+    expect(result.steps[0].commands).toEqual([]);
+  });
+
+  it("ignores non-bash code blocks", () => {
+    const md = `---
+title: Test
+id: test
+description: Test.
+---
+
+## Step
+
+\`\`\`json
+{"key": "value"}
+\`\`\`
+
+\`\`\`bash
+echo "hello"
+\`\`\`
+`;
+    const result = parseDemoMarkdown(md);
+    expect(result.steps).toHaveLength(1);
+    expect(result.steps[0].commands).toEqual(['echo "hello"']);
+  });
+
+  it("handles malformed admonition (missing commentary tag)", () => {
+    const md = `---
+title: Test
+id: test
+description: Test.
+---
+
+## Step
+
+> This is a regular blockquote, not a commentary admonition.
+
+> [!note]
+> This is a note admonition, not commentary.
+`;
+    const result = parseDemoMarkdown(md);
+    expect(result.steps).toHaveLength(1);
+    // First blockquote treated as problem, second as description
+    expect(result.steps[0].problem).toMatch(/regular blockquote/);
+    expect(result.steps[0].commentary).toBeUndefined();
+  });
+
+  it("extracts commentary from [!commentary] admonition", () => {
+    const md = `---
+title: Test
+id: test
+description: Test.
+---
+
+## Step
+
+> Problem statement here.
+
+Solution text here.
+
+\`\`\`bash
+echo "run"
+\`\`\`
+
+> [!commentary]
+> This is the commentary text.
+`;
+    const result = parseDemoMarkdown(md);
+    expect(result.steps[0].commentary).toBe("This is the commentary text.");
+    expect(result.steps[0].problem).toMatch(/Problem statement/);
+    expect(result.steps[0].solution).toMatch(/Solution text/);
+  });
+
+  it("handles multiple H2 sections correctly", () => {
+    const md = `---
+title: Multi
+id: multi
+description: Multiple steps.
+---
+
+## First
+
+Content A.
+
+## Second
+
+Content B.
+
+## Third
+
+Content C.
+`;
+    const result = parseDemoMarkdown(md);
+    expect(result.steps).toHaveLength(3);
+    expect(result.steps[0].id).toBe("first");
+    expect(result.steps[1].id).toBe("second");
+    expect(result.steps[2].id).toBe("third");
+  });
+
+  it("handles content before first H2 (ignored)", () => {
+    const md = `---
+title: Test
+id: test
+description: Test.
+---
+
+Some content before any heading.
+
+## Actual Step
+
+Step content.
+`;
+    const result = parseDemoMarkdown(md);
+    expect(result.steps).toHaveLength(1);
+    expect(result.steps[0].id).toBe("actual-step");
+  });
+});
