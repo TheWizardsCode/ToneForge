@@ -22,7 +22,7 @@ Network → Integrations → Marketplace → Intent → Memory
 
 ## Demo 0: MVP -- Procedural Sound Generation (COMPLETE)
 
-> Already implemented. Available as `scripts/demo/mvp_1.sh` and the web demo at `web/`.
+> Already implemented. Available as `npm run demo` (CLI) and the web demo at `web/`. Demo content lives in `demos/mvp-1.md`.
 
 **Modules:** Core (partial -- single recipe, seeded RNG, offline renderer)
 
@@ -1011,7 +1011,7 @@ Demo 0 (MVP)
 ## Notes
 
 - Each demo is designed to be self-contained -- it should be runnable and compelling on its own, not just a stepping stone.
-- Demo scripts should follow the narrative style established by `scripts/demo/mvp_1.sh` -- problem statement, then live solution.
+- Demo scripts should follow the narrative style established by `demos/mvp-1.md` -- problem statement, then live solution. See `demos/README.md` for the markdown demo convention.
 - Web demo versions should be considered for each demo where interactive visualization adds value (especially Demos 9, 10, 13, 15).
 - The `MASS_GENERATION_PRD.md` capabilities are distributed across Demos 2 (batch generation), 6 (exploration at scale), and 7 (library management) rather than being a standalone demo.
 - The `LAYERING_PRD.md` capabilities are subsumed by Demo 3 (Stacking), which represents the evolved version of the layering concept.

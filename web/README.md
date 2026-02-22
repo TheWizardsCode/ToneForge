@@ -88,7 +88,7 @@ web/
     main.ts             # Entry point (initializes terminal + wizard)
     terminal.ts         # xterm.js terminal component + WebSocket client
     wizard.ts           # Stepped wizard UI component
-    demo-content.ts     # Demo narrative content (adapted from mvp_1.sh)
+    demo-content.ts     # Demo narrative content (parsed from demos/*.md)
     audio.ts            # Browser-side Tone.js audio rendering
   server/               # Express backend source
     index.ts            # HTTP server, WebSocket/PTY relay, origin restriction
