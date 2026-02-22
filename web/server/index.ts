@@ -153,15 +153,35 @@ const distDir = resolve(__dirname, "..", "dist");
 app.use(express.static(distDir));
 
 // Fallback to index.html for SPA routing
-app.get("*", (_req, res) => {
+app.get("/{*splat}", (_req, res) => {
   res.sendFile(resolve(distDir, "index.html"));
 });
 
 // ── Start ──────────────────────────────────────────────────────────
 
-httpServer.listen(PORT, () => {
-  console.log(`ToneForge Web Demo server listening on http://localhost:${PORT}`);
-  console.log(`Allowed origins: ${getAllowedOriginPatterns().join(", ")}`);
-});
+/**
+ * Start the server on the given port.
+ * Returns a promise that resolves with the listening port once ready.
+ */
+export function startServer(port: number = PORT): Promise<number> {
+  return new Promise((resolve) => {
+    httpServer.listen(port, () => {
+      const addr = httpServer.address();
+      const actualPort = typeof addr === "object" && addr ? addr.port : port;
+      console.log(`ToneForge Web Demo server listening on http://localhost:${actualPort}`);
+      console.log(`Allowed origins: ${getAllowedOriginPatterns().join(", ")}`);
+      resolve(actualPort);
+    });
+  });
+}
 
-export { app, httpServer as server, isOriginAllowed };
+// Auto-start when run directly (not imported by tests)
+const isDirectRun =
+  process.argv[1] &&
+  (process.argv[1].endsWith("/index.js") || process.argv[1].endsWith("/index.ts"));
+
+if (isDirectRun) {
+  startServer();
+}
+
+export { app, httpServer as server, isOriginAllowed, getAllowedOriginPatterns };
