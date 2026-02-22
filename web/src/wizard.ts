@@ -1,5 +1,6 @@
 // Wizard UI component: stepped navigation through demo content
 import { DEMO_STEPS, type DemoStep } from "./demo-content.js";
+import { handleCommandAudio } from "./audio.js";
 import type { TerminalController } from "./terminal.js";
 
 export interface WizardController {
@@ -142,7 +143,11 @@ export function createWizard(
         if (terminal) {
           step.commands.forEach((cmd, i) => {
             // Stagger multiple commands with a small delay
-            setTimeout(() => terminal.sendCommand(cmd), i * 500);
+            setTimeout(() => {
+              terminal.sendCommand(cmd);
+              // Also render and play audio in the browser for generate commands
+              handleCommandAudio(cmd);
+            }, i * 500);
           });
         }
       });
