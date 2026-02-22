@@ -7,6 +7,13 @@
  *
  * No hardcoded demo content — all narrative comes from markdown.
  */
+
+// Polyfill Buffer for browser environments (required by gray-matter)
+import { Buffer } from "buffer";
+if (typeof globalThis.Buffer === "undefined") {
+  (globalThis as Record<string, unknown>).Buffer = Buffer;
+}
+
 import { parseDemoMarkdown } from "@toneforge/demo/parser.js";
 import type { ParsedDemoStep, ParsedDemo, DemoMeta } from "@toneforge/demo/parser.js";
 
