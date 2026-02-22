@@ -25,19 +25,25 @@
         --magenta: #bc8cff;
       }
 
+      html,
+      body {
+        height: 100%;
+        overflow: hidden;
+      }
+
       body {
         font-family: "SF Mono", "Cascadia Code", "Fira Code", "Consolas",
           monospace;
         background: var(--bg);
         color: var(--text);
-        min-height: 100vh;
         display: flex;
         flex-direction: column;
       }
 
       header {
+        flex-shrink: 0;
         text-align: center;
-        padding: 2rem 1rem 1rem;
+        padding: 1rem 1rem 0.75rem;
         border-bottom: 1px solid var(--border);
       }
 
@@ -74,6 +80,7 @@
         flex-direction: column;
         background: var(--surface);
         padding: 0.5rem;
+        overflow: hidden;
       }
 
       #terminal-container .xterm {
