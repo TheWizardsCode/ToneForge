@@ -6,11 +6,12 @@
  *
  * Supported platforms:
  * - Linux:   aplay, paplay, ffplay, or sox play (first available)
- * - WSL:     powershell.exe via Windows audio (auto-detected)
+ * - WSL:     powershell.exe via Windows audio (when interop is enabled)
  * - macOS:   afplay
  * - Windows: powershell Start-Process / [System.Media.SoundPlayer]
  */
 
+import { existsSync } from "node:fs";
 import { execFile, execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { writeFile, unlink } from "node:fs/promises";
@@ -33,10 +34,27 @@ interface PlayerCandidate {
   args: (filePath: string) => string[];
 }
 
+/**
+ * Detect whether a PulseAudio server is reachable.  WSLg exposes a
+ * PulseAudio socket at /mnt/wslg/PulseServer which the ALSA `pulse`
+ * plugin can use, but the default ALSA device (hw:0) won't exist
+ * because there is no physical sound card.  When PulseAudio is
+ * available we tell aplay to use `-D pulse` so it routes audio
+ * through the WSLg / PulseAudio server instead of trying to open
+ * non-existent hardware.
+ */
+function hasPulseAudio(): boolean {
+  // Check the well-known WSLg socket first, then the PULSE_SERVER env
+  // variable (which WSLg also sets).
+  if (existsSync("/mnt/wslg/PulseServer")) return true;
+  if (process.env.PULSE_SERVER) return true;
+  return false;
+}
+
 /** Linux audio players in order of preference. */
 const LINUX_PLAYERS: PlayerCandidate[] = [
-  { command: "aplay", args: (f) => ["-q", f] },
   { command: "paplay", args: (f) => [f] },
+  { command: "aplay", args: (f) => hasPulseAudio() ? ["-D", "pulse", "-q", f] : ["-q", f] },
   { command: "ffplay", args: (f) => ["-nodisp", "-autoexit", "-loglevel", "quiet", f] },
   { command: "play", args: (f) => ["-q", f] }, // sox
 ];
@@ -60,6 +78,22 @@ function isWSL(): boolean {
   try {
     const release = readFileSync("/proc/version", "utf-8");
     return release.toLowerCase().includes("microsoft");
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Check whether WSL interop is enabled so that Windows .exe binaries
+ * can actually be launched from inside WSL. When the binfmt_misc
+ * registration exists the kernel knows how to execute PE binaries;
+ * without it, attempting to run e.g. `powershell.exe` will cause the
+ * shell to interpret the PE header as text (the "MZ...: not found"
+ * error).
+ */
+function isWSLInteropEnabled(): boolean {
+  try {
+    return existsSync("/proc/sys/fs/binfmt_misc/WSLInterop");
   } catch {
     return false;
   }
@@ -97,9 +131,9 @@ function findLinuxPlayer(): PlayerCandidate | null {
 /**
  * Get the system audio player command and arguments for the current platform.
  *
- * On Linux, probes for available players in order of preference:
- * aplay, paplay, ffplay, play (sox). On WSL, uses powershell.exe
- * to play audio through the Windows host.
+ * On Linux, first tries native players (aplay, paplay, ffplay, sox).
+ * On WSL with interop enabled and no native player available, falls back
+ * to powershell.exe to play audio through the Windows host.
  *
  * @param filePath - Path to the WAV file to play.
  * @returns Object with `command` and `args` for execFile.
@@ -108,8 +142,17 @@ function findLinuxPlayer(): PlayerCandidate | null {
 export function getPlayerCommand(filePath: string): { command: string; args: string[] } {
   switch (process.platform) {
     case "linux": {
-      // On WSL, use powershell.exe to play through Windows audio
-      if (isWSL() && isCommandAvailable("powershell.exe")) {
+      // Prefer native Linux players — they work in both plain Linux and
+      // WSL (when PulseAudio/ALSA are configured) and avoid the fragile
+      // WSL-interop PE-binary execution path.
+      const player = findLinuxPlayer();
+      if (player) {
+        return { command: player.command, args: player.args(filePath) };
+      }
+
+      // No native player found. On WSL with interop enabled, try
+      // powershell.exe as a last resort to play through Windows audio.
+      if (isWSL() && isWSLInteropEnabled() && isCommandAvailable("powershell.exe")) {
         const winPath = toWindowsPath(filePath);
         return {
           command: "powershell.exe",
@@ -121,21 +164,17 @@ export function getPlayerCommand(filePath: string): { command: string; args: str
         };
       }
 
-      const player = findLinuxPlayer();
-      if (!player) {
-        const wslHint = isWSL()
-          ? "\n  Or ensure powershell.exe is on your PATH (WSL detected)."
-          : "";
-        throw new Error(
-          "No audio player found. Install one of:\n" +
-          "  sudo apt install alsa-utils      # provides aplay\n" +
-          "  sudo apt install pulseaudio-utils # provides paplay\n" +
-          "  sudo apt install ffmpeg           # provides ffplay\n" +
-          "  sudo apt install sox              # provides play" +
-          wslHint,
-        );
-      }
-      return { command: player.command, args: player.args(filePath) };
+      const wslHint = isWSL()
+        ? "\n  Or enable WSL interop so powershell.exe can be used (see https://learn.microsoft.com/windows/wsl/interop)."
+        : "";
+      throw new Error(
+        "No audio player found. Install one of:\n" +
+        "  sudo apt install alsa-utils      # provides aplay\n" +
+        "  sudo apt install pulseaudio-utils # provides paplay\n" +
+        "  sudo apt install ffmpeg           # provides ffplay\n" +
+        "  sudo apt install sox              # provides play" +
+        wslHint,
+      );
     }
     case "darwin":
       return { command: "afplay", args: [filePath] };
