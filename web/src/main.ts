@@ -1,21 +1,25 @@
 // ToneForge Web Demo -- Entry point
 import "@xterm/xterm/css/xterm.css";
 import { createTerminal } from "./terminal.js";
+import { createWizard } from "./wizard.js";
 import type { TerminalController } from "./terminal.js";
 
 let terminal: TerminalController | null = null;
 
 function init(): void {
-  const container = document.getElementById("terminal-container");
-  if (!container) {
+  const terminalContainer = document.getElementById("terminal-container");
+  const wizardContainer = document.getElementById("wizard");
+
+  if (!terminalContainer) {
     console.error("Terminal container element not found");
     return;
   }
 
-  terminal = createTerminal(container);
+  terminal = createTerminal(terminalContainer);
 
-  // Expose sendCommand globally for the wizard UI to use
-  (window as unknown as Record<string, unknown>).__toneforgeTerminal = terminal;
+  if (wizardContainer) {
+    createWizard(wizardContainer, () => terminal);
+  }
 }
 
 document.addEventListener("DOMContentLoaded", init);
