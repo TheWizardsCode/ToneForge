@@ -12,7 +12,7 @@ description: >
 In the MVP demo you saw one recipe: a sci-fi UI confirm tone.
 One recipe proves the concept. Five recipes prove the architecture.
 
-ToneForge now ships with recipes across four distinct game audio categories:
+This ToneForge demo ships with recipes across four distinct game audio categories:
 
 1. **UI** — interface confirmations and notification chimes
 2. **Weapon** — punchy laser/blaster effects
