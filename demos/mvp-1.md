@@ -106,9 +106,7 @@ npx vitest run src/core/renderer.test.ts
 > 11 tests pass, including the 10-render determinism check. Every one of
 > those renders produced the exact same buffer.
 
-## Recap
-
-What you just saw:
+## Recap — What you just saw
 
 1. Placeholder audio generated instantly — no waiting for assets
 2. Rapid variation — explore the design space with seed changes

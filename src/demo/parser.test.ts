@@ -93,8 +93,9 @@ describe("parseDemoMarkdown — golden snapshot (mvp-1.md)", () => {
 
   it("parses recap step correctly", () => {
     const recap = result.steps[5];
-    expect(recap.id).toBe("recap");
+    expect(recap.id).toBe("recap-what-you-just-saw");
     expect(recap.label).toBe("Recap");
+    expect(recap.title).toBe("What you just saw");
     expect(recap.commands).toHaveLength(0);
     expect(recap.problem).toBeUndefined();
     expect(recap.commentary).toBeUndefined();
