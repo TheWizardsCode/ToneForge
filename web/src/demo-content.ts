@@ -17,9 +17,13 @@ if (typeof globalThis.Buffer === "undefined") {
 import { parseDemoMarkdown } from "@toneforge/demo/parser.js";
 import type { ParsedDemoStep, ParsedDemo, DemoMeta } from "@toneforge/demo/parser.js";
 
-// Import demo markdown files as raw strings via Vite ?raw
-import mvp1Raw from "@demos/mvp-1.md?raw";
-import recipeVarietyRaw from "@demos/recipe-variety.md?raw";
+// Auto-discover all demo markdown files via Vite's import.meta.glob.
+// New demos added to demos/ are picked up automatically — no manual
+// imports needed.  README.md is excluded by the negative pattern.
+const rawModules = import.meta.glob(
+  ["@demos/*.md", "!@demos/README.md"],
+  { query: "?raw", import: "default", eager: true },
+) as Record<string, string>;
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -34,11 +38,15 @@ export interface LoadedDemo {
 
 // ── Parse all demos ───────────────────────────────────────────────
 
-/** Registry of raw markdown sources keyed by demo id. */
-const RAW_SOURCES: Record<string, string> = {
-  "mvp-1": mvp1Raw,
-  "recipe-variety": recipeVarietyRaw,
-};
+/** Registry of raw markdown sources keyed by demo id (derived from filename). */
+const RAW_SOURCES: Record<string, string> = {};
+for (const [path, raw] of Object.entries(rawModules)) {
+  // Path is like "/@demos/mvp-1.md" or "../demos/mvp-1.md" depending on context.
+  // Extract the filename stem as the demo id.
+  const filename = path.split("/").pop()!;
+  const id = filename.replace(/\.md$/, "");
+  RAW_SOURCES[id] = raw;
+}
 
 function parseSafe(id: string, raw: string): ParsedDemo {
   try {
@@ -60,13 +68,13 @@ function parseSafe(id: string, raw: string): ParsedDemo {
   }
 }
 
-/** All available demos, parsed and ready to use. */
-export const DEMOS: LoadedDemo[] = Object.entries(RAW_SOURCES).map(
-  ([id, raw]) => {
+/** All available demos, parsed and ready to use (sorted by id for deterministic ordering). */
+export const DEMOS: LoadedDemo[] = Object.entries(RAW_SOURCES)
+  .sort(([a], [b]) => a.localeCompare(b))
+  .map(([id, raw]) => {
     const parsed = parseSafe(id, raw);
     return { meta: parsed.meta, steps: parsed.steps };
-  },
-);
+  });
 
 /** List of demo titles and ids for selection UI. */
 export const DEMO_LIST: Array<{ id: string; title: string }> = DEMOS.map(
