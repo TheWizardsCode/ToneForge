@@ -103,23 +103,40 @@ node dist/cli.js generate --recipe ambient-wind-gust --seed 500 --output ./outpu
 > can still be generated procedurally at runtime with varying seeds.
 > Parent directories are created automatically if they don't exist.
 
-## Act 5 — Deterministic re-export
+## Act 5 — From procedural to pre-rendered
 
-> You exported a confirmation tone last month. Now you need to
-> regenerate the exact same file in a different environment. Can you
-> trust the output to match?
+> You've been generating the UI confirmation sound procedurally in your
+> game — calling ToneForge at runtime with seed 42 every time the player
+> hits "confirm." It sounds great, but it's the same sound every time.
+> For a consistent effect like that, it's better to save CPU and play
+> back from a pre-rendered file. The question is: will the file sound
+> exactly the same as what the engine has been generating on the fly?
 
-The same recipe and seed always produce a byte-identical WAV file:
+First, listen to the procedurally generated sound — the same one your
+game has been producing at runtime:
 
 ```bash
-node dist/cli.js generate --recipe ui-scifi-confirm --seed 42 --output ./output/confirm-again.wav
+node dist/cli.js generate --recipe ui-scifi-confirm --seed 42
+```
+
+Now save that exact sound to disk with the same recipe and seed:
+
+```bash
+node dist/cli.js generate --recipe ui-scifi-confirm --seed 42 --output ./output/confirm-prerendered.wav
+```
+
+Play back the saved file and compare:
+
+```bash
+aplay ./output/confirm-prerendered.wav
 ```
 
 > [!commentary]
-> Compare `confirm.wav` and `confirm-again.wav` — they are byte-for-byte
-> identical. This determinism guarantee is what makes the hybrid workflow
-> practical: version-control seeds instead of audio files, and re-export
-> pinned assets at any time while procedurally varying everything else.
+> Identical. The file saved to disk is byte-for-byte the same audio
+> that ToneForge generates procedurally at runtime. You can swap from
+> runtime generation to file playback without any audible difference —
+> just less CPU overhead. Version-control the seed, pre-render during
+> your build, and ship the WAV as a static asset.
 
 ## Recap — What you just saw
 
@@ -129,4 +146,4 @@ node dist/cli.js generate --recipe ui-scifi-confirm --seed 42 --output ./output/
 4. Write-only mode skips playback — perfect for CI and build pipelines
 5. Every recipe supports export with the same workflow
 6. Parent directories are created automatically
-7. Same seed always produces the same file — re-export anywhere, anytime
+7. Pre-rendered files are byte-identical to procedural output — swap runtime generation for file playback with zero audible difference
