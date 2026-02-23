@@ -118,6 +118,14 @@ describe("CLI", () => {
   });
 
   describe("generate command", () => {
+    it("does not print startup banner to stdout", async () => {
+      const { code, stdout } = await captureOutput(
+        () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "42")),
+      );
+      expect(code).toBe(0);
+      expect(stdout).not.toMatch(/^ToneForge v\d+\.\d+\.\d+$/m);
+    });
+
     it("renders and plays with explicit seed (exit 0)", async () => {
       const { code, stdout } = await captureOutput(
         () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "42")),
@@ -396,6 +404,33 @@ describe("CLI", () => {
       );
       expect(code).toBe(0);
       expect(stdout).toContain("play");
+    });
+  });
+
+  describe("version", () => {
+    it("prints version with 'version' command", async () => {
+      const { code, stdout } = await captureOutput(() => main(argv("version")));
+      expect(code).toBe(0);
+      expect(stdout).toMatch(/^ToneForge v\d+\.\d+\.\d+$/);
+    });
+
+    it("prints version with --version flag", async () => {
+      const { code, stdout } = await captureOutput(() => main(argv("--version")));
+      expect(code).toBe(0);
+      expect(stdout).toMatch(/^ToneForge v\d+\.\d+\.\d+$/);
+    });
+
+    it("prints version with -V flag", async () => {
+      const { code, stdout } = await captureOutput(() => main(argv("-V")));
+      expect(code).toBe(0);
+      expect(stdout).toMatch(/^ToneForge v\d+\.\d+\.\d+$/);
+    });
+
+    it("version appears in top-level help text", async () => {
+      const { code, stdout } = await captureOutput(() => main(argv("--help")));
+      expect(code).toBe(0);
+      expect(stdout).toContain("version");
+      expect(stdout).toContain("--version");
     });
   });
 

@@ -4,12 +4,15 @@
  *
  * Entry point for the `toneforge` command-line tool.
  * Supports the `generate` command to render, play, and export procedural sounds,
- * and the `play` command to play WAV files from disk.
+ * the `play` command to play WAV files from disk, and the `version` command to
+ * print the current ToneForge version.
  *
  * Usage:
  *   toneforge generate --recipe <name> [--seed <number>] [--output <path.wav>]
  *   toneforge generate --recipe <name> --seed-range <start>:<end> --output <directory/>
  *   toneforge play <file.wav>
+ *   toneforge version
+ *   toneforge --version
  *   toneforge --help
  *
  * Reference: docs/prd/CLI_PRD.md Section 4.1, 5.1
@@ -41,6 +44,8 @@ function parseArgs(argv: string[]): {
     const arg = args[i]!;
     if (arg === "--help" || arg === "-h") {
       flags["help"] = true;
+    } else if (arg === "--version" || arg === "-V") {
+      flags["version"] = true;
     } else if (arg.startsWith("--")) {
       const key = arg.slice(2);
       const next = args[i + 1];
@@ -71,9 +76,11 @@ Commands:
   generate    Render and export procedural sounds
   play        Play a WAV file through the system audio player
   list        List available resources (e.g. recipes)
+  version     Print the ToneForge version
 
 Options:
-  --help, -h  Show this help message
+  --help, -h     Show this help message
+  --version, -V  Print the ToneForge version
 
 Run 'toneforge <command> --help' for command-specific help.`);
 }
@@ -143,6 +150,12 @@ Examples:
 /** Main CLI entry point. Exported for testability. */
 export async function main(argv: string[] = process.argv): Promise<number> {
   const { command, subcommand, flags } = parseArgs(argv);
+
+  // --version flag or `version` command
+  if (flags["version"] || command === "version") {
+    console.log(`ToneForge v${VERSION}`);
+    return 0;
+  }
 
   // Top-level help
   if (flags["help"] || command === undefined) {
