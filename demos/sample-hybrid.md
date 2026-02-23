@@ -149,14 +149,23 @@ toneforge generate --recipe footstep-gravel --seed-range 1:5 --output ./gravel-s
 ```
 
 ```bash
+for f in ./gravel-steps/*.wav; do toneforge play "$f"; sleep 0.3; done
+```
+
+```bash
 toneforge generate --recipe creature-vocal --seed-range 1:3 --output ./creatures/
+```
+
+```bash
+for f in ./creatures/*.wav; do toneforge play "$f"; sleep 0.5; done
 ```
 
 > [!commentary]
 > Five gravel footsteps and three creature variants, all deterministic
-> WAV files. The sound designer can pick favorites by seed number,
-> and those exact sounds can be reproduced anywhere — same seed,
-> same bytes, every time.
+> WAV files. After each batch, we play them back-to-back so you can
+> hear the seed variation. The sound designer can pick favorites by
+> seed number, and those exact sounds can be reproduced anywhere —
+> same seed, same bytes, every time.
 
 ## Act 5 — How it works
 
