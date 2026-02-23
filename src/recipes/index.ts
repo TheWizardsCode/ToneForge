@@ -541,7 +541,7 @@ registry.register("creature-vocal", {
 
 function vehicleEngineDuration(rng: Rng): number {
   const params = getVehicleEngineParams(rng);
-  return params.attack + 0.2 + params.release;
+  return params.attack + 0.4 + params.release;
 }
 
 async function vehicleEngineOfflineGraph(
@@ -628,8 +628,8 @@ registry.register("vehicle-engine", {
     { name: "lfoDepth", min: 50, max: 300, unit: "Hz" },
     { name: "filterCutoff", min: 200, max: 600, unit: "Hz" },
     { name: "mixLevel", min: 0.3, max: 0.7, unit: "amplitude" },
-    { name: "attack", min: 0.1, max: 0.3, unit: "s" },
-    { name: "release", min: 0.3, max: 0.8, unit: "s" },
+    { name: "attack", min: 0.2, max: 0.6, unit: "s" },
+    { name: "release", min: 0.6, max: 1.6, unit: "s" },
   ],
   getParams: (rng) => {
     const p = getVehicleEngineParams(rng);

@@ -145,11 +145,11 @@ Hybrid recipes work with `--output` and `--seed-range` just like
 procedural recipes:
 
 ```bash
-toneforge generate --recipe footstep-gravel --seed-range 1 5 --output ./gravel-steps/
+toneforge generate --recipe footstep-gravel --seed-range 1:5 --output ./gravel-steps/
 ```
 
 ```bash
-toneforge generate --recipe creature-vocal --seed-range 1 3 --output ./creatures/
+toneforge generate --recipe creature-vocal --seed-range 1:3 --output ./creatures/
 ```
 
 > [!commentary]

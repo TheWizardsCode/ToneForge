@@ -17,8 +17,8 @@
  * - LFO depth: 50-300 Hz (filter cutoff modulation range)
  * - Filter cutoff: 200-600 Hz (lowpass tonal shaping)
  * - Mix level: 0.3-0.7 (sample vs synthesis balance)
- * - Attack: 0.1-0.3s (engine startup ramp)
- * - Release: 0.3-0.8s (engine shutdown fade)
+ * - Attack: 0.2-0.6s (engine startup ramp)
+ * - Release: 0.6-1.6s (engine shutdown fade)
  *
  * Reference: docs/prd/CORE_PRD.md Section 6.5
  */
@@ -47,7 +47,7 @@ export function getVehicleEngineParams(rng: Rng): VehicleEngineParams {
     lfoDepth: rr(rng, 50, 300),
     filterCutoff: rr(rng, 200, 600),
     mixLevel: rr(rng, 0.3, 0.7),
-    attack: rr(rng, 0.1, 0.3),
-    release: rr(rng, 0.3, 0.8),
+    attack: rr(rng, 0.2, 0.6),
+    release: rr(rng, 0.6, 1.6),
   };
 }

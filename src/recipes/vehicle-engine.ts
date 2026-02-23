@@ -66,7 +66,7 @@ export function createVehicleEngine(rng: Rng): Recipe {
   player.chain(sampleGain, filter, env);
   osc.chain(synthGain, filter);
 
-  const duration = params.attack + 0.2 + params.release; // attack + brief sustain + release
+  const duration = params.attack + 0.4 + params.release; // attack + brief sustain + release
 
   return {
     start(time: number): void {

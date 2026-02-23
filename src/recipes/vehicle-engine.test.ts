@@ -11,7 +11,7 @@ describeRecipe(
     { name: "lfoDepth", min: 50, max: 300 },
     { name: "filterCutoff", min: 200, max: 600 },
     { name: "mixLevel", min: 0.3, max: 0.7 },
-    { name: "attack", min: 0.1, max: 0.3 },
-    { name: "release", min: 0.3, max: 0.8 },
+    { name: "attack", min: 0.2, max: 0.6 },
+    { name: "release", min: 0.6, max: 1.6 },
   ],
 );
