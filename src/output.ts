@@ -152,3 +152,17 @@ export function outputSuccess(msg: string): void {
 export function outputInfo(msg: string): void {
   process.stdout.write(style(msg, COLORS.dim, "stdout") + "\n");
 }
+
+/**
+ * Render a markdown string and write the result to stdout.
+ *
+ * This is the preferred way to emit rendered markdown content (help text,
+ * show output, list output, etc.) — it keeps `console.log` out of the
+ * main CLI module entirely.
+ */
+export function outputMarkdown(md: string): void {
+  const rendered = renderMarkdown(md);
+  if (rendered.length > 0) {
+    process.stdout.write(rendered + "\n");
+  }
+}

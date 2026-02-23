@@ -92,8 +92,19 @@ describe("CLI E2E — audio player detection and playback", () => {
     const stderrLines: string[] = [];
     const origLog = console.log;
     const origError = console.error;
+    const origStdoutWrite = process.stdout.write;
+    const origStderrWrite = process.stderr.write;
     console.log = (...args: unknown[]) => stdoutLines.push(args.map(String).join(" "));
     console.error = (...args: unknown[]) => stderrLines.push(args.map(String).join(" "));
+    // Capture process.stdout.write / process.stderr.write used by output helpers
+    process.stdout.write = ((chunk: string | Uint8Array) => {
+      stdoutLines.push(String(chunk).replace(/\n$/, ""));
+      return true;
+    }) as typeof process.stdout.write;
+    process.stderr.write = ((chunk: string | Uint8Array) => {
+      stderrLines.push(String(chunk).replace(/\n$/, ""));
+      return true;
+    }) as typeof process.stderr.write;
 
     try {
       const code = await main([
@@ -122,6 +133,8 @@ describe("CLI E2E — audio player detection and playback", () => {
     } finally {
       console.log = origLog;
       console.error = origError;
+      process.stdout.write = origStdoutWrite;
+      process.stderr.write = origStderrWrite;
     }
   }, 15_000); // Allow extra time for rendering + playback
 });
