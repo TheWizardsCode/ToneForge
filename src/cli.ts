@@ -16,7 +16,7 @@
  */
 
 import { mkdir, writeFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { execFile } from "node:child_process";
 import { renderRecipe } from "./core/renderer.js";
@@ -431,10 +431,14 @@ export async function main(argv: string[] = process.argv): Promise<number> {
   }
 }
 
-// Run when executed directly
+// Run when executed directly (via node dist/cli.js, tsx src/cli.ts,
+// or the `toneforge` bin symlink created by npm link)
+const resolvedArg = process.argv[1]
+  ? realpathSync(process.argv[1])
+  : "";
 const isDirectRun =
-  process.argv[1]?.endsWith("cli.ts") ||
-  process.argv[1]?.endsWith("cli.js");
+  resolvedArg.endsWith("cli.ts") ||
+  resolvedArg.endsWith("cli.js");
 
 if (isDirectRun) {
   main().then((code) => {
