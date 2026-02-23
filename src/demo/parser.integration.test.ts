@@ -79,9 +79,9 @@ describe("Demo markdown integration — recipe validation", () => {
       );
 
       it.each(generateCommands)(
-        "step $stepId: '$command' includes a --seed argument",
+        "step $stepId: '$command' includes a --seed or --seed-range argument",
         ({ command }) => {
-          expect(command).toMatch(/--seed[= ]\d+/);
+          expect(command).toMatch(/--seed(?:-range)?[= ]\d+/);
         },
       );
 
