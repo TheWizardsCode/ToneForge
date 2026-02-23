@@ -97,7 +97,7 @@ describe("Wizard step command validation (all demos)", () => {
   it.each(generateCommands)(
     "[$demoId] step $stepId: command '$command' includes a --seed argument",
     ({ command }) => {
-      expect(command).toMatch(/--seed[= ]\d+/);
+      expect(command).toMatch(/--seed(?:-range)?[= ]\d+/);
     },
   );
 });
