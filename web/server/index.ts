@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { WebSocketServer, WebSocket } from "ws";
 import * as pty from "node-pty";
+import { execSync } from "node:child_process";
+import { writeFileSync, unlinkSync, existsSync } from "node:fs";
 import type { IncomingMessage } from "node:http";
 import type { Socket } from "node:net";
 
@@ -11,6 +13,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
+const MAX_PORT_RETRIES = 10;
+
+/** Path to the .port coordination file written after successful listen. */
+const PORT_FILE_PATH = resolve(__dirname, "..", ".port");
 const PROJECT_ROOT = resolve(__dirname, "..", "..");
 
 // ── Origin restriction ─────────────────────────────────────────────
@@ -157,21 +163,147 @@ app.get("/{*splat}", (_req, res) => {
   res.sendFile(resolve(distDir, "index.html"));
 });
 
+// ── Port-conflict helpers ──────────────────────────────────────────
+
+/**
+ * Best-effort identification of the process occupying a port.
+ * Returns a human-readable string like "PID 1234 (node)" or a fallback message.
+ */
+function identifyPortHolder(port: number): string {
+  try {
+    if (process.platform === "win32") {
+      const out = execSync(`netstat -ano | findstr :${port} | findstr LISTENING`, {
+        encoding: "utf-8",
+        timeout: 3000,
+      }).trim();
+      const match = out.match(/\s(\d+)\s*$/m);
+      if (match) return `PID ${match[1]}`;
+    } else {
+      const out = execSync(`lsof -i :${port} -sTCP:LISTEN -t 2>/dev/null`, {
+        encoding: "utf-8",
+        timeout: 3000,
+      }).trim();
+      if (out) {
+        const pid = out.split("\n")[0];
+        try {
+          const name = execSync(`ps -p ${pid} -o comm= 2>/dev/null`, {
+            encoding: "utf-8",
+            timeout: 3000,
+          }).trim();
+          return `PID ${pid} (${name})`;
+        } catch {
+          return `PID ${pid}`;
+        }
+      }
+    }
+  } catch {
+    // PID detection is best-effort
+  }
+  return "unknown process";
+}
+
+/**
+ * Write the actual port to the `.port` coordination file so that
+ * other tools (Vite proxy, scripts) can discover the backend port.
+ */
+function writePortFile(port: number): void {
+  try {
+    writeFileSync(PORT_FILE_PATH, String(port), "utf-8");
+  } catch (err) {
+    console.warn(`Warning: could not write port file at ${PORT_FILE_PATH}:`, err);
+  }
+}
+
+/** Remove the `.port` file if it exists. */
+function removePortFile(): void {
+  try {
+    if (existsSync(PORT_FILE_PATH)) {
+      unlinkSync(PORT_FILE_PATH);
+    }
+  } catch {
+    // Best-effort cleanup
+  }
+}
+
+// Register cleanup handlers to remove the port file on exit
+let cleanupRegistered = false;
+function registerPortFileCleanup(): void {
+  if (cleanupRegistered) return;
+  cleanupRegistered = true;
+
+  const cleanup = () => removePortFile();
+
+  process.on("exit", cleanup);
+  process.on("SIGINT", () => {
+    cleanup();
+    process.exit(128 + 2);
+  });
+  process.on("SIGTERM", () => {
+    cleanup();
+    process.exit(128 + 15);
+  });
+}
+
 // ── Start ──────────────────────────────────────────────────────────
 
 /**
  * Start the server on the given port.
  * Returns a promise that resolves with the listening port once ready.
+ *
+ * If the requested port is in use (EADDRINUSE), the server automatically
+ * retries on the next port, up to `MAX_PORT_RETRIES` attempts.
+ * Port 0 (OS-assigned) skips retry logic entirely.
  */
 export function startServer(port: number = PORT): Promise<number> {
-  return new Promise((resolve) => {
-    httpServer.listen(port, () => {
-      const addr = httpServer.address();
-      const actualPort = typeof addr === "object" && addr ? addr.port : port;
-      console.log(`ToneForge Web Demo server listening on http://localhost:${actualPort}`);
-      console.log(`Allowed origins: ${getAllowedOriginPatterns().join(", ")}`);
-      resolve(actualPort);
-    });
+  return new Promise((resolve, reject) => {
+    const maxPort = port === 0 ? 0 : port + MAX_PORT_RETRIES - 1;
+    let currentPort = port;
+
+    function tryListen() {
+      // Remove any previous listeners to avoid stacking on retries
+      httpServer.removeAllListeners("error");
+      httpServer.removeAllListeners("listening");
+
+      httpServer.on("error", (err: NodeJS.ErrnoException) => {
+        if (err.code === "EADDRINUSE" && port !== 0 && currentPort < maxPort) {
+          const holder = identifyPortHolder(currentPort);
+          console.warn(
+            `Port ${currentPort} is in use by ${holder}. Retrying on port ${currentPort + 1}...`,
+          );
+          currentPort++;
+          tryListen();
+        } else if (err.code === "EADDRINUSE") {
+          const holder = identifyPortHolder(currentPort);
+          const msg =
+            `All ports ${port}-${maxPort} are in use. ` +
+            `Port ${currentPort} is held by ${holder}. ` +
+            `Free a port or set the PORT environment variable to a different range.`;
+          console.error(msg);
+          reject(new Error(msg));
+        } else {
+          reject(err);
+        }
+      });
+
+      httpServer.on("listening", () => {
+        const addr = httpServer.address();
+        const actualPort = typeof addr === "object" && addr ? addr.port : currentPort;
+        console.log(`ToneForge Web Demo server listening on http://localhost:${actualPort}`);
+        console.log(`Allowed origins: ${getAllowedOriginPatterns().join(", ")}`);
+
+        // Write port file and register cleanup (skip for ephemeral port 0 used in tests)
+        if (port !== 0) {
+          writePortFile(actualPort);
+          registerPortFileCleanup();
+        }
+
+        resolve(actualPort);
+      });
+
+      httpServer.listen(currentPort);
+    }
+
+    tryListen();
   });
 }
 
@@ -184,4 +316,13 @@ if (isDirectRun) {
   startServer();
 }
 
-export { app, httpServer as server, isOriginAllowed, getAllowedOriginPatterns };
+export {
+  app,
+  httpServer as server,
+  isOriginAllowed,
+  getAllowedOriginPatterns,
+  PORT_FILE_PATH,
+  MAX_PORT_RETRIES,
+  identifyPortHolder,
+  removePortFile,
+};

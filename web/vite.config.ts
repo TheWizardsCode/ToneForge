@@ -1,8 +1,37 @@
 import { defineConfig } from "vite";
 import { resolve } from "node:path";
+import { readFileSync, existsSync } from "node:fs";
 
 const projectRoot = resolve(__dirname, "..");
-const BACKEND_PORT = parseInt(process.env.BACKEND_PORT || "3000", 10);
+const PORT_FILE = resolve(__dirname, ".port");
+
+/**
+ * Discover the backend port for the WebSocket proxy.
+ * Priority: .port file > BACKEND_PORT env var > default 3000.
+ */
+function getBackendPort(): number {
+  // 1. Try the .port coordination file (written by the backend after listen)
+  try {
+    if (existsSync(PORT_FILE)) {
+      const content = readFileSync(PORT_FILE, "utf-8").trim();
+      const port = parseInt(content, 10);
+      if (!Number.isNaN(port) && port > 0) return port;
+    }
+  } catch {
+    // Fall through to env var / default
+  }
+
+  // 2. BACKEND_PORT env var
+  if (process.env.BACKEND_PORT) {
+    const port = parseInt(process.env.BACKEND_PORT, 10);
+    if (!Number.isNaN(port) && port > 0) return port;
+  }
+
+  // 3. Default
+  return 3000;
+}
+
+const BACKEND_PORT = getBackendPort();
 
 export default defineConfig({
   root: "src",
