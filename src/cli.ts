@@ -30,6 +30,7 @@ import { playAudio, getPlayerCommand } from "./audio/player.js";
 import { encodeWav } from "./audio/wav-encoder.js";
 import { VERSION } from "./index.js";
 import { createRng } from "./core/rng.js";
+import { renderMarkdown } from "./output.js";
 import type { RecipeRegistration } from "./core/recipe.js";
 
 /** Parse command-line arguments into a structured map. */
@@ -73,114 +74,159 @@ function parseArgs(argv: string[]): {
 
 /** Print general help text. */
 function printHelp(): void {
-  console.log(`ToneForge v${VERSION} — Procedural Audio Production Platform
+  const md = `# ToneForge v${VERSION}
 
-Usage:
-  toneforge <command> [options]
+**Procedural Audio Production Platform**
 
-Commands:
-  generate    Render and export procedural sounds
-  show        Display recipe metadata and parameters
-  play        Play a WAV file through the system audio player
-  list        List available resources (e.g. recipes)
-  version     Print the ToneForge version
+## Usage
 
-Options:
-  --help, -h     Show this help message
-  --version, -V  Print the ToneForge version
-  --json         Output results in JSON format for machine consumption
+\`toneforge <command> [options]\`
 
-Run 'toneforge <command> --help' for command-specific help.`);
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| **generate** | Render and export procedural sounds |
+| **show** | Display recipe metadata and parameters |
+| **play** | Play a WAV file through the system audio player |
+| **list** | List available resources (e.g. recipes) |
+| **version** | Print the ToneForge version |
+
+## Options
+
+- \`--help\`, \`-h\` — Show this help message
+- \`--version\`, \`-V\` — Print the ToneForge version
+- \`--json\` — Output results in JSON format for machine consumption
+
+Run \`toneforge <command> --help\` for command-specific help.`;
+  console.log(renderMarkdown(md));
 }
 
 /** Print help text for the generate command. */
 function printGenerateHelp(): void {
   const recipes = registry.list();
-  console.log(`ToneForge generate — Render and export procedural sounds
+  const md = `# ToneForge generate
 
-Usage:
-  toneforge generate --recipe <name> [--seed <number>] [--output <path.wav>]
-  toneforge generate --recipe <name> --seed-range <start>:<end> --output <directory/>
+**Render and export procedural sounds**
 
-Options:
-  --recipe <name>          Name of the recipe to generate (required)
-  --seed <number>          Integer seed for deterministic generation (default: random)
-  --seed-range <start:end> Generate one WAV per seed in the inclusive range
-  --output <path>          Write WAV file to path instead of playing audio
-                           Use a .wav path for single file, or a directory
-                           (trailing /) for batch output with --seed-range
-  --json                   Output results in JSON format
-  --help, -h               Show this help message
+## Usage
 
-Available recipes:
-  ${recipes.join(", ") || "(none registered)"}
+\`\`\`
+toneforge generate --recipe <name> [--seed <number>] [--output <path.wav>]
+toneforge generate --recipe <name> --seed-range <start>:<end> --output <directory/>
+\`\`\`
 
-Examples:
-  toneforge generate --recipe ui-scifi-confirm --seed 42
-  toneforge generate --recipe ui-scifi-confirm --seed 42 --output ./my-sound.wav
-  toneforge generate --recipe weapon-laser-zap --seed-range 1:10 --output ./lasers/`);
+## Options
+
+- \`--recipe <name>\` — Name of the recipe to generate *(required)*
+- \`--seed <number>\` — Integer seed for deterministic generation (default: random)
+- \`--seed-range <start:end>\` — Generate one WAV per seed in the inclusive range
+- \`--output <path>\` — Write WAV file to path instead of playing audio. Use a \`.wav\` path for single file, or a directory (trailing \`/\`) for batch output with \`--seed-range\`
+- \`--json\` — Output results in JSON format
+- \`--help\`, \`-h\` — Show this help message
+
+## Available recipes
+
+${recipes.length > 0 ? recipes.map((r) => `- \`${r}\``).join("\n") : "*(none registered)*"}
+
+## Examples
+
+\`\`\`
+toneforge generate --recipe ui-scifi-confirm --seed 42
+toneforge generate --recipe ui-scifi-confirm --seed 42 --output ./my-sound.wav
+toneforge generate --recipe weapon-laser-zap --seed-range 1:10 --output ./lasers/
+\`\`\``;
+  console.log(renderMarkdown(md));
 }
 
 /** Print help text for the list command. */
 function printListHelp(): void {
-  console.log(`ToneForge list — List available resources
+  const md = `# ToneForge list
 
-Usage:
-  toneforge list [resource]
+**List available resources**
 
-Resources:
-  recipes     List all registered recipe names (default)
+## Usage
 
-Options:
-  --json        Output results in JSON format
-  --help, -h    Show this help message
+\`toneforge list [resource]\`
 
-Examples:
-  toneforge list
-  toneforge list recipes`);
+## Resources
+
+- **recipes** — List all registered recipe names *(default)*
+
+## Options
+
+- \`--json\` — Output results in JSON format
+- \`--help\`, \`-h\` — Show this help message
+
+## Examples
+
+\`\`\`
+toneforge list
+toneforge list recipes
+\`\`\``;
+  console.log(renderMarkdown(md));
 }
 
 /** Print help text for the play command. */
 function printPlayHelp(): void {
-  console.log(`ToneForge play — Play a WAV file through the system audio player
+  const md = `# ToneForge play
 
-Usage:
-  toneforge play <file.wav>
+**Play a WAV file through the system audio player**
 
-Arguments:
-  <file.wav>  Path to a WAV file to play (required)
+## Usage
 
-Options:
-  --json        Output results in JSON format
-  --help, -h    Show this help message
+\`toneforge play <file.wav>\`
 
-Examples:
-  toneforge play ./output/confirm.wav
-  toneforge play ./output/lasers/weapon-laser-zap-seed-1.wav`);
+## Arguments
+
+- \`<file.wav>\` — Path to a WAV file to play *(required)*
+
+## Options
+
+- \`--json\` — Output results in JSON format
+- \`--help\`, \`-h\` — Show this help message
+
+## Examples
+
+\`\`\`
+toneforge play ./output/confirm.wav
+toneforge play ./output/lasers/weapon-laser-zap-seed-1.wav
+\`\`\``;
+  console.log(renderMarkdown(md));
 }
 
 /** Print help text for the show command. */
 function printShowHelp(): void {
   const recipes = registry.list();
-  console.log(`ToneForge show — Display recipe metadata and parameters
+  const md = `# ToneForge show
 
-Usage:
-  toneforge show <recipe-name> [--seed <number>]
+**Display recipe metadata and parameters**
 
-Arguments:
-  <recipe-name>  Name of the recipe to inspect (required)
+## Usage
 
-Options:
-  --seed <number>  Show seed-specific parameter values alongside ranges
-  --json           Output results in JSON format
-  --help, -h       Show this help message
+\`toneforge show <recipe-name> [--seed <number>]\`
 
-Available recipes:
-  ${recipes.join(", ") || "(none registered)"}
+## Arguments
 
-Examples:
-  toneforge show ui-scifi-confirm
-  toneforge show weapon-laser-zap --seed 42`);
+- \`<recipe-name>\` — Name of the recipe to inspect *(required)*
+
+## Options
+
+- \`--seed <number>\` — Show seed-specific parameter values alongside ranges
+- \`--json\` — Output results in JSON format
+- \`--help\`, \`-h\` — Show this help message
+
+## Available recipes
+
+${recipes.length > 0 ? recipes.map((r) => `- \`${r}\``).join("\n") : "*(none registered)*"}
+
+## Examples
+
+\`\`\`
+toneforge show ui-scifi-confirm
+toneforge show weapon-laser-zap --seed 42
+\`\`\``;
+  console.log(renderMarkdown(md));
 }
 
 /**
