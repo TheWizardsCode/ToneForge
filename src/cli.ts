@@ -199,6 +199,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     }
 
     try {
+      console.log(`Playing ${subcommand}`);
       const { command: playerCmd, args } = getPlayerCommand(filePath);
 
       await new Promise<void>((resolvePromise, reject) => {

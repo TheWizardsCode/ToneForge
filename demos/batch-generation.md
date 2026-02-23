@@ -49,7 +49,7 @@ toneforge generate --recipe weapon-laser-zap --seed-range 1:5 --output ./output/
 Audition every file in one shot with a quick loop:
 
 ```bash
-for f in ./output/lasers/*.wav; do toneforge play "$f"; sleep 0.5; done
+for f in ./output/lasers/*.wav; do toneforge play "$f"; sleep 0.25; done
 ```
 
 > [!commentary]
@@ -82,7 +82,7 @@ toneforge generate --recipe footstep-stone --seed-range 10:20 --output ./output/
 Audition each footstep variation:
 
 ```bash
-for f in ./output/footsteps/*.wav; do toneforge play "$f"; sleep 0.5; done
+for f in ./output/footsteps/*.wav; do toneforge play "$f"; sleep 0.25; done
 ```
 
 > [!commentary]
@@ -115,7 +115,7 @@ toneforge generate --recipe ui-notification-chime --seed-range 1:10 --output ./o
 Audition each chime variation:
 
 ```bash
-for f in ./output/chimes/*.wav; do toneforge play "$f"; sleep 0.5; done
+for f in ./output/chimes/*.wav; do toneforge play "$f"; sleep 0.25; done
 ```
 
 > [!commentary]
@@ -150,7 +150,7 @@ toneforge generate --recipe ambient-wind-gust --seed-range 100:102 --output ./ou
 Play through the wind variations:
 
 ```bash
-for f in ./output/wind/*.wav; do toneforge play "$f"; sleep 0.5; done
+for f in ./output/wind/*.wav; do toneforge play "$f"; sleep 0.25; done
 ```
 
 > [!commentary]
