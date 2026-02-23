@@ -71,6 +71,87 @@ describe("renderRecipe", () => {
   });
 });
 
+describe("async buildOfflineGraph support", () => {
+  it("correctly awaits an async buildOfflineGraph", async () => {
+    // Register a recipe with an async buildOfflineGraph that uses a
+    // delayed oscillator start to prove the promise was awaited.
+    const { RecipeRegistry } = await import("./recipe.js");
+    const { createRng, rr } = await import("./rng.js");
+    const { OfflineAudioContext } = await import("node-web-audio-api");
+
+    const testRegistry = new RecipeRegistry();
+    testRegistry.register("async-test-recipe", {
+      factory: () => {
+        throw new Error("Not used in offline render");
+      },
+      getDuration: () => 0.1,
+      buildOfflineGraph: async (_rng, ctx, duration) => {
+        // Simulate async work (e.g., sample loading) with a microtask
+        await Promise.resolve();
+        const osc = ctx.createOscillator();
+        osc.frequency.value = 440;
+        const gain = ctx.createGain();
+        gain.gain.value = 0.5;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(0);
+        osc.stop(duration);
+      },
+      description: "Async test recipe",
+      category: "Test",
+      signalChain: "Oscillator -> Gain -> Destination",
+      params: [],
+      getParams: () => ({}),
+    });
+
+    // Render using the async recipe through the same pipeline pattern
+    const seed = 42;
+    const rng = createRng(seed);
+    const dur = testRegistry.getRegistration("async-test-recipe")!.getDuration(rng);
+    const sampleRate = 44100;
+    const length = Math.ceil(sampleRate * dur);
+    const ctx = new OfflineAudioContext(1, length, sampleRate);
+    const graphRng = createRng(seed);
+    await testRegistry.getRegistration("async-test-recipe")!.buildOfflineGraph(graphRng, ctx, dur);
+    const audioBuffer = await ctx.startRendering();
+    const samples = new Float32Array(audioBuffer.getChannelData(0));
+
+    // Verify the async graph produced non-silent output
+    const nonZero = samples.filter((s) => s !== 0).length;
+    expect(nonZero).toBeGreaterThan(0);
+  });
+
+  it("propagates errors from a rejecting async buildOfflineGraph", async () => {
+    const { RecipeRegistry } = await import("./recipe.js");
+
+    const testRegistry = new RecipeRegistry();
+    testRegistry.register("async-error-recipe", {
+      factory: () => {
+        throw new Error("Not used in offline render");
+      },
+      getDuration: () => 0.1,
+      buildOfflineGraph: async () => {
+        await Promise.resolve();
+        throw new Error("Sample file not found: missing.wav");
+      },
+      description: "Async error test recipe",
+      category: "Test",
+      signalChain: "None",
+      params: [],
+      getParams: () => ({}),
+    });
+
+    const { OfflineAudioContext } = await import("node-web-audio-api");
+    const { createRng } = await import("./rng.js");
+    const ctx = new OfflineAudioContext(1, 4410, 44100);
+    const rng = createRng(42);
+
+    await expect(
+      testRegistry.getRegistration("async-error-recipe")!.buildOfflineGraph(rng, ctx, 0.1),
+    ).rejects.toThrow("Sample file not found: missing.wav");
+  });
+});
+
 describe("buffer-compare", () => {
   it("reports identical buffers correctly", () => {
     const a = new Float32Array([0.1, 0.2, 0.3]);
