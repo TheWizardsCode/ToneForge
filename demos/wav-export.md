@@ -105,38 +105,40 @@ node dist/cli.js generate --recipe ambient-wind-gust --seed 500 --output ./outpu
 
 ## Act 5 — From procedural to pre-rendered
 
-> You've been generating the UI confirmation sound procedurally in your
-> game — calling ToneForge at runtime with seed 42 every time the player
-> hits "confirm." It sounds great, but it's the same sound every time.
-> For a consistent effect like that, it's better to save CPU and play
-> back from a pre-rendered file. The question is: will the file sound
+> You've been generating your laser zap sound procedurally in your
+> game — calling ToneForge at runtime with seed 99 every time the player
+> fires. It sounds great, but it's the same zap every shot. For a
+> consistent effect like that, it's better to save CPU and play back
+> from a pre-rendered file. The question is: will the file sound
 > exactly the same as what the engine has been generating on the fly?
 
 First, listen to the procedurally generated sound — the same one your
-game has been producing at runtime:
+game has been producing at runtime every time the player pulls the
+trigger:
 
 ```bash
-node dist/cli.js generate --recipe ui-scifi-confirm --seed 42
+node dist/cli.js generate --recipe weapon-laser-zap --seed 99
 ```
 
 Now save that exact sound to disk with the same recipe and seed:
 
 ```bash
-node dist/cli.js generate --recipe ui-scifi-confirm --seed 42 --output ./output/confirm-prerendered.wav
+node dist/cli.js generate --recipe weapon-laser-zap --seed 99 --output ./output/laser-prerendered.wav
 ```
 
 Play back the saved file and compare:
 
 ```bash
-aplay ./output/confirm-prerendered.wav
+aplay ./output/laser-prerendered.wav
 ```
 
 > [!commentary]
 > Identical. The file saved to disk is byte-for-byte the same audio
-> that ToneForge generates procedurally at runtime. You can swap from
-> runtime generation to file playback without any audible difference —
-> just less CPU overhead. Version-control the seed, pre-render during
-> your build, and ship the WAV as a static asset.
+> that ToneForge generates procedurally at runtime. For a weapon sound
+> that fires dozens of times per minute, swapping runtime generation
+> for file playback saves real CPU — with zero audible difference.
+> Version-control the seed, pre-render during your build, and ship
+> the WAV as a static asset.
 
 ## Recap — What you just saw
 
