@@ -208,6 +208,56 @@ describe("CLI", () => {
       expect(code).toBe(1);
       expect(stderr).toContain("Unknown resource");
     });
+
+    it("list output contains no ANSI when non-TTY", async () => {
+      const { setTtyOverride } = await import("./output.js");
+      setTtyOverride(false);
+      try {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("list")),
+        );
+        expect(code).toBe(0);
+        // eslint-disable-next-line no-control-regex
+        expect(stdout).not.toMatch(/\x1b\[/);
+        expect(stdout).toContain("ui-scifi-confirm");
+      } finally {
+        setTtyOverride(undefined);
+      }
+    });
+
+    it("list output contains ANSI when TTY", async () => {
+      const { setTtyOverride } = await import("./output.js");
+      setTtyOverride(true);
+      try {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("list")),
+        );
+        expect(code).toBe(0);
+        // eslint-disable-next-line no-control-regex
+        expect(stdout).toMatch(/\x1b\[/);
+        expect(stdout).toContain("ui-scifi-confirm");
+      } finally {
+        setTtyOverride(undefined);
+      }
+    });
+
+    it("list JSON output is unaffected by TTY mode", async () => {
+      const { setTtyOverride } = await import("./output.js");
+      setTtyOverride(true);
+      try {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("list", "--json")),
+        );
+        expect(code).toBe(0);
+        // eslint-disable-next-line no-control-regex
+        expect(stdout).not.toMatch(/\x1b\[/);
+        const data = JSON.parse(stdout);
+        expect(data.command).toBe("list");
+        expect(data.recipes).toContain("ui-scifi-confirm");
+      } finally {
+        setTtyOverride(undefined);
+      }
+    });
   });
 
   describe("--output flag (single-file WAV export)", () => {
@@ -607,13 +657,59 @@ describe("CLI", () => {
       expect(stdout).toContain("show");
     });
 
-    it("outputs raw markdown (no ANSI escape codes)", async () => {
-      const { code, stdout } = await captureOutput(
-        () => main(argv("show", "ui-scifi-confirm")),
-      );
-      expect(code).toBe(0);
-      // eslint-disable-next-line no-control-regex
-      expect(stdout).not.toMatch(/\x1b\[/);
+    it("outputs raw markdown (no ANSI escape codes) when non-TTY", async () => {
+      const { setTtyOverride } = await import("./output.js");
+      setTtyOverride(false);
+      try {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("show", "ui-scifi-confirm")),
+        );
+        expect(code).toBe(0);
+        // eslint-disable-next-line no-control-regex
+        expect(stdout).not.toMatch(/\x1b\[/);
+        // Should still contain raw markdown syntax
+        expect(stdout).toContain("# ui-scifi-confirm");
+        expect(stdout).toContain("**Category:**");
+      } finally {
+        setTtyOverride(undefined);
+      }
+    });
+
+    it("outputs styled ANSI when TTY is detected", async () => {
+      const { setTtyOverride } = await import("./output.js");
+      setTtyOverride(true);
+      try {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("show", "ui-scifi-confirm")),
+        );
+        expect(code).toBe(0);
+        // eslint-disable-next-line no-control-regex
+        expect(stdout).toMatch(/\x1b\[/);
+        // Content should still be present
+        expect(stdout).toContain("ui-scifi-confirm");
+        expect(stdout).toContain("Parameters");
+      } finally {
+        setTtyOverride(undefined);
+      }
+    });
+
+    it("JSON output contains no ANSI codes regardless of TTY", async () => {
+      const { setTtyOverride } = await import("./output.js");
+      setTtyOverride(true);
+      try {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("show", "ui-scifi-confirm", "--json")),
+        );
+        expect(code).toBe(0);
+        // eslint-disable-next-line no-control-regex
+        expect(stdout).not.toMatch(/\x1b\[/);
+        // Should be valid JSON
+        const data = JSON.parse(stdout);
+        expect(data.command).toBe("show");
+        expect(data.recipe).toBe("ui-scifi-confirm");
+      } finally {
+        setTtyOverride(undefined);
+      }
     });
 
     it("produces output for all five recipes", async () => {

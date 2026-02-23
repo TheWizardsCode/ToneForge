@@ -499,9 +499,8 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     if (jsonMode) {
       jsonOut({ command: "list", resource: "recipes", recipes });
     } else {
-      for (const name of recipes) {
-        console.log(name);
-      }
+      const md = recipes.map((name) => `- ${name}`).join("\n");
+      console.log(renderMarkdown(md));
     }
     return 0;
   }
@@ -565,7 +564,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       jsonOut(jsonResult);
     } else {
       const output = formatShowOutput(recipeName, reg, seed);
-      console.log(output);
+      console.log(renderMarkdown(output));
     }
     return 0;
   }
