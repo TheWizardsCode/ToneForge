@@ -1146,4 +1146,184 @@ describe("CLI", () => {
       });
     });
   });
+
+  describe("help text markdown rendering", () => {
+    // eslint-disable-next-line no-control-regex
+    const ANSI_RE = /\x1b\[/;
+
+    let setTtyOverride: (value: boolean | undefined) => void;
+
+    beforeEach(async () => {
+      const outputModule = await import("./output.js");
+      setTtyOverride = outputModule.setTtyOverride;
+    });
+
+    afterEach(() => {
+      setTtyOverride(undefined);
+    });
+
+    describe("TTY mode (ANSI output)", () => {
+      it("global help contains ANSI codes when TTY", async () => {
+        setTtyOverride(true);
+        const { code, stdout } = await captureOutput(
+          () => main(argv("--help")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toMatch(ANSI_RE);
+        expect(stdout).toContain("ToneForge");
+      });
+
+      it("generate help contains ANSI codes when TTY", async () => {
+        setTtyOverride(true);
+        const { code, stdout } = await captureOutput(
+          () => main(argv("generate", "--help")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toMatch(ANSI_RE);
+        expect(stdout).toContain("recipe");
+      });
+
+      it("list help contains ANSI codes when TTY", async () => {
+        setTtyOverride(true);
+        const { code, stdout } = await captureOutput(
+          () => main(argv("list", "--help")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toMatch(ANSI_RE);
+        expect(stdout).toContain("recipes");
+      });
+
+      it("play help contains ANSI codes when TTY", async () => {
+        setTtyOverride(true);
+        const { code, stdout } = await captureOutput(
+          () => main(argv("play", "--help")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toMatch(ANSI_RE);
+        expect(stdout).toContain("play");
+      });
+
+      it("show help contains ANSI codes when TTY", async () => {
+        setTtyOverride(true);
+        const { code, stdout } = await captureOutput(
+          () => main(argv("show", "--help")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toMatch(ANSI_RE);
+        expect(stdout).toContain("show");
+      });
+    });
+
+    describe("non-TTY mode (raw markdown)", () => {
+      it("global help contains no ANSI codes when non-TTY", async () => {
+        setTtyOverride(false);
+        const { code, stdout } = await captureOutput(
+          () => main(argv("--help")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).not.toMatch(ANSI_RE);
+        expect(stdout).toContain("ToneForge");
+        expect(stdout).toContain("generate");
+      });
+
+      it("generate help contains no ANSI codes when non-TTY", async () => {
+        setTtyOverride(false);
+        const { code, stdout } = await captureOutput(
+          () => main(argv("generate", "--help")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).not.toMatch(ANSI_RE);
+        expect(stdout).toContain("--recipe");
+      });
+
+      it("list help contains no ANSI codes when non-TTY", async () => {
+        setTtyOverride(false);
+        const { code, stdout } = await captureOutput(
+          () => main(argv("list", "--help")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).not.toMatch(ANSI_RE);
+        expect(stdout).toContain("recipes");
+      });
+
+      it("play help contains no ANSI codes when non-TTY", async () => {
+        setTtyOverride(false);
+        const { code, stdout } = await captureOutput(
+          () => main(argv("play", "--help")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).not.toMatch(ANSI_RE);
+        expect(stdout).toContain("play");
+      });
+
+      it("show help contains no ANSI codes when non-TTY", async () => {
+        setTtyOverride(false);
+        const { code, stdout } = await captureOutput(
+          () => main(argv("show", "--help")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).not.toMatch(ANSI_RE);
+        expect(stdout).toContain("show");
+      });
+    });
+
+    describe("content preservation", () => {
+      it("global help preserves all command names in markdown format", async () => {
+        setTtyOverride(false);
+        const { stdout } = await captureOutput(
+          () => main(argv("--help")),
+        );
+        expect(stdout).toContain("generate");
+        expect(stdout).toContain("show");
+        expect(stdout).toContain("play");
+        expect(stdout).toContain("list");
+        expect(stdout).toContain("version");
+        expect(stdout).toContain("--help");
+        expect(stdout).toContain("--version");
+        expect(stdout).toContain("--json");
+      });
+
+      it("generate help preserves all flags and examples", async () => {
+        setTtyOverride(false);
+        const { stdout } = await captureOutput(
+          () => main(argv("generate", "--help")),
+        );
+        expect(stdout).toContain("--recipe");
+        expect(stdout).toContain("--seed");
+        expect(stdout).toContain("--output");
+        expect(stdout).toContain("--seed-range");
+        expect(stdout).toContain("ui-scifi-confirm");
+        expect(stdout).toContain("weapon-laser-zap");
+      });
+
+      it("show help preserves recipe-name argument and available recipes", async () => {
+        setTtyOverride(false);
+        const { stdout } = await captureOutput(
+          () => main(argv("show", "--help")),
+        );
+        expect(stdout).toContain("<recipe-name>");
+        expect(stdout).toContain("--seed");
+        expect(stdout).toContain("ui-scifi-confirm");
+        expect(stdout).toContain("weapon-laser-zap");
+      });
+
+      it("play help preserves file.wav argument", async () => {
+        setTtyOverride(false);
+        const { stdout } = await captureOutput(
+          () => main(argv("play", "--help")),
+        );
+        expect(stdout).toContain("<file.wav>");
+        expect(stdout).toContain("Examples");
+      });
+
+      it("list help preserves resource description", async () => {
+        setTtyOverride(false);
+        const { stdout } = await captureOutput(
+          () => main(argv("list", "--help")),
+        );
+        expect(stdout).toContain("recipes");
+        expect(stdout).toContain("resource");
+      });
+    });
+  });
 });
