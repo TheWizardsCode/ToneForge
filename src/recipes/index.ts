@@ -25,6 +25,8 @@ import { createFootstepGravel } from "./footstep-gravel.js";
 import { getFootstepGravelParams } from "./footstep-gravel-params.js";
 import { createCreatureVocal } from "./creature-vocal.js";
 import { getCreatureVocalParams } from "./creature-vocal-params.js";
+import { createVehicleEngine } from "./vehicle-engine.js";
+import { getVehicleEngineParams } from "./vehicle-engine-params.js";
 import { loadSample } from "../audio/sample-loader.js";
 
 /** The global recipe registry instance with all built-in recipes registered. */
@@ -531,6 +533,110 @@ registry.register("creature-vocal", {
       carrierFreq: p.carrierFreq, modIndex: p.modIndex,
       filterCutoff: p.filterCutoff, filterQ: p.filterQ,
       mixLevel: p.mixLevel, attack: p.attack, decay: p.decay,
+    };
+  },
+});
+
+// ── vehicle-engine (sample-hybrid) ────────────────────────────────
+
+function vehicleEngineDuration(rng: Rng): number {
+  const params = getVehicleEngineParams(rng);
+  return params.attack + 0.2 + params.release;
+}
+
+async function vehicleEngineOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): Promise<void> {
+  const params = getVehicleEngineParams(rng);
+
+  // Load the CC0 engine loop sample
+  const sampleBuffer = await loadSample("vehicle-engine/loop.wav", ctx);
+
+  // Sample layer: looping engine sample
+  const sampleSrc = ctx.createBufferSource();
+  sampleSrc.buffer = sampleBuffer;
+  sampleSrc.loop = true;
+
+  const sampleGain = ctx.createGain();
+  sampleGain.gain.value = params.mixLevel;
+
+  sampleSrc.connect(sampleGain);
+
+  // Oscillator layer: sawtooth for harmonic reinforcement
+  const osc = ctx.createOscillator();
+  osc.type = "sawtooth";
+  osc.frequency.value = params.oscFreq;
+
+  const synthGain = ctx.createGain();
+  synthGain.gain.value = 1 - params.mixLevel;
+
+  osc.connect(synthGain);
+
+  // Shared lowpass filter
+  const filter = ctx.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.value = params.filterCutoff;
+
+  // LFO for filter cutoff modulation (manual via automation)
+  const lfoMin = Math.max(20, params.filterCutoff - params.lfoDepth * 0.5);
+  const lfoMax = params.filterCutoff + params.lfoDepth * 0.5;
+  const lfoPeriod = 1 / params.lfoRate;
+  const lfoSteps = Math.ceil(duration / (lfoPeriod / 16));
+  const lfoStepTime = duration / lfoSteps;
+
+  for (let i = 0; i <= lfoSteps; i++) {
+    const t = i * lfoStepTime;
+    const phase = t * params.lfoRate * 2 * Math.PI;
+    const value = lfoMin + (lfoMax - lfoMin) * (0.5 + 0.5 * Math.sin(phase));
+    filter.frequency.setValueAtTime(value, t);
+  }
+
+  sampleGain.connect(filter);
+  synthGain.connect(filter);
+
+  // Amplitude envelope: attack -> sustain -> release
+  const envGain = ctx.createGain();
+  envGain.gain.setValueAtTime(0, 0);
+  envGain.gain.linearRampToValueAtTime(1, params.attack);
+  const sustainEnd = Math.max(params.attack, duration - params.release);
+  envGain.gain.setValueAtTime(1, sustainEnd);
+  envGain.gain.linearRampToValueAtTime(0, duration);
+
+  filter.connect(envGain);
+  envGain.connect(ctx.destination);
+
+  // Schedule all sources
+  sampleSrc.start(0);
+  osc.start(0);
+  sampleSrc.stop(duration);
+  osc.stop(duration);
+}
+
+registry.register("vehicle-engine", {
+  factory: createVehicleEngine,
+  getDuration: vehicleEngineDuration,
+  buildOfflineGraph: vehicleEngineOfflineGraph,
+  description: "Sample-hybrid vehicle engine layering a CC0 engine loop with sawtooth oscillator and LFO-modulated lowpass filter.",
+  category: "Vehicle",
+  tags: ["vehicle", "engine", "loop", "mechanical", "sample-hybrid"],
+  signalChain: "CC0 Engine Loop + Sawtooth Oscillator -> Lowpass Filter (LFO Modulated) -> Amplitude Envelope -> Destination",
+  params: [
+    { name: "oscFreq", min: 40, max: 80, unit: "Hz" },
+    { name: "lfoRate", min: 1, max: 4, unit: "Hz" },
+    { name: "lfoDepth", min: 50, max: 300, unit: "Hz" },
+    { name: "filterCutoff", min: 200, max: 600, unit: "Hz" },
+    { name: "mixLevel", min: 0.3, max: 0.7, unit: "amplitude" },
+    { name: "attack", min: 0.1, max: 0.3, unit: "s" },
+    { name: "release", min: 0.3, max: 0.8, unit: "s" },
+  ],
+  getParams: (rng) => {
+    const p = getVehicleEngineParams(rng);
+    return {
+      oscFreq: p.oscFreq, lfoRate: p.lfoRate,
+      lfoDepth: p.lfoDepth, filterCutoff: p.filterCutoff,
+      mixLevel: p.mixLevel, attack: p.attack, release: p.release,
     };
   },
 });
