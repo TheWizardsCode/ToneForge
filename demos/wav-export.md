@@ -31,7 +31,7 @@ The `--output` flag renders the audio to a file instead of playing it
 through speakers — freezing that seed into a reusable asset:
 
 ```bash
-node dist/cli.js generate --recipe ui-scifi-confirm --seed 42 --output ./output/confirm.wav
+toneforge generate --recipe ui-scifi-confirm --seed 42 --output ./output/confirm.wav
 ```
 
 > [!commentary]
@@ -49,7 +49,7 @@ node dist/cli.js generate --recipe ui-scifi-confirm --seed 42 --output ./output/
 Use ToneForge's built-in `play` command to listen to the exported file:
 
 ```bash
-node dist/cli.js play ./output/confirm.wav
+toneforge play ./output/confirm.wav
 ```
 
 > [!commentary]
@@ -68,7 +68,7 @@ When `--output` is specified, ToneForge skips the audio player entirely.
 No speaker detection, no playback dependencies, no sound:
 
 ```bash
-node dist/cli.js generate --recipe weapon-laser-zap --seed 1337 --output ./output/laser.wav
+toneforge generate --recipe weapon-laser-zap --seed 1337 --output ./output/laser.wav
 ```
 
 > [!commentary]
@@ -88,15 +88,15 @@ Every recipe supports `--output` identically — export only the sounds
 you want to pin:
 
 ```bash
-node dist/cli.js generate --recipe footstep-stone --seed 10 --output ./output/footstep.wav
+toneforge generate --recipe footstep-stone --seed 10 --output ./output/footstep.wav
 ```
 
 ```bash
-node dist/cli.js generate --recipe ui-notification-chime --seed 88 --output ./output/chime.wav
+toneforge generate --recipe ui-notification-chime --seed 88 --output ./output/chime.wav
 ```
 
 ```bash
-node dist/cli.js generate --recipe ambient-wind-gust --seed 500 --output ./output/wind.wav
+toneforge generate --recipe ambient-wind-gust --seed 500 --output ./output/wind.wav
 ```
 
 > [!commentary]
@@ -118,19 +118,19 @@ game has been producing at runtime every time the player pulls the
 trigger:
 
 ```bash
-node dist/cli.js generate --recipe weapon-laser-zap --seed 99
+toneforge generate --recipe weapon-laser-zap --seed 99
 ```
 
 Now save that exact sound to disk with the same recipe and seed:
 
 ```bash
-node dist/cli.js generate --recipe weapon-laser-zap --seed 99 --output ./output/laser-prerendered.wav
+toneforge generate --recipe weapon-laser-zap --seed 99 --output ./output/laser-prerendered.wav
 ```
 
 Play back the saved file and compare:
 
 ```bash
-node dist/cli.js play ./output/laser-prerendered.wav
+toneforge play ./output/laser-prerendered.wav
 ```
 
 > [!commentary]

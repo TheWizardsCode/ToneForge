@@ -32,7 +32,7 @@ get deterministic procedural audio. Let's hear them all.
 The `list recipes` command shows every registered recipe:
 
 ```bash
-node dist/cli.js list recipes
+toneforge list recipes
 ```
 
 > [!commentary]
@@ -48,15 +48,15 @@ The `weapon-laser-zap` recipe uses FM synthesis and a noise burst
 to create sci-fi blaster sounds:
 
 ```bash
-node dist/cli.js generate --recipe weapon-laser-zap --seed 42
+toneforge generate --recipe weapon-laser-zap --seed 42
 ```
 
 ```bash
-node dist/cli.js generate --recipe weapon-laser-zap --seed 1337
+toneforge generate --recipe weapon-laser-zap --seed 1337
 ```
 
 ```bash
-node dist/cli.js generate --recipe weapon-laser-zap --seed 256
+toneforge generate --recipe weapon-laser-zap --seed 256
 ```
 
 > [!commentary]
@@ -73,15 +73,15 @@ The `footstep-stone` recipe uses filtered noise with transient shaping
 to simulate hard surface impacts:
 
 ```bash
-node dist/cli.js generate --recipe footstep-stone --seed 10
+toneforge generate --recipe footstep-stone --seed 10
 ```
 
 ```bash
-node dist/cli.js generate --recipe footstep-stone --seed 20
+toneforge generate --recipe footstep-stone --seed 20
 ```
 
 ```bash
-node dist/cli.js generate --recipe footstep-stone --seed 30
+toneforge generate --recipe footstep-stone --seed 30
 ```
 
 > [!commentary]
@@ -98,11 +98,11 @@ The `ui-notification-chime` recipe builds a harmonic series with a
 gentle envelope:
 
 ```bash
-node dist/cli.js generate --recipe ui-notification-chime --seed 42
+toneforge generate --recipe ui-notification-chime --seed 42
 ```
 
 ```bash
-node dist/cli.js generate --recipe ui-notification-chime --seed 88
+toneforge generate --recipe ui-notification-chime --seed 88
 ```
 
 > [!commentary]
@@ -119,11 +119,11 @@ The `ambient-wind-gust` recipe uses filtered noise with LFO-modulated
 cutoff for organic wind movement:
 
 ```bash
-node dist/cli.js generate --recipe ambient-wind-gust --seed 42
+toneforge generate --recipe ambient-wind-gust --seed 42
 ```
 
 ```bash
-node dist/cli.js generate --recipe ambient-wind-gust --seed 500
+toneforge generate --recipe ambient-wind-gust --seed 500
 ```
 
 > [!commentary]
@@ -139,7 +139,7 @@ node dist/cli.js generate --recipe ambient-wind-gust --seed 500
 The original UI confirm tone still works exactly the same way:
 
 ```bash
-node dist/cli.js generate --recipe ui-scifi-confirm --seed 42
+toneforge generate --recipe ui-scifi-confirm --seed 42
 ```
 
 > [!commentary]

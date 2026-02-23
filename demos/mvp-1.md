@@ -38,7 +38,7 @@ ToneForge generates placeholder sounds from recipes in milliseconds.
 No assets needed. One command, one sound.
 
 ```bash
-node dist/cli.js generate --recipe ui-scifi-confirm --seed 42
+toneforge generate --recipe ui-scifi-confirm --seed 42
 ```
 
 > [!commentary]
@@ -56,15 +56,15 @@ Change the seed, change the sound. Same recipe, different number, instant
 variation. Try three candidates in seconds:
 
 ```bash
-node dist/cli.js generate --recipe ui-scifi-confirm --seed 100
+toneforge generate --recipe ui-scifi-confirm --seed 100
 ```
 
 ```bash
-node dist/cli.js generate --recipe ui-scifi-confirm --seed 9999
+toneforge generate --recipe ui-scifi-confirm --seed 9999
 ```
 
 ```bash
-node dist/cli.js generate --recipe ui-scifi-confirm --seed 7
+toneforge generate --recipe ui-scifi-confirm --seed 7
 ```
 
 > [!commentary]
@@ -82,7 +82,7 @@ ToneForge is deterministic. Same recipe + same seed = identical audio,
 byte for byte. Share a seed, share a sound:
 
 ```bash
-node dist/cli.js generate --recipe ui-scifi-confirm --seed 42
+toneforge generate --recipe ui-scifi-confirm --seed 42
 ```
 
 > [!commentary]

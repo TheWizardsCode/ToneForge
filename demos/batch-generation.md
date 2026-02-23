@@ -33,7 +33,7 @@ The `--seed-range` flag generates one WAV file per seed — a set of
 candidates to listen through:
 
 ```bash
-node dist/cli.js generate --recipe weapon-laser-zap --seed-range 1:5 --output ./output/lasers/
+toneforge generate --recipe weapon-laser-zap --seed-range 1:5 --output ./output/lasers/
 ```
 
 > [!commentary]
@@ -83,7 +83,7 @@ toneforge play ./output/lasers/weapon-laser-zap-seed-5.wav
 Generate a set of footstep impacts to curate from:
 
 ```bash
-node dist/cli.js generate --recipe footstep-stone --seed-range 10:20 --output ./output/footsteps/
+toneforge generate --recipe footstep-stone --seed-range 10:20 --output ./output/footsteps/
 ```
 
 > [!commentary]
@@ -156,7 +156,7 @@ toneforge play ./output/footsteps/footstep-stone-seed-20.wav
 Generate a palette of chime variations to choose from:
 
 ```bash
-node dist/cli.js generate --recipe ui-notification-chime --seed-range 1:10 --output ./output/chimes/
+toneforge generate --recipe ui-notification-chime --seed-range 1:10 --output ./output/chimes/
 ```
 
 > [!commentary]
@@ -225,7 +225,7 @@ The naming convention is `<recipe>-seed-<n>.wav`, making every file
 traceable back to its recipe and seed:
 
 ```bash
-node dist/cli.js generate --recipe ambient-wind-gust --seed-range 100:102 --output ./output/wind/
+toneforge generate --recipe ambient-wind-gust --seed-range 100:102 --output ./output/wind/
 ```
 
 > [!commentary]

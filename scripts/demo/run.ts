@@ -207,6 +207,14 @@ function preflight(): void {
     console.log("  Building ToneForge...");
     execSync("npm run build --silent", { cwd: PROJECT_ROOT, stdio: "inherit" });
   }
+
+  // Ensure the `toneforge` command is available via npm link
+  try {
+    execSync("command -v toneforge", { stdio: "ignore" });
+  } catch {
+    console.log("  Linking toneforge command...");
+    execSync("npm link", { cwd: PROJECT_ROOT, stdio: "inherit" });
+  }
 }
 
 // ── Step rendering ─────────────────────────────────────────────────

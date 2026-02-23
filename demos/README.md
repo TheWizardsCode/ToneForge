@@ -65,7 +65,7 @@ demo runners should execute:
 
 ````markdown
 ```bash
-node dist/cli.js generate --recipe ui-scifi-confirm --seed 42
+toneforge generate --recipe ui-scifi-confirm --seed 42
 ```
 ````
 
