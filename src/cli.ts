@@ -30,7 +30,7 @@ import { playAudio, getPlayerCommand } from "./audio/player.js";
 import { encodeWav } from "./audio/wav-encoder.js";
 import { VERSION } from "./index.js";
 import { createRng } from "./core/rng.js";
-import { renderMarkdown, outputError, outputWarning, outputSuccess, outputInfo } from "./output.js";
+import { outputMarkdown, outputError, outputWarning, outputSuccess, outputInfo } from "./output.js";
 import type { RecipeRegistration } from "./core/recipe.js";
 
 /** Parse command-line arguments into a structured map. */
@@ -99,7 +99,7 @@ function printHelp(): void {
 - \`--json\` — Output results in JSON format for machine consumption
 
 Run \`toneforge <command> --help\` for command-specific help.`;
-  console.log(renderMarkdown(md));
+  outputMarkdown(md);
 }
 
 /** Print help text for the generate command. */
@@ -136,7 +136,7 @@ toneforge generate --recipe ui-scifi-confirm --seed 42
 toneforge generate --recipe ui-scifi-confirm --seed 42 --output ./my-sound.wav
 toneforge generate --recipe weapon-laser-zap --seed-range 1:10 --output ./lasers/
 \`\`\``;
-  console.log(renderMarkdown(md));
+  outputMarkdown(md);
 }
 
 /** Print help text for the list command. */
@@ -164,7 +164,7 @@ function printListHelp(): void {
 toneforge list
 toneforge list recipes
 \`\`\``;
-  console.log(renderMarkdown(md));
+  outputMarkdown(md);
 }
 
 /** Print help text for the play command. */
@@ -192,7 +192,7 @@ function printPlayHelp(): void {
 toneforge play ./output/confirm.wav
 toneforge play ./output/lasers/weapon-laser-zap-seed-1.wav
 \`\`\``;
-  console.log(renderMarkdown(md));
+  outputMarkdown(md);
 }
 
 /** Print help text for the show command. */
@@ -226,7 +226,7 @@ ${recipes.length > 0 ? recipes.map((r) => `- \`${r}\``).join("\n") : "*(none reg
 toneforge show ui-scifi-confirm
 toneforge show weapon-laser-zap --seed 42
 \`\`\``;
-  console.log(renderMarkdown(md));
+  outputMarkdown(md);
 }
 
 /**
@@ -439,14 +439,14 @@ function formatNumber(n: number): string {
  * Output a JSON object to stdout. Used by all commands when --json is active.
  */
 function jsonOut(data: Record<string, unknown>): void {
-  console.log(JSON.stringify(data));
+  process.stdout.write(JSON.stringify(data) + "\n");
 }
 
 /**
  * Output a JSON error object to stderr. Used when --json is active and an error occurs.
  */
 function jsonErr(message: string): void {
-  console.error(JSON.stringify({ error: message }));
+  process.stderr.write(JSON.stringify({ error: message }) + "\n");
 }
 
 /** Main CLI entry point. Exported for testability. */
@@ -459,7 +459,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     if (jsonMode) {
       jsonOut({ command: "version", version: VERSION });
     } else {
-      console.log(`ToneForge v${VERSION}`);
+      outputInfo(`ToneForge v${VERSION}`);
     }
     return 0;
   }
@@ -500,7 +500,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       jsonOut({ command: "list", resource: "recipes", recipes });
     } else {
       const md = recipes.map((name) => `- ${name}`).join("\n");
-      console.log(renderMarkdown(md));
+      outputMarkdown(md);
     }
     return 0;
   }
@@ -567,7 +567,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       jsonOut(jsonResult);
     } else {
       const output = formatShowOutput(recipeName, reg, seed);
-      console.log(renderMarkdown(output));
+      outputMarkdown(output);
     }
     return 0;
   }

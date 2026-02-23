@@ -1560,5 +1560,39 @@ describe("CLI", () => {
         expect(data.error).toContain("--recipe is required");
       });
     });
+
+    describe("version output styling", () => {
+      it("version output contains ANSI dim codes when TTY", async () => {
+        setTtyOverride(true);
+        const { code, stdout } = await captureOutput(
+          () => main(argv("version")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toContain("ToneForge v");
+        expect(stdout).toMatch(ANSI_RE);
+      });
+
+      it("version output contains no ANSI codes when non-TTY", async () => {
+        setTtyOverride(false);
+        const { code, stdout } = await captureOutput(
+          () => main(argv("version")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toContain("ToneForge v");
+        expect(stdout).not.toMatch(ANSI_RE);
+      });
+
+      it("version JSON output is unaffected by TTY", async () => {
+        setTtyOverride(true);
+        const { code, stdout } = await captureOutput(
+          () => main(argv("version", "--json")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).not.toMatch(ANSI_RE);
+        const data = JSON.parse(stdout);
+        expect(data.command).toBe("version");
+        expect(data.version).toMatch(/^\d+\.\d+\.\d+$/);
+      });
+    });
   });
 });

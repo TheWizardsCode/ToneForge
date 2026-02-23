@@ -5,6 +5,7 @@ import {
   outputWarning,
   outputSuccess,
   outputInfo,
+  outputMarkdown,
   setTtyOverride,
   COLORS,
 } from "./output.js";
@@ -260,6 +261,42 @@ describe("output", () => {
       setTtyOverride(false);
       outputInfo("note");
       expect(stdoutChunks.join("")).not.toMatch(ANSI_RE);
+    });
+  });
+
+  describe("outputMarkdown", () => {
+    it("writes to stdout", () => {
+      setTtyOverride(false);
+      outputMarkdown("hello world");
+      expect(stdoutChunks.join("")).toContain("hello world");
+      expect(stderrChunks).toHaveLength(0);
+    });
+
+    it("renders markdown with ANSI when TTY", () => {
+      setTtyOverride(true);
+      outputMarkdown("# Heading");
+      const output = stdoutChunks.join("");
+      expect(output).toMatch(ANSI_RE);
+    });
+
+    it("returns raw markdown when not TTY", () => {
+      setTtyOverride(false);
+      outputMarkdown("# Heading");
+      const output = stdoutChunks.join("");
+      expect(output).toContain("# Heading");
+      expect(output).not.toMatch(ANSI_RE);
+    });
+
+    it("does not write anything for empty input", () => {
+      setTtyOverride(false);
+      outputMarkdown("");
+      expect(stdoutChunks).toHaveLength(0);
+    });
+
+    it("does not write anything for whitespace-only input", () => {
+      setTtyOverride(false);
+      outputMarkdown("   \n  ");
+      expect(stdoutChunks).toHaveLength(0);
     });
   });
 });
