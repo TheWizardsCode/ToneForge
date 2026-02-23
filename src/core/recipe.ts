@@ -174,4 +174,14 @@ export class RecipeRegistry {
   list(): string[] {
     return [...this.entries.keys()];
   }
+
+  /**
+   * List all registered recipes with their one-line description.
+   */
+  listSummaries(): Array<{ name: string; description: string }> {
+    return [...this.entries.entries()].map(([name, entry]) => ({
+      name,
+      description: entry.description,
+    }));
+  }
 }

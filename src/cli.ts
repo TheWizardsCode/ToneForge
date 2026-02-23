@@ -151,7 +151,7 @@ function printListHelp(): void {
 
 ## Resources
 
-- **recipes** — List all registered recipe names *(default)*
+- **recipes** — List all registered recipes with a one-line summary *(default)*
 
 ## Options
 
@@ -495,11 +495,17 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       return 1;
     }
 
-    const recipes = registry.list();
+    const recipes = registry.listSummaries();
     if (jsonMode) {
       jsonOut({ command: "list", resource: "recipes", recipes });
     } else {
-      const md = recipes.map((name) => `- ${name}`).join("\n");
+      const md = recipes
+        .map((r) =>
+          r.description
+            ? `- **${r.name}** — ${r.description}`
+            : `- **${r.name}**`,
+        )
+        .join("\n");
       outputMarkdown(md);
     }
     return 0;
