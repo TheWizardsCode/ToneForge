@@ -27,6 +27,8 @@ import { createCreatureVocal } from "./creature-vocal.js";
 import { getCreatureVocalParams } from "./creature-vocal-params.js";
 import { createVehicleEngine } from "./vehicle-engine.js";
 import { getVehicleEngineParams } from "./vehicle-engine-params.js";
+import { createCharacterJump } from "./character-jump.js";
+import { getCharacterJumpParams } from "./character-jump-params.js";
 import { loadSample } from "../audio/sample-loader.js";
 
 /** The global recipe registry instance with all built-in recipes registered. */
@@ -819,6 +821,108 @@ registry.register("ambient-wind-gust", {
       lfoRate: p.lfoRate, lfoDepth: p.lfoDepth,
       attack: p.attack, sustain: p.sustain,
       release: p.release, level: p.level,
+    };
+  },
+});
+
+// ── character-jump ────────────────────────────────────────────────
+
+function characterJumpDuration(rng: Rng): number {
+  const params = getCharacterJumpParams(rng);
+  return params.attack + params.decay;
+}
+
+function characterJumpOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getCharacterJumpParams(rng);
+
+  // Sine oscillator with rising pitch sweep
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(params.baseFreq, 0);
+  osc.frequency.linearRampToValueAtTime(
+    params.baseFreq + params.sweepRange,
+    params.sweepDuration,
+  );
+
+  // Amplitude envelope for the tonal sweep
+  const oscGain = ctx.createGain();
+  oscGain.gain.setValueAtTime(0, 0);
+  oscGain.gain.linearRampToValueAtTime(1, params.attack);
+  oscGain.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+
+  osc.connect(oscGain);
+  oscGain.connect(ctx.destination);
+
+  // Noise burst for impact texture
+  const noiseBufferSize = Math.ceil(ctx.sampleRate * duration);
+  const noiseBuffer = ctx.createBuffer(1, noiseBufferSize, ctx.sampleRate);
+  const noiseData = noiseBuffer.getChannelData(0);
+
+  // Use RNG to fill noise buffer deterministically (RNG already advanced
+  // by getCharacterJumpParams, so subsequent calls are seed-unique)
+  for (let i = 0; i < noiseData.length; i++) {
+    noiseData[i] = rng() * 2 - 1;
+  }
+
+  const noiseSrc = ctx.createBufferSource();
+  noiseSrc.buffer = noiseBuffer;
+
+  // Lowpass filter for noise shaping
+  const noiseFilter = ctx.createBiquadFilter();
+  noiseFilter.type = "lowpass";
+  noiseFilter.frequency.value = params.filterCutoff;
+
+  // Noise level control
+  const noiseLevel = ctx.createGain();
+  noiseLevel.gain.value = params.noiseLevel;
+
+  // Noise amplitude envelope (shorter than tonal component)
+  const noiseAmpGain = ctx.createGain();
+  noiseAmpGain.gain.setValueAtTime(0, 0);
+  noiseAmpGain.gain.linearRampToValueAtTime(1, params.attack);
+  noiseAmpGain.gain.linearRampToValueAtTime(0, params.attack + params.noiseDecay);
+
+  noiseSrc.connect(noiseFilter);
+  noiseFilter.connect(noiseLevel);
+  noiseLevel.connect(noiseAmpGain);
+  noiseAmpGain.connect(ctx.destination);
+
+  // Schedule
+  osc.start(0);
+  noiseSrc.start(0);
+  osc.stop(duration);
+  noiseSrc.stop(duration);
+}
+
+registry.register("character-jump", {
+  factory: createCharacterJump,
+  getDuration: characterJumpDuration,
+  buildOfflineGraph: characterJumpOfflineGraph,
+  description: "Springy jump sound using a rising pitch sweep with a filtered noise burst for impact.",
+  category: "Character",
+  tags: ["jump", "hop", "platformer", "character", "action"],
+  signalChain: "Sine Oscillator (Pitch Sweep) + White Noise -> Lowpass Filter -> Amplitude Envelope -> Destination",
+  params: [
+    { name: "baseFreq", min: 300, max: 600, unit: "Hz" },
+    { name: "sweepRange", min: 200, max: 800, unit: "Hz" },
+    { name: "sweepDuration", min: 0.05, max: 0.15, unit: "s" },
+    { name: "noiseLevel", min: 0.1, max: 0.4, unit: "amplitude" },
+    { name: "noiseDecay", min: 0.02, max: 0.08, unit: "s" },
+    { name: "attack", min: 0.002, max: 0.01, unit: "s" },
+    { name: "decay", min: 0.05, max: 0.2, unit: "s" },
+    { name: "filterCutoff", min: 1500, max: 5000, unit: "Hz" },
+  ],
+  getParams: (rng) => {
+    const p = getCharacterJumpParams(rng);
+    return {
+      baseFreq: p.baseFreq, sweepRange: p.sweepRange,
+      sweepDuration: p.sweepDuration, noiseLevel: p.noiseLevel,
+      noiseDecay: p.noiseDecay, attack: p.attack,
+      decay: p.decay, filterCutoff: p.filterCutoff,
     };
   },
 });
