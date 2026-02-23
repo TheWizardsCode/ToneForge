@@ -29,6 +29,11 @@ dist-server/
 *.tsbuildinfo
 
 ##################################
+# Dev server port coordination file
+##################################
+web/.port
+
+##################################
 # Playwright
 ##################################
 playwright-report/
