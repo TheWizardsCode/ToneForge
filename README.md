@@ -30,7 +30,7 @@ npm run demo
 Or generate a sound directly:
 
 ```
-npx tsx src/cli.ts generate --recipe ui-scifi-confirm --seed 42
+tf generate --recipe ui-scifi-confirm --seed 42
 ```
 
 Run the web demo (starts the backend server and Vite dev server):

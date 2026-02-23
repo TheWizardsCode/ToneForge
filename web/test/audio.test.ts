@@ -13,11 +13,11 @@ import { extractSeed, extractRecipeName, isGenerateCommand } from "../src/audio.
 
 describe("extractSeed", () => {
   it("extracts seed from --seed 42 format", () => {
-    expect(extractSeed("node dist/cli.js generate --recipe ui-scifi-confirm --seed 42")).toBe(42);
+    expect(extractSeed("tf generate --recipe ui-scifi-confirm --seed 42")).toBe(42);
   });
 
   it("extracts seed from --seed=42 format", () => {
-    expect(extractSeed("node dist/cli.js generate --recipe ui-scifi-confirm --seed=42")).toBe(42);
+    expect(extractSeed("tf generate --recipe ui-scifi-confirm --seed=42")).toBe(42);
   });
 
   it("extracts large seed values", () => {
@@ -25,7 +25,7 @@ describe("extractSeed", () => {
   });
 
   it("returns null when no seed is present", () => {
-    expect(extractSeed("node dist/cli.js generate --recipe ui-scifi-confirm")).toBeNull();
+    expect(extractSeed("tf generate --recipe ui-scifi-confirm")).toBeNull();
   });
 
   it("returns null for empty string", () => {
@@ -36,13 +36,13 @@ describe("extractSeed", () => {
 describe("extractRecipeName", () => {
   it("extracts recipe name from --recipe ui-scifi-confirm", () => {
     expect(
-      extractRecipeName("node dist/cli.js generate --recipe ui-scifi-confirm --seed 42"),
+      extractRecipeName("tf generate --recipe ui-scifi-confirm --seed 42"),
     ).toBe("ui-scifi-confirm");
   });
 
   it("extracts recipe name from --recipe weapon-laser-zap", () => {
     expect(
-      extractRecipeName("node dist/cli.js generate --recipe weapon-laser-zap --seed 7"),
+      extractRecipeName("tf generate --recipe weapon-laser-zap --seed 7"),
     ).toBe("weapon-laser-zap");
   });
 
@@ -65,7 +65,7 @@ describe("extractRecipeName", () => {
   });
 
   it("returns null when no --recipe is present", () => {
-    expect(extractRecipeName("node dist/cli.js generate --seed 42")).toBeNull();
+    expect(extractRecipeName("tf generate --seed 42")).toBeNull();
   });
 
   it("returns null for empty string", () => {
@@ -75,13 +75,13 @@ describe("extractRecipeName", () => {
 
 describe("isGenerateCommand", () => {
   it("returns true for a valid generate command with ui-scifi-confirm", () => {
-    expect(isGenerateCommand("node dist/cli.js generate --recipe ui-scifi-confirm --seed 42")).toBe(
+    expect(isGenerateCommand("tf generate --recipe ui-scifi-confirm --seed 42")).toBe(
       true,
     );
   });
 
   it("returns true for a valid generate command with weapon-laser-zap", () => {
-    expect(isGenerateCommand("node dist/cli.js generate --recipe weapon-laser-zap --seed 7")).toBe(
+    expect(isGenerateCommand("tf generate --recipe weapon-laser-zap --seed 7")).toBe(
       true,
     );
   });
@@ -99,11 +99,11 @@ describe("isGenerateCommand", () => {
   });
 
   it("returns false when missing --seed", () => {
-    expect(isGenerateCommand("node dist/cli.js generate --recipe ui-scifi-confirm")).toBe(false);
+    expect(isGenerateCommand("tf generate --recipe ui-scifi-confirm")).toBe(false);
   });
 
   it("returns false when missing --recipe", () => {
-    expect(isGenerateCommand("node dist/cli.js generate --seed 42")).toBe(false);
+    expect(isGenerateCommand("tf generate --seed 42")).toBe(false);
   });
 
   it("returns false for non-generate commands", () => {

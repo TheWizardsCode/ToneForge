@@ -170,7 +170,7 @@ test.describe("Tutorial walkthrough", () => {
         label: "1/4",
         hasRun: true,
         title: "Unblock your build on day one",
-        // Command: node dist/cli.js generate --recipe ui-scifi-confirm --seed 42
+        // Command: tf generate --recipe ui-scifi-confirm --seed 42
         expectInTerminal: "Rendered",
       },
       {
