@@ -21,6 +21,9 @@ import { createUiNotificationChime } from "./ui-notification-chime.js";
 import { getUiNotificationChimeParams } from "./ui-notification-chime-params.js";
 import { createAmbientWindGust } from "./ambient-wind-gust.js";
 import { getAmbientWindGustParams } from "./ambient-wind-gust-params.js";
+import { createFootstepGravel } from "./footstep-gravel.js";
+import { getFootstepGravelParams } from "./footstep-gravel-params.js";
+import { loadSample } from "../audio/sample-loader.js";
 
 /** The global recipe registry instance with all built-in recipes registered. */
 export const registry = new RecipeRegistry();
@@ -305,6 +308,128 @@ registry.register("footstep-stone", {
       filterFreq: p.filterFreq, filterQ: p.filterQ,
       transientAttack: p.transientAttack, bodyDecay: p.bodyDecay,
       tailDecay: p.tailDecay, bodyLevel: p.bodyLevel, tailLevel: p.tailLevel,
+    };
+  },
+});
+
+// ── footstep-gravel (sample-hybrid) ───────────────────────────────
+
+function footstepGravelDuration(rng: Rng): number {
+  const params = getFootstepGravelParams(rng);
+  return params.transientAttack + Math.max(params.bodyDecay, params.tailDecay);
+}
+
+async function footstepGravelOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): Promise<void> {
+  const params = getFootstepGravelParams(rng);
+
+  // Load the CC0 impact sample
+  const sampleBuffer = await loadSample("footstep-gravel/impact.wav", ctx);
+
+  // Sample layer: play the impact transient identically every render
+  const sampleSrc = ctx.createBufferSource();
+  sampleSrc.buffer = sampleBuffer;
+
+  const sampleGain = ctx.createGain();
+  sampleGain.gain.value = params.mixLevel;
+
+  sampleSrc.connect(sampleGain);
+  sampleGain.connect(ctx.destination);
+
+  // Procedural body layer: bandpass-filtered white noise for gravel crunch
+  const bufferSize = Math.ceil(ctx.sampleRate * duration);
+
+  const bodyBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const bodyData = bodyBuffer.getChannelData(0);
+  for (let i = 0; i < bodyData.length; i++) {
+    bodyData[i] = rng() * 2 - 1; // white noise
+  }
+
+  const bodySrc = ctx.createBufferSource();
+  bodySrc.buffer = bodyBuffer;
+
+  const bodyFilter = ctx.createBiquadFilter();
+  bodyFilter.type = "bandpass";
+  bodyFilter.frequency.value = params.filterFreq;
+
+  const bodyGain = ctx.createGain();
+  bodyGain.gain.value = params.bodyLevel;
+
+  const bodyEnv = ctx.createGain();
+  bodyEnv.gain.setValueAtTime(0, 0);
+  bodyEnv.gain.linearRampToValueAtTime(1, params.transientAttack);
+  bodyEnv.gain.linearRampToValueAtTime(0, params.transientAttack + params.bodyDecay);
+
+  bodySrc.connect(bodyFilter);
+  bodyFilter.connect(bodyGain);
+  bodyGain.connect(bodyEnv);
+  bodyEnv.connect(ctx.destination);
+
+  // Procedural tail layer: lowpass-filtered brown noise for scatter
+  const tailBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const tailData = tailBuffer.getChannelData(0);
+  let brownState = 0;
+  for (let i = 0; i < tailData.length; i++) {
+    brownState += rng() * 2 - 1;
+    brownState *= 0.998; // leaky integrator to prevent drift
+    tailData[i] = brownState * 0.1;
+  }
+
+  const tailSrc = ctx.createBufferSource();
+  tailSrc.buffer = tailBuffer;
+
+  const tailFilter = ctx.createBiquadFilter();
+  tailFilter.type = "lowpass";
+  tailFilter.frequency.value = params.filterFreq * 0.5;
+
+  const tailGain = ctx.createGain();
+  tailGain.gain.value = params.tailLevel;
+
+  const tailEnv = ctx.createGain();
+  tailEnv.gain.setValueAtTime(0, 0);
+  tailEnv.gain.linearRampToValueAtTime(1, params.transientAttack);
+  tailEnv.gain.linearRampToValueAtTime(0, params.transientAttack + params.tailDecay);
+
+  tailSrc.connect(tailFilter);
+  tailFilter.connect(tailGain);
+  tailGain.connect(tailEnv);
+  tailEnv.connect(ctx.destination);
+
+  // Schedule all sources
+  sampleSrc.start(0);
+  bodySrc.start(0);
+  tailSrc.start(0);
+  sampleSrc.stop(duration);
+  bodySrc.stop(duration);
+  tailSrc.stop(duration);
+}
+
+registry.register("footstep-gravel", {
+  factory: createFootstepGravel,
+  getDuration: footstepGravelDuration,
+  buildOfflineGraph: footstepGravelOfflineGraph,
+  description: "Sample-hybrid gravel footstep layering a CC0 impact transient with procedurally varied noise synthesis.",
+  category: "Footstep",
+  tags: ["footstep", "gravel", "impact", "foley", "sample-hybrid"],
+  signalChain: "CC0 Impact Sample + White Noise -> Bandpass Filter (Body) + Brown Noise -> Lowpass Filter (Tail) -> Amplitude Envelope -> Destination",
+  params: [
+    { name: "filterFreq", min: 300, max: 1800, unit: "Hz" },
+    { name: "transientAttack", min: 0.001, max: 0.005, unit: "s" },
+    { name: "bodyDecay", min: 0.05, max: 0.25, unit: "s" },
+    { name: "tailDecay", min: 0.04, max: 0.15, unit: "s" },
+    { name: "mixLevel", min: 0.3, max: 0.7, unit: "amplitude" },
+    { name: "bodyLevel", min: 0.4, max: 0.9, unit: "amplitude" },
+    { name: "tailLevel", min: 0.1, max: 0.4, unit: "amplitude" },
+  ],
+  getParams: (rng) => {
+    const p = getFootstepGravelParams(rng);
+    return {
+      filterFreq: p.filterFreq, transientAttack: p.transientAttack,
+      bodyDecay: p.bodyDecay, tailDecay: p.tailDecay,
+      mixLevel: p.mixLevel, bodyLevel: p.bodyLevel, tailLevel: p.tailLevel,
     };
   },
 });
