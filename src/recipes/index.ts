@@ -21,6 +21,13 @@ import { createUiNotificationChime } from "./ui-notification-chime.js";
 import { getUiNotificationChimeParams } from "./ui-notification-chime-params.js";
 import { createAmbientWindGust } from "./ambient-wind-gust.js";
 import { getAmbientWindGustParams } from "./ambient-wind-gust-params.js";
+import { createFootstepGravel } from "./footstep-gravel.js";
+import { getFootstepGravelParams } from "./footstep-gravel-params.js";
+import { createCreatureVocal } from "./creature-vocal.js";
+import { getCreatureVocalParams } from "./creature-vocal-params.js";
+import { createVehicleEngine } from "./vehicle-engine.js";
+import { getVehicleEngineParams } from "./vehicle-engine-params.js";
+import { loadSample } from "../audio/sample-loader.js";
 
 /** The global recipe registry instance with all built-in recipes registered. */
 export const registry = new RecipeRegistry();
@@ -305,6 +312,331 @@ registry.register("footstep-stone", {
       filterFreq: p.filterFreq, filterQ: p.filterQ,
       transientAttack: p.transientAttack, bodyDecay: p.bodyDecay,
       tailDecay: p.tailDecay, bodyLevel: p.bodyLevel, tailLevel: p.tailLevel,
+    };
+  },
+});
+
+// ── footstep-gravel (sample-hybrid) ───────────────────────────────
+
+function footstepGravelDuration(rng: Rng): number {
+  const params = getFootstepGravelParams(rng);
+  return params.transientAttack + Math.max(params.bodyDecay, params.tailDecay);
+}
+
+async function footstepGravelOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): Promise<void> {
+  const params = getFootstepGravelParams(rng);
+
+  // Load the CC0 impact sample
+  const sampleBuffer = await loadSample("footstep-gravel/impact.wav", ctx);
+
+  // Sample layer: play the impact transient identically every render
+  const sampleSrc = ctx.createBufferSource();
+  sampleSrc.buffer = sampleBuffer;
+
+  const sampleGain = ctx.createGain();
+  sampleGain.gain.value = params.mixLevel;
+
+  sampleSrc.connect(sampleGain);
+  sampleGain.connect(ctx.destination);
+
+  // Procedural body layer: bandpass-filtered white noise for gravel crunch
+  const bufferSize = Math.ceil(ctx.sampleRate * duration);
+
+  const bodyBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const bodyData = bodyBuffer.getChannelData(0);
+  for (let i = 0; i < bodyData.length; i++) {
+    bodyData[i] = rng() * 2 - 1; // white noise
+  }
+
+  const bodySrc = ctx.createBufferSource();
+  bodySrc.buffer = bodyBuffer;
+
+  const bodyFilter = ctx.createBiquadFilter();
+  bodyFilter.type = "bandpass";
+  bodyFilter.frequency.value = params.filterFreq;
+
+  const bodyGain = ctx.createGain();
+  bodyGain.gain.value = params.bodyLevel;
+
+  const bodyEnv = ctx.createGain();
+  bodyEnv.gain.setValueAtTime(0, 0);
+  bodyEnv.gain.linearRampToValueAtTime(1, params.transientAttack);
+  bodyEnv.gain.linearRampToValueAtTime(0, params.transientAttack + params.bodyDecay);
+
+  bodySrc.connect(bodyFilter);
+  bodyFilter.connect(bodyGain);
+  bodyGain.connect(bodyEnv);
+  bodyEnv.connect(ctx.destination);
+
+  // Procedural tail layer: lowpass-filtered brown noise for scatter
+  const tailBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const tailData = tailBuffer.getChannelData(0);
+  let brownState = 0;
+  for (let i = 0; i < tailData.length; i++) {
+    brownState += rng() * 2 - 1;
+    brownState *= 0.998; // leaky integrator to prevent drift
+    tailData[i] = brownState * 0.1;
+  }
+
+  const tailSrc = ctx.createBufferSource();
+  tailSrc.buffer = tailBuffer;
+
+  const tailFilter = ctx.createBiquadFilter();
+  tailFilter.type = "lowpass";
+  tailFilter.frequency.value = params.filterFreq * 0.5;
+
+  const tailGain = ctx.createGain();
+  tailGain.gain.value = params.tailLevel;
+
+  const tailEnv = ctx.createGain();
+  tailEnv.gain.setValueAtTime(0, 0);
+  tailEnv.gain.linearRampToValueAtTime(1, params.transientAttack);
+  tailEnv.gain.linearRampToValueAtTime(0, params.transientAttack + params.tailDecay);
+
+  tailSrc.connect(tailFilter);
+  tailFilter.connect(tailGain);
+  tailGain.connect(tailEnv);
+  tailEnv.connect(ctx.destination);
+
+  // Schedule all sources
+  sampleSrc.start(0);
+  bodySrc.start(0);
+  tailSrc.start(0);
+  sampleSrc.stop(duration);
+  bodySrc.stop(duration);
+  tailSrc.stop(duration);
+}
+
+registry.register("footstep-gravel", {
+  factory: createFootstepGravel,
+  getDuration: footstepGravelDuration,
+  buildOfflineGraph: footstepGravelOfflineGraph,
+  description: "Sample-hybrid gravel footstep layering a CC0 impact transient with procedurally varied noise synthesis.",
+  category: "Footstep",
+  tags: ["footstep", "gravel", "impact", "foley", "sample-hybrid"],
+  signalChain: "CC0 Impact Sample + White Noise -> Bandpass Filter (Body) + Brown Noise -> Lowpass Filter (Tail) -> Amplitude Envelope -> Destination",
+  params: [
+    { name: "filterFreq", min: 300, max: 1800, unit: "Hz" },
+    { name: "transientAttack", min: 0.001, max: 0.005, unit: "s" },
+    { name: "bodyDecay", min: 0.05, max: 0.25, unit: "s" },
+    { name: "tailDecay", min: 0.04, max: 0.15, unit: "s" },
+    { name: "mixLevel", min: 0.3, max: 0.7, unit: "amplitude" },
+    { name: "bodyLevel", min: 0.4, max: 0.9, unit: "amplitude" },
+    { name: "tailLevel", min: 0.1, max: 0.4, unit: "amplitude" },
+  ],
+  getParams: (rng) => {
+    const p = getFootstepGravelParams(rng);
+    return {
+      filterFreq: p.filterFreq, transientAttack: p.transientAttack,
+      bodyDecay: p.bodyDecay, tailDecay: p.tailDecay,
+      mixLevel: p.mixLevel, bodyLevel: p.bodyLevel, tailLevel: p.tailLevel,
+    };
+  },
+});
+
+// ── creature-vocal (sample-hybrid) ────────────────────────────────
+
+function creatureVocalDuration(rng: Rng): number {
+  const params = getCreatureVocalParams(rng);
+  return params.attack + params.decay;
+}
+
+async function creatureVocalOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): Promise<void> {
+  const params = getCreatureVocalParams(rng);
+
+  // Load the CC0 growl sample
+  const sampleBuffer = await loadSample("creature-vocal/growl.wav", ctx);
+
+  // Sample layer: play the growl identically every render
+  const sampleSrc = ctx.createBufferSource();
+  sampleSrc.buffer = sampleBuffer;
+
+  const sampleGain = ctx.createGain();
+  sampleGain.gain.value = params.mixLevel;
+
+  sampleSrc.connect(sampleGain);
+  sampleGain.connect(ctx.destination);
+
+  // FM synthesis layer: carrier + modulator
+  const carrier = ctx.createOscillator();
+  carrier.type = "sine";
+  carrier.frequency.value = params.carrierFreq;
+
+  const modulator = ctx.createOscillator();
+  modulator.type = "sine";
+  modulator.frequency.value = params.carrierFreq; // modulator at carrier freq for rich harmonics
+
+  const modGain = ctx.createGain();
+  modGain.gain.value = params.modIndex * params.carrierFreq;
+
+  modulator.connect(modGain);
+  modGain.connect(carrier.frequency);
+
+  // Formant-style bandpass filter
+  const filter = ctx.createBiquadFilter();
+  filter.type = "bandpass";
+  filter.frequency.value = params.filterCutoff;
+  filter.Q.value = params.filterQ;
+
+  // Synthesis level (inverse of sample mix)
+  const synthGain = ctx.createGain();
+  synthGain.gain.value = 1 - params.mixLevel;
+
+  // Amplitude envelope
+  const envGain = ctx.createGain();
+  envGain.gain.setValueAtTime(0, 0);
+  envGain.gain.linearRampToValueAtTime(1, params.attack);
+  envGain.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+
+  carrier.connect(filter);
+  filter.connect(synthGain);
+  synthGain.connect(envGain);
+  envGain.connect(ctx.destination);
+
+  // Schedule all sources
+  modulator.start(0);
+  carrier.start(0);
+  sampleSrc.start(0);
+  modulator.stop(duration);
+  carrier.stop(duration);
+  sampleSrc.stop(duration);
+}
+
+registry.register("creature-vocal", {
+  factory: createCreatureVocal,
+  getDuration: creatureVocalDuration,
+  buildOfflineGraph: creatureVocalOfflineGraph,
+  description: "Sample-hybrid creature vocalization layering a CC0 growl sample with FM synthesis and formant filtering.",
+  category: "Creature",
+  tags: ["creature", "vocal", "growl", "monster", "sample-hybrid"],
+  signalChain: "CC0 Growl Sample + FM Oscillator -> Bandpass Formant Filter -> Amplitude Envelope -> Destination",
+  params: [
+    { name: "carrierFreq", min: 80, max: 220, unit: "Hz" },
+    { name: "modIndex", min: 8, max: 30, unit: "ratio" },
+    { name: "filterCutoff", min: 300, max: 1200, unit: "Hz" },
+    { name: "filterQ", min: 2, max: 10, unit: "Q" },
+    { name: "mixLevel", min: 0.3, max: 0.7, unit: "amplitude" },
+    { name: "attack", min: 0.02, max: 0.08, unit: "s" },
+    { name: "decay", min: 0.2, max: 0.5, unit: "s" },
+  ],
+  getParams: (rng) => {
+    const p = getCreatureVocalParams(rng);
+    return {
+      carrierFreq: p.carrierFreq, modIndex: p.modIndex,
+      filterCutoff: p.filterCutoff, filterQ: p.filterQ,
+      mixLevel: p.mixLevel, attack: p.attack, decay: p.decay,
+    };
+  },
+});
+
+// ── vehicle-engine (sample-hybrid) ────────────────────────────────
+
+function vehicleEngineDuration(rng: Rng): number {
+  const params = getVehicleEngineParams(rng);
+  return params.attack + 0.4 + params.release;
+}
+
+async function vehicleEngineOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): Promise<void> {
+  const params = getVehicleEngineParams(rng);
+
+  // Load the CC0 engine loop sample
+  const sampleBuffer = await loadSample("vehicle-engine/loop.wav", ctx);
+
+  // Sample layer: looping engine sample
+  const sampleSrc = ctx.createBufferSource();
+  sampleSrc.buffer = sampleBuffer;
+  sampleSrc.loop = true;
+
+  const sampleGain = ctx.createGain();
+  sampleGain.gain.value = params.mixLevel;
+
+  sampleSrc.connect(sampleGain);
+
+  // Oscillator layer: sawtooth for harmonic reinforcement
+  const osc = ctx.createOscillator();
+  osc.type = "sawtooth";
+  osc.frequency.value = params.oscFreq;
+
+  const synthGain = ctx.createGain();
+  synthGain.gain.value = 1 - params.mixLevel;
+
+  osc.connect(synthGain);
+
+  // Shared lowpass filter
+  const filter = ctx.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.value = params.filterCutoff;
+
+  // LFO for filter cutoff modulation (manual via automation)
+  const lfoMin = Math.max(20, params.filterCutoff - params.lfoDepth * 0.5);
+  const lfoMax = params.filterCutoff + params.lfoDepth * 0.5;
+  const lfoPeriod = 1 / params.lfoRate;
+  const lfoSteps = Math.ceil(duration / (lfoPeriod / 16));
+  const lfoStepTime = duration / lfoSteps;
+
+  for (let i = 0; i <= lfoSteps; i++) {
+    const t = i * lfoStepTime;
+    const phase = t * params.lfoRate * 2 * Math.PI;
+    const value = lfoMin + (lfoMax - lfoMin) * (0.5 + 0.5 * Math.sin(phase));
+    filter.frequency.setValueAtTime(value, t);
+  }
+
+  sampleGain.connect(filter);
+  synthGain.connect(filter);
+
+  // Amplitude envelope: attack -> sustain -> release
+  const envGain = ctx.createGain();
+  envGain.gain.setValueAtTime(0, 0);
+  envGain.gain.linearRampToValueAtTime(1, params.attack);
+  const sustainEnd = Math.max(params.attack, duration - params.release);
+  envGain.gain.setValueAtTime(1, sustainEnd);
+  envGain.gain.linearRampToValueAtTime(0, duration);
+
+  filter.connect(envGain);
+  envGain.connect(ctx.destination);
+
+  // Schedule all sources
+  sampleSrc.start(0);
+  osc.start(0);
+  sampleSrc.stop(duration);
+  osc.stop(duration);
+}
+
+registry.register("vehicle-engine", {
+  factory: createVehicleEngine,
+  getDuration: vehicleEngineDuration,
+  buildOfflineGraph: vehicleEngineOfflineGraph,
+  description: "Sample-hybrid vehicle engine layering a CC0 engine loop with sawtooth oscillator and LFO-modulated lowpass filter.",
+  category: "Vehicle",
+  tags: ["vehicle", "engine", "loop", "mechanical", "sample-hybrid"],
+  signalChain: "CC0 Engine Loop + Sawtooth Oscillator -> Lowpass Filter (LFO Modulated) -> Amplitude Envelope -> Destination",
+  params: [
+    { name: "oscFreq", min: 40, max: 80, unit: "Hz" },
+    { name: "lfoRate", min: 1, max: 4, unit: "Hz" },
+    { name: "lfoDepth", min: 50, max: 300, unit: "Hz" },
+    { name: "filterCutoff", min: 200, max: 600, unit: "Hz" },
+    { name: "mixLevel", min: 0.3, max: 0.7, unit: "amplitude" },
+    { name: "attack", min: 0.2, max: 0.6, unit: "s" },
+    { name: "release", min: 0.6, max: 1.6, unit: "s" },
+  ],
+  getParams: (rng) => {
+    const p = getVehicleEngineParams(rng);
+    return {
+      oscFreq: p.oscFreq, lfoRate: p.lfoRate,
+      lfoDepth: p.lfoDepth, filterCutoff: p.filterCutoff,
+      mixLevel: p.mixLevel, attack: p.attack, release: p.release,
     };
   },
 });

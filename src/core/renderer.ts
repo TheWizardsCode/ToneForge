@@ -66,8 +66,10 @@ export async function renderRecipe(
 
   // Build the Web Audio graph — re-create the RNG to ensure
   // deterministic parameter generation from the same seed.
+  // Await the result to support both sync recipes (returning void)
+  // and async recipes (returning Promise<void>) that load samples.
   const graphRng = createRng(seed);
-  registration.buildOfflineGraph(graphRng, ctx, renderDuration);
+  await registration.buildOfflineGraph(graphRng, ctx, renderDuration);
 
   const audioBuffer = await ctx.startRendering();
   const samples = new Float32Array(audioBuffer.getChannelData(0));

@@ -19,6 +19,8 @@ Worklog Specific Ignores
 # Generated audio output
 ##################################
 output/
+gravel-steps/
+creatures/
 
 ##################################
 # Node / TypeScript

@@ -72,12 +72,15 @@ export interface RecipeRegistration {
    * Build the Web Audio API graph for offline rendering directly on
    * an OfflineAudioContext. This avoids importing Tone.js in the
    * Node.js offline render path.
+   *
+   * May return void (synchronous recipes) or Promise<void> (async
+   * recipes that need to load samples via decodeAudioData).
    */
   buildOfflineGraph: (
     rng: Rng,
     ctx: OfflineAudioContext,
     duration: number,
-  ) => void;
+  ) => void | Promise<void>;
 
   /** One-line human summary of the recipe. */
   description: string;
