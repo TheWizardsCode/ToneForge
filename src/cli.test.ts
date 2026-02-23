@@ -483,4 +483,237 @@ describe("CLI", () => {
       expect(stderr).toContain("must be <=");
     });
   });
+
+  describe("show command", () => {
+    it("prints show help with --help flag", async () => {
+      const { code, stdout } = await captureOutput(
+        () => main(argv("show", "--help")),
+      );
+      expect(code).toBe(0);
+      expect(stdout).toContain("show");
+      expect(stdout).toContain("<recipe-name>");
+      expect(stdout).toContain("--seed");
+      expect(stdout).toContain("Examples");
+    });
+
+    it("returns 1 when no recipe name is given", async () => {
+      const { code, stderr } = await captureOutput(
+        () => main(argv("show")),
+      );
+      expect(code).toBe(1);
+      expect(stderr).toContain("requires a recipe name");
+    });
+
+    it("displays recipe metadata for a valid recipe", async () => {
+      const { code, stdout } = await captureOutput(
+        () => main(argv("show", "ui-scifi-confirm")),
+      );
+      expect(code).toBe(0);
+      expect(stdout).toContain("# ui-scifi-confirm");
+      expect(stdout).toContain("**Category:** UI");
+      expect(stdout).toContain("**Description:**");
+      expect(stdout).toContain("## Signal Chain");
+      expect(stdout).toContain("## Parameters");
+      expect(stdout).toContain("## Duration");
+      expect(stdout).toContain("| Parameter");
+      expect(stdout).toContain("| frequency");
+      expect(stdout).toContain("| attack");
+      expect(stdout).toContain("| decay");
+      expect(stdout).toContain("| filterCutoff");
+    });
+
+    it("does not include a Value column without --seed", async () => {
+      const { code, stdout } = await captureOutput(
+        () => main(argv("show", "ui-scifi-confirm")),
+      );
+      expect(code).toBe(0);
+      expect(stdout).toContain("| Parameter | Min | Max | Unit |");
+      expect(stdout).not.toContain("| Value");
+    });
+
+    it("includes a Value column with --seed", async () => {
+      const { code, stdout } = await captureOutput(
+        () => main(argv("show", "ui-scifi-confirm", "--seed", "42")),
+      );
+      expect(code).toBe(0);
+      expect(stdout).toContain("# ui-scifi-confirm (seed: 42)");
+      expect(stdout).toContain("| Parameter | Min | Max | Value | Unit |");
+      // Value column should have actual numbers for each param
+      const lines = stdout.split("\n");
+      const paramLines = lines.filter((l: string) => l.startsWith("| frequency") || l.startsWith("| attack") || l.startsWith("| decay") || l.startsWith("| filterCutoff"));
+      for (const line of paramLines) {
+        // Each param line should have 5 pipe-delimited columns (plus borders)
+        const cells = line.split("|").filter((c: string) => c.trim() !== "");
+        expect(cells.length).toBe(5);
+      }
+    });
+
+    it("shows seed-specific duration with --seed", async () => {
+      const { code, stdout } = await captureOutput(
+        () => main(argv("show", "ui-scifi-confirm", "--seed", "42")),
+      );
+      expect(code).toBe(0);
+      expect(stdout).toContain("seed 42");
+      expect(stdout).toContain("Range:");
+    });
+
+    it("shows duration range without --seed", async () => {
+      const { code, stdout } = await captureOutput(
+        () => main(argv("show", "ui-scifi-confirm")),
+      );
+      expect(code).toBe(0);
+      // Duration section should contain a range like "0.051s - 0.31s"
+      const durationMatch = stdout.match(/(\d+\.?\d*)s\s*-\s*(\d+\.?\d*)s/);
+      expect(durationMatch).not.toBeNull();
+    });
+
+    it("returns error with suggestions for unknown recipe", async () => {
+      const { code, stderr } = await captureOutput(
+        () => main(argv("show", "ui-scfi-confrim")),
+      );
+      expect(code).toBe(1);
+      expect(stderr).toContain("Unknown recipe");
+      expect(stderr).toContain("ui-scfi-confrim");
+      expect(stderr).toContain("Did you mean:");
+      expect(stderr).toContain("ui-scifi-confirm");
+    });
+
+    it("returns error for completely unrelated recipe name", async () => {
+      const { code, stderr } = await captureOutput(
+        () => main(argv("show", "zzz-nonexistent")),
+      );
+      expect(code).toBe(1);
+      expect(stderr).toContain("Unknown recipe");
+      expect(stderr).toContain("Did you mean:");
+    });
+
+    it("errors for non-integer --seed", async () => {
+      const { code, stderr } = await captureOutput(
+        () => main(argv("show", "ui-scifi-confirm", "--seed", "abc")),
+      );
+      expect(code).toBe(1);
+      expect(stderr).toContain("--seed must be an integer");
+    });
+
+    it("appears in the top-level help text", async () => {
+      const { code, stdout } = await captureOutput(
+        () => main(argv("--help")),
+      );
+      expect(code).toBe(0);
+      expect(stdout).toContain("show");
+    });
+
+    it("outputs raw markdown (no ANSI escape codes)", async () => {
+      const { code, stdout } = await captureOutput(
+        () => main(argv("show", "ui-scifi-confirm")),
+      );
+      expect(code).toBe(0);
+      // eslint-disable-next-line no-control-regex
+      expect(stdout).not.toMatch(/\x1b\[/);
+    });
+
+    it("produces output for all five recipes", async () => {
+      const recipes = [
+        "ui-scifi-confirm",
+        "weapon-laser-zap",
+        "footstep-stone",
+        "ui-notification-chime",
+        "ambient-wind-gust",
+      ];
+      for (const recipe of recipes) {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("show", recipe)),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toContain(`# ${recipe}`);
+        expect(stdout).toContain("**Category:**");
+        expect(stdout).toContain("**Description:**");
+        expect(stdout).toContain("## Signal Chain");
+        expect(stdout).toContain("## Parameters");
+        expect(stdout).toContain("## Duration");
+      }
+    });
+
+    it("seed produces deterministic output", async () => {
+      const { stdout: first } = await captureOutput(
+        () => main(argv("show", "ui-scifi-confirm", "--seed", "42")),
+      );
+      const { stdout: second } = await captureOutput(
+        () => main(argv("show", "ui-scifi-confirm", "--seed", "42")),
+      );
+      expect(first).toBe(second);
+    });
+
+    it("different seeds produce different parameter values", async () => {
+      const { stdout: seed1 } = await captureOutput(
+        () => main(argv("show", "ui-scifi-confirm", "--seed", "1")),
+      );
+      const { stdout: seed2 } = await captureOutput(
+        () => main(argv("show", "ui-scifi-confirm", "--seed", "2")),
+      );
+      expect(seed1).not.toBe(seed2);
+    });
+  });
+
+  describe("metadata completeness", () => {
+    it("all registered recipes have complete metadata", async () => {
+      const { registry } = await import("./recipes/index.js");
+      const names = registry.list();
+      expect(names.length).toBeGreaterThanOrEqual(5);
+
+      for (const name of names) {
+        const reg = registry.getRegistration(name);
+        expect(reg).toBeDefined();
+        expect(reg!.description).toBeTruthy();
+        expect(reg!.category).toBeTruthy();
+        expect(reg!.signalChain).toBeTruthy();
+        expect(reg!.params.length).toBeGreaterThan(0);
+        expect(typeof reg!.getParams).toBe("function");
+
+        // Verify all param descriptors have required fields
+        for (const p of reg!.params) {
+          expect(p.name).toBeTruthy();
+          expect(typeof p.min).toBe("number");
+          expect(typeof p.max).toBe("number");
+          expect(p.unit).toBeTruthy();
+          expect(p.max).toBeGreaterThan(p.min);
+        }
+      }
+    });
+
+    it("getParams keys match param descriptor names", async () => {
+      const { registry } = await import("./recipes/index.js");
+      const { createRng } = await import("./core/rng.js");
+      const names = registry.list();
+
+      for (const name of names) {
+        const reg = registry.getRegistration(name)!;
+        const rng = createRng(42);
+        const values = reg.getParams(rng);
+        const valueKeys = Object.keys(values).sort();
+        const paramNames = reg.params.map((p) => p.name).sort();
+        expect(valueKeys).toEqual(paramNames);
+      }
+    });
+
+    it("getParams values fall within declared min/max ranges", async () => {
+      const { registry } = await import("./recipes/index.js");
+      const { createRng } = await import("./core/rng.js");
+      const names = registry.list();
+
+      for (const name of names) {
+        const reg = registry.getRegistration(name)!;
+        // Test with several seeds
+        for (let seed = 0; seed < 50; seed++) {
+          const rng = createRng(seed);
+          const values = reg.getParams(rng);
+          for (const p of reg.params) {
+            const v = values[p.name]!;
+            expect(v).toBeGreaterThanOrEqual(p.min);
+            expect(v).toBeLessThan(p.max);
+          }
+        }
+      }
+    });
+  });
 });

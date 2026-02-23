@@ -16,6 +16,21 @@ import type { OfflineAudioContext } from "node-web-audio-api";
 import type { Rng } from "./rng.js";
 
 /**
+ * Describes a single recipe parameter with its name, range, and unit.
+ * Used by `tf show` to display parameter metadata.
+ */
+export interface ParamDescriptor {
+  /** Parameter name (must match the key returned by getParams). */
+  name: string;
+  /** Minimum value (inclusive). */
+  min: number;
+  /** Maximum value (exclusive). */
+  max: number;
+  /** Unit of measurement (e.g. "Hz", "s", "amplitude"). */
+  unit: string;
+}
+
+/**
  * A constructed Tone.js DSP graph ready for rendering or playback.
  */
 export interface Recipe {
@@ -63,6 +78,30 @@ export interface RecipeRegistration {
     ctx: OfflineAudioContext,
     duration: number,
   ) => void;
+
+  /** One-line human summary of the recipe. */
+  description: string;
+
+  /** Sound category (e.g. "UI", "Weapon", "Footstep", "Ambient"). */
+  category: string;
+
+  /** Optional tags for filtering/search. */
+  tags?: string[];
+
+  /**
+   * Human-readable signal chain summary.
+   * Example: "Sine Oscillator -> Lowpass Filter -> Amplitude Envelope -> Destination"
+   */
+  signalChain: string;
+
+  /** Array of parameter descriptors with name, min, max, and unit. */
+  params: ParamDescriptor[];
+
+  /**
+   * Extract seed-specific parameter values as a name-value map.
+   * The keys must match the `name` fields in `params`.
+   */
+  getParams: (rng: Rng) => Record<string, number>;
 }
 
 /**
@@ -99,6 +138,11 @@ export class RecipeRegistry {
             `Use a full RecipeRegistration to enable offline rendering.`,
           );
         },
+        description: "",
+        category: "",
+        signalChain: "",
+        params: [],
+        getParams: () => ({}),
       });
     } else {
       this.entries.set(name, entry);

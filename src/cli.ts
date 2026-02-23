@@ -4,12 +4,14 @@
  *
  * Entry point for the `toneforge` command-line tool.
  * Supports the `generate` command to render, play, and export procedural sounds,
+ * the `show` command to display recipe metadata and parameters,
  * the `play` command to play WAV files from disk, and the `version` command to
  * print the current ToneForge version.
  *
  * Usage:
  *   toneforge generate --recipe <name> [--seed <number>] [--output <path.wav>]
  *   toneforge generate --recipe <name> --seed-range <start>:<end> --output <directory/>
+ *   toneforge show <recipe-name> [--seed <number>]
  *   toneforge play <file.wav>
  *   toneforge version
  *   toneforge --version
@@ -27,6 +29,8 @@ import { registry } from "./recipes/index.js";
 import { playAudio, getPlayerCommand } from "./audio/player.js";
 import { encodeWav } from "./audio/wav-encoder.js";
 import { VERSION } from "./index.js";
+import { createRng } from "./core/rng.js";
+import type { RecipeRegistration } from "./core/recipe.js";
 
 /** Parse command-line arguments into a structured map. */
 function parseArgs(argv: string[]): {
@@ -74,6 +78,7 @@ Usage:
 
 Commands:
   generate    Render and export procedural sounds
+  show        Display recipe metadata and parameters
   play        Play a WAV file through the system audio player
   list        List available resources (e.g. recipes)
   version     Print the ToneForge version
@@ -147,6 +152,169 @@ Examples:
   toneforge play ./output/lasers/weapon-laser-zap-seed-1.wav`);
 }
 
+/** Print help text for the show command. */
+function printShowHelp(): void {
+  const recipes = registry.list();
+  console.log(`ToneForge show — Display recipe metadata and parameters
+
+Usage:
+  toneforge show <recipe-name> [--seed <number>]
+
+Arguments:
+  <recipe-name>  Name of the recipe to inspect (required)
+
+Options:
+  --seed <number>  Show seed-specific parameter values alongside ranges
+  --help, -h       Show this help message
+
+Available recipes:
+  ${recipes.join(", ") || "(none registered)"}
+
+Examples:
+  toneforge show ui-scifi-confirm
+  toneforge show weapon-laser-zap --seed 42`);
+}
+
+/**
+ * Compute the Levenshtein edit distance between two strings.
+ * Used for fuzzy recipe name matching when a recipe is not found.
+ */
+function levenshtein(a: string, b: string): number {
+  const m = a.length;
+  const n = b.length;
+  const dp: number[][] = Array.from({ length: m + 1 }, () =>
+    Array.from({ length: n + 1 }, () => 0),
+  );
+
+  for (let i = 0; i <= m; i++) dp[i]![0] = i;
+  for (let j = 0; j <= n; j++) dp[0]![j] = j;
+
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i]![j] = Math.min(
+        dp[i - 1]![j]! + 1,
+        dp[i]![j - 1]! + 1,
+        dp[i - 1]![j - 1]! + cost,
+      );
+    }
+  }
+
+  return dp[m]![n]!;
+}
+
+/**
+ * Suggest the closest matching recipe names for a given input.
+ * Returns up to 3 suggestions sorted by edit distance.
+ */
+function suggestRecipes(input: string, names: string[]): string[] {
+  return names
+    .map((name) => ({ name, dist: levenshtein(input, name) }))
+    .sort((a, b) => a.dist - b.dist)
+    .slice(0, 3)
+    .map((s) => s.name);
+}
+
+/**
+ * Format the `tf show` output as raw markdown.
+ */
+function formatShowOutput(
+  name: string,
+  reg: RecipeRegistration,
+  seed?: number,
+): string {
+  const lines: string[] = [];
+
+  // Title
+  if (seed !== undefined) {
+    lines.push(`# ${name} (seed: ${seed})`);
+  } else {
+    lines.push(`# ${name}`);
+  }
+  lines.push("");
+
+  // Category & description
+  lines.push(`**Category:** ${reg.category}`);
+  lines.push(`**Description:** ${reg.description}`);
+  lines.push("");
+
+  // Signal chain
+  lines.push("## Signal Chain");
+  lines.push("");
+  lines.push(reg.signalChain);
+  lines.push("");
+
+  // Parameters table
+  lines.push("## Parameters");
+  lines.push("");
+
+  // Get seed-specific values if seed is provided
+  let seedValues: Record<string, number> | undefined;
+  if (seed !== undefined) {
+    const rng = createRng(seed);
+    seedValues = reg.getParams(rng);
+  }
+
+  if (seedValues) {
+    // With seed: add Value column
+    lines.push("| Parameter | Min | Max | Value | Unit |");
+    lines.push("|-----------|-----|-----|-------|------|");
+    for (const p of reg.params) {
+      const value = seedValues[p.name];
+      const valueStr = value !== undefined ? formatNumber(value) : "-";
+      lines.push(`| ${p.name} | ${formatNumber(p.min)} | ${formatNumber(p.max)} | ${valueStr} | ${p.unit} |`);
+    }
+  } else {
+    // Without seed: no Value column
+    lines.push("| Parameter | Min | Max | Unit |");
+    lines.push("|-----------|-----|-----|------|");
+    for (const p of reg.params) {
+      lines.push(`| ${p.name} | ${formatNumber(p.min)} | ${formatNumber(p.max)} | ${p.unit} |`);
+    }
+  }
+  lines.push("");
+
+  // Duration
+  lines.push("## Duration");
+  lines.push("");
+
+  // Compute min/max duration by using the param min/max ranges
+  // We need to compute duration from the registration's getDuration with actual seeds
+  // Instead, we can compute duration range from the param extremes
+  // But getDuration depends on the RNG, so we sample a range of seeds to estimate
+  const durationSamples: number[] = [];
+  for (let s = 0; s < 100; s++) {
+    const rng = createRng(s);
+    durationSamples.push(reg.getDuration(rng));
+  }
+  const minDuration = Math.min(...durationSamples);
+  const maxDuration = Math.max(...durationSamples);
+
+  if (seed !== undefined) {
+    const rng = createRng(seed);
+    const seedDuration = reg.getDuration(rng);
+    lines.push(`${formatNumber(seedDuration)}s (seed ${seed}) | Range: ${formatNumber(minDuration)}s - ${formatNumber(maxDuration)}s`);
+  } else {
+    lines.push(`${formatNumber(minDuration)}s - ${formatNumber(maxDuration)}s`);
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Format a number for display: remove trailing zeros after decimal point,
+ * but keep enough precision to be informative.
+ */
+function formatNumber(n: number): string {
+  // Use up to 4 decimal places, then strip trailing zeros
+  const s = n.toFixed(4);
+  // Remove trailing zeros after decimal point
+  if (s.includes(".")) {
+    return s.replace(/0+$/, "").replace(/\.$/, "");
+  }
+  return s;
+}
+
 /** Main CLI entry point. Exported for testability. */
 export async function main(argv: string[] = process.argv): Promise<number> {
   const { command, subcommand, flags } = parseArgs(argv);
@@ -161,6 +329,8 @@ export async function main(argv: string[] = process.argv): Promise<number> {
   if (flags["help"] || command === undefined) {
     if (command === "generate") {
       printGenerateHelp();
+    } else if (command === "show") {
+      printShowHelp();
     } else if (command === "list") {
       printListHelp();
     } else if (command === "play") {
@@ -190,6 +360,49 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     for (const name of recipes) {
       console.log(name);
     }
+    return 0;
+  }
+
+  if (command === "show") {
+    if (flags["help"]) {
+      printShowHelp();
+      return 0;
+    }
+
+    if (subcommand === undefined) {
+      console.error("Error: 'show' requires a recipe name. Run 'toneforge show --help' for usage.");
+      return 1;
+    }
+
+    const recipeName = subcommand;
+    const reg = registry.getRegistration(recipeName);
+
+    if (!reg) {
+      const allNames = registry.list();
+      const suggestions = suggestRecipes(recipeName, allNames);
+      let msg = `Error: Unknown recipe '${recipeName}'.`;
+      if (suggestions.length > 0) {
+        msg += ` Did you mean: ${suggestions.join(", ")}?`;
+      }
+      console.error(msg);
+      return 1;
+    }
+
+    // Parse optional --seed flag
+    let seed: number | undefined;
+    if (flags["seed"] !== undefined && flags["seed"] !== true) {
+      seed = parseInt(flags["seed"] as string, 10);
+      if (Number.isNaN(seed)) {
+        console.error(`Error: --seed must be an integer, got '${flags["seed"]}'.`);
+        return 1;
+      }
+    } else if (flags["seed"] === true) {
+      console.error("Error: --seed requires a value. Usage: toneforge show <recipe> --seed <number>");
+      return 1;
+    }
+
+    const output = formatShowOutput(recipeName, reg, seed);
+    console.log(output);
     return 0;
   }
 
