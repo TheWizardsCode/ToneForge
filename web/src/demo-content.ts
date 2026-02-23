@@ -68,13 +68,26 @@ function parseSafe(id: string, raw: string): ParsedDemo {
   }
 }
 
-/** All available demos, parsed and ready to use (sorted by id for deterministic ordering). */
+/**
+ * Compare two demos by their order field (lower first).
+ * Demos without an order sort after ordered demos, then alphabetically by id.
+ */
+function compareByOrder(a: LoadedDemo, b: LoadedDemo): number {
+  const aOrder = a.meta.order;
+  const bOrder = b.meta.order;
+  if (aOrder != null && bOrder != null) return aOrder - bOrder;
+  if (aOrder != null) return -1;
+  if (bOrder != null) return 1;
+  return a.meta.id.localeCompare(b.meta.id);
+}
+
+/** All available demos, parsed and ready to use (sorted by order, then id). */
 export const DEMOS: LoadedDemo[] = Object.entries(RAW_SOURCES)
-  .sort(([a], [b]) => a.localeCompare(b))
   .map(([id, raw]) => {
     const parsed = parseSafe(id, raw);
     return { meta: parsed.meta, steps: parsed.steps };
-  });
+  })
+  .sort(compareByOrder);
 
 /** List of demo titles and ids for selection UI. */
 export const DEMO_LIST: Array<{ id: string; title: string }> = DEMOS.map(

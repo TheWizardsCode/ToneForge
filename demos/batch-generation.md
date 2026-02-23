@@ -1,6 +1,7 @@
 ---
 title: "Batch Generation: Mass-Producing Sound Variations"
 id: batch-generation
+order: 4
 description: >
   A walkthrough demonstrating ToneForge's batch generation feature, showing
   how to use --seed-range to pre-render a curated palette of sound

@@ -28,6 +28,7 @@ describe("parseDemoMarkdown — golden snapshot (mvp-1.md)", () => {
     expect(result.meta.title).toBe("ToneForge MVP Demo");
     expect(result.meta.id).toBe("mvp-1");
     expect(result.meta.description).toMatch(/interactive walkthrough/);
+    expect(result.meta.order).toBe(1);
   });
 
   it("produces 6 steps (intro, 4 acts, recap)", () => {
@@ -304,5 +305,52 @@ Step content.
     const result = parseDemoMarkdown(md);
     expect(result.steps).toHaveLength(1);
     expect(result.steps[0].id).toBe("actual-step");
+  });
+
+  it("parses order field from front matter", () => {
+    const md = `---
+title: Ordered
+id: ordered
+description: Has order.
+order: 3
+---
+
+## Step
+
+Content.
+`;
+    const result = parseDemoMarkdown(md);
+    expect(result.meta.order).toBe(3);
+  });
+
+  it("omits order when not present in front matter", () => {
+    const md = `---
+title: No Order
+id: no-order
+description: No order field.
+---
+
+## Step
+
+Content.
+`;
+    const result = parseDemoMarkdown(md);
+    expect(result.meta.order).toBeUndefined();
+  });
+
+  it("omits order when value is not a finite number", () => {
+    const md = `---
+title: Bad Order
+id: bad-order
+description: Non-numeric order.
+order: banana
+---
+
+## Step
+
+Content.
+`;
+    const result = parseDemoMarkdown(md);
+    expect(result.meta.order).toBeUndefined();
   });
 });
