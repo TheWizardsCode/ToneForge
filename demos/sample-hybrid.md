@@ -35,8 +35,15 @@ Let's hear them.
 > that sound real — not just filtered noise — but each step should
 > be slightly different so they don't feel repetitive.
 
-The `footstep-gravel` recipe layers a real CC0 impact transient with
-procedurally generated noise tails:
+First, listen to the raw CC0 impact transient on its own — this is
+the sample ingredient before any synthesis is layered on:
+
+```bash
+toneforge play assets/samples/footstep-gravel/impact.wav
+```
+
+Now hear what the `footstep-gravel` recipe does with it — the same
+transient layered with procedurally varied noise tails:
 
 ```bash
 toneforge generate --recipe footstep-gravel --seed 42
@@ -51,11 +58,12 @@ toneforge generate --recipe footstep-gravel --seed 256
 ```
 
 > [!commentary]
-> The impact transient is the same real audio sample every time —
-> that's what gives it texture. But the filter frequency, decay
-> times, and noise mix shift with each seed, so every footstep
-> has unique character. Compare these to the purely procedural
-> `footstep-stone` recipe to hear the difference a real sample makes.
+> The impact transient you heard first is the same real audio sample
+> in every generated output — that's what gives it texture. But the
+> filter frequency, decay times, and noise mix shift with each seed,
+> so every footstep has unique character. Compare these to the purely
+> procedural `footstep-stone` recipe to hear the difference a real
+> sample makes.
 
 ## Act 2 — Creature-Vocal: Organic monsters
 
@@ -63,8 +71,15 @@ toneforge generate --recipe footstep-gravel --seed 256
 > want something organic — not a synthesizer beep — but you need
 > dozens of variants for different creature types.
 
-The `creature-vocal` recipe layers a CC0 growl sample with FM
-synthesis and formant-style bandpass filtering:
+First, the raw CC0 growl sample — this is the organic texture that
+anchors every creature variant:
+
+```bash
+toneforge play assets/samples/creature-vocal/growl.wav
+```
+
+Now hear the `creature-vocal` recipe layer it with FM synthesis and
+formant-style bandpass filtering:
 
 ```bash
 toneforge generate --recipe creature-vocal --seed 42
@@ -79,10 +94,10 @@ toneforge generate --recipe creature-vocal --seed 777
 ```
 
 > [!commentary]
-> The growl sample provides real vocal texture. FM synthesis adds
-> harmonic richness that varies with carrier frequency and modulation
-> index. The bandpass filter shapes formant-like resonances. Each
-> seed produces a creature that sounds related but distinct — a
+> The growl you heard first is the same in every output. FM synthesis
+> adds harmonic richness that varies with carrier frequency and
+> modulation index. The bandpass filter shapes formant-like resonances.
+> Each seed produces a creature that sounds related but distinct — a
 > whole bestiary from one sample and one recipe.
 
 ## Act 3 — Vehicle-Engine: Mechanical rumble
@@ -91,7 +106,14 @@ toneforge generate --recipe creature-vocal --seed 777
 > want that unmistakable mechanical texture of a real engine, but
 > each car should sound different.
 
-The `vehicle-engine` recipe layers a CC0 engine loop with a sawtooth
+First, the raw CC0 engine loop — the mechanical foundation that
+every engine variant builds on:
+
+```bash
+toneforge play assets/samples/vehicle-engine/loop.wav
+```
+
+Now hear the `vehicle-engine` recipe layer it with a sawtooth
 oscillator and LFO-modulated lowpass filter:
 
 ```bash
@@ -107,11 +129,12 @@ toneforge generate --recipe vehicle-engine --seed 1000
 ```
 
 > [!commentary]
-> The engine sample loops continuously, providing mechanical texture.
-> The sawtooth oscillator reinforces the fundamental at different
-> frequencies per seed. The LFO modulates the lowpass filter cutoff,
-> creating RPM-like tonal fluctuations. Different seeds produce
-> different engine characters — from deep rumble to higher-pitched whine.
+> The engine loop you heard first is the same in every output,
+> providing mechanical texture. The sawtooth oscillator reinforces
+> the fundamental at different frequencies per seed. The LFO
+> modulates the lowpass filter cutoff, creating RPM-like tonal
+> fluctuations. Different seeds produce different engine characters —
+> from deep rumble to higher-pitched whine.
 
 ## Act 4 — Batch export: Build a sample library
 
