@@ -173,5 +173,16 @@ export default defineConfig({
     port: parseInt(process.env.VITE_PORT || "5173", 10),
     // Proxy is now handled dynamically by the toneforge-dynamic-backend-proxy
     // plugin above — no static proxy config needed.
+    fs: {
+      // Allow serving sample files from the project-root assets/ directory.
+      // Required for hybrid recipes that load audio samples in the browser.
+      allow: [
+        // Default: Vite allows serving from the workspace root and its deps.
+        // We add the project-root assets/ directory explicitly.
+        resolve(projectRoot, "assets"),
+        // Keep the default search root so Vite's own files still work.
+        resolve(__dirname, ".."),
+      ],
+    },
   },
 });
