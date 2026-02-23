@@ -41,33 +41,37 @@ in Hz) determines the pitch -- 440 Hz is the "A above middle C" that
 orchestras tune to. Lower Hz values sound deeper; higher values sound
 brighter.
 
-The `character-jump` recipe starts with a sine oscillator. Let's look
-at how it is configured:
+Our first recipe -- `character-jump-step1` -- is the absolute
+minimum: a sine oscillator at a seed-derived frequency, playing for a
+fixed 0.2 seconds at constant volume. Let's look at the parameters:
 
 ```bash
-grep -A2 "baseFreq" src/recipes/character-jump-params.ts
+cat src/recipes/character-jump-step1-params.ts
 ```
 
 The base frequency varies between 300 and 600 Hz depending on the
-seed. Let's hear what the finished recipe sounds like -- we will
-deconstruct how we got there over the next several steps:
+seed. Let's hear what a raw oscillator sounds like:
 
 ```bash
-toneforge generate --recipe character-jump --seed 42
+toneforge generate --recipe character-jump-step1 --seed 42
+```
+
+```bash
+toneforge generate --recipe character-jump-step1 --seed 99
 ```
 
 > [!commentary]
-> That short "boing" is built from just two ingredients: a sine
-> oscillator and a noise burst. The oscillator is what gives the sound
-> its pitched, tonal quality. Everything else -- the envelope, the
-> sweep, the noise -- is layered on top to shape that raw tone into
-> something that sounds like a jump. Let's build it up piece by piece.
+> That flat, constant tone is a raw oscillator -- no shaping at all.
+> It starts abruptly, plays at full volume, and stops abruptly. It
+> sounds nothing like a jump yet, but it is the foundation everything
+> else builds on. Notice how seed 42 and seed 99 have different
+> pitches -- the RNG is already at work, varying the base frequency.
 
 ## Act 2 -- Shaping volume with an amplitude envelope
 
-> A raw oscillator plays at constant volume forever. You need a way to
-> make the sound start quickly and fade out naturally -- like a real
-> physical event.
+> A raw oscillator plays at constant volume and starts/stops abruptly.
+> You need a way to make the sound start quickly and fade out
+> naturally -- like a real physical event.
 
 An amplitude envelope controls how loud a sound is over time. The two
 most important parameters are:
@@ -78,10 +82,11 @@ most important parameters are:
 
 For a jump sound, we want a very fast attack (the moment of launch is
 instantaneous) and a short decay (the sound fades as the character
-rises). Let's see the envelope parameters:
+rises). Our second recipe -- `character-jump-step2` -- adds exactly
+this: attack/decay envelope shaping on the same sine oscillator.
 
 ```bash
-grep -E "attack|decay" src/recipes/character-jump-params.ts
+grep -E "attack|decay" src/recipes/character-jump-step2-params.ts
 ```
 
 The attack ranges from 2 to 10 milliseconds -- barely perceptible.
@@ -89,23 +94,23 @@ The decay ranges from 50 to 200 milliseconds -- just long enough to
 feel like motion. Together, attack + decay define the total duration
 of the sound.
 
-Let's hear the recipe with a different seed to notice how the envelope
-timing changes:
+Let's hear the difference the envelope makes:
 
 ```bash
-toneforge generate --recipe character-jump --seed 1
+toneforge generate --recipe character-jump-step2 --seed 42
 ```
 
 ```bash
-toneforge generate --recipe character-jump --seed 99
+toneforge generate --recipe character-jump-step2 --seed 1
 ```
 
 > [!commentary]
-> Each seed produces different attack and decay times, making some
-> jumps feel snappier and others more drawn out. The envelope is what
-> transforms a continuous oscillator tone into a discrete event -- a
-> "boing" instead of a hum. Without the envelope, you would just hear
-> a never-ending sine wave.
+> Compare that to Act 1's raw oscillator. Instead of an abrupt start
+> and stop, the sound now fades in and out smoothly. The envelope is
+> what transforms a continuous oscillator tone into a discrete event
+> -- a "blip" instead of a hum. Each seed produces different attack
+> and decay times, making some sounds snappier and others more drawn
+> out.
 
 ## Act 3 -- Adding motion with a pitch sweep
 
@@ -118,10 +123,11 @@ to `baseFreq + sweepRange` over `sweepDuration` seconds. This creates
 the classic rising "boing" that tells the player their character is
 moving upward.
 
-Let's see the sweep parameters:
+Our third recipe -- `character-jump-step3` -- adds the sweep to the
+enveloped oscillator. Let's see the new parameters:
 
 ```bash
-grep -E "sweepRange|sweepDuration" src/recipes/character-jump-params.ts
+grep -E "sweepRange|sweepDuration" src/recipes/character-jump-step3-params.ts
 ```
 
 The sweep range varies from 200 to 800 Hz -- determining how dramatic
@@ -129,22 +135,22 @@ the pitch rise is. The sweep duration (50-150ms) controls how fast the
 frequency climbs. A wider range with a shorter duration produces a more
 exaggerated cartoon-style jump.
 
-Compare these two seeds to hear different sweep characteristics:
-
 ```bash
-toneforge generate --recipe character-jump --seed 7
+toneforge generate --recipe character-jump-step3 --seed 42
 ```
 
 ```bash
-toneforge generate --recipe character-jump --seed 200
+toneforge generate --recipe character-jump-step3 --seed 7
 ```
 
 > [!commentary]
-> The pitch sweep is what makes this sound recognizable as a "jump"
-> rather than just a beep. Our ears associate rising pitch with upward
-> movement -- the same psychoacoustic trick used in classic platformer
-> games. The sweep parameters give each seed its own character: some
-> jumps are subtle rises, others are dramatic swoops.
+> Now it sounds like a jump. The pitch sweep is what makes this
+> recognizable as upward motion rather than just a beep. Our ears
+> associate rising pitch with upward movement -- the same
+> psychoacoustic trick used in classic platformer games. Compare
+> seeds 42 and 7 to hear how sweep range and duration create
+> different characters: some jumps are subtle rises, others are
+> dramatic swoops.
 
 ## Act 4 -- Noise for physical texture
 
@@ -158,10 +164,11 @@ frequency -- it sounds like static or rushing air. By mixing a short
 burst of white noise with our tonal sweep, we add the physical
 "texture" that makes the jump sound grounded in reality.
 
-Let's see the noise parameters:
+Our fourth recipe -- `character-jump-step4` -- adds an unfiltered
+noise burst. Let's see the noise parameters:
 
 ```bash
-grep -E "noiseLevel|noiseDecay" src/recipes/character-jump-params.ts
+grep -E "noiseLevel|noiseDecay" src/recipes/character-jump-step4-params.ts
 ```
 
 The noise level (0.1-0.4) controls the mix between the tonal and noise
@@ -170,11 +177,11 @@ so the noise acts as an initial "pop" of impact that fades quickly
 while the tonal sweep continues.
 
 ```bash
-toneforge generate --recipe character-jump --seed 42
+toneforge generate --recipe character-jump-step4 --seed 42
 ```
 
 ```bash
-toneforge generate --recipe character-jump --seed 500
+toneforge generate --recipe character-jump-step4 --seed 500
 ```
 
 > [!commentary]
@@ -182,9 +189,9 @@ toneforge generate --recipe character-jump --seed 500
 > the sound is just a pitch sweep -- a synthesizer effect. With it,
 > there is an initial burst of energy (the moment of contact with the
 > ground) followed by the tonal rise (the trajectory through the air).
-> The noise decays faster than the tone, which mirrors how real impact
-> sounds behave: the broadband crash is brief, and the resonance
-> lingers.
+> But notice the noise sounds a bit harsh and hissy -- that raw white
+> noise contains all frequencies equally, including piercing highs.
+> We will fix that in the next step with a filter.
 
 ## Act 5 -- Filtering the noise
 
@@ -198,7 +205,8 @@ applying a lowpass filter to our noise burst, we control whether the
 impact sounds bright and crispy (high cutoff) or dull and thuddy
 (low cutoff).
 
-Let's see the filter parameter:
+The final `character-jump` recipe adds this filter -- the only
+difference from step 4. Let's see the filter parameter:
 
 ```bash
 grep "filterCutoff" src/recipes/character-jump-params.ts
@@ -208,26 +216,27 @@ The cutoff varies from 1500 to 5000 Hz. At 1500 Hz, the noise sounds
 muffled -- like a heavy landing. At 5000 Hz, it sounds bright and
 airy -- like a quick hop.
 
-Let's hear different filter characteristics across seeds:
+Compare the unfiltered step 4 with the filtered final recipe:
 
 ```bash
-toneforge generate --recipe character-jump --seed 10
+toneforge generate --recipe character-jump-step4 --seed 42
+```
+
+```bash
+toneforge generate --recipe character-jump --seed 42
 ```
 
 ```bash
 toneforge generate --recipe character-jump --seed 300
 ```
 
-```bash
-toneforge generate --recipe character-jump --seed 888
-```
-
 > [!commentary]
-> Filters are one of the most powerful tools in sound design. By
-> changing just the cutoff frequency, you can make the same noise burst
-> feel like a heavy boot landing or a nimble fairy hop. In ToneForge,
-> the filter cutoff is seed-derived like every other parameter, so each
-> seed naturally produces a different "weight" for the jump sound.
+> Listen to the difference between step 4 (unfiltered) and the final
+> recipe (filtered) at seed 42. The filter tames the harshness of the
+> raw noise, making the impact sound more natural. Filters are one of
+> the most powerful tools in sound design -- by changing just the
+> cutoff frequency, you can make the same noise burst feel like a
+> heavy boot landing or a nimble fairy hop.
 
 ## Act 6 -- Seed variation: Infinite jumps from one recipe
 
