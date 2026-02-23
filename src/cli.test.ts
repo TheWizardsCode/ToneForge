@@ -184,6 +184,17 @@ describe("CLI", () => {
       expect(stdout).toContain("ambient-wind-gust");
     });
 
+    it("includes a one-line description for each recipe", async () => {
+      const { code, stdout } = await captureOutput(
+        () => main(argv("list", "recipes")),
+      );
+      expect(code).toBe(0);
+      // Verify known descriptions appear alongside their recipe names
+      expect(stdout).toContain("sci-fi confirmation tone");
+      expect(stdout).toContain("laser zap");
+      expect(stdout).toContain("stone footstep");
+    });
+
     it("outputs one recipe per line", async () => {
       const { code, stdout } = await captureOutput(
         () => main(argv("list", "recipes")),
@@ -266,7 +277,8 @@ describe("CLI", () => {
         expect(stdout).not.toMatch(/\x1b\[/);
         const data = JSON.parse(stdout);
         expect(data.command).toBe("list");
-        expect(data.recipes).toContain("ui-scifi-confirm");
+        const names = data.recipes.map((r: { name: string }) => r.name);
+        expect(names).toContain("ui-scifi-confirm");
       } finally {
         setTtyOverride(undefined);
       }
@@ -854,7 +866,7 @@ describe("CLI", () => {
     });
 
     describe("list", () => {
-      it("outputs JSON with recipe array", async () => {
+      it("outputs JSON with recipe array containing name and description", async () => {
         const { code, stdout } = await captureOutput(
           () => main(argv("list", "--json")),
         );
@@ -863,11 +875,17 @@ describe("CLI", () => {
         expect(data.command).toBe("list");
         expect(data.resource).toBe("recipes");
         expect(Array.isArray(data.recipes)).toBe(true);
-        expect(data.recipes).toContain("ui-scifi-confirm");
-        expect(data.recipes).toContain("weapon-laser-zap");
-        expect(data.recipes).toContain("footstep-stone");
-        expect(data.recipes).toContain("ui-notification-chime");
-        expect(data.recipes).toContain("ambient-wind-gust");
+        const names = data.recipes.map((r: { name: string }) => r.name);
+        expect(names).toContain("ui-scifi-confirm");
+        expect(names).toContain("weapon-laser-zap");
+        expect(names).toContain("footstep-stone");
+        expect(names).toContain("ui-notification-chime");
+        expect(names).toContain("ambient-wind-gust");
+        // Each entry must have a description string
+        for (const r of data.recipes) {
+          expect(typeof r.name).toBe("string");
+          expect(typeof r.description).toBe("string");
+        }
       });
 
       it("outputs JSON with 'list recipes --json'", async () => {
@@ -878,6 +896,12 @@ describe("CLI", () => {
         const data = JSON.parse(stdout);
         expect(data.command).toBe("list");
         expect(data.recipes.length).toBeGreaterThanOrEqual(5);
+        // Verify description is non-empty for a known recipe
+        const confirm = data.recipes.find(
+          (r: { name: string }) => r.name === "ui-scifi-confirm",
+        );
+        expect(confirm).toBeDefined();
+        expect(confirm.description.length).toBeGreaterThan(0);
       });
 
       it("outputs JSON error for unknown resource", async () => {
