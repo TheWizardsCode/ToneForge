@@ -20,6 +20,8 @@ export interface DemoMeta {
   title: string;
   id: string;
   description: string;
+  /** Explicit sort order (lower values appear first). Undefined means unordered. */
+  order?: number;
 }
 
 /** A single step in a parsed demo walkthrough. */
@@ -167,10 +169,12 @@ export function parseDemoMarkdown(rawMarkdown: string): ParsedDemo {
 
   // Extract front matter
   const { data, content } = matter(trimmed);
+  const rawOrder = data.order;
   const meta: DemoMeta = {
     title: String(data.title ?? ""),
     id: String(data.id ?? ""),
     description: String(data.description ?? "").trim(),
+    ...(rawOrder != null && Number.isFinite(Number(rawOrder)) && { order: Number(rawOrder) }),
   };
 
   // Parse markdown body to AST

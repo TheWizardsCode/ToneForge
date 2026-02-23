@@ -1,6 +1,7 @@
 ---
 title: "WAV Export: Saving Sounds to Disk"
 id: wav-export
+order: 3
 description: >
   A walkthrough demonstrating ToneForge's WAV export feature, showing how
   to selectively save generated sounds to disk using the --output flag

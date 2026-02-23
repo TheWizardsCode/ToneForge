@@ -165,6 +165,7 @@ interface DemoInfo {
   id: string;
   title: string;
   description: string;
+  order?: number;
 }
 
 function discoverDemos(): DemoInfo[] {
@@ -183,9 +184,15 @@ function discoverDemos(): DemoInfo[] {
         id: meta.id || basename(filename, ".md"),
         title: meta.title || basename(filename, ".md"),
         description: meta.description || "",
+        order: meta.order,
       };
     })
-    .sort((a, b) => a.id.localeCompare(b.id));
+    .sort((a, b) => {
+      if (a.order != null && b.order != null) return a.order - b.order;
+      if (a.order != null) return -1;
+      if (b.order != null) return 1;
+      return a.id.localeCompare(b.id);
+    });
 }
 
 // ── Preflight checks ──────────────────────────────────────────────
