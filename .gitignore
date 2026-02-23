@@ -16,6 +16,11 @@ Worklog Specific Ignores
 ### End of Worklog Specific Ignores
 
 ##################################
+# Generated audio output
+##################################
+output/
+
+##################################
 # Node / TypeScript
 ##################################
 node_modules/
