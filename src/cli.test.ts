@@ -189,12 +189,16 @@ describe("CLI", () => {
       expect(stdout).toContain("resource");
     });
 
-    it("returns 1 when no resource specified", async () => {
-      const { code, stderr } = await captureOutput(
+    it("defaults to listing recipes when no resource specified", async () => {
+      const { code, stdout } = await captureOutput(
         () => main(argv("list")),
       );
-      expect(code).toBe(1);
-      expect(stderr).toContain("requires a resource type");
+      expect(code).toBe(0);
+      expect(stdout).toContain("ui-scifi-confirm");
+      expect(stdout).toContain("weapon-laser-zap");
+      expect(stdout).toContain("footstep-stone");
+      expect(stdout).toContain("ui-notification-chime");
+      expect(stdout).toContain("ambient-wind-gust");
     });
 
     it("returns 1 for unknown resource type", async () => {

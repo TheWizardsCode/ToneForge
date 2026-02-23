@@ -122,15 +122,16 @@ function printListHelp(): void {
   console.log(`ToneForge list — List available resources
 
 Usage:
-  toneforge list <resource>
+  toneforge list [resource]
 
 Resources:
-  recipes     List all registered recipe names
+  recipes     List all registered recipe names (default)
 
 Options:
   --help, -h  Show this help message
 
 Examples:
+  toneforge list
   toneforge list recipes`);
 }
 
@@ -347,12 +348,8 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       return 0;
     }
 
-    if (subcommand !== "recipes") {
-      if (subcommand === undefined) {
-        console.error("Error: 'list' requires a resource type. Run 'toneforge list --help' for usage.");
-      } else {
-        console.error(`Error: Unknown resource '${subcommand}'. Run 'toneforge list --help' for usage.`);
-      }
+    if (subcommand !== "recipes" && subcommand !== undefined) {
+      console.error(`Error: Unknown resource '${subcommand}'. Run 'toneforge list --help' for usage.`);
       return 1;
     }
 
