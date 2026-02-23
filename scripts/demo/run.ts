@@ -7,9 +7,9 @@
  * and pause prompts between sections.
  *
  * Usage:
- *   npx tsx scripts/demo/run.ts                  # Interactive picker
- *   npx tsx scripts/demo/run.ts --demo mvp-1     # Run specific demo
- *   npx tsx scripts/demo/run.ts --list            # List available demos
+ *   npm run demo                    # Interactive picker
+ *   npm run demo -- --demo mvp-1   # Run specific demo
+ *   npm run demo -- --list          # List available demos
  *
  * @module scripts/demo/run
  */
