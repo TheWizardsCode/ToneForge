@@ -39,7 +39,25 @@ node dist/cli.js generate --recipe ui-scifi-confirm --seed 42 --output ./output/
 > any audio editor or game engine. Meanwhile, your other UI sounds can
 > still be generated procedurally at runtime with different seeds.
 
-## Act 2 — Write-only mode for build pipelines
+## Act 2 — Listen to what you just exported
+
+> You've saved the file, but you want to hear it before dropping it
+> into your project. Play the exported WAV back through your system
+> audio player.
+
+Use your platform's audio player to listen to the exported file:
+
+```bash
+aplay ./output/confirm.wav
+```
+
+> [!commentary]
+> `aplay` is the standard ALSA player on Linux. On macOS use `afplay`,
+> on Windows use `powershell -c "(New-Object Media.SoundPlayer
+> './output/confirm.wav').PlaySync()"`. The exported WAV is a standard
+> 44.1 kHz 16-bit PCM file — any audio player or editor can open it.
+
+## Act 3 — Write-only mode for build pipelines
 
 > Your build pipeline pre-renders key sounds to WAV during CI while the
 > game engine generates ambient variations procedurally at runtime. You
@@ -58,7 +76,7 @@ node dist/cli.js generate --recipe weapon-laser-zap --seed 1337 --output ./outpu
 > sounds during build, and let the runtime procedurally generate
 > the rest on demand.
 
-## Act 3 — Selective export across recipes
+## Act 4 — Selective export across recipes
 
 > Your project uses five recipes. Some sounds are signature assets you
 > want locked down as WAV files; others stay procedural for variety.
@@ -85,7 +103,7 @@ node dist/cli.js generate --recipe ambient-wind-gust --seed 500 --output ./outpu
 > can still be generated procedurally at runtime with varying seeds.
 > Parent directories are created automatically if they don't exist.
 
-## Act 4 — Deterministic re-export
+## Act 5 — Deterministic re-export
 
 > You exported a confirmation tone last month. Now you need to
 > regenerate the exact same file in a different environment. Can you
@@ -106,8 +124,9 @@ node dist/cli.js generate --recipe ui-scifi-confirm --seed 42 --output ./output/
 ## Recap — What you just saw
 
 1. The `--output` flag freezes a procedurally generated sound into a WAV file
-2. Export the sounds you want to pin; keep the rest procedural for variety
-3. Write-only mode skips playback — perfect for CI and build pipelines
-4. Every recipe supports export with the same workflow
-5. Parent directories are created automatically
-6. Same seed always produces the same file — re-export anywhere, anytime
+2. Exported WAV files play back in any system audio player (`aplay`, `afplay`, etc.)
+3. Export the sounds you want to pin; keep the rest procedural for variety
+4. Write-only mode skips playback — perfect for CI and build pipelines
+5. Every recipe supports export with the same workflow
+6. Parent directories are created automatically
+7. Same seed always produces the same file — re-export anywhere, anytime
