@@ -3,26 +3,31 @@ title: "WAV Export: Saving Sounds to Disk"
 id: wav-export
 description: >
   A walkthrough demonstrating ToneForge's WAV export feature, showing how
-  to save generated sounds to disk using the --output flag for use in
-  DAWs, game engines, and build pipelines.
+  to selectively save generated sounds to disk using the --output flag
+  while keeping the option to procedurally vary other sounds at runtime.
 ---
 
 ## Intro
 
-ToneForge generates procedural sounds on the fly. But listening is only
-half the story. To use these sounds in a game engine, a DAW, or a CI
-pipeline, you need files on disk.
+ToneForge generates procedural sounds on the fly — every seed yields a
+unique variation, and no two runs need to sound the same. But real-world
+projects rarely live at one extreme. Sometimes you need the option to
+store some files on disk while procedurally varying other sounds at
+runtime: a pinned UI confirmation tone shipped as a WAV asset alongside
+footsteps that are generated fresh each session.
 
-The `--output` flag turns ToneForge from a listen-only tool into a
-production asset generator. One flag, one WAV file, no audio playback.
+The `--output` flag gives you that choice. When you find a sound worth
+keeping, freeze it to a WAV file. When you want variety, keep generating
+procedurally. One tool, both workflows.
 
-## Act 1 — Export a single sound
+## Act 1 — Pin a sound you like
 
-> You've found a UI confirmation tone you like with seed 42. Now you
-> need the actual WAV file to drop into your project.
+> You've been auditioning UI confirmation tones and seed 42 is the one.
+> You want to pin that exact sound as a WAV asset in your project while
+> other UI sounds keep varying procedurally.
 
-The `--output` flag writes the rendered audio to a file instead of
-playing it through speakers:
+The `--output` flag renders the audio to a file instead of playing it
+through speakers — freezing that seed into a reusable asset:
 
 ```bash
 node dist/cli.js generate --recipe ui-scifi-confirm --seed 42 --output ./output/confirm.wav
@@ -31,12 +36,14 @@ node dist/cli.js generate --recipe ui-scifi-confirm --seed 42 --output ./output/
 > [!commentary]
 > One line of output: `Wrote ./output/confirm.wav`. No audio played.
 > The file is a standard 44.1 kHz, 16-bit PCM mono WAV that opens in
-> any audio editor or game engine.
+> any audio editor or game engine. Meanwhile, your other UI sounds can
+> still be generated procedurally at runtime with different seeds.
 
-## Act 2 — Write-only mode
+## Act 2 — Write-only mode for build pipelines
 
-> You're running ToneForge in a CI pipeline or headless server. You
-> need to export audio without any playback at all.
+> Your build pipeline pre-renders key sounds to WAV during CI while the
+> game engine generates ambient variations procedurally at runtime. You
+> need the export step to run headlessly — no speakers, no audio hardware.
 
 When `--output` is specified, ToneForge skips the audio player entirely.
 No speaker detection, no playback dependencies, no sound:
@@ -47,15 +54,19 @@ node dist/cli.js generate --recipe weapon-laser-zap --seed 1337 --output ./outpu
 
 > [!commentary]
 > Write-only mode means ToneForge works in headless environments —
-> Docker containers, CI runners, SSH sessions — anywhere you can run
-> Node.js but don't have audio hardware.
+> Docker containers, CI runners, SSH sessions. Pre-render your hero
+> sounds during build, and let the runtime procedurally generate
+> the rest on demand.
 
-## Act 3 — Different recipes, same workflow
+## Act 3 — Selective export across recipes
 
-> Your project needs sounds from multiple categories. The export
-> workflow should be the same for every recipe.
+> Your project uses five recipes. Some sounds are signature assets you
+> want locked down as WAV files; others stay procedural for variety.
+> The export workflow should be the same for every recipe you choose
+> to freeze.
 
-Every recipe supports `--output` identically:
+Every recipe supports `--output` identically — export only the sounds
+you want to pin:
 
 ```bash
 node dist/cli.js generate --recipe footstep-stone --seed 10 --output ./output/footstep.wav
@@ -70,14 +81,15 @@ node dist/cli.js generate --recipe ambient-wind-gust --seed 500 --output ./outpu
 ```
 
 > [!commentary]
-> Three recipes, three WAV files. The `--output` flag works with any
-> registered recipe — no special configuration needed. Parent directories
-> are created automatically if they don't exist.
+> Three recipes, three pinned WAV files. The rest of your sound palette
+> can still be generated procedurally at runtime with varying seeds.
+> Parent directories are created automatically if they don't exist.
 
-## Act 4 — Deterministic output
+## Act 4 — Deterministic re-export
 
-> You need to regenerate the exact same sound later — maybe in a
-> different environment or after a code change. Can you trust the output?
+> You exported a confirmation tone last month. Now you need to
+> regenerate the exact same file in a different environment. Can you
+> trust the output to match?
 
 The same recipe and seed always produce a byte-identical WAV file:
 
@@ -87,13 +99,15 @@ node dist/cli.js generate --recipe ui-scifi-confirm --seed 42 --output ./output/
 
 > [!commentary]
 > Compare `confirm.wav` and `confirm-again.wav` — they are byte-for-byte
-> identical. This determinism guarantee means you can version-control
-> seeds instead of audio files, and regenerate assets at any time.
+> identical. This determinism guarantee is what makes the hybrid workflow
+> practical: version-control seeds instead of audio files, and re-export
+> pinned assets at any time while procedurally varying everything else.
 
 ## Recap — What you just saw
 
-1. The `--output` flag saves generated audio as a WAV file
-2. Write-only mode skips playback — perfect for CI and headless environments
-3. Every recipe supports export with the same workflow
-4. Parent directories are created automatically
-5. Same seed always produces the same file — deterministic and reproducible
+1. The `--output` flag freezes a procedurally generated sound into a WAV file
+2. Export the sounds you want to pin; keep the rest procedural for variety
+3. Write-only mode skips playback — perfect for CI and build pipelines
+4. Every recipe supports export with the same workflow
+5. Parent directories are created automatically
+6. Same seed always produces the same file — re-export anywhere, anytime
