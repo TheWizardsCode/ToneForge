@@ -71,6 +71,20 @@ registry.register("ui-scifi-confirm", {
   factory: createUiSciFiConfirm,
   getDuration: uiSciFiConfirmDuration,
   buildOfflineGraph: uiSciFiConfirmOfflineGraph,
+  description: "Short sci-fi confirmation tone using sine synthesis with a filtered sweep.",
+  category: "UI",
+  tags: ["sci-fi", "confirm", "ui"],
+  signalChain: "Sine Oscillator -> Lowpass Filter -> Amplitude Envelope -> Destination",
+  params: [
+    { name: "frequency", min: 400, max: 1200, unit: "Hz" },
+    { name: "attack", min: 0.001, max: 0.01, unit: "s" },
+    { name: "decay", min: 0.05, max: 0.3, unit: "s" },
+    { name: "filterCutoff", min: 800, max: 4000, unit: "Hz" },
+  ],
+  getParams: (rng) => {
+    const p = getUiSciFiConfirmParams(rng);
+    return { frequency: p.frequency, attack: p.attack, decay: p.decay, filterCutoff: p.filterCutoff };
+  },
 });
 
 // ── weapon-laser-zap ──────────────────────────────────────────────
@@ -162,6 +176,26 @@ registry.register("weapon-laser-zap", {
   factory: createWeaponLaserZap,
   getDuration: weaponLaserZapDuration,
   buildOfflineGraph: weaponLaserZapOfflineGraph,
+  description: "Punchy laser zap using FM synthesis with a bandpass-filtered noise burst.",
+  category: "Weapon",
+  tags: ["laser", "zap", "sci-fi", "weapon"],
+  signalChain: "FM Oscillator (Carrier + Modulator) + Bandpass Noise Burst -> Amplitude Envelope -> Destination",
+  params: [
+    { name: "carrierFreq", min: 200, max: 2000, unit: "Hz" },
+    { name: "modulatorFreq", min: 50, max: 500, unit: "Hz" },
+    { name: "modIndex", min: 1, max: 10, unit: "ratio" },
+    { name: "noiseBurstLevel", min: 0.1, max: 0.5, unit: "amplitude" },
+    { name: "attack", min: 0.001, max: 0.005, unit: "s" },
+    { name: "decay", min: 0.03, max: 0.25, unit: "s" },
+  ],
+  getParams: (rng) => {
+    const p = getWeaponLaserZapParams(rng);
+    return {
+      carrierFreq: p.carrierFreq, modulatorFreq: p.modulatorFreq,
+      modIndex: p.modIndex, noiseBurstLevel: p.noiseBurstLevel,
+      attack: p.attack, decay: p.decay,
+    };
+  },
 });
 
 // ── footstep-stone ────────────────────────────────────────────────
@@ -252,6 +286,27 @@ registry.register("footstep-stone", {
   factory: createFootstepStone,
   getDuration: footstepStoneDuration,
   buildOfflineGraph: footstepStoneOfflineGraph,
+  description: "Percussive stone footstep impact using bandpass-filtered noise with transient shaping.",
+  category: "Footstep",
+  tags: ["footstep", "stone", "impact", "foley"],
+  signalChain: "White Noise -> Bandpass Filter (Body) + Brown Noise -> Lowpass Filter (Tail) -> Amplitude Envelope -> Destination",
+  params: [
+    { name: "filterFreq", min: 400, max: 2000, unit: "Hz" },
+    { name: "filterQ", min: 1, max: 8, unit: "Q" },
+    { name: "transientAttack", min: 0.001, max: 0.005, unit: "s" },
+    { name: "bodyDecay", min: 0.03, max: 0.15, unit: "s" },
+    { name: "tailDecay", min: 0.02, max: 0.08, unit: "s" },
+    { name: "bodyLevel", min: 0.5, max: 1.0, unit: "amplitude" },
+    { name: "tailLevel", min: 0.1, max: 0.4, unit: "amplitude" },
+  ],
+  getParams: (rng) => {
+    const p = getFootstepStoneParams(rng);
+    return {
+      filterFreq: p.filterFreq, filterQ: p.filterQ,
+      transientAttack: p.transientAttack, bodyDecay: p.bodyDecay,
+      tailDecay: p.tailDecay, bodyLevel: p.bodyLevel, tailLevel: p.tailLevel,
+    };
+  },
 });
 
 // ── ui-notification-chime ─────────────────────────────────────────
@@ -306,6 +361,27 @@ registry.register("ui-notification-chime", {
   factory: createUiNotificationChime,
   getDuration: uiNotificationChimeDuration,
   buildOfflineGraph: uiNotificationChimeOfflineGraph,
+  description: "Pleasant musical chime using harmonic series synthesis with ADSR envelope.",
+  category: "UI",
+  tags: ["chime", "notification", "ui", "musical"],
+  signalChain: "Harmonic Sine Oscillators -> Per-Harmonic Gain -> ADSR Envelope -> Destination",
+  params: [
+    { name: "fundamentalFreq", min: 400, max: 1200, unit: "Hz" },
+    { name: "harmonicCount", min: 2, max: 6, unit: "integer" },
+    { name: "harmonicDecayFactor", min: 0.3, max: 0.8, unit: "ratio" },
+    { name: "attack", min: 0.005, max: 0.02, unit: "s" },
+    { name: "sustainLevel", min: 0.3, max: 0.7, unit: "amplitude" },
+    { name: "decay", min: 0.1, max: 0.4, unit: "s" },
+    { name: "release", min: 0.1, max: 0.5, unit: "s" },
+  ],
+  getParams: (rng) => {
+    const p = getUiNotificationChimeParams(rng);
+    return {
+      fundamentalFreq: p.fundamentalFreq, harmonicCount: p.harmonicCount,
+      harmonicDecayFactor: p.harmonicDecayFactor, attack: p.attack,
+      sustainLevel: p.sustainLevel, decay: p.decay, release: p.release,
+    };
+  },
 });
 
 // ── ambient-wind-gust ─────────────────────────────────────────────
@@ -390,4 +466,27 @@ registry.register("ambient-wind-gust", {
   factory: createAmbientWindGust,
   getDuration: ambientWindGustDuration,
   buildOfflineGraph: ambientWindGustOfflineGraph,
+  description: "Environmental wind burst with filtered noise and LFO-modulated bandpass sweep.",
+  category: "Ambient",
+  tags: ["wind", "ambient", "environment", "nature"],
+  signalChain: "Pink Noise Approximation -> Bandpass Filter (LFO Modulated) -> Level Control -> Swell Envelope -> Destination",
+  params: [
+    { name: "filterFreq", min: 200, max: 1500, unit: "Hz" },
+    { name: "filterQ", min: 0.5, max: 3.0, unit: "Q" },
+    { name: "lfoRate", min: 0.5, max: 4.0, unit: "Hz" },
+    { name: "lfoDepth", min: 100, max: 800, unit: "Hz" },
+    { name: "attack", min: 0.1, max: 0.5, unit: "s" },
+    { name: "sustain", min: 0.2, max: 1.0, unit: "s" },
+    { name: "release", min: 0.2, max: 0.8, unit: "s" },
+    { name: "level", min: 0.3, max: 0.8, unit: "amplitude" },
+  ],
+  getParams: (rng) => {
+    const p = getAmbientWindGustParams(rng);
+    return {
+      filterFreq: p.filterFreq, filterQ: p.filterQ,
+      lfoRate: p.lfoRate, lfoDepth: p.lfoDepth,
+      attack: p.attack, sustain: p.sustain,
+      release: p.release, level: p.level,
+    };
+  },
 });
