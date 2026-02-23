@@ -46,26 +46,10 @@ toneforge generate --recipe weapon-laser-zap --seed-range 1:5 --output ./output/
 > You've generated five laser variations. Now play them back-to-back
 > so you can hear the differences and pick favorites.
 
-Audition each file with `toneforge play`:
+Audition every file in one shot with a quick loop:
 
 ```bash
-toneforge play ./output/lasers/weapon-laser-zap-seed-1.wav
-```
-
-```bash
-toneforge play ./output/lasers/weapon-laser-zap-seed-2.wav
-```
-
-```bash
-toneforge play ./output/lasers/weapon-laser-zap-seed-3.wav
-```
-
-```bash
-toneforge play ./output/lasers/weapon-laser-zap-seed-4.wav
-```
-
-```bash
-toneforge play ./output/lasers/weapon-laser-zap-seed-5.wav
+for f in ./output/lasers/*.wav; do toneforge play "$f"; sleep 0.5; done
 ```
 
 > [!commentary]
@@ -98,47 +82,7 @@ toneforge generate --recipe footstep-stone --seed-range 10:20 --output ./output/
 Audition each footstep variation:
 
 ```bash
-toneforge play ./output/footsteps/footstep-stone-seed-10.wav
-```
-
-```bash
-toneforge play ./output/footsteps/footstep-stone-seed-11.wav
-```
-
-```bash
-toneforge play ./output/footsteps/footstep-stone-seed-12.wav
-```
-
-```bash
-toneforge play ./output/footsteps/footstep-stone-seed-13.wav
-```
-
-```bash
-toneforge play ./output/footsteps/footstep-stone-seed-14.wav
-```
-
-```bash
-toneforge play ./output/footsteps/footstep-stone-seed-15.wav
-```
-
-```bash
-toneforge play ./output/footsteps/footstep-stone-seed-16.wav
-```
-
-```bash
-toneforge play ./output/footsteps/footstep-stone-seed-17.wav
-```
-
-```bash
-toneforge play ./output/footsteps/footstep-stone-seed-18.wav
-```
-
-```bash
-toneforge play ./output/footsteps/footstep-stone-seed-19.wav
-```
-
-```bash
-toneforge play ./output/footsteps/footstep-stone-seed-20.wav
+for f in ./output/footsteps/*.wav; do toneforge play "$f"; sleep 0.5; done
 ```
 
 > [!commentary]
@@ -171,43 +115,7 @@ toneforge generate --recipe ui-notification-chime --seed-range 1:10 --output ./o
 Audition each chime variation:
 
 ```bash
-toneforge play ./output/chimes/ui-notification-chime-seed-1.wav
-```
-
-```bash
-toneforge play ./output/chimes/ui-notification-chime-seed-2.wav
-```
-
-```bash
-toneforge play ./output/chimes/ui-notification-chime-seed-3.wav
-```
-
-```bash
-toneforge play ./output/chimes/ui-notification-chime-seed-4.wav
-```
-
-```bash
-toneforge play ./output/chimes/ui-notification-chime-seed-5.wav
-```
-
-```bash
-toneforge play ./output/chimes/ui-notification-chime-seed-6.wav
-```
-
-```bash
-toneforge play ./output/chimes/ui-notification-chime-seed-7.wav
-```
-
-```bash
-toneforge play ./output/chimes/ui-notification-chime-seed-8.wav
-```
-
-```bash
-toneforge play ./output/chimes/ui-notification-chime-seed-9.wav
-```
-
-```bash
-toneforge play ./output/chimes/ui-notification-chime-seed-10.wav
+for f in ./output/chimes/*.wav; do toneforge play "$f"; sleep 0.5; done
 ```
 
 > [!commentary]
@@ -242,15 +150,7 @@ toneforge generate --recipe ambient-wind-gust --seed-range 100:102 --output ./ou
 Play through the wind variations:
 
 ```bash
-toneforge play ./output/wind/ambient-wind-gust-seed-100.wav
-```
-
-```bash
-toneforge play ./output/wind/ambient-wind-gust-seed-101.wav
-```
-
-```bash
-toneforge play ./output/wind/ambient-wind-gust-seed-102.wav
+for f in ./output/wind/*.wav; do toneforge play "$f"; sleep 0.5; done
 ```
 
 > [!commentary]
