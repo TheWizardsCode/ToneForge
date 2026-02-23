@@ -4,9 +4,10 @@ import { existsSync, readFileSync, unlinkSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-// Mock the playAudio function to avoid actual audio playback during tests
+// Mock the playAudio and getPlayerCommand functions to avoid actual audio playback during tests
 vi.mock("./audio/player.js", () => ({
   playAudio: vi.fn().mockResolvedValue(undefined),
+  getPlayerCommand: vi.fn().mockReturnValue({ command: "echo", args: ["mock-play"] }),
 }));
 
 /** Helper to build a fake argv array as if invoked via `node cli.ts <...args>`. */
@@ -341,6 +342,60 @@ describe("CLI", () => {
         expect(data.toString("ascii", 8, 12)).toBe("WAVE");
         expect(data.length).toBeGreaterThan(44);
       }
+    });
+  });
+
+  describe("play command", () => {
+    it("prints play help with --help flag", async () => {
+      const { code, stdout } = await captureOutput(
+        () => main(argv("play", "--help")),
+      );
+      expect(code).toBe(0);
+      expect(stdout).toContain("play");
+      expect(stdout).toContain("<file.wav>");
+      expect(stdout).toContain("Examples");
+    });
+
+    it("returns 1 when no file path is given", async () => {
+      const { code, stderr } = await captureOutput(
+        () => main(argv("play")),
+      );
+      expect(code).toBe(1);
+      expect(stderr).toContain("requires a WAV file path");
+    });
+
+    it("returns 1 when file does not exist", async () => {
+      const { code, stderr } = await captureOutput(
+        () => main(argv("play", "./nonexistent/path/to/file.wav")),
+      );
+      expect(code).toBe(1);
+      expect(stderr).toContain("File not found");
+    });
+
+    it("plays an existing WAV file successfully", async () => {
+      // First generate a WAV file to play
+      const outPath = join(tmpdir(), `toneforge-play-test-${Date.now()}.wav`);
+      await captureOutput(
+        () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "42", "--output", outPath)),
+      );
+      expect(existsSync(outPath)).toBe(true);
+
+      // Now play it (getPlayerCommand is mocked to return { command: "echo", args: ["mock-play"] })
+      const { code } = await captureOutput(
+        () => main(argv("play", outPath)),
+      );
+      expect(code).toBe(0);
+
+      // Clean up
+      try { unlinkSync(outPath); } catch { /* ignore */ }
+    });
+
+    it("appears in the top-level help text", async () => {
+      const { code, stdout } = await captureOutput(
+        () => main(argv("--help")),
+      );
+      expect(code).toBe(0);
+      expect(stdout).toContain("play");
     });
   });
 

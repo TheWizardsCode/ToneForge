@@ -45,17 +45,17 @@ node dist/cli.js generate --recipe ui-scifi-confirm --seed 42 --output ./output/
 > into your project. Play the exported WAV back through your system
 > audio player.
 
-Use your platform's audio player to listen to the exported file:
+Use ToneForge's built-in `play` command to listen to the exported file:
 
 ```bash
-aplay ./output/confirm.wav
+node dist/cli.js play ./output/confirm.wav
 ```
 
 > [!commentary]
-> `aplay` is the standard ALSA player on Linux. On macOS use `afplay`,
-> on Windows use `powershell -c "(New-Object Media.SoundPlayer
-> './output/confirm.wav').PlaySync()"`. The exported WAV is a standard
-> 44.1 kHz 16-bit PCM file — any audio player or editor can open it.
+> The `play` subcommand routes the WAV file through the same
+> platform-aware audio player that `generate` uses — aplay on Linux,
+> afplay on macOS, PowerShell on Windows. No need to remember which
+> player is installed; ToneForge detects it for you.
 
 ## Act 3 — Write-only mode for build pipelines
 
@@ -129,7 +129,7 @@ node dist/cli.js generate --recipe weapon-laser-zap --seed 99 --output ./output/
 Play back the saved file and compare:
 
 ```bash
-aplay ./output/laser-prerendered.wav
+node dist/cli.js play ./output/laser-prerendered.wav
 ```
 
 > [!commentary]
@@ -143,7 +143,7 @@ aplay ./output/laser-prerendered.wav
 ## Recap — What you just saw
 
 1. The `--output` flag freezes a procedurally generated sound into a WAV file
-2. Exported WAV files play back in any system audio player (`aplay`, `afplay`, etc.)
+2. The `play` subcommand plays exported WAV files through the platform's audio player
 3. Export the sounds you want to pin; keep the rest procedural for variety
 4. Write-only mode skips playback — perfect for CI and build pipelines
 5. Every recipe supports export with the same workflow

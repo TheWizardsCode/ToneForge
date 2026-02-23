@@ -3,21 +3,25 @@
  * ToneForge CLI
  *
  * Entry point for the `toneforge` command-line tool.
- * Supports the `generate` command to render, play, and export procedural sounds.
+ * Supports the `generate` command to render, play, and export procedural sounds,
+ * and the `play` command to play WAV files from disk.
  *
  * Usage:
  *   toneforge generate --recipe <name> [--seed <number>] [--output <path.wav>]
  *   toneforge generate --recipe <name> --seed-range <start>:<end> --output <directory/>
+ *   toneforge play <file.wav>
  *   toneforge --help
  *
  * Reference: docs/prd/CLI_PRD.md Section 4.1, 5.1
  */
 
 import { mkdir, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { existsSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { execFile } from "node:child_process";
 import { renderRecipe } from "./core/renderer.js";
 import { registry } from "./recipes/index.js";
-import { playAudio } from "./audio/player.js";
+import { playAudio, getPlayerCommand } from "./audio/player.js";
 import { encodeWav } from "./audio/wav-encoder.js";
 import { VERSION } from "./index.js";
 
@@ -65,6 +69,7 @@ Usage:
 
 Commands:
   generate    Render and export procedural sounds
+  play        Play a WAV file through the system audio player
   list        List available resources (e.g. recipes)
 
 Options:
@@ -117,6 +122,24 @@ Examples:
   toneforge list recipes`);
 }
 
+/** Print help text for the play command. */
+function printPlayHelp(): void {
+  console.log(`ToneForge play — Play a WAV file through the system audio player
+
+Usage:
+  toneforge play <file.wav>
+
+Arguments:
+  <file.wav>  Path to a WAV file to play (required)
+
+Options:
+  --help, -h  Show this help message
+
+Examples:
+  toneforge play ./output/confirm.wav
+  toneforge play ./output/lasers/weapon-laser-zap-seed-1.wav`);
+}
+
 /** Main CLI entry point. Exported for testability. */
 export async function main(argv: string[] = process.argv): Promise<number> {
   const { command, subcommand, flags } = parseArgs(argv);
@@ -127,6 +150,8 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       printGenerateHelp();
     } else if (command === "list") {
       printListHelp();
+    } else if (command === "play") {
+      printPlayHelp();
     } else {
       printHelp();
     }
@@ -153,6 +178,47 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       console.log(name);
     }
     return 0;
+  }
+
+  if (command === "play") {
+    if (flags["help"]) {
+      printPlayHelp();
+      return 0;
+    }
+
+    if (subcommand === undefined) {
+      console.error("Error: 'play' requires a WAV file path. Run 'toneforge play --help' for usage.");
+      return 1;
+    }
+
+    const filePath = resolve(subcommand);
+
+    if (!existsSync(filePath)) {
+      console.error(`Error: File not found: ${subcommand}`);
+      return 1;
+    }
+
+    try {
+      const { command: playerCmd, args } = getPlayerCommand(filePath);
+
+      await new Promise<void>((resolvePromise, reject) => {
+        execFile(playerCmd, args, (error) => {
+          if (error) {
+            reject(
+              new Error(`Audio playback failed (${playerCmd}): ${error.message}`),
+            );
+          } else {
+            resolvePromise();
+          }
+        });
+      });
+
+      return 0;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`Error: ${message}`);
+      return 1;
+    }
   }
 
   if (command !== "generate") {
