@@ -1,7 +1,7 @@
 ---
 title: "Recipe Variety: Multiple Sound Types"
 id: recipe-variety
-order: 2
+order: 20
 description: >
   A walkthrough showcasing ToneForge's recipe variety across four game audio
   categories — weapons, footsteps, UI, and ambient — demonstrating that

@@ -28,7 +28,7 @@ describe("parseDemoMarkdown — golden snapshot (mvp-1.md)", () => {
     expect(result.meta.title).toBe("ToneForge MVP Demo");
     expect(result.meta.id).toBe("mvp-1");
     expect(result.meta.description).toMatch(/interactive walkthrough/);
-    expect(result.meta.order).toBe(1);
+    expect(result.meta.order).toBe(10);
   });
 
   it("produces 6 steps (intro, 4 acts, recap)", () => {
