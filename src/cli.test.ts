@@ -26,6 +26,8 @@ async function captureOutput(fn: () => Promise<number>): Promise<{
 
   const origLog = console.log;
   const origError = console.error;
+  const origStdoutWrite = process.stdout.write;
+  const origStderrWrite = process.stderr.write;
 
   console.log = (...args: unknown[]) => {
     stdoutLines.push(args.map(String).join(" "));
@@ -33,6 +35,15 @@ async function captureOutput(fn: () => Promise<number>): Promise<{
   console.error = (...args: unknown[]) => {
     stderrLines.push(args.map(String).join(" "));
   };
+  // Capture process.stdout.write / process.stderr.write used by output helpers
+  process.stdout.write = ((chunk: string | Uint8Array) => {
+    stdoutLines.push(String(chunk).replace(/\n$/, ""));
+    return true;
+  }) as typeof process.stdout.write;
+  process.stderr.write = ((chunk: string | Uint8Array) => {
+    stderrLines.push(String(chunk).replace(/\n$/, ""));
+    return true;
+  }) as typeof process.stderr.write;
 
   try {
     const code = await fn();
@@ -44,6 +55,8 @@ async function captureOutput(fn: () => Promise<number>): Promise<{
   } finally {
     console.log = origLog;
     console.error = origError;
+    process.stdout.write = origStdoutWrite;
+    process.stderr.write = origStderrWrite;
   }
 }
 
@@ -1419,6 +1432,132 @@ describe("CLI", () => {
         );
         expect(stdout).toContain("recipes");
         expect(stdout).toContain("resource");
+      });
+    });
+  });
+
+  describe("styled error, warning, success, and info output", () => {
+    // eslint-disable-next-line no-control-regex
+    const ANSI_RE = /\x1b\[/;
+
+    let setTtyOverride: (value: boolean | undefined) => void;
+
+    beforeEach(async () => {
+      const outputModule = await import("./output.js");
+      setTtyOverride = outputModule.setTtyOverride;
+    });
+
+    afterEach(() => {
+      setTtyOverride(undefined);
+    });
+
+    describe("TTY mode (styled output)", () => {
+      it("error messages contain ANSI red codes when TTY", async () => {
+        setTtyOverride(true);
+        const { code, stderr } = await captureOutput(
+          () => main(argv("generate")),
+        );
+        expect(code).toBe(1);
+        expect(stderr).toMatch(ANSI_RE);
+        expect(stderr).toContain("--recipe is required");
+      });
+
+      it("warning 'Did you mean' suggestions contain ANSI yellow codes when TTY", async () => {
+        setTtyOverride(true);
+        const { code, stderr } = await captureOutput(
+          () => main(argv("show", "ui-scfi-confrim")),
+        );
+        expect(code).toBe(1);
+        // Error part should have red ANSI
+        expect(stderr).toContain("Unknown recipe");
+        // Warning part (Did you mean) should have yellow ANSI
+        expect(stderr).toContain("Did you mean");
+        expect(stderr).toMatch(ANSI_RE);
+      });
+
+      it("success messages contain ANSI green codes when TTY", async () => {
+        const { join } = await import("node:path");
+        const { tmpdir } = await import("node:os");
+        const outPath = join(tmpdir(), `toneforge-styled-test-${Date.now()}.wav`);
+        setTtyOverride(true);
+        const { code, stdout } = await captureOutput(
+          () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "42", "--output", outPath)),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toContain("Wrote");
+        expect(stdout).toMatch(ANSI_RE);
+        // Clean up
+        try { const { unlinkSync } = await import("node:fs"); unlinkSync(outPath); } catch { /* ignore */ }
+      });
+
+      it("info messages contain ANSI dim codes when TTY", async () => {
+        setTtyOverride(true);
+        const { code, stdout } = await captureOutput(
+          () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "42")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toContain("Generating");
+        expect(stdout).toMatch(ANSI_RE);
+      });
+    });
+
+    describe("non-TTY mode (no ANSI codes)", () => {
+      it("error messages contain no ANSI codes when non-TTY", async () => {
+        setTtyOverride(false);
+        const { code, stderr } = await captureOutput(
+          () => main(argv("generate")),
+        );
+        expect(code).toBe(1);
+        expect(stderr).not.toMatch(ANSI_RE);
+        expect(stderr).toContain("--recipe is required");
+      });
+
+      it("warning suggestions contain no ANSI codes when non-TTY", async () => {
+        setTtyOverride(false);
+        const { code, stderr } = await captureOutput(
+          () => main(argv("show", "ui-scfi-confrim")),
+        );
+        expect(code).toBe(1);
+        expect(stderr).not.toMatch(ANSI_RE);
+        expect(stderr).toContain("Did you mean");
+      });
+
+      it("success messages contain no ANSI codes when non-TTY", async () => {
+        const { join } = await import("node:path");
+        const { tmpdir } = await import("node:os");
+        const outPath = join(tmpdir(), `toneforge-styled-test-${Date.now()}.wav`);
+        setTtyOverride(false);
+        const { code, stdout } = await captureOutput(
+          () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "42", "--output", outPath)),
+        );
+        expect(code).toBe(0);
+        expect(stdout).not.toMatch(ANSI_RE);
+        expect(stdout).toContain("Wrote");
+        // Clean up
+        try { const { unlinkSync } = await import("node:fs"); unlinkSync(outPath); } catch { /* ignore */ }
+      });
+
+      it("info messages contain no ANSI codes when non-TTY", async () => {
+        setTtyOverride(false);
+        const { code, stdout } = await captureOutput(
+          () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "42")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).not.toMatch(ANSI_RE);
+        expect(stdout).toContain("Generating");
+      });
+    });
+
+    describe("JSON errors unaffected by TTY", () => {
+      it("JSON error output has no ANSI codes even in TTY mode", async () => {
+        setTtyOverride(true);
+        const { code, stderr } = await captureOutput(
+          () => main(argv("generate", "--json")),
+        );
+        expect(code).toBe(1);
+        expect(stderr).not.toMatch(ANSI_RE);
+        const data = JSON.parse(stderr);
+        expect(data.error).toContain("--recipe is required");
       });
     });
   });

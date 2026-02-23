@@ -30,7 +30,7 @@ import { playAudio, getPlayerCommand } from "./audio/player.js";
 import { encodeWav } from "./audio/wav-encoder.js";
 import { VERSION } from "./index.js";
 import { createRng } from "./core/rng.js";
-import { renderMarkdown } from "./output.js";
+import { renderMarkdown, outputError, outputWarning, outputSuccess, outputInfo } from "./output.js";
 import type { RecipeRegistration } from "./core/recipe.js";
 
 /** Parse command-line arguments into a structured map. */
@@ -490,7 +490,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       if (jsonMode) {
         jsonErr(`Unknown resource '${subcommand}'. Run 'toneforge list --help' for usage.`);
       } else {
-        console.error(`Error: Unknown resource '${subcommand}'. Run 'toneforge list --help' for usage.`);
+        outputError(`Error: Unknown resource '${subcommand}'. Run 'toneforge list --help' for usage.`);
       }
       return 1;
     }
@@ -515,7 +515,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       if (jsonMode) {
         jsonErr("'show' requires a recipe name. Run 'toneforge show --help' for usage.");
       } else {
-        console.error("Error: 'show' requires a recipe name. Run 'toneforge show --help' for usage.");
+        outputError("Error: 'show' requires a recipe name. Run 'toneforge show --help' for usage.");
       }
       return 1;
     }
@@ -533,7 +533,10 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       if (jsonMode) {
         jsonErr(msg);
       } else {
-        console.error(`Error: ${msg}`);
+        outputError(`Error: Unknown recipe '${recipeName}'.`);
+        if (suggestions.length > 0) {
+          outputWarning(`Did you mean: ${suggestions.join(", ")}?`);
+        }
       }
       return 1;
     }
@@ -546,7 +549,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
         if (jsonMode) {
           jsonErr(`--seed must be an integer, got '${flags["seed"]}'.`);
         } else {
-          console.error(`Error: --seed must be an integer, got '${flags["seed"]}'.`);
+          outputError(`Error: --seed must be an integer, got '${flags["seed"]}'.`);
         }
         return 1;
       }
@@ -554,7 +557,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       if (jsonMode) {
         jsonErr("--seed requires a value. Usage: toneforge show <recipe> --seed <number>");
       } else {
-        console.error("Error: --seed requires a value. Usage: toneforge show <recipe> --seed <number>");
+        outputError("Error: --seed requires a value. Usage: toneforge show <recipe> --seed <number>");
       }
       return 1;
     }
@@ -579,7 +582,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       if (jsonMode) {
         jsonErr("'play' requires a WAV file path. Run 'toneforge play --help' for usage.");
       } else {
-        console.error("Error: 'play' requires a WAV file path. Run 'toneforge play --help' for usage.");
+        outputError("Error: 'play' requires a WAV file path. Run 'toneforge play --help' for usage.");
       }
       return 1;
     }
@@ -590,14 +593,14 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       if (jsonMode) {
         jsonErr(`File not found: ${subcommand}`);
       } else {
-        console.error(`Error: File not found: ${subcommand}`);
+        outputError(`Error: File not found: ${subcommand}`);
       }
       return 1;
     }
 
     try {
       if (!jsonMode) {
-        console.log(`Playing ${subcommand}`);
+        outputInfo(`Playing ${subcommand}`);
       }
       const { command: playerCmd, args } = getPlayerCommand(filePath);
 
@@ -622,7 +625,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       if (jsonMode) {
         jsonErr(message);
       } else {
-        console.error(`Error: ${message}`);
+        outputError(`Error: ${message}`);
       }
       return 1;
     }
@@ -632,7 +635,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     if (jsonMode) {
       jsonErr(`Unknown command '${command}'. Run 'toneforge --help' for usage.`);
     } else {
-      console.error(`Error: Unknown command '${command}'. Run 'toneforge --help' for usage.`);
+      outputError(`Error: Unknown command '${command}'. Run 'toneforge --help' for usage.`);
     }
     return 1;
   }
@@ -648,7 +651,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     if (jsonMode) {
       jsonErr("--recipe is required. Run 'toneforge generate --help' for usage.");
     } else {
-      console.error("Error: --recipe is required. Run 'toneforge generate --help' for usage.");
+      outputError("Error: --recipe is required. Run 'toneforge generate --help' for usage.");
     }
     return 1;
   }
@@ -664,7 +667,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     if (jsonMode) {
       jsonErr(msg);
     } else {
-      console.error(`Error: ${msg}`);
+      outputError(`Error: ${msg}`);
     }
     return 1;
   }
@@ -679,7 +682,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     if (jsonMode) {
       jsonErr(msg);
     } else {
-      console.error(
+      outputError(
         `Error: ${msg}\n` +
         "  Example: toneforge generate --recipe <name> --seed-range 1:10 --output ./sounds/",
       );
@@ -692,7 +695,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     if (jsonMode) {
       jsonErr(msg);
     } else {
-      console.error(
+      outputError(
         `Error: ${msg}\n` +
         "  Single file: toneforge generate --recipe <name> --seed 42 --output ./sound.wav\n" +
         "  Batch:       toneforge generate --recipe <name> --seed-range 1:10 --output ./sounds/",
@@ -712,7 +715,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       if (jsonMode) {
         jsonErr(msg);
       } else {
-        console.error(
+        outputError(
           `Error: ${msg}\n` +
           "  Example: --seed-range 1:10",
         );
@@ -726,7 +729,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       if (jsonMode) {
         jsonErr(msg);
       } else {
-        console.error(
+        outputError(
           `Error: ${msg}\n` +
           "  Example: --seed-range 1:10",
         );
@@ -738,7 +741,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       if (jsonMode) {
         jsonErr(msg);
       } else {
-        console.error(`Error: ${msg}`);
+        outputError(`Error: ${msg}`);
       }
       return 1;
     }
@@ -753,7 +756,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     if (jsonMode) {
       jsonErr(msg);
     } else {
-      console.error(
+      outputError(
         `Error: ${msg}\n` +
         `  Got: --output ${outputPath}\n` +
         "  Use a directory path (trailing /) instead:\n" +
@@ -769,7 +772,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     if (jsonMode) {
       jsonErr(msg);
     } else {
-      console.error(
+      outputError(
         `Error: ${msg}\n` +
         "  For single-file export, use a .wav extension: --output ./sound.wav\n" +
         "  For batch export, use a directory path: --output ./sounds/",
@@ -787,7 +790,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       if (jsonMode) {
         jsonErr(`Failed to create output directory '${outputPath}': ${message}`);
       } else {
-        console.error(`Error: Failed to create output directory '${outputPath}': ${message}`);
+        outputError(`Error: Failed to create output directory '${outputPath}': ${message}`);
       }
       return 1;
     }
@@ -803,7 +806,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
         const wavBuffer = encodeWav(result.samples, { sampleRate: result.sampleRate });
         await writeFile(filePath, wavBuffer);
         if (!jsonMode) {
-          console.log(`Wrote ${filePath}`);
+          outputSuccess(`Wrote ${filePath}`);
         }
         batchFiles.push({
           seed,
@@ -817,7 +820,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
         if (jsonMode) {
           jsonErr(`Failed to generate seed ${seed}: ${message}`);
         } else {
-          console.error(`Error: Failed to generate seed ${seed}: ${message}`);
+          outputError(`Error: Failed to generate seed ${seed}: ${message}`);
         }
         return 1;
       }
@@ -843,20 +846,20 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       if (jsonMode) {
         jsonErr(`--seed must be an integer, got '${flags["seed"]}'.`);
       } else {
-        console.error(`Error: --seed must be an integer, got '${flags["seed"]}'.`);
+        outputError(`Error: --seed must be an integer, got '${flags["seed"]}'.`);
+        }
+        return 1;
       }
-      return 1;
-    }
-  } else {
-    seed = Math.floor(Math.random() * 2147483647);
-    if (!outputPath && !jsonMode) {
-      console.log(`Using random seed: ${seed}`);
+    } else {
+      seed = Math.floor(Math.random() * 2147483647);
+      if (!outputPath && !jsonMode) {
+        outputInfo(`Using random seed: ${seed}`);
     }
   }
 
   // Render
   if (!outputPath && !jsonMode) {
-    console.log(`Generating '${recipeName}' with seed ${seed}...`);
+    outputInfo(`Generating '${recipeName}' with seed ${seed}...`);
   }
   const startTime = performance.now();
 
@@ -865,7 +868,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
 
     const renderMs = (performance.now() - startTime).toFixed(0);
     if (!outputPath && !jsonMode) {
-      console.log(
+      outputInfo(
         `Rendered ${result.duration.toFixed(3)}s of audio ` +
           `(${result.sampleRate} Hz, ${result.samples.length} samples) ` +
           `in ${renderMs}ms`,
@@ -889,14 +892,14 @@ export async function main(argv: string[] = process.argv): Promise<number> {
             samples: result.samples.length,
           });
         } else {
-          console.log(`Wrote ${outputPath}`);
+          outputSuccess(`Wrote ${outputPath}`);
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         if (jsonMode) {
           jsonErr(`Failed to write '${outputPath}': ${message}`);
         } else {
-          console.error(`Error: Failed to write '${outputPath}': ${message}`);
+          outputError(`Error: Failed to write '${outputPath}': ${message}`);
         }
         return 1;
       }
@@ -919,21 +922,21 @@ export async function main(argv: string[] = process.argv): Promise<number> {
             samples: result.samples.length,
           });
         } else {
-          console.log(`Wrote ${filePath}`);
+          outputSuccess(`Wrote ${filePath}`);
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         if (jsonMode) {
           jsonErr(`Failed to write to '${outputPath}': ${message}`);
         } else {
-          console.error(`Error: Failed to write to '${outputPath}': ${message}`);
+          outputError(`Error: Failed to write to '${outputPath}': ${message}`);
         }
         return 1;
       }
     } else {
       // Play audio (default when --output is not specified)
       if (!jsonMode) {
-        console.log("Playing...");
+        outputInfo("Playing...");
       }
       await playAudio(result.samples, { sampleRate: result.sampleRate });
       if (jsonMode) {
@@ -947,7 +950,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
           played: true,
         });
       } else {
-        console.log("Done.");
+        outputSuccess("Done.");
       }
     }
 
@@ -957,7 +960,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     if (jsonMode) {
       jsonErr(message);
     } else {
-      console.error(`Error: ${message}`);
+      outputError(`Error: ${message}`);
     }
     return 1;
   }
