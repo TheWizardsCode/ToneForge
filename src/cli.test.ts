@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { main } from "./cli.js";
+import { existsSync, readFileSync, unlinkSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 // Mock the playAudio function to avoid actual audio playback during tests
 vi.mock("./audio/player.js", () => ({
@@ -72,6 +75,8 @@ describe("CLI", () => {
       expect(code).toBe(0);
       expect(stdout).toContain("--recipe");
       expect(stdout).toContain("--seed");
+      expect(stdout).toContain("--output");
+      expect(stdout).toContain("--seed-range");
       expect(stdout).toContain("ui-scifi-confirm");
     });
   });
@@ -189,6 +194,203 @@ describe("CLI", () => {
       );
       expect(code).toBe(1);
       expect(stderr).toContain("Unknown resource");
+    });
+  });
+
+  describe("--output flag (single-file WAV export)", () => {
+    let tempDir: string;
+
+    beforeEach(() => {
+      tempDir = join(tmpdir(), `toneforge-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    });
+
+    afterEach(() => {
+      try { rmSync(tempDir, { recursive: true, force: true }); } catch { /* ignore */ }
+    });
+
+    it("writes a valid WAV file to the specified path", async () => {
+      const outPath = join(tempDir, "test-output.wav");
+      const { code, stdout } = await captureOutput(
+        () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "42", "--output", outPath)),
+      );
+      expect(code).toBe(0);
+      expect(stdout).toContain(`Wrote ${outPath}`);
+      expect(existsSync(outPath)).toBe(true);
+
+      // Validate WAV header
+      const fileData = readFileSync(outPath);
+      expect(fileData.length).toBeGreaterThan(44);
+      expect(fileData.toString("ascii", 0, 4)).toBe("RIFF");
+      expect(fileData.toString("ascii", 8, 12)).toBe("WAVE");
+    });
+
+    it("does not play audio when --output is specified", async () => {
+      const outPath = join(tempDir, "no-play.wav");
+      const { code, stdout } = await captureOutput(
+        () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "42", "--output", outPath)),
+      );
+      expect(code).toBe(0);
+      expect(stdout).not.toContain("Playing...");
+      expect(stdout).not.toContain("Done.");
+    });
+
+    it("auto-creates parent directories", async () => {
+      const outPath = join(tempDir, "nested", "deep", "test.wav");
+      const { code } = await captureOutput(
+        () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "42", "--output", outPath)),
+      );
+      expect(code).toBe(0);
+      expect(existsSync(outPath)).toBe(true);
+    });
+
+    it("overwrites existing files silently", async () => {
+      const outPath = join(tempDir, "overwrite.wav");
+
+      // Write first time
+      await captureOutput(
+        () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "42", "--output", outPath)),
+      );
+      const firstSize = readFileSync(outPath).length;
+
+      // Write again with a different seed
+      const { code } = await captureOutput(
+        () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "99", "--output", outPath)),
+      );
+      expect(code).toBe(0);
+      expect(existsSync(outPath)).toBe(true);
+      // File should still be valid WAV (may differ in size due to different seed)
+      const data = readFileSync(outPath);
+      expect(data.toString("ascii", 0, 4)).toBe("RIFF");
+    });
+
+    it("suppresses verbose output in write-only mode", async () => {
+      const outPath = join(tempDir, "quiet.wav");
+      const { code, stdout } = await captureOutput(
+        () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "42", "--output", outPath)),
+      );
+      expect(code).toBe(0);
+      expect(stdout).not.toContain("Generating");
+      expect(stdout).not.toContain("Rendered");
+      expect(stdout).toContain("Wrote");
+    });
+
+    it("writes to directory with deterministic filename when --output is a dir", async () => {
+      const outDir = join(tempDir, "dir-output/");
+      const { code, stdout } = await captureOutput(
+        () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "42", "--output", outDir)),
+      );
+      expect(code).toBe(0);
+      const expectedFile = join(tempDir, "dir-output", "ui-scifi-confirm-seed-42.wav");
+      expect(stdout).toContain("Wrote");
+      expect(existsSync(expectedFile)).toBe(true);
+    });
+  });
+
+  describe("--seed-range flag (batch generation)", () => {
+    let tempDir: string;
+
+    beforeEach(() => {
+      tempDir = join(tmpdir(), `toneforge-batch-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    });
+
+    afterEach(() => {
+      try { rmSync(tempDir, { recursive: true, force: true }); } catch { /* ignore */ }
+    });
+
+    it("generates multiple WAV files with correct naming", async () => {
+      const outDir = tempDir + "/";
+      const { code, stdout } = await captureOutput(
+        () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed-range", "1:3", "--output", outDir)),
+      );
+      expect(code).toBe(0);
+      expect(existsSync(join(tempDir, "ui-scifi-confirm-seed-1.wav"))).toBe(true);
+      expect(existsSync(join(tempDir, "ui-scifi-confirm-seed-2.wav"))).toBe(true);
+      expect(existsSync(join(tempDir, "ui-scifi-confirm-seed-3.wav"))).toBe(true);
+      expect(stdout).toContain("ui-scifi-confirm-seed-1.wav");
+      expect(stdout).toContain("ui-scifi-confirm-seed-2.wav");
+      expect(stdout).toContain("ui-scifi-confirm-seed-3.wav");
+    });
+
+    it("seed range is inclusive (1:1 generates one file)", async () => {
+      const outDir = tempDir + "/";
+      const { code } = await captureOutput(
+        () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed-range", "5:5", "--output", outDir)),
+      );
+      expect(code).toBe(0);
+      expect(existsSync(join(tempDir, "ui-scifi-confirm-seed-5.wav"))).toBe(true);
+    });
+
+    it("auto-creates output directory", async () => {
+      const outDir = join(tempDir, "nested", "batch") + "/";
+      const { code } = await captureOutput(
+        () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed-range", "1:1", "--output", outDir)),
+      );
+      expect(code).toBe(0);
+      expect(existsSync(join(tempDir, "nested", "batch", "ui-scifi-confirm-seed-1.wav"))).toBe(true);
+    });
+
+    it("each generated file is a valid WAV", async () => {
+      const outDir = tempDir + "/";
+      await captureOutput(
+        () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed-range", "1:2", "--output", outDir)),
+      );
+
+      for (const seed of [1, 2]) {
+        const data = readFileSync(join(tempDir, `ui-scifi-confirm-seed-${seed}.wav`));
+        expect(data.toString("ascii", 0, 4)).toBe("RIFF");
+        expect(data.toString("ascii", 8, 12)).toBe("WAVE");
+        expect(data.length).toBeGreaterThan(44);
+      }
+    });
+  });
+
+  describe("flag validation", () => {
+    it("errors when --seed-range is used without --output", async () => {
+      const { code, stderr } = await captureOutput(
+        () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed-range", "1:10")),
+      );
+      expect(code).toBe(1);
+      expect(stderr).toContain("--seed-range requires --output");
+    });
+
+    it("errors when --seed and --seed-range are both specified", async () => {
+      const { code, stderr } = await captureOutput(
+        () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "42", "--seed-range", "1:10", "--output", "./test/")),
+      );
+      expect(code).toBe(1);
+      expect(stderr).toContain("mutually exclusive");
+    });
+
+    it("errors when --seed-range is used with .wav output path", async () => {
+      const { code, stderr } = await captureOutput(
+        () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed-range", "1:10", "--output", "./test.wav")),
+      );
+      expect(code).toBe(1);
+      expect(stderr).toContain("directory");
+    });
+
+    it("errors when --seed-range format is invalid", async () => {
+      const { code, stderr } = await captureOutput(
+        () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed-range", "bad", "--output", "./test/")),
+      );
+      expect(code).toBe(1);
+      expect(stderr).toContain("format");
+    });
+
+    it("errors when --seed-range has non-integer values", async () => {
+      const { code, stderr } = await captureOutput(
+        () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed-range", "a:b", "--output", "./test/")),
+      );
+      expect(code).toBe(1);
+      expect(stderr).toContain("integers");
+    });
+
+    it("errors when --seed-range start > end", async () => {
+      const { code, stderr } = await captureOutput(
+        () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed-range", "10:1", "--output", "./test/")),
+      );
+      expect(code).toBe(1);
+      expect(stderr).toContain("must be <=");
     });
   });
 });
