@@ -37,6 +37,8 @@ async function captureOutput(fn: () => Promise<number>): Promise<{
 
   const origLog = console.log;
   const origError = console.error;
+  const origStdoutWrite = process.stdout.write;
+  const origStderrWrite = process.stderr.write;
 
   console.log = (...args: unknown[]) => {
     stdoutLines.push(args.map(String).join(" "));
@@ -44,6 +46,15 @@ async function captureOutput(fn: () => Promise<number>): Promise<{
   console.error = (...args: unknown[]) => {
     stderrLines.push(args.map(String).join(" "));
   };
+  // Capture process.stdout.write / process.stderr.write used by output helpers
+  process.stdout.write = ((chunk: string | Uint8Array) => {
+    stdoutLines.push(String(chunk).replace(/\n$/, ""));
+    return true;
+  }) as typeof process.stdout.write;
+  process.stderr.write = ((chunk: string | Uint8Array) => {
+    stderrLines.push(String(chunk).replace(/\n$/, ""));
+    return true;
+  }) as typeof process.stderr.write;
 
   try {
     const code = await fn();
@@ -55,6 +66,8 @@ async function captureOutput(fn: () => Promise<number>): Promise<{
   } finally {
     console.log = origLog;
     console.error = origError;
+    process.stdout.write = origStdoutWrite;
+    process.stderr.write = origStderrWrite;
   }
 }
 
