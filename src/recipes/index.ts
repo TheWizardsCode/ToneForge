@@ -27,6 +27,14 @@ import { createCreatureVocal } from "./creature-vocal.js";
 import { getCreatureVocalParams } from "./creature-vocal-params.js";
 import { createVehicleEngine } from "./vehicle-engine.js";
 import { getVehicleEngineParams } from "./vehicle-engine-params.js";
+import { createCharacterJumpStep1 } from "./character-jump-step1.js";
+import { getCharacterJumpStep1Params } from "./character-jump-step1-params.js";
+import { createCharacterJumpStep2 } from "./character-jump-step2.js";
+import { getCharacterJumpStep2Params } from "./character-jump-step2-params.js";
+import { createCharacterJumpStep3 } from "./character-jump-step3.js";
+import { getCharacterJumpStep3Params } from "./character-jump-step3-params.js";
+import { createCharacterJumpStep4 } from "./character-jump-step4.js";
+import { getCharacterJumpStep4Params } from "./character-jump-step4-params.js";
 import { createCharacterJump } from "./character-jump.js";
 import { getCharacterJumpParams } from "./character-jump-params.js";
 import { loadSample } from "../audio/sample-loader.js";
@@ -821,6 +829,256 @@ registry.register("ambient-wind-gust", {
       lfoRate: p.lfoRate, lfoDepth: p.lfoDepth,
       attack: p.attack, sustain: p.sustain,
       release: p.release, level: p.level,
+    };
+  },
+});
+
+// ── character-jump-step1 (oscillator only) ────────────────────────
+
+function characterJumpStep1Duration(_rng: Rng): number {
+  // Fixed duration -- no envelope params to derive it from
+  return 0.2;
+}
+
+function characterJumpStep1OfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getCharacterJumpStep1Params(rng);
+
+  // Sine oscillator at constant volume -- no envelope
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.value = params.baseFreq;
+
+  // Constant gain of 1 (no envelope shaping)
+  const gain = ctx.createGain();
+  gain.gain.value = 1;
+
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+
+  osc.start(0);
+  osc.stop(duration);
+}
+
+registry.register("character-jump-step1", {
+  factory: createCharacterJumpStep1,
+  getDuration: characterJumpStep1Duration,
+  buildOfflineGraph: characterJumpStep1OfflineGraph,
+  description: "Raw sine oscillator at a seed-derived frequency. No envelope, fixed 0.2 s duration.",
+  category: "Character",
+  tags: ["jump", "tutorial", "step1", "oscillator"],
+  signalChain: "Sine Oscillator -> Destination",
+  params: [
+    { name: "baseFreq", min: 300, max: 600, unit: "Hz" },
+  ],
+  getParams: (rng) => {
+    const p = getCharacterJumpStep1Params(rng);
+    return { baseFreq: p.baseFreq };
+  },
+});
+
+// ── character-jump-step2 (oscillator + envelope) ──────────────────
+
+function characterJumpStep2Duration(rng: Rng): number {
+  const params = getCharacterJumpStep2Params(rng);
+  return params.attack + params.decay;
+}
+
+function characterJumpStep2OfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getCharacterJumpStep2Params(rng);
+
+  // Sine oscillator
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.value = params.baseFreq;
+
+  // Amplitude envelope
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0, 0);
+  gain.gain.linearRampToValueAtTime(1, params.attack);
+  gain.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+
+  osc.start(0);
+  osc.stop(duration);
+}
+
+registry.register("character-jump-step2", {
+  factory: createCharacterJumpStep2,
+  getDuration: characterJumpStep2Duration,
+  buildOfflineGraph: characterJumpStep2OfflineGraph,
+  description: "Sine oscillator with attack/decay amplitude envelope. Sound starts quickly and fades naturally.",
+  category: "Character",
+  tags: ["jump", "tutorial", "step2", "envelope"],
+  signalChain: "Sine Oscillator -> Amplitude Envelope -> Destination",
+  params: [
+    { name: "baseFreq", min: 300, max: 600, unit: "Hz" },
+    { name: "attack", min: 0.002, max: 0.01, unit: "s" },
+    { name: "decay", min: 0.05, max: 0.2, unit: "s" },
+  ],
+  getParams: (rng) => {
+    const p = getCharacterJumpStep2Params(rng);
+    return { baseFreq: p.baseFreq, attack: p.attack, decay: p.decay };
+  },
+});
+
+// ── character-jump-step3 (oscillator + envelope + pitch sweep) ────
+
+function characterJumpStep3Duration(rng: Rng): number {
+  const params = getCharacterJumpStep3Params(rng);
+  return params.attack + params.decay;
+}
+
+function characterJumpStep3OfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getCharacterJumpStep3Params(rng);
+
+  // Sine oscillator with rising pitch sweep
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(params.baseFreq, 0);
+  osc.frequency.linearRampToValueAtTime(
+    params.baseFreq + params.sweepRange,
+    params.sweepDuration,
+  );
+
+  // Amplitude envelope
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0, 0);
+  gain.gain.linearRampToValueAtTime(1, params.attack);
+  gain.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+
+  osc.start(0);
+  osc.stop(duration);
+}
+
+registry.register("character-jump-step3", {
+  factory: createCharacterJumpStep3,
+  getDuration: characterJumpStep3Duration,
+  buildOfflineGraph: characterJumpStep3OfflineGraph,
+  description: "Sine oscillator with amplitude envelope and rising pitch sweep for upward motion.",
+  category: "Character",
+  tags: ["jump", "tutorial", "step3", "sweep"],
+  signalChain: "Sine Oscillator (Pitch Sweep) -> Amplitude Envelope -> Destination",
+  params: [
+    { name: "baseFreq", min: 300, max: 600, unit: "Hz" },
+    { name: "sweepRange", min: 200, max: 800, unit: "Hz" },
+    { name: "sweepDuration", min: 0.05, max: 0.15, unit: "s" },
+    { name: "attack", min: 0.002, max: 0.01, unit: "s" },
+    { name: "decay", min: 0.05, max: 0.2, unit: "s" },
+  ],
+  getParams: (rng) => {
+    const p = getCharacterJumpStep3Params(rng);
+    return {
+      baseFreq: p.baseFreq, sweepRange: p.sweepRange,
+      sweepDuration: p.sweepDuration, attack: p.attack, decay: p.decay,
+    };
+  },
+});
+
+// ── character-jump-step4 (osc + envelope + sweep + noise) ─────────
+
+function characterJumpStep4Duration(rng: Rng): number {
+  const params = getCharacterJumpStep4Params(rng);
+  return params.attack + params.decay;
+}
+
+function characterJumpStep4OfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getCharacterJumpStep4Params(rng);
+
+  // Sine oscillator with rising pitch sweep
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(params.baseFreq, 0);
+  osc.frequency.linearRampToValueAtTime(
+    params.baseFreq + params.sweepRange,
+    params.sweepDuration,
+  );
+
+  // Amplitude envelope for the tonal sweep
+  const oscGain = ctx.createGain();
+  oscGain.gain.setValueAtTime(0, 0);
+  oscGain.gain.linearRampToValueAtTime(1, params.attack);
+  oscGain.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+
+  osc.connect(oscGain);
+  oscGain.connect(ctx.destination);
+
+  // Noise burst for impact texture (no filter -- raw white noise)
+  const noiseBufferSize = Math.ceil(ctx.sampleRate * duration);
+  const noiseBuffer = ctx.createBuffer(1, noiseBufferSize, ctx.sampleRate);
+  const noiseData = noiseBuffer.getChannelData(0);
+
+  for (let i = 0; i < noiseData.length; i++) {
+    noiseData[i] = rng() * 2 - 1;
+  }
+
+  const noiseSrc = ctx.createBufferSource();
+  noiseSrc.buffer = noiseBuffer;
+
+  // Noise level control
+  const noiseLevel = ctx.createGain();
+  noiseLevel.gain.value = params.noiseLevel;
+
+  // Noise amplitude envelope (shorter than tonal component)
+  const noiseAmpGain = ctx.createGain();
+  noiseAmpGain.gain.setValueAtTime(0, 0);
+  noiseAmpGain.gain.linearRampToValueAtTime(1, params.attack);
+  noiseAmpGain.gain.linearRampToValueAtTime(0, params.attack + params.noiseDecay);
+
+  noiseSrc.connect(noiseLevel);
+  noiseLevel.connect(noiseAmpGain);
+  noiseAmpGain.connect(ctx.destination);
+
+  // Schedule
+  osc.start(0);
+  noiseSrc.start(0);
+  osc.stop(duration);
+  noiseSrc.stop(duration);
+}
+
+registry.register("character-jump-step4", {
+  factory: createCharacterJumpStep4,
+  getDuration: characterJumpStep4Duration,
+  buildOfflineGraph: characterJumpStep4OfflineGraph,
+  description: "Sine oscillator with envelope, pitch sweep, and unfiltered white noise burst.",
+  category: "Character",
+  tags: ["jump", "tutorial", "step4", "noise"],
+  signalChain: "Sine Oscillator (Pitch Sweep) + White Noise -> Amplitude Envelope -> Destination",
+  params: [
+    { name: "baseFreq", min: 300, max: 600, unit: "Hz" },
+    { name: "sweepRange", min: 200, max: 800, unit: "Hz" },
+    { name: "sweepDuration", min: 0.05, max: 0.15, unit: "s" },
+    { name: "noiseLevel", min: 0.1, max: 0.4, unit: "amplitude" },
+    { name: "noiseDecay", min: 0.02, max: 0.08, unit: "s" },
+    { name: "attack", min: 0.002, max: 0.01, unit: "s" },
+    { name: "decay", min: 0.05, max: 0.2, unit: "s" },
+  ],
+  getParams: (rng) => {
+    const p = getCharacterJumpStep4Params(rng);
+    return {
+      baseFreq: p.baseFreq, sweepRange: p.sweepRange,
+      sweepDuration: p.sweepDuration, noiseLevel: p.noiseLevel,
+      noiseDecay: p.noiseDecay, attack: p.attack, decay: p.decay,
     };
   },
 });
