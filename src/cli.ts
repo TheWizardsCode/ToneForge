@@ -3,18 +3,22 @@
  * ToneForge CLI
  *
  * Entry point for the `toneforge` command-line tool.
- * Supports the `generate` command to render and play procedural sounds.
+ * Supports the `generate` command to render, play, and export procedural sounds.
  *
  * Usage:
- *   toneforge generate --recipe <name> [--seed <number>]
+ *   toneforge generate --recipe <name> [--seed <number>] [--output <path.wav>]
+ *   toneforge generate --recipe <name> --seed-range <start>:<end> --output <directory/>
  *   toneforge --help
  *
  * Reference: docs/prd/CLI_PRD.md Section 4.1, 5.1
  */
 
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname } from "node:path";
 import { renderRecipe } from "./core/renderer.js";
 import { registry } from "./recipes/index.js";
 import { playAudio } from "./audio/player.js";
+import { encodeWav } from "./audio/wav-encoder.js";
 import { VERSION } from "./index.js";
 
 /** Parse command-line arguments into a structured map. */
@@ -60,7 +64,7 @@ Usage:
   toneforge <command> [options]
 
 Commands:
-  generate    Render and play a procedural sound
+  generate    Render and export procedural sounds
   list        List available resources (e.g. recipes)
 
 Options:
@@ -72,22 +76,28 @@ Run 'toneforge <command> --help' for command-specific help.`);
 /** Print help text for the generate command. */
 function printGenerateHelp(): void {
   const recipes = registry.list();
-  console.log(`ToneForge generate — Render and play a procedural sound
+  console.log(`ToneForge generate — Render and export procedural sounds
 
 Usage:
-  toneforge generate --recipe <name> [--seed <number>]
+  toneforge generate --recipe <name> [--seed <number>] [--output <path.wav>]
+  toneforge generate --recipe <name> --seed-range <start>:<end> --output <directory/>
 
 Options:
-  --recipe <name>   Name of the recipe to generate (required)
-  --seed <number>   Integer seed for deterministic generation (default: random)
-  --help, -h        Show this help message
+  --recipe <name>          Name of the recipe to generate (required)
+  --seed <number>          Integer seed for deterministic generation (default: random)
+  --seed-range <start:end> Generate one WAV per seed in the inclusive range
+  --output <path>          Write WAV file to path instead of playing audio
+                           Use a .wav path for single file, or a directory
+                           (trailing /) for batch output with --seed-range
+  --help, -h               Show this help message
 
 Available recipes:
   ${recipes.join(", ") || "(none registered)"}
 
 Examples:
   toneforge generate --recipe ui-scifi-confirm --seed 42
-  toneforge generate --recipe ui-scifi-confirm`);
+  toneforge generate --recipe ui-scifi-confirm --seed 42 --output ./my-sound.wav
+  toneforge generate --recipe weapon-laser-zap --seed-range 1:10 --output ./lasers/`);
 }
 
 /** Print help text for the list command. */
@@ -176,6 +186,112 @@ export async function main(argv: string[] = process.argv): Promise<number> {
   }
 
   // Resolve seed
+  const outputPath = typeof flags["output"] === "string" ? flags["output"] : undefined;
+  const seedRangeRaw = typeof flags["seed-range"] === "string" ? flags["seed-range"] : undefined;
+
+  // Validate flag combinations
+  if (seedRangeRaw !== undefined && outputPath === undefined) {
+    console.error(
+      "Error: --seed-range requires --output to specify a directory.\n" +
+      "  Example: toneforge generate --recipe <name> --seed-range 1:10 --output ./sounds/",
+    );
+    return 1;
+  }
+
+  if (seedRangeRaw !== undefined && flags["seed"] !== undefined && flags["seed"] !== true) {
+    console.error(
+      "Error: --seed and --seed-range are mutually exclusive. Use one or the other.\n" +
+      "  Single file: toneforge generate --recipe <name> --seed 42 --output ./sound.wav\n" +
+      "  Batch:       toneforge generate --recipe <name> --seed-range 1:10 --output ./sounds/",
+    );
+    return 1;
+  }
+
+  // Parse --seed-range if present
+  let seedRangeStart: number | undefined;
+  let seedRangeEnd: number | undefined;
+
+  if (seedRangeRaw !== undefined) {
+    const parts = seedRangeRaw.split(":");
+    if (parts.length !== 2) {
+      console.error(
+        `Error: --seed-range must be in the format <start>:<end>, got '${seedRangeRaw}'.\n` +
+        "  Example: --seed-range 1:10",
+      );
+      return 1;
+    }
+    seedRangeStart = parseInt(parts[0]!, 10);
+    seedRangeEnd = parseInt(parts[1]!, 10);
+    if (Number.isNaN(seedRangeStart) || Number.isNaN(seedRangeEnd)) {
+      console.error(
+        `Error: --seed-range values must be integers, got '${seedRangeRaw}'.\n` +
+        "  Example: --seed-range 1:10",
+      );
+      return 1;
+    }
+    if (seedRangeStart > seedRangeEnd) {
+      console.error(
+        `Error: --seed-range start (${seedRangeStart}) must be <= end (${seedRangeEnd}).`,
+      );
+      return 1;
+    }
+  }
+
+  // Determine output mode
+  const isOutputFile = outputPath !== undefined && outputPath.endsWith(".wav");
+  const isOutputDir = outputPath !== undefined && !outputPath.endsWith(".wav");
+
+  if (seedRangeRaw !== undefined && isOutputFile) {
+    console.error(
+      "Error: --seed-range requires --output to be a directory (not a .wav file).\n" +
+      `  Got: --output ${outputPath}\n` +
+      "  Use a directory path (trailing /) instead:\n" +
+      `  Example: --output ${outputPath.replace(/\.wav$/, "/")}\n` +
+      "  Or omit --seed-range for single-file export.",
+    );
+    return 1;
+  }
+
+  if (outputPath !== undefined && !isOutputFile && !isOutputDir) {
+    // This shouldn't happen since everything not ending in .wav is treated as dir
+    // but kept as a safety check
+    console.error(
+      `Error: --output path '${outputPath}' is ambiguous.\n` +
+      "  For single-file export, use a .wav extension: --output ./sound.wav\n" +
+      "  For batch export, use a directory path: --output ./sounds/",
+    );
+    return 1;
+  }
+
+  // Batch generation path (--seed-range with --output <dir>)
+  if (seedRangeRaw !== undefined && isOutputDir) {
+    try {
+      await mkdir(outputPath!, { recursive: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`Error: Failed to create output directory '${outputPath}': ${message}`);
+      return 1;
+    }
+
+    for (let seed = seedRangeStart!; seed <= seedRangeEnd!; seed++) {
+      const fileName = `${recipeName}-seed-${seed}.wav`;
+      const filePath = `${outputPath!.replace(/\/$/, "")}/${fileName}`;
+
+      try {
+        const result = await renderRecipe(recipeName as string, seed);
+        const wavBuffer = encodeWav(result.samples, { sampleRate: result.sampleRate });
+        await writeFile(filePath, wavBuffer);
+        console.log(`Wrote ${filePath}`);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`Error: Failed to generate seed ${seed}: ${message}`);
+        return 1;
+      }
+    }
+
+    return 0;
+  }
+
   let seed: number;
   if (flags["seed"] !== undefined && flags["seed"] !== true) {
     seed = parseInt(flags["seed"] as string, 10);
@@ -185,27 +301,61 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     }
   } else {
     seed = Math.floor(Math.random() * 2147483647);
-    console.log(`Using random seed: ${seed}`);
+    if (!outputPath) {
+      console.log(`Using random seed: ${seed}`);
+    }
   }
 
   // Render
-  console.log(`Generating '${recipeName}' with seed ${seed}...`);
+  if (!outputPath) {
+    console.log(`Generating '${recipeName}' with seed ${seed}...`);
+  }
   const startTime = performance.now();
 
   try {
     const result = await renderRecipe(recipeName as string, seed);
 
     const renderMs = (performance.now() - startTime).toFixed(0);
-    console.log(
-      `Rendered ${result.duration.toFixed(3)}s of audio ` +
-        `(${result.sampleRate} Hz, ${result.samples.length} samples) ` +
-        `in ${renderMs}ms`,
-    );
+    if (!outputPath) {
+      console.log(
+        `Rendered ${result.duration.toFixed(3)}s of audio ` +
+          `(${result.sampleRate} Hz, ${result.samples.length} samples) ` +
+          `in ${renderMs}ms`,
+      );
+    }
 
-    // Play
-    console.log("Playing...");
-    await playAudio(result.samples, { sampleRate: result.sampleRate });
-    console.log("Done.");
+    if (outputPath && isOutputFile) {
+      // Single-file WAV export
+      try {
+        await mkdir(dirname(outputPath), { recursive: true });
+        const wavBuffer = encodeWav(result.samples, { sampleRate: result.sampleRate });
+        await writeFile(outputPath, wavBuffer);
+        console.log(`Wrote ${outputPath}`);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`Error: Failed to write '${outputPath}': ${message}`);
+        return 1;
+      }
+    } else if (outputPath && isOutputDir) {
+      // Single seed to directory (no --seed-range, just --output <dir>)
+      try {
+        await mkdir(outputPath, { recursive: true });
+        const fileName = `${recipeName}-seed-${seed}.wav`;
+        const filePath = `${outputPath.replace(/\/$/, "")}/${fileName}`;
+        const wavBuffer = encodeWav(result.samples, { sampleRate: result.sampleRate });
+        await writeFile(filePath, wavBuffer);
+        console.log(`Wrote ${filePath}`);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`Error: Failed to write to '${outputPath}': ${message}`);
+        return 1;
+      }
+    } else {
+      // Play audio (default when --output is not specified)
+      console.log("Playing...");
+      await playAudio(result.samples, { sampleRate: result.sampleRate });
+      console.log("Done.");
+    }
 
     return 0;
   } catch (error) {
