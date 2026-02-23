@@ -23,6 +23,8 @@ import { createAmbientWindGust } from "./ambient-wind-gust.js";
 import { getAmbientWindGustParams } from "./ambient-wind-gust-params.js";
 import { createFootstepGravel } from "./footstep-gravel.js";
 import { getFootstepGravelParams } from "./footstep-gravel-params.js";
+import { createCreatureVocal } from "./creature-vocal.js";
+import { getCreatureVocalParams } from "./creature-vocal-params.js";
 import { loadSample } from "../audio/sample-loader.js";
 
 /** The global recipe registry instance with all built-in recipes registered. */
@@ -430,6 +432,105 @@ registry.register("footstep-gravel", {
       filterFreq: p.filterFreq, transientAttack: p.transientAttack,
       bodyDecay: p.bodyDecay, tailDecay: p.tailDecay,
       mixLevel: p.mixLevel, bodyLevel: p.bodyLevel, tailLevel: p.tailLevel,
+    };
+  },
+});
+
+// ── creature-vocal (sample-hybrid) ────────────────────────────────
+
+function creatureVocalDuration(rng: Rng): number {
+  const params = getCreatureVocalParams(rng);
+  return params.attack + params.decay;
+}
+
+async function creatureVocalOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): Promise<void> {
+  const params = getCreatureVocalParams(rng);
+
+  // Load the CC0 growl sample
+  const sampleBuffer = await loadSample("creature-vocal/growl.wav", ctx);
+
+  // Sample layer: play the growl identically every render
+  const sampleSrc = ctx.createBufferSource();
+  sampleSrc.buffer = sampleBuffer;
+
+  const sampleGain = ctx.createGain();
+  sampleGain.gain.value = params.mixLevel;
+
+  sampleSrc.connect(sampleGain);
+  sampleGain.connect(ctx.destination);
+
+  // FM synthesis layer: carrier + modulator
+  const carrier = ctx.createOscillator();
+  carrier.type = "sine";
+  carrier.frequency.value = params.carrierFreq;
+
+  const modulator = ctx.createOscillator();
+  modulator.type = "sine";
+  modulator.frequency.value = params.carrierFreq; // modulator at carrier freq for rich harmonics
+
+  const modGain = ctx.createGain();
+  modGain.gain.value = params.modIndex * params.carrierFreq;
+
+  modulator.connect(modGain);
+  modGain.connect(carrier.frequency);
+
+  // Formant-style bandpass filter
+  const filter = ctx.createBiquadFilter();
+  filter.type = "bandpass";
+  filter.frequency.value = params.filterCutoff;
+  filter.Q.value = params.filterQ;
+
+  // Synthesis level (inverse of sample mix)
+  const synthGain = ctx.createGain();
+  synthGain.gain.value = 1 - params.mixLevel;
+
+  // Amplitude envelope
+  const envGain = ctx.createGain();
+  envGain.gain.setValueAtTime(0, 0);
+  envGain.gain.linearRampToValueAtTime(1, params.attack);
+  envGain.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+
+  carrier.connect(filter);
+  filter.connect(synthGain);
+  synthGain.connect(envGain);
+  envGain.connect(ctx.destination);
+
+  // Schedule all sources
+  modulator.start(0);
+  carrier.start(0);
+  sampleSrc.start(0);
+  modulator.stop(duration);
+  carrier.stop(duration);
+  sampleSrc.stop(duration);
+}
+
+registry.register("creature-vocal", {
+  factory: createCreatureVocal,
+  getDuration: creatureVocalDuration,
+  buildOfflineGraph: creatureVocalOfflineGraph,
+  description: "Sample-hybrid creature vocalization layering a CC0 growl sample with FM synthesis and formant filtering.",
+  category: "Creature",
+  tags: ["creature", "vocal", "growl", "monster", "sample-hybrid"],
+  signalChain: "CC0 Growl Sample + FM Oscillator -> Bandpass Formant Filter -> Amplitude Envelope -> Destination",
+  params: [
+    { name: "carrierFreq", min: 80, max: 220, unit: "Hz" },
+    { name: "modIndex", min: 8, max: 30, unit: "ratio" },
+    { name: "filterCutoff", min: 300, max: 1200, unit: "Hz" },
+    { name: "filterQ", min: 2, max: 10, unit: "Q" },
+    { name: "mixLevel", min: 0.3, max: 0.7, unit: "amplitude" },
+    { name: "attack", min: 0.02, max: 0.08, unit: "s" },
+    { name: "decay", min: 0.2, max: 0.5, unit: "s" },
+  ],
+  getParams: (rng) => {
+    const p = getCreatureVocalParams(rng);
+    return {
+      carrierFreq: p.carrierFreq, modIndex: p.modIndex,
+      filterCutoff: p.filterCutoff, filterQ: p.filterQ,
+      mixLevel: p.mixLevel, attack: p.attack, decay: p.decay,
     };
   },
 });
