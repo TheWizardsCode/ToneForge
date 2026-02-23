@@ -17,6 +17,8 @@ npm install
 npm run build
 ```
 
+After `npm install`, the `tf` and `toneforge` CLI commands are available on your PATH (via automatic `npm link`). The web demo's embedded terminal uses these commands.
+
 ### 2. Install web dependencies
 
 ```bash

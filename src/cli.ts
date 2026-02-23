@@ -432,14 +432,15 @@ export async function main(argv: string[] = process.argv): Promise<number> {
   }
 }
 
-// Run when executed directly (via node dist/cli.js, tsx src/cli.ts,
-// or the `toneforge` bin symlink created by npm link)
+// Run when executed directly (via ./bin/dev-cli.js or tf/toneforge commands).
+// The path check uses /cli.ts and /cli.js (with separator) to avoid
+// matching bin/dev-cli.js which invokes main() itself.
 const resolvedArg = process.argv[1]
   ? realpathSync(process.argv[1])
   : "";
 const isDirectRun =
-  resolvedArg.endsWith("cli.ts") ||
-  resolvedArg.endsWith("cli.js");
+  resolvedArg.endsWith("/cli.ts") ||
+  resolvedArg.endsWith("/cli.js");
 
 if (isDirectRun) {
   main().then((code) => {

@@ -21,22 +21,48 @@ ToneForge is not a DAW, a music sequencer, a black-box AI audio generator, or a 
 
 ## Status
 
-MVP complete. The `generate` command renders and plays a procedural sci-fi UI confirm sound with seed-based variation and verified byte-level determinism. Run the interactive demo:
+MVP complete. The `generate` command renders and plays a procedural sci-fi UI confirm sound with seed-based variation and verified byte-level determinism.
 
+## Getting Started
+
+```bash
+git clone <repo-url> && cd ToneForge
+npm install
 ```
+
+`npm install` automatically runs `npm link`, making two CLI commands available on your PATH:
+
+- **`tf`** -- short alias (recommended for daily use)
+- **`toneforge`** -- full name (used in demos and documentation)
+
+Both commands are identical -- they run `bin/dev-cli.js`, which loads `src/cli.ts` directly via tsx. No build step is needed, and source changes are reflected immediately.
+
+### Quick start
+
+```bash
+tf generate --recipe ui-scifi-confirm --seed 42
+```
+
+### Run the interactive demo
+
+```bash
 npm run demo
 ```
 
-Or generate a sound directly:
+### Run the web demo
 
-```
-npx tsx src/cli.ts generate --recipe ui-scifi-confirm --seed 42
-```
+Starts the backend server and Vite dev server:
 
-Run the web demo (starts the backend server and Vite dev server):
-
-```
+```bash
 npm run dev:web
+```
+
+### Troubleshooting
+
+If `npm link` fails during install (e.g. in CI or restricted environments), you'll see a warning. Use the loader script directly as a fallback:
+
+```bash
+./bin/dev-cli.js generate --recipe ui-scifi-confirm --seed 42
 ```
 
 The `docs/prd/` directory contains detailed product requirements documents for planned modules beyond the MVP.
@@ -69,11 +95,13 @@ Each module has a dedicated PRD in `docs/prd/`.
 
 ## Planned CLI
 
+Commands beyond the MVP (not yet implemented):
+
 ```
-toneforge generate --preset laser --seed 42 --output laser.wav
+toneforge generate --recipe laser --seed 42 --output laser.wav
 toneforge stack --config stack.json --output combo.wav
 toneforge analyze --input sound.wav --features envelope,spectral
-toneforge explore --preset laser --sweep gain:0.1-1.0 --count 100
+toneforge explore --recipe laser --sweep gain:0.1-1.0 --count 100
 toneforge library add --input sound.wav --tags "weapon,laser"
 ```
 

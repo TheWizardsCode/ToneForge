@@ -61,7 +61,8 @@ No assets needed. One command, one sound.
 ### Fenced code blocks — Executable commands
 
 Fenced code blocks with the `bash` language tag contain commands that
-demo runners should execute:
+demo runners should execute. Use `toneforge` as the command name in demo
+files (the short alias `tf` also works -- both are identical):
 
 ````markdown
 ```bash

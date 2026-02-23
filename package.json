@@ -5,7 +5,8 @@
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "toneforge": "dist/cli.js"
+    "tf": "bin/dev-cli.js",
+    "toneforge": "bin/dev-cli.js"
   },
   "scripts": {
     "build": "tsc",
@@ -13,10 +14,11 @@
     "test": "vitest run",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "test:watch": "vitest",
-    "start": "node dist/cli.js",
-    "generate": "node dist/cli.js generate",
+    "start": "./bin/dev-cli.js",
+    "generate": "./bin/dev-cli.js generate",
     "demo": "tsx scripts/demo/run.ts",
-    "dev:web": "npm run build && npm run build --prefix web && concurrently -k -n backend,vite -c blue,green \"npm start --prefix web\" \"npm run dev --prefix web\""
+    "dev:web": "npm run build && npm run build --prefix web && concurrently -k -n backend,vite -c blue,green \"npm start --prefix web\" \"npm run dev --prefix web\"",
+    "postinstall": "npm link --ignore-scripts --silent 2>/dev/null || echo 'Warning: npm link failed. Run tf via ./bin/dev-cli.js instead.'"
   },
   "keywords": [
     "audio",

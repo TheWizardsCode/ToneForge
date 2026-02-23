@@ -7,9 +7,9 @@
  * and pause prompts between sections.
  *
  * Usage:
- *   npx tsx scripts/demo/run.ts                  # Interactive picker
- *   npx tsx scripts/demo/run.ts --demo mvp-1     # Run specific demo
- *   npx tsx scripts/demo/run.ts --list            # List available demos
+ *   npm run demo                    # Interactive picker
+ *   npm run demo -- --demo mvp-1   # Run specific demo
+ *   npm run demo -- --list          # List available demos
  *
  * @module scripts/demo/run
  */
@@ -203,17 +203,12 @@ function preflight(): void {
     execSync("npm install --silent", { cwd: PROJECT_ROOT, stdio: "inherit" });
   }
 
-  if (!existsSync(resolve(PROJECT_ROOT, "dist/cli.js"))) {
-    console.log("  Building ToneForge...");
-    execSync("npm run build --silent", { cwd: PROJECT_ROOT, stdio: "inherit" });
-  }
-
-  // Ensure the `toneforge` command is available via npm link
+  // Ensure the `tf` / `toneforge` command is available via npm link
   try {
-    execSync("command -v toneforge", { stdio: "ignore" });
+    execSync("command -v tf", { stdio: "ignore" });
   } catch {
-    console.log("  Linking toneforge command...");
-    execSync("npm link", { cwd: PROJECT_ROOT, stdio: "inherit" });
+    console.log("  Linking tf/toneforge commands...");
+    execSync("npm link --ignore-scripts", { cwd: PROJECT_ROOT, stdio: "inherit" });
   }
 }
 
