@@ -50,6 +50,8 @@ function parseArgs(argv: string[]): {
       flags["help"] = true;
     } else if (arg === "--version" || arg === "-V") {
       flags["version"] = true;
+    } else if (arg === "--json") {
+      flags["json"] = true;
     } else if (arg.startsWith("--")) {
       const key = arg.slice(2);
       const next = args[i + 1];
@@ -86,6 +88,7 @@ Commands:
 Options:
   --help, -h     Show this help message
   --version, -V  Print the ToneForge version
+  --json         Output results in JSON format for machine consumption
 
 Run 'toneforge <command> --help' for command-specific help.`);
 }
@@ -106,6 +109,7 @@ Options:
   --output <path>          Write WAV file to path instead of playing audio
                            Use a .wav path for single file, or a directory
                            (trailing /) for batch output with --seed-range
+  --json                   Output results in JSON format
   --help, -h               Show this help message
 
 Available recipes:
@@ -128,7 +132,8 @@ Resources:
   recipes     List all registered recipe names (default)
 
 Options:
-  --help, -h  Show this help message
+  --json        Output results in JSON format
+  --help, -h    Show this help message
 
 Examples:
   toneforge list
@@ -146,7 +151,8 @@ Arguments:
   <file.wav>  Path to a WAV file to play (required)
 
 Options:
-  --help, -h  Show this help message
+  --json        Output results in JSON format
+  --help, -h    Show this help message
 
 Examples:
   toneforge play ./output/confirm.wav
@@ -166,6 +172,7 @@ Arguments:
 
 Options:
   --seed <number>  Show seed-specific parameter values alongside ranges
+  --json           Output results in JSON format
   --help, -h       Show this help message
 
 Available recipes:
@@ -303,6 +310,72 @@ function formatShowOutput(
 }
 
 /**
+ * Format the `tf show` output as a JSON-serializable object.
+ */
+function formatShowJson(
+  name: string,
+  reg: RecipeRegistration,
+  seed?: number,
+): Record<string, unknown> {
+  // Get seed-specific values if seed is provided
+  let seedValues: Record<string, number> | undefined;
+  if (seed !== undefined) {
+    const rng = createRng(seed);
+    seedValues = reg.getParams(rng);
+  }
+
+  // Build params array
+  const params = reg.params.map((p) => {
+    const param: Record<string, unknown> = {
+      name: p.name,
+      min: p.min,
+      max: p.max,
+      unit: p.unit,
+    };
+    if (seedValues) {
+      param.value = seedValues[p.name];
+    }
+    return param;
+  });
+
+  // Compute duration range by sampling seeds
+  const durationSamples: number[] = [];
+  for (let s = 0; s < 100; s++) {
+    const rng = createRng(s);
+    durationSamples.push(reg.getDuration(rng));
+  }
+  const minDuration = Math.min(...durationSamples);
+  const maxDuration = Math.max(...durationSamples);
+
+  const duration: Record<string, unknown> = {
+    min: minDuration,
+    max: maxDuration,
+  };
+  if (seed !== undefined) {
+    const rng = createRng(seed);
+    duration.value = reg.getDuration(rng);
+    duration.seed = seed;
+  }
+
+  const result: Record<string, unknown> = {
+    command: "show",
+    recipe: name,
+    category: reg.category,
+    description: reg.description,
+    tags: reg.tags ?? [],
+    signalChain: reg.signalChain,
+    params,
+    duration,
+  };
+
+  if (seed !== undefined) {
+    result.seed = seed;
+  }
+
+  return result;
+}
+
+/**
  * Format a number for display: remove trailing zeros after decimal point,
  * but keep enough precision to be informative.
  */
@@ -316,13 +389,32 @@ function formatNumber(n: number): string {
   return s;
 }
 
+/**
+ * Output a JSON object to stdout. Used by all commands when --json is active.
+ */
+function jsonOut(data: Record<string, unknown>): void {
+  console.log(JSON.stringify(data));
+}
+
+/**
+ * Output a JSON error object to stderr. Used when --json is active and an error occurs.
+ */
+function jsonErr(message: string): void {
+  console.error(JSON.stringify({ error: message }));
+}
+
 /** Main CLI entry point. Exported for testability. */
 export async function main(argv: string[] = process.argv): Promise<number> {
   const { command, subcommand, flags } = parseArgs(argv);
+  const jsonMode = flags["json"] === true;
 
   // --version flag or `version` command
   if (flags["version"] || command === "version") {
-    console.log(`ToneForge v${VERSION}`);
+    if (jsonMode) {
+      jsonOut({ command: "version", version: VERSION });
+    } else {
+      console.log(`ToneForge v${VERSION}`);
+    }
     return 0;
   }
 
@@ -349,13 +441,21 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     }
 
     if (subcommand !== "recipes" && subcommand !== undefined) {
-      console.error(`Error: Unknown resource '${subcommand}'. Run 'toneforge list --help' for usage.`);
+      if (jsonMode) {
+        jsonErr(`Unknown resource '${subcommand}'. Run 'toneforge list --help' for usage.`);
+      } else {
+        console.error(`Error: Unknown resource '${subcommand}'. Run 'toneforge list --help' for usage.`);
+      }
       return 1;
     }
 
     const recipes = registry.list();
-    for (const name of recipes) {
-      console.log(name);
+    if (jsonMode) {
+      jsonOut({ command: "list", resource: "recipes", recipes });
+    } else {
+      for (const name of recipes) {
+        console.log(name);
+      }
     }
     return 0;
   }
@@ -367,7 +467,11 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     }
 
     if (subcommand === undefined) {
-      console.error("Error: 'show' requires a recipe name. Run 'toneforge show --help' for usage.");
+      if (jsonMode) {
+        jsonErr("'show' requires a recipe name. Run 'toneforge show --help' for usage.");
+      } else {
+        console.error("Error: 'show' requires a recipe name. Run 'toneforge show --help' for usage.");
+      }
       return 1;
     }
 
@@ -377,11 +481,15 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     if (!reg) {
       const allNames = registry.list();
       const suggestions = suggestRecipes(recipeName, allNames);
-      let msg = `Error: Unknown recipe '${recipeName}'.`;
+      let msg = `Unknown recipe '${recipeName}'.`;
       if (suggestions.length > 0) {
         msg += ` Did you mean: ${suggestions.join(", ")}?`;
       }
-      console.error(msg);
+      if (jsonMode) {
+        jsonErr(msg);
+      } else {
+        console.error(`Error: ${msg}`);
+      }
       return 1;
     }
 
@@ -390,16 +498,29 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     if (flags["seed"] !== undefined && flags["seed"] !== true) {
       seed = parseInt(flags["seed"] as string, 10);
       if (Number.isNaN(seed)) {
-        console.error(`Error: --seed must be an integer, got '${flags["seed"]}'.`);
+        if (jsonMode) {
+          jsonErr(`--seed must be an integer, got '${flags["seed"]}'.`);
+        } else {
+          console.error(`Error: --seed must be an integer, got '${flags["seed"]}'.`);
+        }
         return 1;
       }
     } else if (flags["seed"] === true) {
-      console.error("Error: --seed requires a value. Usage: toneforge show <recipe> --seed <number>");
+      if (jsonMode) {
+        jsonErr("--seed requires a value. Usage: toneforge show <recipe> --seed <number>");
+      } else {
+        console.error("Error: --seed requires a value. Usage: toneforge show <recipe> --seed <number>");
+      }
       return 1;
     }
 
-    const output = formatShowOutput(recipeName, reg, seed);
-    console.log(output);
+    if (jsonMode) {
+      const jsonResult = formatShowJson(recipeName, reg, seed);
+      jsonOut(jsonResult);
+    } else {
+      const output = formatShowOutput(recipeName, reg, seed);
+      console.log(output);
+    }
     return 0;
   }
 
@@ -410,19 +531,29 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     }
 
     if (subcommand === undefined) {
-      console.error("Error: 'play' requires a WAV file path. Run 'toneforge play --help' for usage.");
+      if (jsonMode) {
+        jsonErr("'play' requires a WAV file path. Run 'toneforge play --help' for usage.");
+      } else {
+        console.error("Error: 'play' requires a WAV file path. Run 'toneforge play --help' for usage.");
+      }
       return 1;
     }
 
     const filePath = resolve(subcommand);
 
     if (!existsSync(filePath)) {
-      console.error(`Error: File not found: ${subcommand}`);
+      if (jsonMode) {
+        jsonErr(`File not found: ${subcommand}`);
+      } else {
+        console.error(`Error: File not found: ${subcommand}`);
+      }
       return 1;
     }
 
     try {
-      console.log(`Playing ${subcommand}`);
+      if (!jsonMode) {
+        console.log(`Playing ${subcommand}`);
+      }
       const { command: playerCmd, args } = getPlayerCommand(filePath);
 
       await new Promise<void>((resolvePromise, reject) => {
@@ -437,16 +568,27 @@ export async function main(argv: string[] = process.argv): Promise<number> {
         });
       });
 
+      if (jsonMode) {
+        jsonOut({ command: "play", file: subcommand });
+      }
       return 0;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.error(`Error: ${message}`);
+      if (jsonMode) {
+        jsonErr(message);
+      } else {
+        console.error(`Error: ${message}`);
+      }
       return 1;
     }
   }
 
   if (command !== "generate") {
-    console.error(`Error: Unknown command '${command}'. Run 'toneforge --help' for usage.`);
+    if (jsonMode) {
+      jsonErr(`Unknown command '${command}'. Run 'toneforge --help' for usage.`);
+    } else {
+      console.error(`Error: Unknown command '${command}'. Run 'toneforge --help' for usage.`);
+    }
     return 1;
   }
 
@@ -458,20 +600,27 @@ export async function main(argv: string[] = process.argv): Promise<number> {
 
   const recipeName = flags["recipe"];
   if (recipeName === undefined || recipeName === true) {
-    console.error("Error: --recipe is required. Run 'toneforge generate --help' for usage.");
+    if (jsonMode) {
+      jsonErr("--recipe is required. Run 'toneforge generate --help' for usage.");
+    } else {
+      console.error("Error: --recipe is required. Run 'toneforge generate --help' for usage.");
+    }
     return 1;
   }
 
   // Validate recipe exists
   if (!registry.getRegistration(recipeName as string)) {
     const recipes = registry.list();
-    console.error(
-      `Error: Unknown recipe '${recipeName}'.${
-        recipes.length > 0
-          ? ` Available recipes: ${recipes.join(", ")}`
-          : ""
-      }`,
-    );
+    const msg = `Unknown recipe '${recipeName}'.${
+      recipes.length > 0
+        ? ` Available recipes: ${recipes.join(", ")}`
+        : ""
+    }`;
+    if (jsonMode) {
+      jsonErr(msg);
+    } else {
+      console.error(`Error: ${msg}`);
+    }
     return 1;
   }
 
@@ -481,19 +630,29 @@ export async function main(argv: string[] = process.argv): Promise<number> {
 
   // Validate flag combinations
   if (seedRangeRaw !== undefined && outputPath === undefined) {
-    console.error(
-      "Error: --seed-range requires --output to specify a directory.\n" +
-      "  Example: toneforge generate --recipe <name> --seed-range 1:10 --output ./sounds/",
-    );
+    const msg = "--seed-range requires --output to specify a directory.";
+    if (jsonMode) {
+      jsonErr(msg);
+    } else {
+      console.error(
+        `Error: ${msg}\n` +
+        "  Example: toneforge generate --recipe <name> --seed-range 1:10 --output ./sounds/",
+      );
+    }
     return 1;
   }
 
   if (seedRangeRaw !== undefined && flags["seed"] !== undefined && flags["seed"] !== true) {
-    console.error(
-      "Error: --seed and --seed-range are mutually exclusive. Use one or the other.\n" +
-      "  Single file: toneforge generate --recipe <name> --seed 42 --output ./sound.wav\n" +
-      "  Batch:       toneforge generate --recipe <name> --seed-range 1:10 --output ./sounds/",
-    );
+    const msg = "--seed and --seed-range are mutually exclusive. Use one or the other.";
+    if (jsonMode) {
+      jsonErr(msg);
+    } else {
+      console.error(
+        `Error: ${msg}\n` +
+        "  Single file: toneforge generate --recipe <name> --seed 42 --output ./sound.wav\n" +
+        "  Batch:       toneforge generate --recipe <name> --seed-range 1:10 --output ./sounds/",
+      );
+    }
     return 1;
   }
 
@@ -504,25 +663,38 @@ export async function main(argv: string[] = process.argv): Promise<number> {
   if (seedRangeRaw !== undefined) {
     const parts = seedRangeRaw.split(":");
     if (parts.length !== 2) {
-      console.error(
-        `Error: --seed-range must be in the format <start>:<end>, got '${seedRangeRaw}'.\n` +
-        "  Example: --seed-range 1:10",
-      );
+      const msg = `--seed-range must be in the format <start>:<end>, got '${seedRangeRaw}'.`;
+      if (jsonMode) {
+        jsonErr(msg);
+      } else {
+        console.error(
+          `Error: ${msg}\n` +
+          "  Example: --seed-range 1:10",
+        );
+      }
       return 1;
     }
     seedRangeStart = parseInt(parts[0]!, 10);
     seedRangeEnd = parseInt(parts[1]!, 10);
     if (Number.isNaN(seedRangeStart) || Number.isNaN(seedRangeEnd)) {
-      console.error(
-        `Error: --seed-range values must be integers, got '${seedRangeRaw}'.\n` +
-        "  Example: --seed-range 1:10",
-      );
+      const msg = `--seed-range values must be integers, got '${seedRangeRaw}'.`;
+      if (jsonMode) {
+        jsonErr(msg);
+      } else {
+        console.error(
+          `Error: ${msg}\n` +
+          "  Example: --seed-range 1:10",
+        );
+      }
       return 1;
     }
     if (seedRangeStart > seedRangeEnd) {
-      console.error(
-        `Error: --seed-range start (${seedRangeStart}) must be <= end (${seedRangeEnd}).`,
-      );
+      const msg = `--seed-range start (${seedRangeStart}) must be <= end (${seedRangeEnd}).`;
+      if (jsonMode) {
+        jsonErr(msg);
+      } else {
+        console.error(`Error: ${msg}`);
+      }
       return 1;
     }
   }
@@ -532,24 +704,32 @@ export async function main(argv: string[] = process.argv): Promise<number> {
   const isOutputDir = outputPath !== undefined && !outputPath.endsWith(".wav");
 
   if (seedRangeRaw !== undefined && isOutputFile) {
-    console.error(
-      "Error: --seed-range requires --output to be a directory (not a .wav file).\n" +
-      `  Got: --output ${outputPath}\n` +
-      "  Use a directory path (trailing /) instead:\n" +
-      `  Example: --output ${outputPath.replace(/\.wav$/, "/")}\n` +
-      "  Or omit --seed-range for single-file export.",
-    );
+    const msg = "--seed-range requires --output to be a directory (not a .wav file).";
+    if (jsonMode) {
+      jsonErr(msg);
+    } else {
+      console.error(
+        `Error: ${msg}\n` +
+        `  Got: --output ${outputPath}\n` +
+        "  Use a directory path (trailing /) instead:\n" +
+        `  Example: --output ${outputPath.replace(/\.wav$/, "/")}\n` +
+        "  Or omit --seed-range for single-file export.",
+      );
+    }
     return 1;
   }
 
   if (outputPath !== undefined && !isOutputFile && !isOutputDir) {
-    // This shouldn't happen since everything not ending in .wav is treated as dir
-    // but kept as a safety check
-    console.error(
-      `Error: --output path '${outputPath}' is ambiguous.\n` +
-      "  For single-file export, use a .wav extension: --output ./sound.wav\n" +
-      "  For batch export, use a directory path: --output ./sounds/",
-    );
+    const msg = `--output path '${outputPath}' is ambiguous.`;
+    if (jsonMode) {
+      jsonErr(msg);
+    } else {
+      console.error(
+        `Error: ${msg}\n` +
+        "  For single-file export, use a .wav extension: --output ./sound.wav\n" +
+        "  For batch export, use a directory path: --output ./sounds/",
+      );
+    }
     return 1;
   }
 
@@ -559,9 +739,15 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       await mkdir(outputPath!, { recursive: true });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.error(`Error: Failed to create output directory '${outputPath}': ${message}`);
+      if (jsonMode) {
+        jsonErr(`Failed to create output directory '${outputPath}': ${message}`);
+      } else {
+        console.error(`Error: Failed to create output directory '${outputPath}': ${message}`);
+      }
       return 1;
     }
+
+    const batchFiles: Array<{ seed: number; output: string; duration: number; sampleRate: number; samples: number }> = [];
 
     for (let seed = seedRangeStart!; seed <= seedRangeEnd!; seed++) {
       const fileName = `${recipeName}-seed-${seed}.wav`;
@@ -571,12 +757,35 @@ export async function main(argv: string[] = process.argv): Promise<number> {
         const result = await renderRecipe(recipeName as string, seed);
         const wavBuffer = encodeWav(result.samples, { sampleRate: result.sampleRate });
         await writeFile(filePath, wavBuffer);
-        console.log(`Wrote ${filePath}`);
+        if (!jsonMode) {
+          console.log(`Wrote ${filePath}`);
+        }
+        batchFiles.push({
+          seed,
+          output: filePath,
+          duration: result.duration,
+          sampleRate: result.sampleRate,
+          samples: result.samples.length,
+        });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        console.error(`Error: Failed to generate seed ${seed}: ${message}`);
+        if (jsonMode) {
+          jsonErr(`Failed to generate seed ${seed}: ${message}`);
+        } else {
+          console.error(`Error: Failed to generate seed ${seed}: ${message}`);
+        }
         return 1;
       }
+    }
+
+    if (jsonMode) {
+      jsonOut({
+        command: "generate",
+        recipe: recipeName,
+        seedRange: [seedRangeStart!, seedRangeEnd!],
+        output: outputPath,
+        files: batchFiles,
+      });
     }
 
     return 0;
@@ -586,18 +795,22 @@ export async function main(argv: string[] = process.argv): Promise<number> {
   if (flags["seed"] !== undefined && flags["seed"] !== true) {
     seed = parseInt(flags["seed"] as string, 10);
     if (Number.isNaN(seed)) {
-      console.error(`Error: --seed must be an integer, got '${flags["seed"]}'.`);
+      if (jsonMode) {
+        jsonErr(`--seed must be an integer, got '${flags["seed"]}'.`);
+      } else {
+        console.error(`Error: --seed must be an integer, got '${flags["seed"]}'.`);
+      }
       return 1;
     }
   } else {
     seed = Math.floor(Math.random() * 2147483647);
-    if (!outputPath) {
+    if (!outputPath && !jsonMode) {
       console.log(`Using random seed: ${seed}`);
     }
   }
 
   // Render
-  if (!outputPath) {
+  if (!outputPath && !jsonMode) {
     console.log(`Generating '${recipeName}' with seed ${seed}...`);
   }
   const startTime = performance.now();
@@ -606,7 +819,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     const result = await renderRecipe(recipeName as string, seed);
 
     const renderMs = (performance.now() - startTime).toFixed(0);
-    if (!outputPath) {
+    if (!outputPath && !jsonMode) {
       console.log(
         `Rendered ${result.duration.toFixed(3)}s of audio ` +
           `(${result.sampleRate} Hz, ${result.samples.length} samples) ` +
@@ -620,10 +833,26 @@ export async function main(argv: string[] = process.argv): Promise<number> {
         await mkdir(dirname(outputPath), { recursive: true });
         const wavBuffer = encodeWav(result.samples, { sampleRate: result.sampleRate });
         await writeFile(outputPath, wavBuffer);
-        console.log(`Wrote ${outputPath}`);
+        if (jsonMode) {
+          jsonOut({
+            command: "generate",
+            recipe: recipeName,
+            seed,
+            output: outputPath,
+            duration: result.duration,
+            sampleRate: result.sampleRate,
+            samples: result.samples.length,
+          });
+        } else {
+          console.log(`Wrote ${outputPath}`);
+        }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        console.error(`Error: Failed to write '${outputPath}': ${message}`);
+        if (jsonMode) {
+          jsonErr(`Failed to write '${outputPath}': ${message}`);
+        } else {
+          console.error(`Error: Failed to write '${outputPath}': ${message}`);
+        }
         return 1;
       }
     } else if (outputPath && isOutputDir) {
@@ -634,23 +863,57 @@ export async function main(argv: string[] = process.argv): Promise<number> {
         const filePath = `${outputPath.replace(/\/$/, "")}/${fileName}`;
         const wavBuffer = encodeWav(result.samples, { sampleRate: result.sampleRate });
         await writeFile(filePath, wavBuffer);
-        console.log(`Wrote ${filePath}`);
+        if (jsonMode) {
+          jsonOut({
+            command: "generate",
+            recipe: recipeName,
+            seed,
+            output: filePath,
+            duration: result.duration,
+            sampleRate: result.sampleRate,
+            samples: result.samples.length,
+          });
+        } else {
+          console.log(`Wrote ${filePath}`);
+        }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        console.error(`Error: Failed to write to '${outputPath}': ${message}`);
+        if (jsonMode) {
+          jsonErr(`Failed to write to '${outputPath}': ${message}`);
+        } else {
+          console.error(`Error: Failed to write to '${outputPath}': ${message}`);
+        }
         return 1;
       }
     } else {
       // Play audio (default when --output is not specified)
-      console.log("Playing...");
+      if (!jsonMode) {
+        console.log("Playing...");
+      }
       await playAudio(result.samples, { sampleRate: result.sampleRate });
-      console.log("Done.");
+      if (jsonMode) {
+        jsonOut({
+          command: "generate",
+          recipe: recipeName,
+          seed,
+          duration: result.duration,
+          sampleRate: result.sampleRate,
+          samples: result.samples.length,
+          played: true,
+        });
+      } else {
+        console.log("Done.");
+      }
     }
 
     return 0;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error(`Error: ${message}`);
+    if (jsonMode) {
+      jsonErr(message);
+    } else {
+      console.error(`Error: ${message}`);
+    }
     return 1;
   }
 }

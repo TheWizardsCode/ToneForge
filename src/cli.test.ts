@@ -720,4 +720,430 @@ describe("CLI", () => {
       }
     });
   });
+
+  describe("--json flag", () => {
+    describe("version", () => {
+      it("outputs JSON with 'version --json'", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("version", "--json")),
+        );
+        expect(code).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.command).toBe("version");
+        expect(data.version).toMatch(/^\d+\.\d+\.\d+$/);
+      });
+
+      it("outputs JSON with '--version --json'", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("--version", "--json")),
+        );
+        expect(code).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.command).toBe("version");
+        expect(data.version).toMatch(/^\d+\.\d+\.\d+$/);
+      });
+    });
+
+    describe("list", () => {
+      it("outputs JSON with recipe array", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("list", "--json")),
+        );
+        expect(code).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.command).toBe("list");
+        expect(data.resource).toBe("recipes");
+        expect(Array.isArray(data.recipes)).toBe(true);
+        expect(data.recipes).toContain("ui-scifi-confirm");
+        expect(data.recipes).toContain("weapon-laser-zap");
+        expect(data.recipes).toContain("footstep-stone");
+        expect(data.recipes).toContain("ui-notification-chime");
+        expect(data.recipes).toContain("ambient-wind-gust");
+      });
+
+      it("outputs JSON with 'list recipes --json'", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("list", "recipes", "--json")),
+        );
+        expect(code).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.command).toBe("list");
+        expect(data.recipes.length).toBeGreaterThanOrEqual(5);
+      });
+
+      it("outputs JSON error for unknown resource", async () => {
+        const { code, stderr } = await captureOutput(
+          () => main(argv("list", "unknown", "--json")),
+        );
+        expect(code).toBe(1);
+        const data = JSON.parse(stderr);
+        expect(data.error).toContain("Unknown resource");
+      });
+    });
+
+    describe("show", () => {
+      it("outputs JSON with recipe metadata", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("show", "ui-scifi-confirm", "--json")),
+        );
+        expect(code).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.command).toBe("show");
+        expect(data.recipe).toBe("ui-scifi-confirm");
+        expect(data.category).toBe("UI");
+        expect(typeof data.description).toBe("string");
+        expect(Array.isArray(data.tags)).toBe(true);
+        expect(typeof data.signalChain).toBe("string");
+        expect(Array.isArray(data.params)).toBe(true);
+        expect(data.params.length).toBeGreaterThan(0);
+        expect(typeof data.duration).toBe("object");
+        expect(typeof data.duration.min).toBe("number");
+        expect(typeof data.duration.max).toBe("number");
+      });
+
+      it("includes seed-specific values with --seed", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("show", "ui-scifi-confirm", "--seed", "42", "--json")),
+        );
+        expect(code).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.seed).toBe(42);
+        expect(data.duration.value).toBeDefined();
+        expect(data.duration.seed).toBe(42);
+        // Every param should have a value
+        for (const param of data.params) {
+          expect(param.value).toBeDefined();
+          expect(typeof param.value).toBe("number");
+        }
+      });
+
+      it("does not include seed-specific values without --seed", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("show", "ui-scifi-confirm", "--json")),
+        );
+        expect(code).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.seed).toBeUndefined();
+        for (const param of data.params) {
+          expect(param.value).toBeUndefined();
+        }
+      });
+
+      it("param descriptors have correct fields", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("show", "ui-scifi-confirm", "--json")),
+        );
+        expect(code).toBe(0);
+        const data = JSON.parse(stdout);
+        for (const param of data.params) {
+          expect(typeof param.name).toBe("string");
+          expect(typeof param.min).toBe("number");
+          expect(typeof param.max).toBe("number");
+          expect(typeof param.unit).toBe("string");
+        }
+      });
+
+      it("outputs JSON error for unknown recipe", async () => {
+        const { code, stderr } = await captureOutput(
+          () => main(argv("show", "nonexistent", "--json")),
+        );
+        expect(code).toBe(1);
+        const data = JSON.parse(stderr);
+        expect(data.error).toContain("Unknown recipe");
+      });
+
+      it("outputs JSON error for missing recipe name", async () => {
+        const { code, stderr } = await captureOutput(
+          () => main(argv("show", "--json")),
+        );
+        expect(code).toBe(1);
+        const data = JSON.parse(stderr);
+        expect(data.error).toContain("requires a recipe name");
+      });
+
+      it("outputs JSON error for invalid seed", async () => {
+        const { code, stderr } = await captureOutput(
+          () => main(argv("show", "ui-scifi-confirm", "--seed", "abc", "--json")),
+        );
+        expect(code).toBe(1);
+        const data = JSON.parse(stderr);
+        expect(data.error).toContain("--seed must be an integer");
+      });
+
+      it("produces deterministic JSON output with same seed", async () => {
+        const { stdout: first } = await captureOutput(
+          () => main(argv("show", "ui-scifi-confirm", "--seed", "42", "--json")),
+        );
+        const { stdout: second } = await captureOutput(
+          () => main(argv("show", "ui-scifi-confirm", "--seed", "42", "--json")),
+        );
+        expect(first).toBe(second);
+      });
+
+      it("works for all five recipes", async () => {
+        const recipes = [
+          "ui-scifi-confirm",
+          "weapon-laser-zap",
+          "footstep-stone",
+          "ui-notification-chime",
+          "ambient-wind-gust",
+        ];
+        for (const recipe of recipes) {
+          const { code, stdout } = await captureOutput(
+            () => main(argv("show", recipe, "--json")),
+          );
+          expect(code).toBe(0);
+          const data = JSON.parse(stdout);
+          expect(data.recipe).toBe(recipe);
+          expect(data.params.length).toBeGreaterThan(0);
+        }
+      });
+    });
+
+    describe("generate", () => {
+      let tempDir: string;
+
+      beforeEach(() => {
+        tempDir = join(tmpdir(), `toneforge-json-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+      });
+
+      afterEach(() => {
+        try { rmSync(tempDir, { recursive: true, force: true }); } catch { /* ignore */ }
+      });
+
+      it("outputs JSON for single-file export", async () => {
+        const outPath = join(tempDir, "test.wav");
+        const { code, stdout } = await captureOutput(
+          () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "42", "--output", outPath, "--json")),
+        );
+        expect(code).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.command).toBe("generate");
+        expect(data.recipe).toBe("ui-scifi-confirm");
+        expect(data.seed).toBe(42);
+        expect(data.output).toBe(outPath);
+        expect(typeof data.duration).toBe("number");
+        expect(typeof data.sampleRate).toBe("number");
+        expect(typeof data.samples).toBe("number");
+      });
+
+      it("outputs JSON for play mode", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "42", "--json")),
+        );
+        expect(code).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.command).toBe("generate");
+        expect(data.recipe).toBe("ui-scifi-confirm");
+        expect(data.seed).toBe(42);
+        expect(data.played).toBe(true);
+        expect(typeof data.duration).toBe("number");
+        expect(typeof data.sampleRate).toBe("number");
+        expect(typeof data.samples).toBe("number");
+      });
+
+      it("suppresses text output in JSON mode", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "42", "--json")),
+        );
+        expect(code).toBe(0);
+        // Should be a single JSON line, no "Generating", "Rendered", etc.
+        expect(stdout).not.toContain("Generating");
+        expect(stdout).not.toContain("Rendered");
+        expect(stdout).not.toContain("Playing...");
+        expect(stdout).not.toContain("Done.");
+        expect(stdout).not.toContain("Using random seed");
+        // Verify it's valid JSON
+        expect(() => JSON.parse(stdout)).not.toThrow();
+      });
+
+      it("outputs JSON for batch generation", async () => {
+        const outDir = tempDir + "/";
+        const { code, stdout } = await captureOutput(
+          () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed-range", "1:3", "--output", outDir, "--json")),
+        );
+        expect(code).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.command).toBe("generate");
+        expect(data.recipe).toBe("ui-scifi-confirm");
+        expect(data.seedRange).toEqual([1, 3]);
+        expect(data.output).toBe(outDir);
+        expect(Array.isArray(data.files)).toBe(true);
+        expect(data.files.length).toBe(3);
+        for (const file of data.files) {
+          expect(typeof file.seed).toBe("number");
+          expect(typeof file.output).toBe("string");
+          expect(typeof file.duration).toBe("number");
+          expect(typeof file.sampleRate).toBe("number");
+          expect(typeof file.samples).toBe("number");
+        }
+      });
+
+      it("outputs JSON for directory output (single seed)", async () => {
+        const outDir = join(tempDir, "dir-output/");
+        const { code, stdout } = await captureOutput(
+          () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "42", "--output", outDir, "--json")),
+        );
+        expect(code).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.command).toBe("generate");
+        expect(data.output).toContain("ui-scifi-confirm-seed-42.wav");
+      });
+
+      it("outputs JSON error for missing recipe", async () => {
+        const { code, stderr } = await captureOutput(
+          () => main(argv("generate", "--json")),
+        );
+        expect(code).toBe(1);
+        const data = JSON.parse(stderr);
+        expect(data.error).toContain("--recipe is required");
+      });
+
+      it("outputs JSON error for unknown recipe", async () => {
+        const { code, stderr } = await captureOutput(
+          () => main(argv("generate", "--recipe", "nonexistent", "--json")),
+        );
+        expect(code).toBe(1);
+        const data = JSON.parse(stderr);
+        expect(data.error).toContain("Unknown recipe");
+      });
+
+      it("outputs JSON error for invalid seed", async () => {
+        const { code, stderr } = await captureOutput(
+          () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "abc", "--json")),
+        );
+        expect(code).toBe(1);
+        const data = JSON.parse(stderr);
+        expect(data.error).toContain("--seed must be an integer");
+      });
+
+      it("includes seed in JSON output when randomly generated", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--json")),
+        );
+        expect(code).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(typeof data.seed).toBe("number");
+        expect(data.seed).toBeGreaterThanOrEqual(0);
+      });
+    });
+
+    describe("play", () => {
+      it("outputs JSON after successful play", async () => {
+        // Generate a WAV file first
+        const outPath = join(tmpdir(), `toneforge-json-play-${Date.now()}.wav`);
+        await captureOutput(
+          () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "42", "--output", outPath)),
+        );
+
+        const { code, stdout } = await captureOutput(
+          () => main(argv("play", outPath, "--json")),
+        );
+        expect(code).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.command).toBe("play");
+        expect(data.file).toBe(outPath);
+
+        // Clean up
+        try { unlinkSync(outPath); } catch { /* ignore */ }
+      });
+
+      it("suppresses text output in JSON mode", async () => {
+        // Generate a WAV file first
+        const outPath = join(tmpdir(), `toneforge-json-play-quiet-${Date.now()}.wav`);
+        await captureOutput(
+          () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "42", "--output", outPath)),
+        );
+
+        const { code, stdout } = await captureOutput(
+          () => main(argv("play", outPath, "--json")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).not.toContain("Playing ");
+        expect(() => JSON.parse(stdout)).not.toThrow();
+
+        try { unlinkSync(outPath); } catch { /* ignore */ }
+      });
+
+      it("outputs JSON error for missing file", async () => {
+        const { code, stderr } = await captureOutput(
+          () => main(argv("play", "./nonexistent.wav", "--json")),
+        );
+        expect(code).toBe(1);
+        const data = JSON.parse(stderr);
+        expect(data.error).toContain("File not found");
+      });
+
+      it("outputs JSON error for missing path argument", async () => {
+        const { code, stderr } = await captureOutput(
+          () => main(argv("play", "--json")),
+        );
+        expect(code).toBe(1);
+        const data = JSON.parse(stderr);
+        expect(data.error).toContain("requires a WAV file path");
+      });
+    });
+
+    describe("errors", () => {
+      it("outputs JSON error for unknown command", async () => {
+        const { code, stderr } = await captureOutput(
+          () => main(argv("unknown-cmd", "--json")),
+        );
+        expect(code).toBe(1);
+        const data = JSON.parse(stderr);
+        expect(data.error).toContain("Unknown command");
+      });
+
+      it("JSON errors do not include 'Error:' prefix", async () => {
+        const { code, stderr } = await captureOutput(
+          () => main(argv("unknown-cmd", "--json")),
+        );
+        expect(code).toBe(1);
+        const data = JSON.parse(stderr);
+        expect(data.error).not.toMatch(/^Error:/);
+      });
+    });
+
+    describe("help text", () => {
+      it("global help mentions --json", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("--help")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toContain("--json");
+      });
+
+      it("generate help mentions --json", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("generate", "--help")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toContain("--json");
+      });
+
+      it("list help mentions --json", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("list", "--help")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toContain("--json");
+      });
+
+      it("show help mentions --json", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("show", "--help")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toContain("--json");
+      });
+
+      it("play help mentions --json", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("play", "--help")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toContain("--json");
+      });
+    });
+  });
 });
