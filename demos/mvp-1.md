@@ -1,7 +1,7 @@
 ---
 title: ToneForge MVP Demo
 id: mvp-1
-order: 1
+order: 10
 description: >
   An interactive walkthrough that demonstrates how ToneForge accelerates
   development by generating placeholder audio instantly — so teams can
