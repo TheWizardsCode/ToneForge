@@ -1,7 +1,7 @@
 ---
 title: "Audio Analysis: Measuring What You Made"
 id: audio-analysis
-order: 50
+order: 80
 description: >
   Analyze generated sounds to extract structured metrics -- duration, peak,
   RMS, crest factor, attack time, spectral centroid -- and detect quality
