@@ -30,6 +30,7 @@ import { playAudio, getPlayerCommand } from "./audio/player.js";
 import { encodeWav } from "./audio/wav-encoder.js";
 import { VERSION } from "./index.js";
 import { createRng } from "./core/rng.js";
+import { profiler } from "./core/profiler.js";
 import { outputMarkdown, outputError, outputWarning, outputSuccess, outputInfo, outputTable } from "./output.js";
 import type { RecipeRegistration } from "./core/recipe.js";
 import { renderStack } from "./stack/renderer.js";
@@ -86,6 +87,8 @@ function parseArgs(argv: string[]): {
       flags["version"] = true;
     } else if (arg === "--json") {
       flags["json"] = true;
+    } else if (arg === "--profile") {
+      flags["profile"] = true;
     } else if (arg === "--layer") {
       // Repeatable flag: collect all --layer values into an array
       const next = args[i + 1];
@@ -167,6 +170,7 @@ toneforge generate --recipe <name> --seed-range <start>:<end> --output <director
 - \`--seed-range <start:end>\` — Generate one WAV per seed in the inclusive range
 - \`--output <path>\` — Write WAV file to path instead of playing audio. Use a \`.wav\` path for single file, or a directory (trailing \`/\`) for batch output with \`--seed-range\`
 - \`--json\` — Output results in JSON format
+- \`--profile\` — Print phase-by-phase timing breakdown to stderr
 - \`--help\`, \`-h\` — Show this help message
 
 ## Available recipes
@@ -944,6 +948,13 @@ export async function main(argv: string[] = process.argv): Promise<number> {
   const { command, subcommand, flags, layers } = parseArgs(argv);
   const jsonMode = flags["json"] === true;
 
+  // Enable profiling when --profile flag is set
+  if (flags["profile"] === true) {
+    profiler.enable();
+  }
+  profiler.mark("module_load");
+  profiler.mark("cli_parse");
+
   // --version flag or `version` command
   if (flags["version"] || command === "version") {
     if (jsonMode) {
@@ -1254,7 +1265,8 @@ export async function main(argv: string[] = process.argv): Promise<number> {
           if (!jsonMode) {
             outputInfo("Playing...");
           }
-          await playAudio(result.samples, { sampleRate: result.sampleRate });
+      await playAudio(result.samples, { sampleRate: result.sampleRate });
+      profiler.mark("playback_complete");
           if (jsonMode) {
             jsonOut({
               command: "stack render",
@@ -2967,6 +2979,8 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       });
     }
 
+    profiler.mark("done");
+    profiler.report();
     return 0;
   }
 
@@ -3011,7 +3025,9 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       try {
         await mkdir(dirname(outputPath), { recursive: true });
         const wavBuffer = encodeWav(result.samples, { sampleRate: result.sampleRate });
+        profiler.mark("wav_encode");
         await writeFile(outputPath, wavBuffer);
+        profiler.mark("file_write");
         if (jsonMode) {
           jsonOut({
             command: "generate",
@@ -3041,7 +3057,9 @@ export async function main(argv: string[] = process.argv): Promise<number> {
         const fileName = `${recipeName}-seed-${seed}.wav`;
         const filePath = `${outputPath.replace(/\/$/, "")}/${fileName}`;
         const wavBuffer = encodeWav(result.samples, { sampleRate: result.sampleRate });
+        profiler.mark("wav_encode");
         await writeFile(filePath, wavBuffer);
+        profiler.mark("file_write");
         if (jsonMode) {
           jsonOut({
             command: "generate",
@@ -3085,6 +3103,8 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       }
     }
 
+    profiler.mark("done");
+    profiler.report();
     return 0;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -3093,6 +3113,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     } else {
       outputError(`Error: ${message}`);
     }
+    profiler.report();
     return 1;
   }
 }

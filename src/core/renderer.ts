@@ -14,6 +14,7 @@
 import { OfflineAudioContext } from "node-web-audio-api";
 import { createRng } from "./rng.js";
 import { registry } from "../recipes/index.js";
+import { profiler } from "./profiler.js";
 
 /** Result of an offline render containing sample data. */
 export interface RenderResult {
@@ -53,6 +54,7 @@ export async function renderRecipe(
   if (!registration) {
     throw new Error(`Recipe not found: ${recipeName}`);
   }
+  profiler.mark("recipe_resolution");
 
   // Use one RNG for duration, then a fresh RNG for graph building
   // so the parameter sequence is deterministic regardless of whether
@@ -63,6 +65,7 @@ export async function renderRecipe(
   const length = Math.ceil(sampleRate * renderDuration);
 
   const ctx = new OfflineAudioContext(1, length, sampleRate);
+  profiler.mark("context_creation");
 
   // Build the Web Audio graph — re-create the RNG to ensure
   // deterministic parameter generation from the same seed.
@@ -70,8 +73,10 @@ export async function renderRecipe(
   // and async recipes (returning Promise<void>) that load samples.
   const graphRng = createRng(seed);
   await registration.buildOfflineGraph(graphRng, ctx, renderDuration);
+  profiler.mark("graph_build");
 
   const audioBuffer = await ctx.startRendering();
+  profiler.mark("render");
   const samples = new Float32Array(audioBuffer.getChannelData(0));
 
   return {

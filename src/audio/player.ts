@@ -19,6 +19,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 import { encodeWav } from "./wav-encoder.js";
+import { profiler } from "../core/profiler.js";
 
 /** Options for audio playback. */
 export interface PlayOptions {
@@ -212,15 +213,18 @@ export async function playAudio(
 
   // Encode to WAV
   const wavBuffer = encodeWav(samples, { sampleRate });
+  profiler.mark("wav_encode");
 
   // Write to temp file with a unique name
   const tempName = `toneforge-${randomBytes(8).toString("hex")}.wav`;
   const tempPath = join(tmpdir(), tempName);
 
   await writeFile(tempPath, wavBuffer);
+  profiler.mark("file_write");
 
   try {
     const { command, args } = getPlayerCommand(tempPath);
+    profiler.mark("playback_launch");
 
     await new Promise<void>((resolve, reject) => {
       execFile(command, args, (error) => {
