@@ -31,6 +31,7 @@
   "license": "ISC",
   "dependencies": {
     "buffer": "^6.0.3",
+    "fft.js": "^4.0.4",
     "gray-matter": "^4.0.3",
     "marked": "^15.0.12",
     "marked-terminal": "^7.3.0",
