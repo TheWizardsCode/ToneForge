@@ -287,12 +287,6 @@ Run: run-mm0gf3o9-8226ff52
 | 3   | weapon-laser-zap_seed-00024  | 0.5409 | 1       | no       |
 ```
 
-Or show a specific earlier run by its ID:
-
-```bash
-toneforge explore show --run run-mm0gej70-ffeecb65
-```
-
 > [!commentary]
 > Every exploration run is automatically persisted as a JSON index in
 > `.exploration/runs/`. The `runs` command lists all completed runs with
@@ -326,10 +320,10 @@ Promoted 'creature-vocal_seed-00010' to library as 'lib-creature-vocal-10'
   Metadata: .exploration/promoted/creature-vocal_seed-00010.json
 ```
 
-Play the promoted sound to confirm it matches what you heard earlier:
+Play the promoted WAV to confirm it matches what you heard earlier:
 
 ```bash
-toneforge generate --recipe creature-vocal --seed 10
+toneforge play .exploration/promoted/creature-vocal_seed-00010.wav
 ```
 
 > [!commentary]
@@ -353,12 +347,6 @@ For larger sweeps, increase the seed range and adjust concurrency:
 
 ```bash
 toneforge explore sweep --recipe footstep-gravel --seed-range 0:999 --keep-top 20 --rank-by rms,spectral-centroid --clusters 5
-```
-
-For JSON output suitable for scripts and CI pipelines:
-
-```bash
-toneforge explore sweep --recipe ui-scifi-confirm --seed-range 0:499 --keep-top 10 --rank-by attack-time --json
 ```
 
 > [!commentary]
