@@ -158,14 +158,40 @@ Cluster summaries:
   Cluster 2: 2 members — rms=0.973, spectral-centroid=0.037, attack-time=0.514
 ```
 
+Listen to one exemplar from each cluster to hear the trade-offs.
+
+Cluster 0 -- loud and bright (rms=0.972, spectral-centroid=1.000,
+attack-time=0.473). Seed 0 is the top-scoring candidate overall:
+
+```bash
+toneforge generate --recipe weapon-laser-zap --seed 0
+```
+
+Cluster 1 -- quieter but fastest attack (rms=0.376,
+spectral-centroid=0.322, attack-time=0.928). Seed 19 has the sharpest
+transient:
+
+```bash
+toneforge generate --recipe weapon-laser-zap --seed 19
+```
+
+Cluster 2 -- loud but dark (rms=0.973, spectral-centroid=0.037,
+attack-time=0.514). Seed 4 is heavy low-frequency energy with almost
+no brightness:
+
+```bash
+toneforge generate --recipe weapon-laser-zap --seed 4
+```
+
 > [!commentary]
 > With three metrics, the ranking reveals trade-offs. Seed 0 has the
-> highest overall score (0.815) because it is loud (rms=0.972), the
-> brightest (spectral-centroid=1.000), though its attack is moderate
-> (0.473). Seeds 19 and 24 score lower overall but have the fastest
-> attacks (1.000 and 0.856). Cluster 2 contains the loudest but darkest
-> seeds -- high RMS but very low spectral centroid. Multi-metric ranking
-> surfaces these trade-offs that single-metric ranking would miss.
+> highest overall score (0.815) because it is loud and the brightest,
+> though its attack is moderate. Seed 19 scores lower overall but has
+> the fastest attack. Seed 4 is just as loud as seed 0 but has almost
+> no spectral brightness -- a completely different character. These three
+> clusters represent three genuinely different weapon sounds, not just
+> loudness tiers. Multi-metric ranking and clustering surface these
+> trade-offs that single-metric ranking would miss.
 
 ## Act 4 -- Mutate a promising seed
 
