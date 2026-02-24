@@ -96,21 +96,35 @@ you spot patterns: are all the top results similar, or do they fall into
 distinct groups with different characteristics?
 
 The cluster summaries show the centroid (average metric values) and
-exemplar candidates for each group.
+exemplar candidates for each group. Listen to one candidate from each
+cluster to hear how they differ.
 
-Compare candidates from different clusters to hear the difference.
-Seed 10 (cluster 0, loudest) versus seed 2 (cluster 1, quieter):
+Cluster 0 -- the loudest tier (centroid rms=1.000, 1 member). This is
+seed 10, the top-scoring candidate:
 
 ```bash
 toneforge generate --recipe creature-vocal --seed 10
 ```
+
+Cluster 2 -- the mid-loudness tier (centroid rms=0.880, 2 members).
+Seed 12 is the exemplar:
+
+```bash
+toneforge generate --recipe creature-vocal --seed 12
+```
+
+Cluster 1 -- the quietest tier (centroid rms=0.687, 2 members). Seed 2
+is the exemplar:
 
 ```bash
 toneforge generate --recipe creature-vocal --seed 2
 ```
 
 > [!commentary]
-> Clustering is most useful with multiple metrics. With a single metric
+> Three clusters, three distinct loudness levels. Cluster 0 is the
+> single loudest seed -- a full-scale vocal. Cluster 2 sits in the
+> mid-range, noticeably quieter but still prominent. Cluster 1 is the
+> quietest group, with a more subdued character. With a single metric
 > like RMS, clusters simply reflect loudness tiers. With two or more
 > metrics, clusters reveal genuinely different sound characters -- for
 > example, one cluster might be loud and bright while another is loud
