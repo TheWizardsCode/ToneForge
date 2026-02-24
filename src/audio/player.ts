@@ -1,8 +1,17 @@
 /**
  * Audio Player
  *
- * Writes rendered audio to a temporary WAV file and plays it through the
- * platform's system audio player. Cleans up the temp file after playback.
+ * Plays rendered audio through the platform's system audio player.
+ *
+ * Two playback paths are available:
+ * 1. **Stdin piping** (preferred): WAV data is piped directly to the
+ *    player's stdin, avoiding filesystem I/O entirely.
+ * 2. **Temp file** (fallback): WAV data is written to a temp file,
+ *    the player reads the file, and the file is cleaned up afterward.
+ *
+ * Stdin piping is attempted first for players known to support it
+ * (paplay, aplay, ffplay). If it fails, the temp-file path is used
+ * automatically.
  *
  * Supported platforms:
  * - Linux:   aplay, paplay, ffplay, or sox play (first available)
@@ -12,7 +21,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { execFile, execFileSync } from "node:child_process";
+import { execFile, execFileSync, spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { writeFile, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -59,6 +68,94 @@ const LINUX_PLAYERS: PlayerCandidate[] = [
   { command: "ffplay", args: (f) => ["-nodisp", "-autoexit", "-loglevel", "quiet", f] },
   { command: "play", args: (f) => ["-q", f] }, // sox
 ];
+
+/**
+ * A candidate audio player that supports receiving WAV data on stdin.
+ * These players are checked before the temp-file path for lower latency.
+ */
+interface StdinPlayerCandidate {
+  /** Binary name to look up via `which`. */
+  command: string;
+  /** Arguments to pass when piping WAV data on stdin. */
+  stdinArgs: () => string[];
+}
+
+/**
+ * Linux audio players that accept WAV data on stdin, in preference order.
+ *
+ * - paplay: reads WAV from stdin by default (no special args needed)
+ * - aplay:  reads from stdin when given `-` as the file; honours `-D pulse`
+ * - ffplay: reads from stdin with `-i pipe:0`
+ */
+const STDIN_PLAYERS: StdinPlayerCandidate[] = [
+  { command: "paplay", stdinArgs: () => [] },
+  {
+    command: "aplay",
+    stdinArgs: () =>
+      hasPulseAudio() ? ["-D", "pulse", "-q", "-"] : ["-q", "-"],
+  },
+  {
+    command: "ffplay",
+    stdinArgs: () => ["-i", "pipe:0", "-nodisp", "-autoexit", "-loglevel", "quiet"],
+  },
+];
+
+/**
+ * Find the first available stdin-capable audio player.
+ *
+ * @returns The stdin player candidate, or null if none found.
+ */
+function findStdinPlayer(): StdinPlayerCandidate | null {
+  for (const candidate of STDIN_PLAYERS) {
+    if (isCommandAvailable(candidate.command)) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
+/**
+ * Play a WAV buffer by piping it to an audio player's stdin.
+ *
+ * @param wavBuffer - The complete WAV file as a Buffer.
+ * @param player    - The stdin-capable player to use.
+ * @returns A promise that resolves when playback completes.
+ * @throws If the player process exits with an error.
+ */
+function playViaStdin(
+  wavBuffer: Buffer,
+  player: StdinPlayerCandidate,
+): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const args = player.stdinArgs();
+    const child = spawn(player.command, args, {
+      stdio: ["pipe", "ignore", "ignore"],
+    });
+
+    child.on("error", (err) => {
+      reject(
+        new Error(
+          `Stdin playback failed to spawn (${player.command}): ${err.message}`,
+        ),
+      );
+    });
+
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(
+          new Error(
+            `Stdin playback failed (${player.command}): exited with code ${code}`,
+          ),
+        );
+      }
+    });
+
+    // Write the entire WAV buffer and close stdin to signal EOF.
+    child.stdin!.end(wavBuffer);
+  });
+}
 
 /**
  * Check if a command is available on the system PATH.
@@ -198,8 +295,9 @@ export function getPlayerCommand(filePath: string): { command: string; args: str
 /**
  * Play audio samples through the system speakers.
  *
- * Encodes the samples as a temporary WAV file, invokes the platform audio
- * player, and cleans up the temp file when playback completes.
+ * Prefers piping WAV data directly to a player's stdin (zero disk I/O).
+ * Falls back to writing a temp file when stdin piping is unavailable or
+ * fails.
  *
  * @param samples - Float32Array of audio samples in [-1, 1] range.
  * @param options - Playback options.
@@ -215,7 +313,19 @@ export async function playAudio(
   const wavBuffer = encodeWav(samples, { sampleRate });
   profiler.mark("wav_encode");
 
-  // Write to temp file with a unique name
+  // --- Fast path: pipe WAV to player stdin (no temp file) ---
+  const stdinPlayer = findStdinPlayer();
+  if (stdinPlayer) {
+    try {
+      profiler.mark("playback_launch");
+      await playViaStdin(wavBuffer, stdinPlayer);
+      return; // Success — skip temp-file path entirely.
+    } catch {
+      // Stdin piping failed; fall through to temp-file path.
+    }
+  }
+
+  // --- Fallback path: write to temp file ---
   const tempName = `toneforge-${randomBytes(8).toString("hex")}.wav`;
   const tempPath = join(tmpdir(), tempName);
 
