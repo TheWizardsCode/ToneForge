@@ -1,7 +1,7 @@
 ---
 title: "Classification: Semantic Labels for Sounds"
 id: classification
-order: 70
+order: 75
 description: >
   Assign structured semantic labels to analyzed sounds -- category, intensity,
   texture, material, and tags -- using rule-based classification. Classify from
@@ -24,7 +24,7 @@ In this walkthrough you will learn:
 
 1. What each classification dimension means
 2. How to classify a recipe+seed directly
-3. How to classify a WAV file end-to-end
+3. How to classify an external WAV file end-to-end
 4. How to batch-classify from analysis data
 5. How to search classified sounds by category, intensity, or texture
 6. How classification connects analysis metrics to semantic meaning
@@ -56,13 +56,8 @@ Classification: weapon-laser-zap_seed-042
 > category "Weapon" and tags ["laser", "zap", "sci-fi"]. Intensity and
 > texture are derived from the analysis metrics -- RMS loudness, peak
 > amplitude, spectral centroid, and attack time. Material is inferred from
-> recipe tags ("energy" for laser/zap sounds).
-
-For structured output, add `--json`:
-
-```bash
-toneforge classify --recipe weapon-laser-zap --seed 42 --json
-```
+> recipe tags ("energy" for laser/zap sounds). Add `--json` for structured
+> JSON output suitable for piping to other tools.
 
 ## Act 2 -- What each dimension means
 
@@ -84,39 +79,43 @@ toneforge classify --recipe weapon-laser-zap --seed 42 --json
 > Tags provide contextual labels that help with search but are not
 > exclusive categories.
 
-## Act 3 -- Classify a WAV file end-to-end
+## Act 3 -- Classify an external WAV file
 
-> You have a WAV file on disk and want to classify it without running
-> analysis separately.
+> You have picked up a sound effect from outside ToneForge -- an 8-bit
+> coin-collect chime bundled in `assets/samples/`. Listen to it first,
+> then classify it to see what the engine infers without recipe metadata.
 
-Generate a WAV file:
-
-```bash
-toneforge generate --recipe footstep-stone --seed 7 --output ./output/footstep-stone_seed-007.wav
-```
-
-Classify it directly:
+Play the sound:
 
 ```bash
-toneforge classify --input ./output/footstep-stone_seed-007.wav
+toneforge play assets/samples/coin-collect/token.wav
+```
+
+Classify it:
+
+```bash
+toneforge classify --input assets/samples/coin-collect/token.wav
 ```
 
 ```
-Classification: footstep-stone_seed-007
-  Category:  footstep
-  Intensity: medium
-  Texture:   sharp
-  Material:  stone
-  Tags:      movement, environment, stone, footstep
-  Ref:       ./output/footstep-stone_seed-007.wav
+Classification: token
+  Category:  impact
+  Intensity: aggressive
+  Texture:   crunchy, sharp
+  Material:  (none)
+  Tags:      unclassified
+  Ref:       assets/samples/coin-collect/token.wav
 ```
 
 > [!commentary]
-> The `--input` path handles the full pipeline internally: decode WAV,
-> analyze metrics, then classify. When the filename matches a known recipe
-> name pattern (e.g. `footstep-stone_seed-007`), the classifier extracts
-> recipe metadata for more accurate classification. For WAV files with
-> unrecognized names, classification falls back to metric-only heuristics.
+> Without recipe metadata the classifier relies entirely on analysis
+> metrics. The short, loud, transient-heavy coin chime is classified as
+> an `impact` with `aggressive` intensity -- reasonable for its signal
+> profile, even though a human would call it a "UI pickup" sound. The
+> material field is `(none)` because the metrics alone cannot determine
+> a physical material. This shows why recipe context matters: when you
+> classify via `--recipe`, category and tags come from the registry.
+> With a bare WAV file, the engine does its best from the waveform alone.
 
 ## Act 4 -- Batch classify from analysis data
 
@@ -153,13 +152,8 @@ Classified 3 files
 > `toneforge analyze` and want to iterate on classification rules or
 > search across results. The `--output` flag writes one classification
 > JSON file per input, mirroring the analysis batch workflow. Without
-> `--output`, results are displayed but not saved.
-
-For JSON output of the entire batch:
-
-```bash
-toneforge classify --analysis ./analysis/ --json
-```
+> `--output`, results are displayed but not saved. Use `--json` for
+> structured output of the entire batch.
 
 ## Act 5 -- Search classified sounds
 
@@ -188,7 +182,7 @@ toneforge classify search --intensity soft --dir ./classification/
 Combine filters for precise results:
 
 ```bash
-toneforge classify search --category weapon --intensity hard --texture sharp --dir ./classification/ --json
+toneforge classify search --category weapon --intensity hard --texture sharp --dir ./classification/
 ```
 
 > [!commentary]
@@ -196,9 +190,8 @@ toneforge classify search --category weapon --intensity hard --texture sharp --d
 > (defaulting to `./classification/`). Filters are AND-combined: a sound
 > must match all specified filters. Texture matching checks if the
 > specified texture appears anywhere in the texture array, so `--texture
-> sharp` matches `["sharp", "bright"]`. For structured results, add
-> `--json`. For human-readable output, the default table format shows a
-> scannable summary.
+> sharp` matches `["sharp", "bright"]`. Add `--json` for structured
+> results or use the default table format for scannable summaries.
 
 ## Act 6 -- Classify WAV files in batch
 
@@ -213,8 +206,8 @@ toneforge classify --input ./output/ --output ./classification/ --format table
 > This is the all-in-one path: decode WAV, analyze, and classify in a
 > single command. Each WAV file is processed independently. When the
 > filename matches a known recipe, recipe metadata enhances classification
-> accuracy. The `--format table` flag shows the summary table; `--json`
-> gives structured output.
+> accuracy. Use `--format table` for the summary table or `--json` for
+> structured output.
 
 ## Act 7 -- Comparing classification across recipes
 
@@ -222,9 +215,9 @@ toneforge classify --input ./output/ --output ./classification/ --format table
 > of labels the system produces.
 
 ```bash
-toneforge classify --recipe ambient-wind-gust --seed 42 --json
-toneforge classify --recipe impact-crack --seed 42 --json
-toneforge classify --recipe ui-scifi-confirm --seed 42 --json
+toneforge classify --recipe ambient-wind-gust --seed 42
+toneforge classify --recipe impact-crack --seed 42
+toneforge classify --recipe ui-scifi-confirm --seed 42
 ```
 
 > [!commentary]
@@ -239,13 +232,13 @@ toneforge classify --recipe ui-scifi-confirm --seed 42 --json
 ## Recap -- What you just learned
 
 1. **Recipe classification** -- `--recipe <name> --seed <n>` renders, analyzes, and classifies in one step
-2. **WAV classification** -- `--input <file.wav>` decodes, analyzes, and classifies end-to-end
+2. **External WAV classification** -- `--input <file.wav>` decodes, analyzes, and classifies any WAV file end-to-end
 3. **Batch from analysis** -- `--analysis <dir>` classifies pre-analyzed data without re-decoding
 4. **Batch from WAV** -- `--input <dir>` processes an entire directory of WAV files
 5. **Search** -- `classify search --category/--intensity/--texture` finds sounds by semantic attributes
 6. **Five dimensions** -- category, intensity, texture, material (best-effort), and tags
 7. **Determinism** -- same input, same labels, every time, on any machine
-8. **Recipe metadata** -- known recipes get more accurate classification than unknown WAV files
+8. **Recipe context matters** -- known recipes get more accurate classification than unknown WAV files
 9. **Output options** -- `--json` for structured data, `--format table` for human scanning, `--output <dir>` for file persistence
 
 Classification turns numeric analysis into human-meaningful labels. You can

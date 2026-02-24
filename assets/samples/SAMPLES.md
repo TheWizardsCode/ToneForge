@@ -44,9 +44,20 @@ original works with no external copyright claims.
 | Source      | Procedurally generated (`scripts/generate-samples.ts`, seed 3003) |
 | License     | CC0 / Public Domain                            |
 
+### `coin-collect/token.wav`
+
+| Property    | Value                                          |
+| ----------- | ---------------------------------------------- |
+| Description | 8-bit coin/token collection sound (ascending square-wave arpeggio B5→E6) |
+| Duration    | 0.200s                                         |
+| Format      | 16-bit PCM WAV, mono, 44100 Hz                 |
+| Size        | 17,684 bytes                                   |
+| Source      | Procedurally generated (`scripts/generate-samples.ts`) |
+| License     | CC0 / Public Domain                            |
+
 ## Budget
 
-Total committed sample size: **75,102 bytes (73.3 KB)** — well under the 1 MB budget.
+Total committed sample size: **92,786 bytes (90.6 KB)** — well under the 1 MB budget.
 
 ## Regeneration
 
