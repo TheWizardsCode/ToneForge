@@ -244,3 +244,197 @@ describe("CLI Integration — --output flag end-to-end", () => {
     expect(cliWav.equals(manualWav)).toBe(true);
   });
 });
+
+// ── Stack CLI Integration ─────────────────────────────────────────
+// Work item: TF-0MLZZJZP50VW0Q4P
+
+describe("CLI Integration — stack render", () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = join(tmpdir(), `toneforge-stack-e2e-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  });
+
+  afterEach(() => {
+    try { rmSync(tempDir, { recursive: true, force: true }); } catch { /* ignore */ }
+  });
+
+  it("stack render --preset produces a valid WAV file", async () => {
+    const outPath = join(tempDir, "explosion.wav");
+    const { code, stdout } = await captureOutput(
+      () => main(argv("stack", "render", "--preset", "presets/explosion_heavy.json", "--seed", "42", "--output", outPath)),
+    );
+    expect(code).toBe(0);
+    expect(stdout).toContain("Wrote");
+    expect(existsSync(outPath)).toBe(true);
+
+    const fileData = readFileSync(outPath);
+    expect(fileData.toString("ascii", 0, 4)).toBe("RIFF");
+    expect(fileData.toString("ascii", 8, 12)).toBe("WAVE");
+    expect(fileData.length).toBeGreaterThan(44);
+  });
+
+  it("stack render --layer produces a valid WAV file", async () => {
+    const outPath = join(tempDir, "inline.wav");
+    const { code } = await captureOutput(
+      () => main(argv(
+        "stack", "render",
+        "--layer", "recipe=impact-crack,offset=0ms,gain=0.9",
+        "--layer", "recipe=rumble-body,offset=5ms,gain=0.7",
+        "--seed", "42",
+        "--output", outPath,
+      )),
+    );
+    expect(code).toBe(0);
+    expect(existsSync(outPath)).toBe(true);
+
+    const fileData = readFileSync(outPath);
+    expect(fileData.toString("ascii", 0, 4)).toBe("RIFF");
+  });
+
+  it("stack render with door_slam preset produces valid WAV", async () => {
+    const outPath = join(tempDir, "door_slam.wav");
+    const { code } = await captureOutput(
+      () => main(argv("stack", "render", "--preset", "presets/door_slam.json", "--seed", "99", "--output", outPath)),
+    );
+    expect(code).toBe(0);
+    expect(existsSync(outPath)).toBe(true);
+  });
+
+  it("stack render without --seed returns error", async () => {
+    const outPath = join(tempDir, "no-seed.wav");
+    const { code, stderr } = await captureOutput(
+      () => main(argv("stack", "render", "--preset", "presets/explosion_heavy.json", "--output", outPath)),
+    );
+    expect(code).toBe(1);
+    expect(stderr).toContain("--seed");
+  });
+
+  it("stack render without --output returns error", async () => {
+    const { code, stderr } = await captureOutput(
+      () => main(argv("stack", "render", "--preset", "presets/explosion_heavy.json", "--seed", "42")),
+    );
+    expect(code).toBe(1);
+    expect(stderr).toContain("--output");
+  });
+
+  it("stack render without --preset or --layer returns error", async () => {
+    const outPath = join(tempDir, "empty.wav");
+    const { code, stderr } = await captureOutput(
+      () => main(argv("stack", "render", "--seed", "42", "--output", outPath)),
+    );
+    expect(code).toBe(1);
+    expect(stderr).toContain("--preset");
+  });
+
+  it("stack render is deterministic — same preset+seed produces same WAV", async () => {
+    const out1 = join(tempDir, "det1.wav");
+    const out2 = join(tempDir, "det2.wav");
+
+    await captureOutput(
+      () => main(argv("stack", "render", "--preset", "presets/explosion_heavy.json", "--seed", "42", "--output", out1)),
+    );
+    await captureOutput(
+      () => main(argv("stack", "render", "--preset", "presets/explosion_heavy.json", "--seed", "42", "--output", out2)),
+    );
+
+    const wav1 = readFileSync(out1);
+    const wav2 = readFileSync(out2);
+    expect(wav1.equals(wav2)).toBe(true);
+  });
+});
+
+describe("CLI Integration — stack inspect", () => {
+  it("stack inspect --preset displays layer structure", async () => {
+    const { code, stdout } = await captureOutput(
+      () => main(argv("stack", "inspect", "--preset", "presets/explosion_heavy.json")),
+    );
+    expect(code).toBe(0);
+    expect(stdout).toContain("explosion_heavy");
+    expect(stdout).toContain("impact-crack");
+    expect(stdout).toContain("rumble-body");
+    expect(stdout).toContain("debris-tail");
+    expect(stdout).toContain("3 layers");
+  });
+
+  it("stack inspect shows gain values", async () => {
+    const { code, stdout } = await captureOutput(
+      () => main(argv("stack", "inspect", "--preset", "presets/explosion_heavy.json")),
+    );
+    expect(code).toBe(0);
+    expect(stdout).toContain("0.90");
+    expect(stdout).toContain("0.70");
+    expect(stdout).toContain("0.50");
+  });
+
+  it("stack inspect shows offset values", async () => {
+    const { code, stdout } = await captureOutput(
+      () => main(argv("stack", "inspect", "--preset", "presets/explosion_heavy.json")),
+    );
+    expect(code).toBe(0);
+    expect(stdout).toContain("0ms");
+    expect(stdout).toContain("5ms");
+    expect(stdout).toContain("50ms");
+  });
+
+  it("stack inspect without --preset returns error", async () => {
+    const { code, stderr } = await captureOutput(
+      () => main(argv("stack", "inspect")),
+    );
+    expect(code).toBe(1);
+    expect(stderr).toContain("--preset");
+  });
+
+  it("stack inspect with nonexistent file returns error", async () => {
+    const { code, stderr } = await captureOutput(
+      () => main(argv("stack", "inspect", "--preset", "/nonexistent/path.json")),
+    );
+    expect(code).toBe(1);
+    expect(stderr).toContain("Failed to read");
+  });
+});
+
+describe("CLI Integration — stack help", () => {
+  it("stack --help returns 0 and shows help text", async () => {
+    const { code, stdout } = await captureOutput(
+      () => main(argv("stack", "--help")),
+    );
+    expect(code).toBe(0);
+    expect(stdout).toContain("render");
+    expect(stdout).toContain("inspect");
+  });
+
+  it("stack render --help returns 0", async () => {
+    const { code, stdout } = await captureOutput(
+      () => main(argv("stack", "render", "--help")),
+    );
+    expect(code).toBe(0);
+    expect(stdout).toContain("--preset");
+    expect(stdout).toContain("--seed");
+    expect(stdout).toContain("--output");
+  });
+
+  it("stack inspect --help returns 0", async () => {
+    const { code, stdout } = await captureOutput(
+      () => main(argv("stack", "inspect", "--help")),
+    );
+    expect(code).toBe(0);
+    expect(stdout).toContain("--preset");
+  });
+
+  it("top-level --help lists the stack command", async () => {
+    const { code, stdout } = await captureOutput(
+      () => main(argv("--help")),
+    );
+    expect(code).toBe(0);
+    expect(stdout).toContain("stack");
+  });
+
+  it("unknown stack subcommand returns error", async () => {
+    const { code, stderr } = await captureOutput(
+      () => main(argv("stack", "explode")),
+    );
+    expect(code).toBe(1);
+    expect(stderr).toContain("Unknown stack subcommand");
+  });
+});
