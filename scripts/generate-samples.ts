@@ -116,6 +116,49 @@ function generateEngineLoop(): Float32Array {
   return samples;
 }
 
+/**
+ * Generate an 8-bit coin/token collection sound: ascending square-wave arpeggio.
+ * ~0.2s, classic retro pickup SFX — two quick rising tones.
+ */
+function generateCoinCollect(): Float32Array {
+  const duration = 0.2;
+  const length = Math.ceil(SAMPLE_RATE * duration);
+  const samples = new Float32Array(length);
+
+  // Two-note ascending arpeggio (B5 → E6), classic coin pattern
+  const notes = [
+    { freq: 988, start: 0.0, end: 0.1 }, // B5
+    { freq: 1319, start: 0.07, end: 0.2 }, // E6 (overlaps slightly)
+  ];
+
+  for (let i = 0; i < length; i++) {
+    const t = i / SAMPLE_RATE;
+    let signal = 0;
+
+    for (const note of notes) {
+      if (t >= note.start && t < note.end) {
+        const noteT = t - note.start;
+        const noteDur = note.end - note.start;
+        // Square wave (fundamental + odd harmonics, band-limited to 3)
+        let sq = 0;
+        for (let h = 1; h <= 5; h += 2) {
+          sq += Math.sin(2 * Math.PI * note.freq * h * noteT) / h;
+        }
+        sq *= 4 / Math.PI; // Normalize to square-wave amplitude
+        // Envelope: instant attack, sustain, short decay at end
+        const decayStart = noteDur - 0.03;
+        const env = noteT > decayStart ? (noteDur - noteT) / 0.03 : 1.0;
+        signal += sq * env * 0.35;
+      }
+    }
+
+    // Soft-clip to prevent distortion
+    samples[i] = Math.max(-0.9, Math.min(0.9, signal));
+  }
+
+  return samples;
+}
+
 // Generate and write all sample files
 const projectRoot = resolve(import.meta.dirname, "..");
 
@@ -140,6 +183,13 @@ console.log(
   `vehicle-engine/loop.wav: ${engineSamples.length} samples, ${(engineSamples.length / SAMPLE_RATE).toFixed(3)}s, ${engineWav.length} bytes`,
 );
 
-const totalBytes = impactWav.length + growlWav.length + engineWav.length;
+const coinSamples = generateCoinCollect();
+const coinWav = encodeWav(coinSamples);
+writeFileSync(resolve(projectRoot, "assets/samples/coin-collect/token.wav"), coinWav);
+console.log(
+  `coin-collect/token.wav: ${coinSamples.length} samples, ${(coinSamples.length / SAMPLE_RATE).toFixed(3)}s, ${coinWav.length} bytes`,
+);
+
+const totalBytes = impactWav.length + growlWav.length + engineWav.length + coinWav.length;
 console.log(`\nTotal sample size: ${totalBytes} bytes (${(totalBytes / 1024).toFixed(1)} KB)`);
 console.log(`Budget: ${totalBytes < 1_000_000 ? "PASS" : "FAIL"} (< 1MB)`);
