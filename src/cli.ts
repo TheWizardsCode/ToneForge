@@ -179,7 +179,7 @@ toneforge analyze --input <directory> --format table
 - \`--recipe <name>\` — Recipe name for direct analysis (renders internally)
 - \`--seed <number>\` — Seed for recipe rendering (used with \`--recipe\`)
 - \`--output <dir>\` — Write one JSON file per input WAV to this directory (batch mode)
-- \`--format <json|table>\` — Output format. \`json\` (default for single file), \`table\` for batch summary
+- \`--format <json|table>\` — Output format. Default is human-readable for single files, \`table\` for directories
 - \`--json\` — Output structured JSON to stdout
 - \`--help\`, \`-h\` — Show this help message
 
@@ -1158,7 +1158,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
           ...analysisResult,
         };
 
-        if (jsonMode || formatFlag === "json" || formatFlag === undefined) {
+        if (jsonMode || formatFlag === "json") {
           jsonOut(output);
         } else {
           // Human-readable table for single result
@@ -1247,10 +1247,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
         }
       }
 
-      if (formatFlag === "table" && !jsonMode) {
-        // Table output
-        formatAnalysisBatchTable(batchResults);
-      } else if (jsonMode || formatFlag === "json" || formatFlag === undefined) {
+      if (jsonMode || formatFlag === "json") {
         // JSON output
         jsonOut({
           command: "analyze",
@@ -1261,17 +1258,9 @@ export async function main(argv: string[] = process.argv): Promise<number> {
             ...r.result,
           })),
         });
-      } else if (formatFlag === "table" && jsonMode) {
-        // --json takes priority over --format table
-        jsonOut({
-          command: "analyze",
-          input: inputPath,
-          count: batchResults.length,
-          files: batchResults.map((r) => ({
-            file: r.file,
-            ...r.result,
-          })),
-        });
+      } else {
+        // Default: table output for batch (also covers --format table)
+        formatAnalysisBatchTable(batchResults);
       }
 
       if (!jsonMode) {
@@ -1302,7 +1291,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
         ...analysisResult,
       };
 
-      if (jsonMode || formatFlag === "json" || formatFlag === undefined) {
+      if (jsonMode || formatFlag === "json") {
         jsonOut(output);
       } else {
         formatAnalysisHumanReadable(analysisResult, inputPath!);

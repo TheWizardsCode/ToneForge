@@ -1,7 +1,7 @@
 ---
 title: "Audio Analysis: Measuring What You Made"
 id: audio-analysis
-order: 80
+order: 65
 description: >
   Analyze generated sounds to extract structured metrics -- duration, peak,
   RMS, crest factor, attack time, spectral centroid -- and detect quality
@@ -21,7 +21,7 @@ same input -- on any machine, every time. No listening required.
 In this walkthrough you will learn:
 
 1. What each analysis metric means in plain language
-2. How to analyze a single WAV file and read the JSON output
+2. How to analyze a single WAV file and read the output
 3. How to analyze a recipe+seed directly without writing to disk
 4. How to batch-analyze a directory and scan a summary table
 5. How to interpret quality flags (clipping and silence)
@@ -41,46 +41,37 @@ toneforge generate --recipe weapon-laser-zap --seed 42 --output ./output/weapon-
 Now analyze it:
 
 ```bash
-toneforge analyze --input ./output/weapon-laser-zap_seed-042.wav --json
+toneforge analyze --input ./output/weapon-laser-zap_seed-042.wav
 ```
 
-The output is structured JSON with every metric the engine extracts:
+The output shows every metric the engine extracts, grouped by category:
 
-```json
-{
-  "command": "analyze",
-  "file": "./output/weapon-laser-zap_seed-042.wav",
-  "analysisVersion": "1.0",
-  "sampleRate": 44100,
-  "sampleCount": 4778,
-  "metrics": {
-    "time": {
-      "duration": 0.108345,
-      "peak": 1,
-      "rms": 0.376683,
-      "crestFactor": 2.654752
-    },
-    "quality": {
-      "clipping": true,
-      "silence": false
-    },
-    "envelope": {
-      "attackTime": 0.005147
-    },
-    "spectral": {
-      "spectralCentroid": 954.96819
-    }
-  }
-}
+```
+Analysis: ./output/weapon-laser-zap_seed-042.wav
+  Version: 1.0
+  Sample Rate: 44100 Hz
+  Samples: 4778
+  [time]
+    duration: 0.108345
+    peak: 1
+    rms: 0.376683
+    crestFactor: 2.654752
+  [quality]
+    clipping: true
+    silence: false
+  [envelope]
+    attackTime: 0.005147
+  [spectral]
+    spectralCentroid: 954.96819
 ```
 
 > [!commentary]
 > Every metric is categorized: `time` for basic measurements, `quality`
 > for automated flags, `envelope` for transient shape, and `spectral`
-> for frequency content. The `analysisVersion` field ("1.0") allows
-> future schema changes without breaking existing consumers. Notice
-> that `clipping` is `true` -- the peak hit 1.0, which means the
-> signal reached the maximum representable value in 16-bit PCM.
+> for frequency content. Notice that `clipping` is `true` -- the peak
+> hit 1.0, which means the signal reached the maximum representable
+> value in 16-bit PCM. You can also pass `--json` to get structured
+> JSON output for scripting and automation.
 
 ## Act 2 -- What each metric means
 
@@ -131,15 +122,15 @@ The `--recipe` and `--seed` flags render internally and analyze the
 result in memory:
 
 ```bash
-toneforge analyze --recipe weapon-laser-zap --seed 42 --json
+toneforge analyze --recipe weapon-laser-zap --seed 42
 ```
 
 ```bash
-toneforge analyze --recipe footstep-stone --seed 42 --json
+toneforge analyze --recipe footstep-stone --seed 42
 ```
 
 ```bash
-toneforge analyze --recipe ambient-wind-gust --seed 42 --json
+toneforge analyze --recipe ambient-wind-gust --seed 42
 ```
 
 > [!commentary]
@@ -160,11 +151,11 @@ toneforge analyze --recipe ambient-wind-gust --seed 42 --json
 > other numerically -- the sharp crack versus the deep rumble.
 
 ```bash
-toneforge analyze --recipe impact-crack --seed 42 --json
+toneforge analyze --recipe impact-crack --seed 42
 ```
 
 ```bash
-toneforge analyze --recipe rumble-body --seed 42 --json
+toneforge analyze --recipe rumble-body --seed 42
 ```
 
 > [!commentary]
@@ -269,11 +260,11 @@ Compare the wind gust (no clipping, no silence) to the laser zap
 (clipping, no silence):
 
 ```bash
-toneforge analyze --recipe ambient-wind-gust --seed 42 --json
+toneforge analyze --recipe ambient-wind-gust --seed 42
 ```
 
 ```bash
-toneforge analyze --recipe weapon-laser-zap --seed 42 --json
+toneforge analyze --recipe weapon-laser-zap --seed 42
 ```
 
 > [!commentary]
