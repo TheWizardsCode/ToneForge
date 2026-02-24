@@ -239,7 +239,7 @@ test.describe("Tutorial walkthrough", () => {
     // After the full walkthrough, verify that commands were actually sent
     // (not silently swallowed by a disconnected WebSocket)
     const sendMessages = consoleMessages.filter(
-      (m) => m.text.includes("[ToneForge] Sending command:"),
+      (m) => m.text.includes("[ToneForge] Executing command:"),
     );
     // Acts 1-4 send commands: 1 + 3 + 1 + 1 = 6 commands total
     expect(sendMessages.length).toBe(6);

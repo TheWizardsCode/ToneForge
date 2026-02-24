@@ -15,6 +15,10 @@ export function createWizard(
   let steps: DemoStep[] = DEMO_STEPS;
   let currentDemoId: string = DEMO_LIST.length > 0 ? DEMO_LIST[0].id : "";
 
+  // Global run guard: prevents concurrent command execution across steps
+  let isRunning = false;
+  const allRunButtons = new Set<HTMLButtonElement>();
+
   function switchDemo(demoId: string): void {
     const demo = getDemoById(demoId);
     if (demo) {
@@ -27,6 +31,7 @@ export function createWizard(
 
   function render(): void {
     container.innerHTML = "";
+    allRunButtons.clear();
 
     // Toolbar: contains demo selector (if multiple demos) + step nav tabs
     const toolbar = document.createElement("div");
@@ -228,6 +233,12 @@ export function createWizard(
     return table;
   }
 
+  function setAllRunButtonsDisabled(disabled: boolean): void {
+    for (const btn of allRunButtons) {
+      btn.disabled = disabled;
+    }
+  }
+
   function buildCommandsElement(
     commands: string[],
     getTerminal: () => TerminalController | null,
@@ -249,17 +260,48 @@ export function createWizard(
     const runBtn = document.createElement("button");
     runBtn.className = "wizard-btn wizard-btn-run";
     runBtn.textContent = "\u25B6 Run";
-    runBtn.addEventListener("click", () => {
+    allRunButtons.add(runBtn);
+
+    runBtn.addEventListener("click", async () => {
+      // Global run guard: block if another step is already running
+      if (isRunning) return;
+
       const terminal = getTerminal();
-      if (terminal) {
-        commands.forEach((cmd, i) => {
-          // Stagger multiple commands with a small delay
-          setTimeout(() => {
-            terminal.sendCommand(cmd);
-            // Also render and play audio in the browser for generate commands
-            handleCommandAudio(cmd);
-          }, i * 500);
-        });
+      if (!terminal) return;
+
+      // Enter running state
+      isRunning = true;
+      const originalLabel = runBtn.textContent;
+      runBtn.textContent = "Running\u2026";
+      runBtn.classList.add("wizard-btn-running");
+      runBtn.classList.remove("wizard-btn-failed");
+      setAllRunButtonsDisabled(true);
+
+      let failed = false;
+
+      try {
+        for (const cmd of commands) {
+          handleCommandAudio(cmd);
+          const result = await terminal.executeCommand(cmd);
+          if (result.exitCode !== 0) {
+            failed = true;
+            break;
+          }
+        }
+      } catch {
+        failed = true;
+      } finally {
+        // Exit running state
+        isRunning = false;
+        setAllRunButtonsDisabled(false);
+        runBtn.classList.remove("wizard-btn-running");
+
+        if (failed) {
+          runBtn.textContent = "\u2718 Failed";
+          runBtn.classList.add("wizard-btn-failed");
+        } else {
+          runBtn.textContent = originalLabel;
+        }
       }
     });
     cmdSection.appendChild(runBtn);
