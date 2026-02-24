@@ -76,13 +76,20 @@
         padding: 1.5rem;
       }
 
+      #panel-divider {
+        flex-shrink: 0;
+        height: 4px;
+        background: var(--border);
+        border-top: 1px solid #444c56;
+        border-bottom: 1px solid #010409;
+      }
+
       #terminal-container {
         height: 40%;
         width: 100%;
         display: flex;
         flex-direction: column;
-        background: #1e252e;
-        border-top: 2px solid #3a424d;
+        background: #0d1117;
         padding: 0.5rem;
         overflow: hidden;
       }
@@ -331,6 +338,7 @@
     </header>
     <div id="app">
       <div id="wizard"></div>
+      <div id="panel-divider"></div>
       <div id="terminal-container"></div>
     </div>
     <script type="module" src="./main.ts"></script>
