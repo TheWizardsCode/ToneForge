@@ -1,0 +1,21 @@
+{
+  "version": "1.0",
+  "name": "explosion_heavy",
+  "layers": [
+    {
+      "recipe": "impact-crack",
+      "startTime": 0,
+      "gain": 0.9
+    },
+    {
+      "recipe": "rumble-body",
+      "startTime": 0.005,
+      "gain": 0.7
+    },
+    {
+      "recipe": "debris-tail",
+      "startTime": 0.05,
+      "gain": 0.5
+    }
+  ]
+}

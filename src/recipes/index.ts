@@ -38,6 +38,18 @@ import { getCharacterJumpStep4Params } from "./character-jump-step4-params.js";
 import { createCharacterJump } from "./character-jump.js";
 import { getCharacterJumpParams } from "./character-jump-params.js";
 import { loadSample } from "../audio/sample-loader.js";
+import { createImpactCrack } from "./impact-crack.js";
+import { getImpactCrackParams } from "./impact-crack-params.js";
+import { createRumbleBody } from "./rumble-body.js";
+import { getRumbleBodyParams } from "./rumble-body-params.js";
+import { createDebrisTail } from "./debris-tail.js";
+import { getDebrisTailParams } from "./debris-tail-params.js";
+import { createSlamTransient } from "./slam-transient.js";
+import { getSlamTransientParams } from "./slam-transient-params.js";
+import { createResonanceBody } from "./resonance-body.js";
+import { getResonanceBodyParams } from "./resonance-body-params.js";
+import { createRattleDecay } from "./rattle-decay.js";
+import { getRattleDecayParams } from "./rattle-decay-params.js";
 
 /** The global recipe registry instance with all built-in recipes registered. */
 export const registry = new RecipeRegistry();
@@ -1181,6 +1193,562 @@ registry.register("character-jump", {
       sweepDuration: p.sweepDuration, noiseLevel: p.noiseLevel,
       noiseDecay: p.noiseDecay, attack: p.attack,
       decay: p.decay, filterCutoff: p.filterCutoff,
+    };
+  },
+});
+
+// ── impact-crack ──────────────────────────────────────────────────
+
+function impactCrackDuration(rng: Rng): number {
+  const params = getImpactCrackParams(rng);
+  return params.attack + params.decay;
+}
+
+function impactCrackOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getImpactCrackParams(rng);
+
+  const bufferSize = Math.ceil(ctx.sampleRate * duration);
+
+  // White noise source
+  const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const noiseData = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < noiseData.length; i++) {
+    noiseData[i] = rng() * 2 - 1;
+  }
+
+  const noiseSrc = ctx.createBufferSource();
+  noiseSrc.buffer = noiseBuffer;
+
+  // Highpass filter for crack brightness
+  const filter = ctx.createBiquadFilter();
+  filter.type = "highpass";
+  filter.frequency.value = params.filterFreq;
+  filter.Q.value = params.filterQ;
+
+  // Level gain
+  const gain = ctx.createGain();
+  gain.gain.value = params.level;
+
+  // Amplitude envelope
+  const env = ctx.createGain();
+  env.gain.setValueAtTime(0, 0);
+  env.gain.linearRampToValueAtTime(1, params.attack);
+  env.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+
+  // Connect
+  noiseSrc.connect(filter);
+  filter.connect(gain);
+  gain.connect(env);
+  env.connect(ctx.destination);
+
+  // Schedule
+  noiseSrc.start(0);
+  noiseSrc.stop(duration);
+}
+
+registry.register("impact-crack", {
+  factory: createImpactCrack,
+  getDuration: impactCrackDuration,
+  buildOfflineGraph: impactCrackOfflineGraph,
+  description: "Short, sharp transient crack for explosion attack layers using highpass-filtered noise with fast decay.",
+  category: "Impact",
+  tags: ["impact", "crack", "transient", "explosion", "stacking"],
+  signalChain: "White Noise -> Highpass Filter -> Gain -> Amplitude Envelope -> Destination",
+  params: [
+    { name: "filterFreq", min: 2000, max: 6000, unit: "Hz" },
+    { name: "filterQ", min: 0.5, max: 3, unit: "Q" },
+    { name: "attack", min: 0.001, max: 0.003, unit: "s" },
+    { name: "decay", min: 0.04, max: 0.1, unit: "s" },
+    { name: "level", min: 0.7, max: 1.0, unit: "amplitude" },
+    { name: "noiseColorMix", min: 0.0, max: 1.0, unit: "ratio" },
+  ],
+  getParams: (rng) => {
+    const p = getImpactCrackParams(rng);
+    return {
+      filterFreq: p.filterFreq, filterQ: p.filterQ,
+      attack: p.attack, decay: p.decay,
+      level: p.level, noiseColorMix: p.noiseColorMix,
+    };
+  },
+});
+
+// ── rumble-body ───────────────────────────────────────────────────
+
+function rumbleBodyDuration(rng: Rng): number {
+  const params = getRumbleBodyParams(rng);
+  return params.attack + params.sustainDecay + params.tailDecay;
+}
+
+function rumbleBodyOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getRumbleBodyParams(rng);
+
+  const bufferSize = Math.ceil(ctx.sampleRate * duration);
+
+  // Brown noise body layer
+  const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const noiseData = noiseBuffer.getChannelData(0);
+  let brownState = 0;
+  for (let i = 0; i < noiseData.length; i++) {
+    brownState += rng() * 2 - 1;
+    brownState *= 0.998;
+    noiseData[i] = brownState * 0.1;
+  }
+
+  const noiseSrc = ctx.createBufferSource();
+  noiseSrc.buffer = noiseBuffer;
+
+  // Lowpass filter
+  const filter = ctx.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.value = params.filterFreq;
+  filter.Q.value = params.filterQ;
+
+  // Level gain
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.value = params.level;
+
+  // Noise amplitude envelope
+  const noiseEnv = ctx.createGain();
+  noiseEnv.gain.setValueAtTime(0, 0);
+  noiseEnv.gain.linearRampToValueAtTime(1, params.attack);
+  noiseEnv.gain.linearRampToValueAtTime(0.3, params.attack + params.sustainDecay);
+  noiseEnv.gain.linearRampToValueAtTime(0, params.attack + params.sustainDecay + params.tailDecay);
+
+  noiseSrc.connect(filter);
+  filter.connect(noiseGain);
+  noiseGain.connect(noiseEnv);
+  noiseEnv.connect(ctx.destination);
+
+  // Sub bass oscillator layer
+  const subOsc = ctx.createOscillator();
+  subOsc.type = "sine";
+  subOsc.frequency.value = params.subBassFreq;
+
+  const subGain = ctx.createGain();
+  subGain.gain.value = params.subBassLevel;
+
+  const subEnv = ctx.createGain();
+  subEnv.gain.setValueAtTime(0, 0);
+  subEnv.gain.linearRampToValueAtTime(1, params.attack);
+  subEnv.gain.linearRampToValueAtTime(0, params.attack + params.sustainDecay + params.tailDecay);
+
+  subOsc.connect(subGain);
+  subGain.connect(subEnv);
+  subEnv.connect(ctx.destination);
+
+  // Schedule
+  noiseSrc.start(0);
+  subOsc.start(0);
+  noiseSrc.stop(duration);
+  subOsc.stop(duration);
+}
+
+registry.register("rumble-body", {
+  factory: createRumbleBody,
+  getDuration: rumbleBodyDuration,
+  buildOfflineGraph: rumbleBodyOfflineGraph,
+  description: "Low-frequency rumble body for explosion layers using filtered brown noise with sub-bass oscillator.",
+  category: "Impact",
+  tags: ["impact", "rumble", "body", "explosion", "stacking", "bass"],
+  signalChain: "Brown Noise -> Lowpass Filter + Sine Oscillator (Sub Bass) -> Amplitude Envelopes -> Destination",
+  params: [
+    { name: "filterFreq", min: 60, max: 200, unit: "Hz" },
+    { name: "filterQ", min: 0.5, max: 2.5, unit: "Q" },
+    { name: "attack", min: 0.005, max: 0.02, unit: "s" },
+    { name: "sustainDecay", min: 0.4, max: 1.2, unit: "s" },
+    { name: "tailDecay", min: 0.1, max: 0.3, unit: "s" },
+    { name: "level", min: 0.6, max: 1.0, unit: "amplitude" },
+    { name: "subBassFreq", min: 30, max: 60, unit: "Hz" },
+    { name: "subBassLevel", min: 0.2, max: 0.5, unit: "amplitude" },
+  ],
+  getParams: (rng) => {
+    const p = getRumbleBodyParams(rng);
+    return {
+      filterFreq: p.filterFreq, filterQ: p.filterQ,
+      attack: p.attack, sustainDecay: p.sustainDecay,
+      tailDecay: p.tailDecay, level: p.level,
+      subBassFreq: p.subBassFreq, subBassLevel: p.subBassLevel,
+    };
+  },
+});
+
+// ── debris-tail ──────────────────────────────────────────────────
+
+function debrisTailDuration(rng: Rng): number {
+  const params = getDebrisTailParams(rng);
+  return params.durationEnvelope;
+}
+
+function debrisTailOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getDebrisTailParams(rng);
+
+  const bufferSize = Math.ceil(ctx.sampleRate * duration);
+
+  // Generate granular noise: create noise buffer with amplitude modulation
+  // to simulate individual debris particles
+  const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const noiseData = noiseBuffer.getChannelData(0);
+
+  const grainPeriodSamples = Math.floor(ctx.sampleRate / params.grainRate);
+  const grainDecaySamples = Math.floor(ctx.sampleRate * params.grainDecay);
+
+  for (let i = 0; i < noiseData.length; i++) {
+    const rawNoise = rng() * 2 - 1;
+    // Grain envelope: create periodic bursts that decay
+    const posInGrain = i % grainPeriodSamples;
+    const grainAmp = posInGrain < grainDecaySamples
+      ? 1.0 - (posInGrain / grainDecaySamples)
+      : 0.0;
+    // Overall density decay: exponential fade
+    const timeNorm = i / bufferSize;
+    const densityAmp = Math.exp(-timeNorm * params.densityDecay);
+    // Random per-grain skip for irregularity
+    const grainIndex = Math.floor(i / grainPeriodSamples);
+    // Use a simple hash to decide if this grain plays
+    const grainHash = Math.sin(grainIndex * 127.1 + params.grainRate) * 43758.5453;
+    const grainActive = (grainHash - Math.floor(grainHash)) > 0.3 ? 1.0 : 0.0;
+
+    noiseData[i] = rawNoise * grainAmp * densityAmp * grainActive;
+  }
+
+  const noiseSrc = ctx.createBufferSource();
+  noiseSrc.buffer = noiseBuffer;
+
+  // Bandpass filter for debris character
+  const filter = ctx.createBiquadFilter();
+  filter.type = "bandpass";
+  filter.frequency.value = params.filterFreq;
+  filter.Q.value = params.filterQ;
+
+  // Level gain
+  const gain = ctx.createGain();
+  gain.gain.value = params.level;
+
+  noiseSrc.connect(filter);
+  filter.connect(gain);
+  gain.connect(ctx.destination);
+
+  // Schedule
+  noiseSrc.start(0);
+  noiseSrc.stop(duration);
+}
+
+registry.register("debris-tail", {
+  factory: createDebrisTail,
+  getDuration: debrisTailDuration,
+  buildOfflineGraph: debrisTailOfflineGraph,
+  description: "Scattered debris crackle tail for explosion layers using granular noise bursts with decreasing density.",
+  category: "Impact",
+  tags: ["impact", "debris", "tail", "explosion", "stacking", "granular"],
+  signalChain: "Granular White Noise (Amplitude Modulated) -> Bandpass Filter -> Gain -> Destination",
+  params: [
+    { name: "grainRate", min: 20, max: 80, unit: "Hz" },
+    { name: "grainDecay", min: 0.002, max: 0.008, unit: "s" },
+    { name: "filterFreq", min: 1000, max: 4000, unit: "Hz" },
+    { name: "filterQ", min: 0.5, max: 3, unit: "Q" },
+    { name: "durationEnvelope", min: 0.5, max: 1.8, unit: "s" },
+    { name: "densityDecay", min: 2.0, max: 5.0, unit: "rate" },
+    { name: "level", min: 0.4, max: 0.8, unit: "amplitude" },
+  ],
+  getParams: (rng) => {
+    const p = getDebrisTailParams(rng);
+    return {
+      grainRate: p.grainRate, grainDecay: p.grainDecay,
+      filterFreq: p.filterFreq, filterQ: p.filterQ,
+      durationEnvelope: p.durationEnvelope, densityDecay: p.densityDecay,
+      level: p.level,
+    };
+  },
+});
+
+// ── slam-transient ───────────────────────────────────────────────
+
+function slamTransientDuration(rng: Rng): number {
+  const params = getSlamTransientParams(rng);
+  return params.attack + params.decay;
+}
+
+function slamTransientOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getSlamTransientParams(rng);
+
+  const bufferSize = Math.ceil(ctx.sampleRate * duration);
+
+  // Thud layer: bandpass-filtered noise
+  const thudBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const thudData = thudBuffer.getChannelData(0);
+  for (let i = 0; i < thudData.length; i++) {
+    thudData[i] = rng() * 2 - 1;
+  }
+
+  const thudSrc = ctx.createBufferSource();
+  thudSrc.buffer = thudBuffer;
+
+  const thudFilter = ctx.createBiquadFilter();
+  thudFilter.type = "bandpass";
+  thudFilter.frequency.value = params.filterFreq;
+  thudFilter.Q.value = params.filterQ;
+
+  const thudGain = ctx.createGain();
+  thudGain.gain.value = params.level;
+
+  const thudEnv = ctx.createGain();
+  thudEnv.gain.setValueAtTime(0, 0);
+  thudEnv.gain.linearRampToValueAtTime(1, params.attack);
+  thudEnv.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+
+  thudSrc.connect(thudFilter);
+  thudFilter.connect(thudGain);
+  thudGain.connect(thudEnv);
+  thudEnv.connect(ctx.destination);
+
+  // Click layer: highpass-filtered noise
+  const clickBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const clickData = clickBuffer.getChannelData(0);
+  for (let i = 0; i < clickData.length; i++) {
+    clickData[i] = rng() * 2 - 1;
+  }
+
+  const clickSrc = ctx.createBufferSource();
+  clickSrc.buffer = clickBuffer;
+
+  const clickFilter = ctx.createBiquadFilter();
+  clickFilter.type = "highpass";
+  clickFilter.frequency.value = params.clickFreq;
+
+  const clickGain = ctx.createGain();
+  clickGain.gain.value = params.clickLevel;
+
+  const clickEnv = ctx.createGain();
+  clickEnv.gain.setValueAtTime(0, 0);
+  clickEnv.gain.linearRampToValueAtTime(1, params.attack);
+  clickEnv.gain.linearRampToValueAtTime(0, params.attack + params.decay * 0.5);
+
+  clickSrc.connect(clickFilter);
+  clickFilter.connect(clickGain);
+  clickGain.connect(clickEnv);
+  clickEnv.connect(ctx.destination);
+
+  // Schedule
+  thudSrc.start(0);
+  clickSrc.start(0);
+  thudSrc.stop(duration);
+  clickSrc.stop(duration);
+}
+
+registry.register("slam-transient", {
+  factory: createSlamTransient,
+  getDuration: slamTransientDuration,
+  buildOfflineGraph: slamTransientOfflineGraph,
+  description: "Short door impact transient using bandpass-filtered noise thud with highpass click component.",
+  category: "Impact",
+  tags: ["impact", "slam", "transient", "door", "stacking"],
+  signalChain: "White Noise -> Bandpass Filter (Thud) + White Noise -> Highpass Filter (Click) -> Amplitude Envelopes -> Destination",
+  params: [
+    { name: "filterFreq", min: 300, max: 1200, unit: "Hz" },
+    { name: "filterQ", min: 2, max: 8, unit: "Q" },
+    { name: "attack", min: 0.001, max: 0.003, unit: "s" },
+    { name: "decay", min: 0.025, max: 0.07, unit: "s" },
+    { name: "level", min: 0.7, max: 1.0, unit: "amplitude" },
+    { name: "clickLevel", min: 0.3, max: 0.7, unit: "amplitude" },
+    { name: "clickFreq", min: 3000, max: 6000, unit: "Hz" },
+  ],
+  getParams: (rng) => {
+    const p = getSlamTransientParams(rng);
+    return {
+      filterFreq: p.filterFreq, filterQ: p.filterQ,
+      attack: p.attack, decay: p.decay,
+      level: p.level, clickLevel: p.clickLevel,
+      clickFreq: p.clickFreq,
+    };
+  },
+});
+
+// ── resonance-body ───────────────────────────────────────────────
+
+function resonanceBodyDuration(rng: Rng): number {
+  const params = getResonanceBodyParams(rng);
+  return params.attack + Math.max(params.fundamentalDecay, params.overtoneDecay);
+}
+
+function resonanceBodyOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getResonanceBodyParams(rng);
+
+  // Fundamental sine oscillator
+  const fundOsc = ctx.createOscillator();
+  fundOsc.type = "sine";
+  fundOsc.frequency.value = params.fundamentalFreq;
+
+  const fundGain = ctx.createGain();
+  fundGain.gain.value = params.level;
+
+  const fundEnv = ctx.createGain();
+  fundEnv.gain.setValueAtTime(0, 0);
+  fundEnv.gain.linearRampToValueAtTime(1, params.attack);
+  fundEnv.gain.linearRampToValueAtTime(0, params.attack + params.fundamentalDecay);
+
+  fundOsc.connect(fundGain);
+  fundGain.connect(fundEnv);
+  fundEnv.connect(ctx.destination);
+
+  // Overtone sine oscillator
+  const overtoneOsc = ctx.createOscillator();
+  overtoneOsc.type = "sine";
+  overtoneOsc.frequency.value = params.fundamentalFreq * params.overtoneRatio;
+
+  const overtoneGain = ctx.createGain();
+  overtoneGain.gain.value = params.overtoneLevel;
+
+  const overtoneEnv = ctx.createGain();
+  overtoneEnv.gain.setValueAtTime(0, 0);
+  overtoneEnv.gain.linearRampToValueAtTime(1, params.attack);
+  overtoneEnv.gain.linearRampToValueAtTime(0, params.attack + params.overtoneDecay);
+
+  overtoneOsc.connect(overtoneGain);
+  overtoneGain.connect(overtoneEnv);
+  overtoneEnv.connect(ctx.destination);
+
+  // Schedule
+  fundOsc.start(0);
+  overtoneOsc.start(0);
+  fundOsc.stop(duration);
+  overtoneOsc.stop(duration);
+}
+
+registry.register("resonance-body", {
+  factory: createResonanceBody,
+  getDuration: resonanceBodyDuration,
+  buildOfflineGraph: resonanceBodyOfflineGraph,
+  description: "Woody/metallic resonance body for door slam layers using damped sine oscillators at harmonic frequencies.",
+  category: "Impact",
+  tags: ["impact", "resonance", "body", "door", "stacking", "tonal"],
+  signalChain: "Sine Oscillator (Fundamental) + Sine Oscillator (Overtone) -> Amplitude Envelopes -> Destination",
+  params: [
+    { name: "fundamentalFreq", min: 80, max: 250, unit: "Hz" },
+    { name: "overtoneRatio", min: 1.5, max: 3.5, unit: "ratio" },
+    { name: "fundamentalDecay", min: 0.15, max: 0.6, unit: "s" },
+    { name: "overtoneDecay", min: 0.08, max: 0.3, unit: "s" },
+    { name: "overtoneLevel", min: 0.2, max: 0.5, unit: "amplitude" },
+    { name: "level", min: 0.6, max: 1.0, unit: "amplitude" },
+    { name: "attack", min: 0.001, max: 0.005, unit: "s" },
+  ],
+  getParams: (rng) => {
+    const p = getResonanceBodyParams(rng);
+    return {
+      fundamentalFreq: p.fundamentalFreq, overtoneRatio: p.overtoneRatio,
+      fundamentalDecay: p.fundamentalDecay, overtoneDecay: p.overtoneDecay,
+      overtoneLevel: p.overtoneLevel, level: p.level,
+      attack: p.attack,
+    };
+  },
+});
+
+// ── rattle-decay ─────────────────────────────────────────────────
+
+function rattleDecayDuration(rng: Rng): number {
+  const params = getRattleDecayParams(rng);
+  return params.duration;
+}
+
+function rattleDecayOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getRattleDecayParams(rng);
+
+  const bufferSize = Math.ceil(ctx.sampleRate * duration);
+
+  // Generate granular noise: small bursts with irregular timing
+  const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const noiseData = noiseBuffer.getChannelData(0);
+
+  const rattlePeriodSamples = Math.floor(ctx.sampleRate / params.rattleRate);
+  const rattleDecaySamples = Math.floor(ctx.sampleRate * params.rattleDecay);
+
+  for (let i = 0; i < noiseData.length; i++) {
+    const rawNoise = rng() * 2 - 1;
+    // Rattle grain envelope
+    const posInGrain = i % rattlePeriodSamples;
+    const grainAmp = posInGrain < rattleDecaySamples
+      ? 1.0 - (posInGrain / rattleDecaySamples)
+      : 0.0;
+    // Overall density decay
+    const timeNorm = i / bufferSize;
+    const densityAmp = Math.exp(-timeNorm * params.densityDecay);
+    // Random grain skip for irregularity
+    const grainIndex = Math.floor(i / rattlePeriodSamples);
+    const grainHash = Math.sin(grainIndex * 131.7 + params.rattleRate) * 43758.5453;
+    const grainActive = (grainHash - Math.floor(grainHash)) > 0.25 ? 1.0 : 0.0;
+
+    noiseData[i] = rawNoise * grainAmp * densityAmp * grainActive;
+  }
+
+  const noiseSrc = ctx.createBufferSource();
+  noiseSrc.buffer = noiseBuffer;
+
+  // Bandpass filter for rattle character
+  const filter = ctx.createBiquadFilter();
+  filter.type = "bandpass";
+  filter.frequency.value = params.filterFreq;
+  filter.Q.value = params.filterQ;
+
+  // Level gain
+  const gain = ctx.createGain();
+  gain.gain.value = params.level;
+
+  noiseSrc.connect(filter);
+  filter.connect(gain);
+  gain.connect(ctx.destination);
+
+  // Schedule
+  noiseSrc.start(0);
+  noiseSrc.stop(duration);
+}
+
+registry.register("rattle-decay", {
+  factory: createRattleDecay,
+  getDuration: rattleDecayDuration,
+  buildOfflineGraph: rattleDecayOfflineGraph,
+  description: "Rattling/settling decay for door slam tail layers using granular noise bursts with irregular timing.",
+  category: "Impact",
+  tags: ["impact", "rattle", "decay", "door", "stacking", "granular"],
+  signalChain: "Granular White Noise (Amplitude Modulated) -> Bandpass Filter -> Gain -> Destination",
+  params: [
+    { name: "rattleRate", min: 30, max: 100, unit: "Hz" },
+    { name: "rattleDecay", min: 0.001, max: 0.004, unit: "s" },
+    { name: "filterFreq", min: 2000, max: 5000, unit: "Hz" },
+    { name: "filterQ", min: 1, max: 5, unit: "Q" },
+    { name: "duration", min: 0.15, max: 0.45, unit: "s" },
+    { name: "densityDecay", min: 3.0, max: 6.0, unit: "rate" },
+    { name: "level", min: 0.3, max: 0.7, unit: "amplitude" },
+  ],
+  getParams: (rng) => {
+    const p = getRattleDecayParams(rng);
+    return {
+      rattleRate: p.rattleRate, rattleDecay: p.rattleDecay,
+      filterFreq: p.filterFreq, filterQ: p.filterQ,
+      duration: p.duration, densityDecay: p.densityDecay,
+      level: p.level,
     };
   },
 });

@@ -32,18 +32,24 @@ import { VERSION } from "./index.js";
 import { createRng } from "./core/rng.js";
 import { outputMarkdown, outputError, outputWarning, outputSuccess, outputInfo, outputTable } from "./output.js";
 import type { RecipeRegistration } from "./core/recipe.js";
+import { renderStack } from "./stack/renderer.js";
+import type { StackDefinition } from "./stack/renderer.js";
+import { loadPreset } from "./stack/preset-loader.js";
+import { parseLayers } from "./stack/layer-parser.js";
 
 /** Parse command-line arguments into a structured map. */
 function parseArgs(argv: string[]): {
   command: string | undefined;
   subcommand: string | undefined;
   flags: Record<string, string | boolean>;
+  layers: string[];
 } {
   // Skip node and script path
   const args = argv.slice(2);
   const flags: Record<string, string | boolean> = {};
   let command: string | undefined;
   let subcommand: string | undefined;
+  const layers: string[] = [];
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
@@ -53,6 +59,13 @@ function parseArgs(argv: string[]): {
       flags["version"] = true;
     } else if (arg === "--json") {
       flags["json"] = true;
+    } else if (arg === "--layer") {
+      // Repeatable flag: collect all --layer values into an array
+      const next = args[i + 1];
+      if (next !== undefined && !next.startsWith("--")) {
+        layers.push(next);
+        i++;
+      }
     } else if (arg.startsWith("--")) {
       const key = arg.slice(2);
       const next = args[i + 1];
@@ -69,7 +82,7 @@ function parseArgs(argv: string[]): {
     }
   }
 
-  return { command, subcommand, flags };
+  return { command, subcommand, flags, layers };
 }
 
 /** Print general help text. */
@@ -87,6 +100,7 @@ function printHelp(): void {
 | Command | Description |
 |---------|-------------|
 | **generate** | Render and export procedural sounds |
+| **stack** | Compose layered sound events from multiple recipes |
 | **show** | Display recipe metadata and parameters |
 | **play** | Play a WAV file through the system audio player |
 | **list** | List available resources (e.g. recipes) |
@@ -191,6 +205,94 @@ function printPlayHelp(): void {
 \`\`\`
 toneforge play ./output/confirm.wav
 toneforge play ./output/lasers/weapon-laser-zap-seed-1.wav
+\`\`\``;
+  outputMarkdown(md);
+}
+
+/** Print help text for the stack command. */
+function printStackHelp(): void {
+  const md = `# ToneForge stack
+
+**Compose layered sound events from multiple recipes**
+
+## Usage
+
+\`toneforge stack <subcommand> [options]\`
+
+## Subcommands
+
+| Subcommand | Description |
+|------------|-------------|
+| **render** | Render a layered stack to a WAV file |
+| **inspect** | Display the layer structure of a preset |
+
+Run \`toneforge stack <subcommand> --help\` for subcommand-specific help.`;
+  outputMarkdown(md);
+}
+
+/** Print help text for the stack render subcommand. */
+function printStackRenderHelp(): void {
+  const md = `# ToneForge stack render
+
+**Render a layered stack to a WAV file**
+
+## Usage
+
+\`\`\`
+toneforge stack render --preset <file> --seed <number> --output <path.wav>
+toneforge stack render --layer <spec> [--layer <spec>...] --seed <number> --output <path.wav>
+\`\`\`
+
+## Options
+
+- \`--preset <file>\` — Path to a JSON preset file
+- \`--layer <spec>\` — Inline layer specification (repeatable). Format: \`recipe=<name>,offset=<time>,gain=<value>\`
+- \`--seed <number>\` — Integer seed for deterministic generation *(required)*
+- \`--output <path.wav>\` — Output WAV file path *(required)*
+- \`--json\` — Output results in JSON format
+- \`--help\`, \`-h\` — Show this help message
+
+## Layer Specification Format
+
+\`recipe=<name>,offset=<time>,gain=<value>,duration=<time>\`
+
+- \`recipe\` — Recipe name *(required)*
+- \`offset\` — Start time offset (default: 0). Supports \`ms\` and \`s\` suffixes; bare number = seconds
+- \`gain\` — Gain multiplier (default: 1.0)
+- \`duration\` — Duration override. Supports \`ms\` and \`s\` suffixes; bare number = seconds
+
+## Examples
+
+\`\`\`
+toneforge stack render --preset presets/explosion_heavy.json --seed 42 --output ./explosion.wav
+toneforge stack render \\
+  --layer "recipe=impact-crack,offset=0ms,gain=0.9" \\
+  --layer "recipe=rumble-body,offset=5ms,gain=0.7" \\
+  --seed 42 --output ./layered.wav
+\`\`\``;
+  outputMarkdown(md);
+}
+
+/** Print help text for the stack inspect subcommand. */
+function printStackInspectHelp(): void {
+  const md = `# ToneForge stack inspect
+
+**Display the layer structure of a preset**
+
+## Usage
+
+\`toneforge stack inspect --preset <file>\`
+
+## Options
+
+- \`--preset <file>\` — Path to a JSON preset file *(required)*
+- \`--json\` — Output results in JSON format
+- \`--help\`, \`-h\` — Show this help message
+
+## Examples
+
+\`\`\`
+toneforge stack inspect --preset presets/explosion_heavy.json
 \`\`\``;
   outputMarkdown(md);
 }
@@ -451,7 +553,7 @@ function jsonErr(message: string): void {
 
 /** Main CLI entry point. Exported for testability. */
 export async function main(argv: string[] = process.argv): Promise<number> {
-  const { command, subcommand, flags } = parseArgs(argv);
+  const { command, subcommand, flags, layers } = parseArgs(argv);
   const jsonMode = flags["json"] === true;
 
   // --version flag or `version` command
@@ -468,6 +570,14 @@ export async function main(argv: string[] = process.argv): Promise<number> {
   if (flags["help"] || command === undefined) {
     if (command === "generate") {
       printGenerateHelp();
+    } else if (command === "stack") {
+      if (subcommand === "render") {
+        printStackRenderHelp();
+      } else if (subcommand === "inspect") {
+        printStackInspectHelp();
+      } else {
+        printStackHelp();
+      }
     } else if (command === "show") {
       printShowHelp();
     } else if (command === "list") {
@@ -639,6 +749,194 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       }
       return 1;
     }
+  }
+
+  // ── stack command ────────────────────────────────────────────────
+
+  if (command === "stack") {
+    // Stack subcommand help
+    if (flags["help"] && subcommand === undefined) {
+      printStackHelp();
+      return 0;
+    }
+
+    if (subcommand === "render") {
+      if (flags["help"]) {
+        printStackRenderHelp();
+        return 0;
+      }
+
+      // Require --seed
+      const seedRaw = flags["seed"];
+      if (seedRaw === undefined || seedRaw === true) {
+        const msg = "--seed is required for stack render. Run 'toneforge stack render --help' for usage.";
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+      const seed = parseInt(seedRaw as string, 10);
+      if (Number.isNaN(seed)) {
+        const msg = `--seed must be an integer, got '${seedRaw}'.`;
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      // Require --output
+      const outputPath = typeof flags["output"] === "string" ? flags["output"] : undefined;
+      if (outputPath === undefined) {
+        const msg = "--output is required for stack render. Run 'toneforge stack render --help' for usage.";
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      // Require either --preset or --layer
+      const presetPath = typeof flags["preset"] === "string" ? flags["preset"] : undefined;
+      if (presetPath === undefined && layers.length === 0) {
+        const msg = "Either --preset or at least one --layer is required. Run 'toneforge stack render --help' for usage.";
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      try {
+        let definition: StackDefinition;
+
+        if (presetPath !== undefined) {
+          definition = await loadPreset(presetPath);
+          // If --layer flags are also present, append them to the preset layers
+          if (layers.length > 0) {
+            const inlineDef = parseLayers(layers);
+            definition = {
+              ...definition,
+              layers: [...definition.layers, ...inlineDef.layers],
+            };
+          }
+        } else {
+          definition = parseLayers(layers);
+        }
+
+        if (!jsonMode) {
+          outputInfo(
+            `Rendering stack '${definition.name || "inline"}' (${definition.layers.length} layers) with seed ${seed}...`,
+          );
+        }
+
+        const startMs = performance.now();
+        const result = await renderStack(definition, seed);
+        const renderMs = (performance.now() - startMs).toFixed(0);
+
+        if (!jsonMode) {
+          outputInfo(
+            `Rendered ${result.duration.toFixed(3)}s of audio ` +
+            `(${result.sampleRate} Hz, ${result.samples.length} samples) ` +
+            `in ${renderMs}ms`,
+          );
+        }
+
+        // Write WAV file
+        await mkdir(dirname(resolve(outputPath)), { recursive: true });
+        const wavBuffer = encodeWav(result.samples, { sampleRate: result.sampleRate });
+        await writeFile(resolve(outputPath), wavBuffer);
+
+        if (jsonMode) {
+          jsonOut({
+            command: "stack render",
+            preset: presetPath || null,
+            name: definition.name || "inline",
+            layers: definition.layers.length,
+            seed,
+            output: outputPath,
+            duration: result.duration,
+            sampleRate: result.sampleRate,
+            samples: result.samples.length,
+          });
+        } else {
+          outputSuccess(`Wrote ${outputPath}`);
+        }
+
+        return 0;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(message); } else { outputError(`Error: ${message}`); }
+        return 1;
+      }
+    }
+
+    if (subcommand === "inspect") {
+      if (flags["help"]) {
+        printStackInspectHelp();
+        return 0;
+      }
+
+      const presetPath = typeof flags["preset"] === "string" ? flags["preset"] : undefined;
+      if (presetPath === undefined) {
+        const msg = "--preset is required for stack inspect. Run 'toneforge stack inspect --help' for usage.";
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      try {
+        const definition = await loadPreset(presetPath);
+
+        // Compute estimated total duration using recipe getDuration with a default seed
+        let estimatedDuration = 0;
+        for (const layer of definition.layers) {
+          const reg = registry.getRegistration(layer.recipe);
+          if (reg) {
+            const layerRng = createRng(42); // deterministic preview seed
+            const recipeDuration = layer.duration ?? reg.getDuration(layerRng);
+            const layerEnd = layer.startTime + recipeDuration;
+            if (layerEnd > estimatedDuration) {
+              estimatedDuration = layerEnd;
+            }
+          }
+        }
+
+        if (jsonMode) {
+          jsonOut({
+            command: "stack inspect",
+            preset: presetPath,
+            name: definition.name || "unnamed",
+            layers: definition.layers.map((l, i) => ({
+              index: i,
+              recipe: l.recipe,
+              startTime: l.startTime,
+              gain: l.gain ?? 1.0,
+              duration: l.duration ?? null,
+            })),
+            estimatedDuration,
+          });
+        } else {
+          const name = definition.name || "unnamed";
+          const layerCount = definition.layers.length;
+          outputInfo(`Stack: ${name} (${layerCount} layer${layerCount !== 1 ? "s" : ""})`);
+
+          for (let i = 0; i < definition.layers.length; i++) {
+            const l = definition.layers[i]!;
+            const offsetMs = Math.round(l.startTime * 1000);
+            const gain = (l.gain ?? 1.0).toFixed(2);
+            const recipePadded = l.recipe.padEnd(20);
+            outputInfo(`  [${i}] ${recipePadded} offset: ${offsetMs}ms\tgain: ${gain}`);
+          }
+
+          outputInfo(`  Duration: ~${estimatedDuration.toFixed(3)}s (estimated, varies with seed)`);
+        }
+
+        return 0;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(message); } else { outputError(`Error: ${message}`); }
+        return 1;
+      }
+    }
+
+    // Unknown stack subcommand
+    if (subcommand !== undefined) {
+      const msg = `Unknown stack subcommand '${subcommand}'. Run 'toneforge stack --help' for usage.`;
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+
+    printStackHelp();
+    return 0;
   }
 
   if (command !== "generate") {

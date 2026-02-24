@@ -1,0 +1,21 @@
+{
+  "version": "1.0",
+  "name": "door_slam",
+  "layers": [
+    {
+      "recipe": "slam-transient",
+      "startTime": 0,
+      "gain": 0.9
+    },
+    {
+      "recipe": "resonance-body",
+      "startTime": 0.003,
+      "gain": 0.6
+    },
+    {
+      "recipe": "rattle-decay",
+      "startTime": 0.04,
+      "gain": 0.35
+    }
+  ]
+}
