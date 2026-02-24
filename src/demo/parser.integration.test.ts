@@ -62,28 +62,51 @@ describe("Demo markdown integration — recipe validation", () => {
         }
       }
 
-      it("contains at least one generate command", () => {
-        expect(generateCommands.length).toBeGreaterThan(0);
+      // Collect all stack commands (stack render / stack inspect)
+      const stackCommands: Array<{ stepId: string; command: string }> = [];
+
+      for (const step of parsed.steps) {
+        for (const cmd of step.commands) {
+          if (cmd.includes("stack") && (cmd.includes("render") || cmd.includes("inspect"))) {
+            stackCommands.push({ stepId: step.id, command: cmd });
+          }
+        }
+      }
+
+      it("contains at least one toneforge command (generate or stack)", () => {
+        expect(generateCommands.length + stackCommands.length).toBeGreaterThan(0);
       });
 
-      it.each(generateCommands)(
-        "step $stepId: '$command' references a registered recipe",
-        ({ command }) => {
-          const recipeName = extractRecipeName(command);
-          expect(recipeName).toBeTruthy();
-          expect(
-            registry.getRecipe(recipeName!),
-            `Recipe '${recipeName}' from parsed markdown is not in the registry`,
-          ).toBeDefined();
-        },
-      );
+      if (generateCommands.length > 0) {
+        it.each(generateCommands)(
+          "step $stepId: '$command' references a registered recipe",
+          ({ command }) => {
+            const recipeName = extractRecipeName(command);
+            expect(recipeName).toBeTruthy();
+            expect(
+              registry.getRecipe(recipeName!),
+              `Recipe '${recipeName}' from parsed markdown is not in the registry`,
+            ).toBeDefined();
+          },
+        );
 
-      it.each(generateCommands)(
-        "step $stepId: '$command' includes a --seed or --seed-range argument",
-        ({ command }) => {
-          expect(command).toMatch(/--seed(?:-range)?[= ]\d+/);
-        },
-      );
+        it.each(generateCommands)(
+          "step $stepId: '$command' includes a --seed or --seed-range argument",
+          ({ command }) => {
+            expect(command).toMatch(/--seed(?:-range)?[= ]\d+/);
+          },
+        );
+      }
+
+      if (stackCommands.length > 0) {
+        it.each(stackCommands)(
+          "step $stepId: '$command' is a valid stack command",
+          ({ command }) => {
+            // Stack commands should reference a --preset or --layer
+            expect(command).toMatch(/--preset|--layer/);
+          },
+        );
+      }
 
       // Validate every step has required fields
       it("every step has id, label, title, and commands array", () => {
