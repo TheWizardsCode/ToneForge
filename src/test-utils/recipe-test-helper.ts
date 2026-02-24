@@ -92,8 +92,8 @@ export function describeRecipe(
 
     describe("registry integration", () => {
       it(`is registered as '${recipeName}'`, () => {
-        const factory = registry.getRecipe(recipeName);
-        expect(factory).toBeDefined();
+        const registration = registry.getRegistration(recipeName);
+        expect(registration).toBeDefined();
       });
 
       it(`has a full registration with offline support`, () => {

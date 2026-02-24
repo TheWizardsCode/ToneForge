@@ -106,7 +106,7 @@ describe("Demo markdown integration — recipe validation", () => {
             const recipeName = extractRecipeName(command);
             expect(recipeName).toBeTruthy();
             expect(
-              registry.getRecipe(recipeName!),
+              registry.getRegistration(recipeName!),
               `Recipe '${recipeName}' from parsed markdown is not in the registry`,
             ).toBeDefined();
           },
@@ -137,7 +137,7 @@ describe("Demo markdown integration — recipe validation", () => {
             const recipeName = extractRecipeName(command);
             expect(recipeName).toBeTruthy();
             expect(
-              registry.getRecipe(recipeName!),
+              registry.getRegistration(recipeName!),
               `Recipe '${recipeName}' from parsed markdown is not in the registry`,
             ).toBeDefined();
           },

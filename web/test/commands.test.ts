@@ -88,7 +88,7 @@ describe("Wizard step command validation (all demos)", () => {
       const recipeName = extractRecipeName(command);
       expect(recipeName).toBeTruthy();
       expect(
-        registry.getRecipe(recipeName!),
+        registry.getRegistration(recipeName!),
         `Recipe '${recipeName}' is not registered in the ToneForge registry`,
       ).toBeDefined();
     },
