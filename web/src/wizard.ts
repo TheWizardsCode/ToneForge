@@ -125,6 +125,86 @@ export function createWizard(
     container.appendChild(content);
   }
 
+  function buildDescriptionElement(description: string): HTMLElement {
+    const desc = document.createElement("div");
+    desc.className = "wizard-description";
+
+    // Split on double newlines to get logical blocks (paragraphs / lists)
+    const blocks = description.split(/\n\n+/);
+    for (const block of blocks) {
+      const trimmed = block.trim();
+      if (!trimmed) continue;
+
+      // Detect ordered or unordered list blocks
+      const lines = trimmed.split("\n");
+      const isOrderedList = lines.every((l) => /^\d+\.\s/.test(l));
+      const isUnorderedList = lines.every((l) => /^[-*]\s/.test(l));
+
+      if (isOrderedList) {
+        const ol = document.createElement("ol");
+        for (const line of lines) {
+          const li = document.createElement("li");
+          li.textContent = line.replace(/^\d+\.\s/, "");
+          ol.appendChild(li);
+        }
+        desc.appendChild(ol);
+      } else if (isUnorderedList) {
+        const ul = document.createElement("ul");
+        for (const line of lines) {
+          const li = document.createElement("li");
+          li.textContent = line.replace(/^[-*]\s/, "");
+          ul.appendChild(li);
+        }
+        desc.appendChild(ul);
+      } else {
+        const p = document.createElement("p");
+        p.textContent = trimmed;
+        desc.appendChild(p);
+      }
+    }
+
+    return desc;
+  }
+
+  function buildCommandsElement(
+    commands: string[],
+    getTerminal: () => TerminalController | null,
+  ): HTMLElement {
+    const cmdSection = document.createElement("div");
+    cmdSection.className = "wizard-commands";
+
+    commands.forEach((cmd) => {
+      const cmdLine = document.createElement("div");
+      cmdLine.className = "wizard-cmd-line";
+
+      const cmdText = document.createElement("code");
+      cmdText.textContent = `$ ${cmd}`;
+      cmdLine.appendChild(cmdText);
+
+      cmdSection.appendChild(cmdLine);
+    });
+
+    const runBtn = document.createElement("button");
+    runBtn.className = "wizard-btn wizard-btn-run";
+    runBtn.textContent = "\u25B6 Run";
+    runBtn.addEventListener("click", () => {
+      const terminal = getTerminal();
+      if (terminal) {
+        commands.forEach((cmd, i) => {
+          // Stagger multiple commands with a small delay
+          setTimeout(() => {
+            terminal.sendCommand(cmd);
+            // Also render and play audio in the browser for generate commands
+            handleCommandAudio(cmd);
+          }, i * 500);
+        });
+      }
+    });
+    cmdSection.appendChild(runBtn);
+
+    return cmdSection;
+  }
+
   function renderStepContent(step: DemoStep): HTMLElement {
     const section = document.createElement("section");
     section.className = "wizard-step";
@@ -160,81 +240,32 @@ export function createWizard(
       section.appendChild(solutionBlock);
     }
 
-    if (step.description) {
-      const desc = document.createElement("div");
-      desc.className = "wizard-description";
+    // Build description element if present
+    const desc = step.description ? buildDescriptionElement(step.description) : null;
 
-      // Split on double newlines to get logical blocks (paragraphs / lists)
-      const blocks = step.description.split(/\n\n+/);
-      for (const block of blocks) {
-        const trimmed = block.trim();
-        if (!trimmed) continue;
+    // Build commands element if present
+    const cmdSection = step.commands.length > 0 ? buildCommandsElement(step.commands, getTerminal) : null;
 
-        // Detect ordered or unordered list blocks
-        const lines = trimmed.split("\n");
-        const isOrderedList = lines.every((l) => /^\d+\.\s/.test(l));
-        const isUnorderedList = lines.every((l) => /^[-*]\s/.test(l));
+    // When both description and commands exist, wrap them in a side-by-side layout
+    if (desc && cmdSection) {
+      const body = document.createElement("div");
+      body.className = "wizard-body";
 
-        if (isOrderedList) {
-          const ol = document.createElement("ol");
-          for (const line of lines) {
-            const li = document.createElement("li");
-            li.textContent = line.replace(/^\d+\.\s/, "");
-            ol.appendChild(li);
-          }
-          desc.appendChild(ol);
-        } else if (isUnorderedList) {
-          const ul = document.createElement("ul");
-          for (const line of lines) {
-            const li = document.createElement("li");
-            li.textContent = line.replace(/^[-*]\s/, "");
-            ul.appendChild(li);
-          }
-          desc.appendChild(ul);
-        } else {
-          const p = document.createElement("p");
-          p.textContent = trimmed;
-          desc.appendChild(p);
-        }
-      }
+      const left = document.createElement("div");
+      left.className = "wizard-body-left";
+      left.appendChild(desc);
+      body.appendChild(left);
 
-      section.appendChild(desc);
-    }
+      const right = document.createElement("div");
+      right.className = "wizard-body-right";
+      right.appendChild(cmdSection);
+      body.appendChild(right);
 
-    if (step.commands.length > 0) {
-      const cmdSection = document.createElement("div");
-      cmdSection.className = "wizard-commands";
-
-      step.commands.forEach((cmd) => {
-        const cmdLine = document.createElement("div");
-        cmdLine.className = "wizard-cmd-line";
-
-        const cmdText = document.createElement("code");
-        cmdText.textContent = `$ ${cmd}`;
-        cmdLine.appendChild(cmdText);
-
-        cmdSection.appendChild(cmdLine);
-      });
-
-      const runBtn = document.createElement("button");
-      runBtn.className = "wizard-btn wizard-btn-run";
-      runBtn.textContent = "\u25B6 Run";
-      runBtn.addEventListener("click", () => {
-        const terminal = getTerminal();
-        if (terminal) {
-          step.commands.forEach((cmd, i) => {
-            // Stagger multiple commands with a small delay
-            setTimeout(() => {
-              terminal.sendCommand(cmd);
-              // Also render and play audio in the browser for generate commands
-              handleCommandAudio(cmd);
-            }, i * 500);
-          });
-        }
-      });
-      cmdSection.appendChild(runBtn);
-
-      section.appendChild(cmdSection);
+      section.appendChild(body);
+    } else {
+      // Only one or neither -- append directly (full-width)
+      if (desc) section.appendChild(desc);
+      if (cmdSection) section.appendChild(cmdSection);
     }
 
     if (step.commentary) {
