@@ -499,14 +499,11 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     if (jsonMode) {
       jsonOut({ command: "list", resource: "recipes", recipes });
     } else {
-      const md = recipes
-        .map((r) =>
-          r.description
-            ? `- **${r.name}** — ${r.description}`
-            : `- **${r.name}**`,
-        )
+      const header = "| Recipe | Description |\n| --- | --- |";
+      const rows = recipes
+        .map((r) => `| ${r.name} | ${r.description || "—"} |`)
         .join("\n");
-      outputMarkdown(md);
+      outputMarkdown(`${header}\n${rows}`);
     }
     return 0;
   }
