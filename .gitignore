@@ -25,6 +25,11 @@ analysis/
 classification/
 
 ##################################
+# Exploration run data
+##################################
+.exploration/
+
+##################################
 # Node / TypeScript
 ##################################
 node_modules/

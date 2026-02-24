@@ -41,6 +41,27 @@ import type { AnalysisResult } from "./analyze/index.js";
 import { decodeWavFile } from "./audio/wav-decoder.js";
 import { createClassificationEngine, registerBuiltinClassifiers, CLASSIFICATION_VERSION } from "./classify/index.js";
 import type { ClassificationResult, RecipeContext } from "./classify/index.js";
+import {
+  sweep,
+  mutate,
+  rankCandidates,
+  keepTopN,
+  clusterCandidates,
+  saveRunResult,
+  loadRunResult,
+  listRuns,
+  generateRunId,
+  promoteCandidate,
+  defaultConcurrency,
+  EXPLORE_VERSION,
+  VALID_RANK_METRICS,
+} from "./explore/index.js";
+import type {
+  SweepConfig,
+  MutateConfig,
+  ExploreRunResult,
+  RankMetric,
+} from "./explore/index.js";
 
 /** Parse command-line arguments into a structured map. */
 function parseArgs(argv: string[]): {
@@ -107,6 +128,7 @@ function printHelp(): void {
 | **generate** | Render and export procedural sounds |
 | **analyze** | Analyze audio files and extract structured metrics |
 | **classify** | Assign semantic labels to analyzed sounds |
+| **explore** | Discover, rank, and curate sounds across seed spaces |
 | **stack** | Compose layered sound events from multiple recipes |
 | **show** | Display recipe metadata and parameters |
 | **play** | Play a WAV file through the system audio player |
@@ -452,6 +474,131 @@ ${recipes.length > 0 ? recipes.map((r) => `- \`${r}\``).join("\n") : "*(none reg
 \`\`\`
 toneforge show ui-scifi-confirm
 toneforge show weapon-laser-zap --seed 42
+\`\`\``;
+  outputMarkdown(md);
+}
+
+/** Print help text for the explore command. */
+function printExploreHelp(): void {
+  const md = `# ToneForge explore
+
+**Discover, rank, and curate sounds across seed spaces**
+
+## Usage
+
+\`toneforge explore <subcommand> [options]\`
+
+## Subcommands
+
+| Subcommand | Description |
+|------------|-------------|
+| **sweep** | Sweep a seed range and rank results by metrics |
+| **mutate** | Generate variations around a base seed |
+| **promote** | Promote a candidate to the library |
+| **show** | Show details of a completed exploration run |
+| **runs** | List completed exploration runs |
+
+Run \`toneforge explore <subcommand> --help\` for subcommand-specific help.`;
+  outputMarkdown(md);
+}
+
+/** Print help text for the explore sweep subcommand. */
+function printExploreSweepHelp(): void {
+  const recipes = registry.list();
+  const md = `# ToneForge explore sweep
+
+**Sweep a seed range and rank results by analysis metrics**
+
+## Usage
+
+\`\`\`
+toneforge explore sweep --recipe <name> [options]
+\`\`\`
+
+## Options
+
+- \`--recipe <name>\` — Recipe to explore *(required)*
+- \`--seed-range <start>:<end>\` — Seed range to sweep (default: 0:99)
+- \`--keep-top <N>\` — Keep top N results after ranking (default: 10)
+- \`--rank-by <metric,...>\` — Comma-separated metrics: transient-density, spectral-centroid, rms, attack-time (default: rms)
+- \`--clusters <N>\` — Number of clusters, 1-8 (default: 3)
+- \`--concurrency <N>\` — Max parallel renders (default: auto)
+- \`--output <dir>\` — Export top results as WAV files to directory
+- \`--json\` — Output results in JSON format
+- \`--help\`, \`-h\` — Show this help message
+
+## Available recipes
+
+${recipes.length > 0 ? recipes.map((r) => `- \`${r}\``).join("\n") : "*(none registered)*"}
+
+## Examples
+
+\`\`\`
+toneforge explore sweep --recipe creature-vocal --seed-range 0:999 --keep-top 20 --rank-by rms,spectral-centroid
+toneforge explore sweep --recipe weapon-laser-zap --seed-range 0:5000 --rank-by transient-density --clusters 5
+toneforge explore sweep --recipe footstep-gravel --keep-top 50 --output ./top-footsteps/ --json
+\`\`\``;
+  outputMarkdown(md);
+}
+
+/** Print help text for the explore mutate subcommand. */
+function printExploreMutateHelp(): void {
+  const md = `# ToneForge explore mutate
+
+**Generate variations around a base seed**
+
+## Usage
+
+\`\`\`
+toneforge explore mutate --recipe <name> --seed <N> [options]
+\`\`\`
+
+## Options
+
+- \`--recipe <name>\` — Recipe to explore *(required)*
+- \`--seed <N>\` — Base seed to generate variations from *(required)*
+- \`--jitter <0-1>\` — Jitter factor controlling parameter variance (default: 0.1)
+- \`--count <N>\` — Number of variations to generate (default: 20)
+- \`--rank-by <metric,...>\` — Comma-separated ranking metrics (default: rms)
+- \`--concurrency <N>\` — Max parallel renders (default: auto)
+- \`--output <dir>\` — Export results as WAV files to directory
+- \`--json\` — Output results in JSON format
+- \`--help\`, \`-h\` — Show this help message
+
+## Examples
+
+\`\`\`
+toneforge explore mutate --recipe creature-vocal --seed 4821 --jitter 0.1 --count 20
+toneforge explore mutate --recipe weapon-laser-zap --seed 42 --count 50 --rank-by transient-density --json
+\`\`\``;
+  outputMarkdown(md);
+}
+
+/** Print help text for the explore promote subcommand. */
+function printExplorePromoteHelp(): void {
+  const md = `# ToneForge explore promote
+
+**Promote a candidate to the library**
+
+## Usage
+
+\`\`\`
+toneforge explore promote --run <run-id> --id <candidate-id> [options]
+\`\`\`
+
+## Options
+
+- \`--run <run-id>\` — Exploration run ID *(required)*
+- \`--id <candidate-id>\` — Candidate ID to promote *(required)*
+- \`--export <dir>\` — Export promoted WAV + metadata to directory
+- \`--json\` — Output results in JSON format
+- \`--help\`, \`-h\` — Show this help message
+
+## Examples
+
+\`\`\`
+toneforge explore promote --run run-abc123 --id creature-vocal_seed-04821
+toneforge explore promote --run run-abc123 --id creature-vocal_seed-04821 --export ./promoted/ --json
 \`\`\``;
   outputMarkdown(md);
 }
@@ -823,6 +970,16 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       printAnalyzeHelp();
     } else if (command === "classify") {
       printClassifyHelp();
+    } else if (command === "explore") {
+      if (subcommand === "sweep") {
+        printExploreSweepHelp();
+      } else if (subcommand === "mutate") {
+        printExploreMutateHelp();
+      } else if (subcommand === "promote") {
+        printExplorePromoteHelp();
+      } else {
+        printExploreHelp();
+      }
     } else {
       printHelp();
     }
@@ -1988,6 +2145,578 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       if (jsonMode) { jsonErr(message); } else { outputError(`Error: ${message}`); }
       return 1;
     }
+  }
+
+  // ── explore command ─────────────────────────────────────────────
+
+  if (command === "explore") {
+    // Help routing for explore subcommands
+    if (flags["help"] && subcommand === undefined) {
+      printExploreHelp();
+      return 0;
+    }
+
+    // ── explore sweep ─────────────────────────────────────────
+    if (subcommand === "sweep") {
+      if (flags["help"]) {
+        printExploreSweepHelp();
+        return 0;
+      }
+
+      const recipeName = typeof flags["recipe"] === "string" ? flags["recipe"] : undefined;
+      if (recipeName === undefined) {
+        const msg = "--recipe is required. Run 'toneforge explore sweep --help' for usage.";
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      // Validate recipe exists
+      if (!registry.getRegistration(recipeName)) {
+        const allNames = registry.list();
+        const suggestions = suggestRecipes(recipeName, allNames);
+        let msg = `Unknown recipe '${recipeName}'.`;
+        if (suggestions.length > 0) {
+          msg += ` Did you mean: ${suggestions.join(", ")}?`;
+        }
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      // Parse --seed-range
+      const seedRangeRaw = typeof flags["seed-range"] === "string" ? flags["seed-range"] : "0:99";
+      const rangeParts = seedRangeRaw.split(":");
+      if (rangeParts.length !== 2) {
+        const msg = `--seed-range must be in format <start>:<end>, got '${seedRangeRaw}'.`;
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+      const seedStart = parseInt(rangeParts[0]!, 10);
+      const seedEnd = parseInt(rangeParts[1]!, 10);
+      if (Number.isNaN(seedStart) || Number.isNaN(seedEnd)) {
+        const msg = `--seed-range values must be integers, got '${seedRangeRaw}'.`;
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+      if (seedStart > seedEnd) {
+        const msg = `--seed-range start (${seedStart}) must be <= end (${seedEnd}).`;
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      // Parse --keep-top
+      const keepTopRaw = typeof flags["keep-top"] === "string" ? flags["keep-top"] : "10";
+      const keepTop = parseInt(keepTopRaw, 10);
+      if (Number.isNaN(keepTop) || keepTop < 1) {
+        const msg = `--keep-top must be a positive integer, got '${keepTopRaw}'.`;
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      // Parse --rank-by
+      const rankByRaw = typeof flags["rank-by"] === "string" ? flags["rank-by"] : "rms";
+      const rankByNames = rankByRaw.split(",").map((s) => s.trim());
+      for (const name of rankByNames) {
+        if (!VALID_RANK_METRICS.includes(name as RankMetric)) {
+          const msg = `Unknown rank metric '${name}'. Valid metrics: ${VALID_RANK_METRICS.join(", ")}`;
+          if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+          return 1;
+        }
+      }
+      if (rankByNames.length > 4) {
+        const msg = "Maximum 4 rank metrics allowed.";
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+      const rankBy = rankByNames as RankMetric[];
+
+      // Parse --clusters
+      const clustersRaw = typeof flags["clusters"] === "string" ? flags["clusters"] : "3";
+      const clusters = parseInt(clustersRaw, 10);
+      if (Number.isNaN(clusters) || clusters < 1 || clusters > 8) {
+        const msg = `--clusters must be 1-8, got '${clustersRaw}'.`;
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      // Parse --concurrency
+      const concurrencyRaw = typeof flags["concurrency"] === "string" ? flags["concurrency"] : undefined;
+      const concurrency = concurrencyRaw ? parseInt(concurrencyRaw, 10) : defaultConcurrency();
+      if (Number.isNaN(concurrency) || concurrency < 1) {
+        const msg = `--concurrency must be a positive integer, got '${concurrencyRaw}'.`;
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      const outputDir = typeof flags["output"] === "string" ? flags["output"] : undefined;
+
+      try {
+        const totalSeeds = seedEnd - seedStart + 1;
+        if (!jsonMode) {
+          outputInfo(`Sweeping recipe '${recipeName}' over ${totalSeeds} seeds (${seedStart}:${seedEnd})...`);
+          outputInfo(`  Rank by: ${rankBy.join(", ")}  |  Keep top: ${keepTop}  |  Clusters: ${clusters}  |  Concurrency: ${concurrency}`);
+        }
+
+        const config: SweepConfig = {
+          recipe: recipeName,
+          seedStart,
+          seedEnd,
+          rankBy,
+          keepTop,
+          clusters,
+          concurrency,
+        };
+
+        const startMs = performance.now();
+
+        // Run sweep
+        let candidates = await sweep(config, (completed, total) => {
+          if (!jsonMode) {
+            const pct = Math.round((completed / total) * 100);
+            process.stderr.write(`\r  Progress: ${completed}/${total} (${pct}%)`);
+          }
+        });
+        if (!jsonMode) {
+          process.stderr.write("\n");
+        }
+
+        // Rank
+        rankCandidates(candidates, rankBy);
+
+        // Keep top N
+        candidates = keepTopN(candidates, keepTop);
+
+        // Cluster
+        const clusterSummaries = clusterCandidates(candidates, rankBy, clusters);
+
+        const durationMs = Math.round(performance.now() - startMs);
+
+        // Build run result
+        const runId = generateRunId();
+        const now = new Date().toISOString();
+        const runResult: ExploreRunResult = {
+          runId,
+          startedAt: now,
+          completedAt: now,
+          durationMs,
+          type: "sweep",
+          config,
+          totalCandidates: totalSeeds,
+          candidates,
+          clusterSummaries,
+          exploreVersion: EXPLORE_VERSION,
+        };
+
+        // Persist run result
+        const indexPath = await saveRunResult(runResult);
+
+        // Export WAVs if --output specified
+        if (outputDir !== undefined) {
+          await mkdir(resolve(outputDir), { recursive: true });
+          for (const candidate of candidates) {
+            const renderResult = await renderRecipe(candidate.recipe, candidate.seed);
+            const wavBuffer = encodeWav(renderResult.samples, { sampleRate: renderResult.sampleRate });
+            const filePath = resolve(outputDir, `${candidate.id}.wav`);
+            await writeFile(filePath, wavBuffer);
+            if (!jsonMode) {
+              outputSuccess(`Wrote ${filePath}`);
+            }
+          }
+        }
+
+        if (jsonMode) {
+          jsonOut({
+            command: "explore sweep",
+            ...runResult,
+          });
+        } else {
+          outputSuccess(`Sweep complete in ${durationMs}ms — ${totalSeeds} seeds, ${candidates.length} kept`);
+          outputInfo(`Run ID: ${runId}`);
+          outputInfo(`Index: ${indexPath}`);
+
+          // Print top results table
+          const rows = candidates.slice(0, 20).map((c, i) => [
+            String(i + 1),
+            c.id,
+            c.score.toFixed(4),
+            String(c.cluster),
+            Object.entries(c.metricScores).map(([k, v]) => `${k}=${v.toFixed(3)}`).join(", "),
+          ]);
+
+          outputTable(
+            [
+              { header: "#", width: 3 },
+              { header: "Candidate", width: 35 },
+              { header: "Score", width: 8 },
+              { header: "Cluster", width: 7 },
+              { header: "Metrics", width: 40 },
+            ],
+            rows,
+          );
+
+          if (clusterSummaries.length > 0) {
+            outputInfo("\nCluster summaries:");
+            for (const cs of clusterSummaries) {
+              const centroidStr = Object.entries(cs.centroid)
+                .map(([k, v]) => `${k}=${v.toFixed(3)}`)
+                .join(", ");
+              outputInfo(`  Cluster ${cs.index}: ${cs.size} members, centroid: ${centroidStr}`);
+              outputInfo(`    Exemplars: ${cs.exemplars.join(", ")}`);
+            }
+          }
+        }
+
+        return 0;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(message); } else { outputError(`Error: ${message}`); }
+        return 1;
+      }
+    }
+
+    // ── explore mutate ────────────────────────────────────────
+    if (subcommand === "mutate") {
+      if (flags["help"]) {
+        printExploreMutateHelp();
+        return 0;
+      }
+
+      const recipeName = typeof flags["recipe"] === "string" ? flags["recipe"] : undefined;
+      if (recipeName === undefined) {
+        const msg = "--recipe is required. Run 'toneforge explore mutate --help' for usage.";
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      if (!registry.getRegistration(recipeName)) {
+        const allNames = registry.list();
+        const suggestions = suggestRecipes(recipeName, allNames);
+        let msg = `Unknown recipe '${recipeName}'.`;
+        if (suggestions.length > 0) {
+          msg += ` Did you mean: ${suggestions.join(", ")}?`;
+        }
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      // Parse --seed (required)
+      const seedRaw = flags["seed"];
+      if (seedRaw === undefined || seedRaw === true) {
+        const msg = "--seed is required. Run 'toneforge explore mutate --help' for usage.";
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+      const seed = parseInt(seedRaw as string, 10);
+      if (Number.isNaN(seed)) {
+        const msg = `--seed must be an integer, got '${seedRaw}'.`;
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      // Parse --jitter
+      const jitterRaw = typeof flags["jitter"] === "string" ? flags["jitter"] : "0.1";
+      const jitter = parseFloat(jitterRaw);
+      if (Number.isNaN(jitter) || jitter < 0 || jitter > 1) {
+        const msg = `--jitter must be 0-1, got '${jitterRaw}'.`;
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      // Parse --count
+      const countRaw = typeof flags["count"] === "string" ? flags["count"] : "20";
+      const count = parseInt(countRaw, 10);
+      if (Number.isNaN(count) || count < 1) {
+        const msg = `--count must be a positive integer, got '${countRaw}'.`;
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      // Parse --rank-by
+      const rankByRaw = typeof flags["rank-by"] === "string" ? flags["rank-by"] : "rms";
+      const rankByNames = rankByRaw.split(",").map((s) => s.trim());
+      for (const name of rankByNames) {
+        if (!VALID_RANK_METRICS.includes(name as RankMetric)) {
+          const msg = `Unknown rank metric '${name}'. Valid metrics: ${VALID_RANK_METRICS.join(", ")}`;
+          if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+          return 1;
+        }
+      }
+      const rankBy = rankByNames as RankMetric[];
+
+      // Parse --concurrency
+      const concurrencyRaw = typeof flags["concurrency"] === "string" ? flags["concurrency"] : undefined;
+      const concurrency = concurrencyRaw ? parseInt(concurrencyRaw, 10) : defaultConcurrency();
+
+      const outputDir = typeof flags["output"] === "string" ? flags["output"] : undefined;
+
+      try {
+        if (!jsonMode) {
+          outputInfo(`Mutating recipe '${recipeName}' from seed ${seed} (jitter: ${jitter}, count: ${count})...`);
+        }
+
+        const config: MutateConfig = {
+          recipe: recipeName,
+          seed,
+          jitter,
+          count,
+          rankBy,
+          concurrency,
+        };
+
+        const startMs = performance.now();
+
+        let candidates = await mutate(config, (completed, total) => {
+          if (!jsonMode) {
+            const pct = Math.round((completed / total) * 100);
+            process.stderr.write(`\r  Progress: ${completed}/${total} (${pct}%)`);
+          }
+        });
+        if (!jsonMode) {
+          process.stderr.write("\n");
+        }
+
+        // Rank
+        rankCandidates(candidates, rankBy);
+
+        const durationMs = Math.round(performance.now() - startMs);
+
+        // Build run result
+        const runId = generateRunId();
+        const now = new Date().toISOString();
+        const runResult: ExploreRunResult = {
+          runId,
+          startedAt: now,
+          completedAt: now,
+          durationMs,
+          type: "mutate",
+          config,
+          totalCandidates: count,
+          candidates,
+          clusterSummaries: [],
+          exploreVersion: EXPLORE_VERSION,
+        };
+
+        const indexPath = await saveRunResult(runResult);
+
+        // Export WAVs if --output specified
+        if (outputDir !== undefined) {
+          await mkdir(resolve(outputDir), { recursive: true });
+          for (const candidate of candidates) {
+            const renderResult = await renderRecipe(candidate.recipe, candidate.seed);
+            const wavBuffer = encodeWav(renderResult.samples, { sampleRate: renderResult.sampleRate });
+            const filePath = resolve(outputDir, `${candidate.id}.wav`);
+            await writeFile(filePath, wavBuffer);
+            if (!jsonMode) {
+              outputSuccess(`Wrote ${filePath}`);
+            }
+          }
+        }
+
+        if (jsonMode) {
+          jsonOut({
+            command: "explore mutate",
+            ...runResult,
+          });
+        } else {
+          outputSuccess(`Mutate complete in ${durationMs}ms — ${count} variations`);
+          outputInfo(`Run ID: ${runId}`);
+          outputInfo(`Index: ${indexPath}`);
+
+          const rows = candidates.map((c, i) => [
+            String(i + 1),
+            c.id,
+            c.score.toFixed(4),
+            Object.entries(c.metricScores).map(([k, v]) => `${k}=${v.toFixed(3)}`).join(", "),
+          ]);
+
+          outputTable(
+            [
+              { header: "#", width: 3 },
+              { header: "Candidate", width: 35 },
+              { header: "Score", width: 8 },
+              { header: "Metrics", width: 45 },
+            ],
+            rows,
+          );
+        }
+
+        return 0;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(message); } else { outputError(`Error: ${message}`); }
+        return 1;
+      }
+    }
+
+    // ── explore promote ───────────────────────────────────────
+    if (subcommand === "promote") {
+      if (flags["help"]) {
+        printExplorePromoteHelp();
+        return 0;
+      }
+
+      const runId = typeof flags["run"] === "string" ? flags["run"] : undefined;
+      const candidateId = typeof flags["id"] === "string" ? flags["id"] : undefined;
+      const exportDir = typeof flags["export"] === "string" ? flags["export"] : undefined;
+
+      if (runId === undefined) {
+        const msg = "--run is required. Run 'toneforge explore promote --help' for usage.";
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+      if (candidateId === undefined) {
+        const msg = "--id is required. Run 'toneforge explore promote --help' for usage.";
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      try {
+        const result = await promoteCandidate(runId, candidateId, ".exploration", exportDir);
+
+        if (jsonMode) {
+          jsonOut({
+            command: "explore promote",
+            ...result,
+          });
+        } else {
+          if (result.duplicate) {
+            outputWarning(`Candidate '${candidateId}' already promoted (library ID: ${result.libraryId})`);
+          } else {
+            outputSuccess(`Promoted '${candidateId}' to library as '${result.libraryId}'`);
+            outputInfo(`  WAV: ${result.wavPath}`);
+            outputInfo(`  Metadata: ${result.metadataPath}`);
+          }
+        }
+
+        return 0;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(message); } else { outputError(`Error: ${message}`); }
+        return 1;
+      }
+    }
+
+    // ── explore show ──────────────────────────────────────────
+    if (subcommand === "show") {
+      if (flags["help"]) {
+        printExploreHelp();
+        return 0;
+      }
+
+      const runId = typeof flags["run"] === "string" ? flags["run"] : undefined;
+      if (runId === undefined) {
+        const msg = "--run is required. Usage: toneforge explore show --run <run-id>";
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      try {
+        const result = await loadRunResult(runId);
+        if (!result) {
+          const msg = `Run not found: ${runId}`;
+          if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+          return 1;
+        }
+
+        if (jsonMode) {
+          jsonOut({
+            command: "explore show",
+            ...result,
+          });
+        } else {
+          outputInfo(`Run: ${result.runId}`);
+          outputInfo(`  Type: ${result.type}`);
+          outputInfo(`  Recipe: ${result.config.recipe}`);
+          outputInfo(`  Started: ${result.startedAt}`);
+          outputInfo(`  Duration: ${result.durationMs}ms`);
+          outputInfo(`  Total candidates: ${result.totalCandidates}`);
+          outputInfo(`  Kept: ${result.candidates.length}`);
+
+          const rows = result.candidates.map((c, i) => [
+            String(i + 1),
+            c.id,
+            c.score.toFixed(4),
+            String(c.cluster),
+            c.promoted ? "yes" : "no",
+          ]);
+
+          outputTable(
+            [
+              { header: "#", width: 3 },
+              { header: "Candidate", width: 35 },
+              { header: "Score", width: 8 },
+              { header: "Cluster", width: 7 },
+              { header: "Promoted", width: 8 },
+            ],
+            rows,
+          );
+        }
+
+        return 0;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(message); } else { outputError(`Error: ${message}`); }
+        return 1;
+      }
+    }
+
+    // ── explore runs ──────────────────────────────────────────
+    if (subcommand === "runs") {
+      if (flags["help"]) {
+        printExploreHelp();
+        return 0;
+      }
+
+      try {
+        const runs = await listRuns();
+
+        if (jsonMode) {
+          jsonOut({
+            command: "explore runs",
+            count: runs.length,
+            runs,
+          });
+        } else if (runs.length === 0) {
+          outputInfo("No exploration runs found.");
+        } else {
+          const rows = runs.map((r) => [
+            r.runId,
+            r.type,
+            r.recipe,
+            String(r.totalCandidates),
+            String(r.keptCandidates),
+            `${r.durationMs}ms`,
+          ]);
+
+          outputTable(
+            [
+              { header: "Run ID", width: 25 },
+              { header: "Type", width: 6 },
+              { header: "Recipe", width: 20 },
+              { header: "Total", width: 6 },
+              { header: "Kept", width: 5 },
+              { header: "Duration", width: 10 },
+            ],
+            rows,
+          );
+        }
+
+        return 0;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(message); } else { outputError(`Error: ${message}`); }
+        return 1;
+      }
+    }
+
+    // Unknown explore subcommand
+    if (subcommand !== undefined) {
+      const msg = `Unknown explore subcommand '${subcommand}'. Run 'toneforge explore --help' for usage.`;
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+
+    printExploreHelp();
+    return 0;
   }
 
   if (command !== "generate") {
