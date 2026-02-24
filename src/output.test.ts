@@ -6,6 +6,9 @@ import {
   outputSuccess,
   outputInfo,
   outputMarkdown,
+  outputTable,
+  formatTable,
+  wordWrap,
   setTtyOverride,
   COLORS,
 } from "./output.js";
@@ -297,6 +300,139 @@ describe("output", () => {
       setTtyOverride(false);
       outputMarkdown("   \n  ");
       expect(stdoutChunks).toHaveLength(0);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // wordWrap
+  // -----------------------------------------------------------------------
+  describe("wordWrap", () => {
+    it("returns single-element array when text fits within width", () => {
+      expect(wordWrap("hello world", 20)).toEqual(["hello world"]);
+    });
+
+    it("wraps on word boundaries", () => {
+      expect(wordWrap("one two three four", 10)).toEqual([
+        "one two",
+        "three four",
+      ]);
+    });
+
+    it("handles single long word exceeding width", () => {
+      expect(wordWrap("abcdefghij", 4)).toEqual(["abcd", "efgh", "ij"]);
+    });
+
+    it("handles empty string", () => {
+      expect(wordWrap("", 10)).toEqual([""]);
+    });
+
+    it("wraps real description text at 48 chars", () => {
+      const desc =
+        "Short sci-fi confirmation tone using sine synthesis with a filtered sweep.";
+      const lines = wordWrap(desc, 48);
+      for (const line of lines) {
+        expect(line.length).toBeLessThanOrEqual(48);
+      }
+      expect(lines.join(" ")).toBe(desc);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // formatTable
+  // -----------------------------------------------------------------------
+  describe("formatTable", () => {
+    const cols = [
+      { header: "Name", width: 10 },
+      { header: "Desc", width: 20 },
+    ];
+
+    it("produces pipe-delimited output in non-TTY mode", () => {
+      const result = formatTable(cols, [["foo", "a short desc"]], false);
+      const lines = result.split("\n");
+      expect(lines[0]).toContain("| Name");
+      expect(lines[0]).toContain("| Desc");
+      expect(lines[1]).toMatch(/^\| -{10} \| -{20} \|$/);
+      expect(lines[2]).toContain("foo");
+      expect(lines[2]).toContain("a short desc");
+    });
+
+    it("wraps long cell content across multiple lines", () => {
+      const longDesc = "this is a description that exceeds twenty characters easily";
+      const result = formatTable(cols, [["foo", longDesc]], false);
+      const lines = result.split("\n");
+      // Header + separator + at least 2 wrapped lines
+      expect(lines.length).toBeGreaterThanOrEqual(4);
+      // Name column should be empty on continuation lines
+      expect(lines[3]).toMatch(/^\|\s{12}\|/);
+    });
+
+    it("maintains consistent line width in non-TTY mode", () => {
+      const result = formatTable(
+        cols,
+        [["foo", "some text that wraps around the column width boundary"]],
+        false,
+      );
+      const lines = result.split("\n");
+      const expectedWidth = lines[0].length;
+      for (const line of lines) {
+        expect(line.length).toBe(expectedWidth);
+      }
+    });
+
+    it("produces box-drawing characters in TTY mode", () => {
+      const result = formatTable(cols, [["bar", "baz"]], true);
+      expect(result).toContain("\u250c"); // top-left corner
+      expect(result).toContain("\u2518"); // bottom-right corner
+      expect(result).toContain("\u2502"); // vertical bar
+      expect(result).toContain("\u252c"); // top cross
+      expect(result).toContain("\u2534"); // bottom cross
+    });
+
+    it("includes ANSI codes in TTY mode", () => {
+      const result = formatTable(cols, [["x", "y"]], true);
+      expect(result).toMatch(ANSI_RE);
+    });
+
+    it("excludes ANSI codes in non-TTY mode", () => {
+      const result = formatTable(cols, [["x", "y"]], false);
+      expect(result).not.toMatch(ANSI_RE);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // outputTable
+  // -----------------------------------------------------------------------
+  describe("outputTable", () => {
+    it("writes to stdout", () => {
+      setTtyOverride(false);
+      outputTable(
+        [{ header: "A", width: 5 }, { header: "B", width: 5 }],
+        [["1", "2"]],
+      );
+      const output = stdoutChunks.join("");
+      expect(output).toContain("1");
+      expect(output).toContain("2");
+      expect(stderrChunks).toHaveLength(0);
+    });
+
+    it("produces ANSI output when TTY", () => {
+      setTtyOverride(true);
+      outputTable(
+        [{ header: "A", width: 5 }],
+        [["x"]],
+      );
+      const output = stdoutChunks.join("");
+      expect(output).toMatch(ANSI_RE);
+    });
+
+    it("produces no ANSI when not TTY", () => {
+      setTtyOverride(false);
+      outputTable(
+        [{ header: "A", width: 5 }],
+        [["x"]],
+      );
+      const output = stdoutChunks.join("");
+      expect(output).not.toMatch(ANSI_RE);
     });
   });
 });

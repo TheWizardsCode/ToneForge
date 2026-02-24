@@ -30,7 +30,7 @@ import { playAudio, getPlayerCommand } from "./audio/player.js";
 import { encodeWav } from "./audio/wav-encoder.js";
 import { VERSION } from "./index.js";
 import { createRng } from "./core/rng.js";
-import { outputMarkdown, outputError, outputWarning, outputSuccess, outputInfo } from "./output.js";
+import { outputMarkdown, outputError, outputWarning, outputSuccess, outputInfo, outputTable } from "./output.js";
 import type { RecipeRegistration } from "./core/recipe.js";
 
 /** Parse command-line arguments into a structured map. */
@@ -500,25 +500,17 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       jsonOut({ command: "list", resource: "recipes", recipes });
     } else {
       const TABLE_WIDTH = 76;
-      // Table row: "| " + name + " | " + desc + " |"  →  overhead = 7
+      // Table row overhead: "| " + col1 + " | " + col2 + " |" = 7 chars
       const nameCol = Math.max(...recipes.map((r) => r.name.length));
       const descCol = TABLE_WIDTH - nameCol - 7;
 
-      const pad = (s: string, w: number) => s + " ".repeat(Math.max(0, w - s.length));
-      const truncate = (s: string, w: number) =>
-        s.length <= w ? s : s.slice(0, w - 1) + "\u2026";
-
-      const header =
-        `| ${pad("Recipe", nameCol)} | ${pad("Description", descCol)} |`;
-      const separator =
-        `| ${"-".repeat(nameCol)} | ${"-".repeat(descCol)} |`;
-      const rows = recipes
-        .map(
-          (r) =>
-            `| ${pad(r.name, nameCol)} | ${pad(truncate(r.description || "\u2014", descCol), descCol)} |`,
-        )
-        .join("\n");
-      outputMarkdown(`${header}\n${separator}\n${rows}`);
+      outputTable(
+        [
+          { header: "Recipe", width: nameCol },
+          { header: "Description", width: descCol },
+        ],
+        recipes.map((r) => [r.name, r.description || "\u2014"]),
+      );
     }
     return 0;
   }
