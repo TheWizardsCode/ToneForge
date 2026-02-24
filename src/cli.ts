@@ -116,7 +116,7 @@ function parseArgs(argv: string[]): {
 }
 
 /** Print general help text. */
-function printHelp(): void {
+async function printHelp(): Promise<void> {
   const md = `# ToneForge v${VERSION}
 
 **Procedural Audio Production Platform**
@@ -146,11 +146,11 @@ function printHelp(): void {
 - \`--json\` — Output results in JSON format for machine consumption
 
 Run \`toneforge <command> --help\` for command-specific help.`;
-  outputMarkdown(md);
+  await outputMarkdown(md);
 }
 
 /** Print help text for the generate command. */
-function printGenerateHelp(): void {
+async function printGenerateHelp(): Promise<void> {
   const recipes = registry.list();
   const md = `# ToneForge generate
 
@@ -184,11 +184,11 @@ toneforge generate --recipe ui-scifi-confirm --seed 42
 toneforge generate --recipe ui-scifi-confirm --seed 42 --output ./my-sound.wav
 toneforge generate --recipe weapon-laser-zap --seed-range 1:10 --output ./lasers/
 \`\`\``;
-  outputMarkdown(md);
+  await outputMarkdown(md);
 }
 
 /** Print help text for the analyze command. */
-function printAnalyzeHelp(): void {
+async function printAnalyzeHelp(): Promise<void> {
   const recipes = registry.list();
   const md = `# ToneForge analyze
 
@@ -234,11 +234,11 @@ toneforge analyze --recipe weapon-laser-zap --seed 42
 toneforge analyze --input ./renders/ --format table
 toneforge analyze --input ./renders/ --output ./analysis/
 \`\`\``;
-  outputMarkdown(md);
+  await outputMarkdown(md);
 }
 
 /** Print help text for the classify command. */
-function printClassifyHelp(): void {
+async function printClassifyHelp(): Promise<void> {
   const recipes = registry.list();
   const md = `# ToneForge classify
 
@@ -301,11 +301,11 @@ toneforge classify --recipe weapon-laser-zap --seed 42
 toneforge classify search --category weapon --dir ./classification/
 toneforge classify search --intensity aggressive --texture sharp
 \`\`\``;
-  outputMarkdown(md);
+  await outputMarkdown(md);
 }
 
 /** Print help text for the list command. */
-function printListHelp(): void {
+async function printListHelp(): Promise<void> {
   const md = `# ToneForge list
 
 **List available resources**
@@ -329,11 +329,11 @@ function printListHelp(): void {
 toneforge list
 toneforge list recipes
 \`\`\``;
-  outputMarkdown(md);
+  await outputMarkdown(md);
 }
 
 /** Print help text for the play command. */
-function printPlayHelp(): void {
+async function printPlayHelp(): Promise<void> {
   const md = `# ToneForge play
 
 **Play a WAV file through the system audio player**
@@ -357,11 +357,11 @@ function printPlayHelp(): void {
 toneforge play ./output/confirm.wav
 toneforge play ./output/lasers/weapon-laser-zap-seed-1.wav
 \`\`\``;
-  outputMarkdown(md);
+  await outputMarkdown(md);
 }
 
 /** Print help text for the stack command. */
-function printStackHelp(): void {
+async function printStackHelp(): Promise<void> {
   const md = `# ToneForge stack
 
 **Compose layered sound events from multiple recipes**
@@ -378,11 +378,11 @@ function printStackHelp(): void {
 | **inspect** | Display the layer structure of a preset |
 
 Run \`toneforge stack <subcommand> --help\` for subcommand-specific help.`;
-  outputMarkdown(md);
+  await outputMarkdown(md);
 }
 
 /** Print help text for the stack render subcommand. */
-function printStackRenderHelp(): void {
+async function printStackRenderHelp(): Promise<void> {
   const md = `# ToneForge stack render
 
 **Render a layered stack to a WAV file or play it directly**
@@ -422,11 +422,11 @@ toneforge stack render \\
   --layer "recipe=rumble-body,offset=5ms,gain=0.7" \\
   --seed 42
 \`\`\``;
-  outputMarkdown(md);
+  await outputMarkdown(md);
 }
 
 /** Print help text for the stack inspect subcommand. */
-function printStackInspectHelp(): void {
+async function printStackInspectHelp(): Promise<void> {
   const md = `# ToneForge stack inspect
 
 **Display the layer structure of a preset**
@@ -446,11 +446,11 @@ function printStackInspectHelp(): void {
 \`\`\`
 toneforge stack inspect --preset presets/explosion_heavy.json
 \`\`\``;
-  outputMarkdown(md);
+  await outputMarkdown(md);
 }
 
 /** Print help text for the show command. */
-function printShowHelp(): void {
+async function printShowHelp(): Promise<void> {
   const recipes = registry.list();
   const md = `# ToneForge show
 
@@ -480,11 +480,11 @@ ${recipes.length > 0 ? recipes.map((r) => `- \`${r}\``).join("\n") : "*(none reg
 toneforge show ui-scifi-confirm
 toneforge show weapon-laser-zap --seed 42
 \`\`\``;
-  outputMarkdown(md);
+  await outputMarkdown(md);
 }
 
 /** Print help text for the explore command. */
-function printExploreHelp(): void {
+async function printExploreHelp(): Promise<void> {
   const md = `# ToneForge explore
 
 **Discover, rank, and curate sounds across seed spaces**
@@ -506,11 +506,11 @@ function printExploreHelp(): void {
 The \`show\` and \`promote\` subcommands accept \`--run <run-id>\` or \`--latest\` to select a run.
 
 Run \`toneforge explore <subcommand> --help\` for subcommand-specific help.`;
-  outputMarkdown(md);
+  await outputMarkdown(md);
 }
 
 /** Print help text for the explore sweep subcommand. */
-function printExploreSweepHelp(): void {
+async function printExploreSweepHelp(): Promise<void> {
   const recipes = registry.list();
   const md = `# ToneForge explore sweep
 
@@ -545,11 +545,11 @@ toneforge explore sweep --recipe creature-vocal --seed-range 0:999 --keep-top 20
 toneforge explore sweep --recipe weapon-laser-zap --seed-range 0:5000 --rank-by transient-density --clusters 5
 toneforge explore sweep --recipe footstep-gravel --keep-top 50 --output ./top-footsteps/ --json
 \`\`\``;
-  outputMarkdown(md);
+  await outputMarkdown(md);
 }
 
 /** Print help text for the explore mutate subcommand. */
-function printExploreMutateHelp(): void {
+async function printExploreMutateHelp(): Promise<void> {
   const md = `# ToneForge explore mutate
 
 **Generate variations around a base seed**
@@ -578,11 +578,11 @@ toneforge explore mutate --recipe <name> --seed <N> [options]
 toneforge explore mutate --recipe creature-vocal --seed 4821 --jitter 0.1 --count 20
 toneforge explore mutate --recipe weapon-laser-zap --seed 42 --count 50 --rank-by transient-density --json
 \`\`\``;
-  outputMarkdown(md);
+  await outputMarkdown(md);
 }
 
 /** Print help text for the explore promote subcommand. */
-function printExplorePromoteHelp(): void {
+async function printExplorePromoteHelp(): Promise<void> {
   const md = `# ToneForge explore promote
 
 **Promote a candidate to the library**
@@ -610,7 +610,7 @@ toneforge explore promote --run run-abc123 --id creature-vocal_seed-04821
 toneforge explore promote --latest --id creature-vocal_seed-04821
 toneforge explore promote --latest --id creature-vocal_seed-04821 --export ./promoted/ --json
 \`\`\``;
-  outputMarkdown(md);
+  await outputMarkdown(md);
 }
 
 /**
@@ -968,44 +968,44 @@ export async function main(argv: string[] = process.argv): Promise<number> {
   // Top-level help
   if (flags["help"] || command === undefined) {
     if (command === "generate") {
-      printGenerateHelp();
+      await printGenerateHelp();
     } else if (command === "stack") {
       if (subcommand === "render") {
-        printStackRenderHelp();
+        await printStackRenderHelp();
       } else if (subcommand === "inspect") {
-        printStackInspectHelp();
+        await printStackInspectHelp();
       } else {
-        printStackHelp();
+        await printStackHelp();
       }
     } else if (command === "show") {
-      printShowHelp();
+      await printShowHelp();
     } else if (command === "list") {
-      printListHelp();
+      await printListHelp();
     } else if (command === "play") {
-      printPlayHelp();
+      await printPlayHelp();
     } else if (command === "analyze") {
-      printAnalyzeHelp();
+      await printAnalyzeHelp();
     } else if (command === "classify") {
-      printClassifyHelp();
+      await printClassifyHelp();
     } else if (command === "explore") {
       if (subcommand === "sweep") {
-        printExploreSweepHelp();
+        await printExploreSweepHelp();
       } else if (subcommand === "mutate") {
-        printExploreMutateHelp();
+        await printExploreMutateHelp();
       } else if (subcommand === "promote") {
-        printExplorePromoteHelp();
+        await printExplorePromoteHelp();
       } else {
-        printExploreHelp();
+        await printExploreHelp();
       }
     } else {
-      printHelp();
+      await printHelp();
     }
     return command === undefined && !flags["help"] ? 1 : 0;
   }
 
   if (command === "list") {
     if (flags["help"]) {
-      printListHelp();
+      await printListHelp();
       return 0;
     }
 
@@ -1040,7 +1040,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
 
   if (command === "show") {
     if (flags["help"]) {
-      printShowHelp();
+      await printShowHelp();
       return 0;
     }
 
@@ -1100,14 +1100,14 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       jsonOut(jsonResult);
     } else {
       const output = formatShowOutput(recipeName, reg, seed);
-      outputMarkdown(output);
+      await outputMarkdown(output);
     }
     return 0;
   }
 
   if (command === "play") {
     if (flags["help"]) {
-      printPlayHelp();
+      await printPlayHelp();
       return 0;
     }
 
@@ -1169,13 +1169,13 @@ export async function main(argv: string[] = process.argv): Promise<number> {
   if (command === "stack") {
     // Stack subcommand help
     if (flags["help"] && subcommand === undefined) {
-      printStackHelp();
+      await printStackHelp();
       return 0;
     }
 
     if (subcommand === "render") {
       if (flags["help"]) {
-        printStackRenderHelp();
+        await printStackRenderHelp();
         return 0;
       }
 
@@ -1294,7 +1294,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
 
     if (subcommand === "inspect") {
       if (flags["help"]) {
-        printStackInspectHelp();
+        await printStackInspectHelp();
         return 0;
       }
 
@@ -1367,7 +1367,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       return 1;
     }
 
-    printStackHelp();
+    await printStackHelp();
     return 0;
   }
 
@@ -1375,7 +1375,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
 
   if (command === "analyze") {
     if (flags["help"]) {
-      printAnalyzeHelp();
+      await printAnalyzeHelp();
       return 0;
     }
 
@@ -1601,7 +1601,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
 
   if (command === "classify") {
     if (flags["help"] && subcommand !== "search") {
-      printClassifyHelp();
+      await printClassifyHelp();
       return 0;
     }
 
@@ -1622,7 +1622,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     // ── classify search subcommand ──────────────────────────────
     if (subcommand === "search") {
       if (flags["help"]) {
-        printClassifyHelp();
+        await printClassifyHelp();
         return 0;
       }
 
@@ -2170,14 +2170,14 @@ export async function main(argv: string[] = process.argv): Promise<number> {
   if (command === "explore") {
     // Help routing for explore subcommands
     if (flags["help"] && subcommand === undefined) {
-      printExploreHelp();
+      await printExploreHelp();
       return 0;
     }
 
     // ── explore sweep ─────────────────────────────────────────
     if (subcommand === "sweep") {
       if (flags["help"]) {
-        printExploreSweepHelp();
+        await printExploreSweepHelp();
         return 0;
       }
 
@@ -2394,7 +2394,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     // ── explore mutate ────────────────────────────────────────
     if (subcommand === "mutate") {
       if (flags["help"]) {
-        printExploreMutateHelp();
+        await printExploreMutateHelp();
         return 0;
       }
 
@@ -2568,7 +2568,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     // ── explore promote ───────────────────────────────────────
     if (subcommand === "promote") {
       if (flags["help"]) {
-        printExplorePromoteHelp();
+        await printExplorePromoteHelp();
         return 0;
       }
 
@@ -2634,7 +2634,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     // ── explore show ──────────────────────────────────────────
     if (subcommand === "show") {
       if (flags["help"]) {
-        printExploreHelp();
+        await printExploreHelp();
         return 0;
       }
 
@@ -2717,7 +2717,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     // ── explore runs ──────────────────────────────────────────
     if (subcommand === "runs") {
       if (flags["help"]) {
-        printExploreHelp();
+        await printExploreHelp();
         return 0;
       }
 
@@ -2770,7 +2770,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       return 1;
     }
 
-    printExploreHelp();
+    await printExploreHelp();
     return 0;
   }
 
@@ -2785,7 +2785,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
 
   // Generate command
   if (flags["help"]) {
-    printGenerateHelp();
+    await printGenerateHelp();
     return 0;
   }
 

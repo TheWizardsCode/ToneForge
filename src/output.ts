@@ -3,11 +3,14 @@
  *
  * Provides markdown-to-ANSI rendering, TTY detection, NO_COLOR support,
  * and styled helper functions for errors, warnings, info, and success messages.
+ *
+ * Heavy dependencies (chalk, marked, marked-terminal) are lazy-loaded on
+ * first use of `renderMarkdown()` to avoid ~590ms of module-load overhead
+ * at CLI startup. The simpler output helpers (outputError, outputInfo, etc.)
+ * use only raw ANSI escape sequences and incur zero import cost.
  */
 
-import chalk from "chalk";
-import { Marked, type MarkedExtension } from "marked";
-import { markedTerminal } from "marked-terminal";
+import type { MarkedExtension } from "marked";
 
 // ---------------------------------------------------------------------------
 // Color configuration -- 16-color ANSI palette
@@ -54,38 +57,53 @@ function isStderrTty(): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Chalk with forced colour support
+// Chalk with forced colour support (lazy-loaded)
 // ---------------------------------------------------------------------------
 
 /**
- * Create a chalk instance that always produces 16-colour ANSI output,
- * regardless of the ambient terminal detection.  This is needed because
- * marked-terminal delegates all styling to chalk, and chalk's default
- * instance caches its colour level at import time (which is 0 in CI /
- * piped environments).  By providing our own instance with `level: 1`
- * we guarantee colours when our own TTY check says "yes".
+ * Lazily-initialised chalk instance and marked-terminal renderer options.
+ * Only loaded on first call to `renderMarkdown()` to avoid the ~590ms
+ * startup cost of marked-terminal → cli-highlight.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const forcedChalk = new (chalk as any).Instance({ level: 1 }) as typeof chalk;
+let _terminalRendererOptions: Record<string, unknown> | undefined;
 
-/** Options that override every chalk-based style in marked-terminal. */
-const terminalRendererOptions = {
-  code: forcedChalk.yellow,
-  blockquote: forcedChalk.gray.italic,
-  html: forcedChalk.gray,
-  heading: forcedChalk.green.bold,
-  firstHeading: forcedChalk.magenta.underline.bold,
-  hr: forcedChalk.reset,
-  listitem: forcedChalk.reset,
-  table: forcedChalk.reset,
-  paragraph: forcedChalk.reset,
-  strong: forcedChalk.bold,
-  em: forcedChalk.italic,
-  codespan: forcedChalk.yellow,
-  del: forcedChalk.dim.gray.strikethrough,
-  link: forcedChalk.blue,
-  href: forcedChalk.blue.underline,
-};
+async function getTerminalRendererOptions(): Promise<Record<string, unknown>> {
+  if (_terminalRendererOptions) return _terminalRendererOptions;
+
+  const chalkModule = await import("chalk");
+  const chalk = chalkModule.default;
+
+  /**
+   * Create a chalk instance that always produces 16-colour ANSI output,
+   * regardless of the ambient terminal detection.  This is needed because
+   * marked-terminal delegates all styling to chalk, and chalk's default
+   * instance caches its colour level at import time (which is 0 in CI /
+   * piped environments).  By providing our own instance with `level: 1`
+   * we guarantee colours when our own TTY check says "yes".
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const forcedChalk = new (chalk as any).Instance({ level: 1 }) as typeof chalk;
+
+  _terminalRendererOptions = {
+    code: forcedChalk.yellow,
+    blockquote: forcedChalk.gray.italic,
+    html: forcedChalk.gray,
+    heading: forcedChalk.green.bold,
+    firstHeading: forcedChalk.magenta.underline.bold,
+    hr: forcedChalk.reset,
+    listitem: forcedChalk.reset,
+    table: forcedChalk.reset,
+    paragraph: forcedChalk.reset,
+    strong: forcedChalk.bold,
+    em: forcedChalk.italic,
+    codespan: forcedChalk.yellow,
+    del: forcedChalk.dim.gray.strikethrough,
+    link: forcedChalk.blue,
+    href: forcedChalk.blue.underline,
+  };
+
+  return _terminalRendererOptions;
+}
 
 // ---------------------------------------------------------------------------
 // Markdown rendering
@@ -97,19 +115,29 @@ const terminalRendererOptions = {
  * set.
  *
  * Returns an empty string when given an empty (or whitespace-only) input.
+ *
+ * Heavy dependencies (marked, marked-terminal, chalk) are imported lazily
+ * on first call to avoid penalising CLI startup for commands that don't
+ * render markdown.
  */
-export function renderMarkdown(md: string): string {
+export async function renderMarkdown(md: string): Promise<string> {
   if (md.trim() === "") return "";
 
   if (!isStdoutTty()) {
     return md;
   }
 
+  const [{ Marked }, { markedTerminal }, opts] = await Promise.all([
+    import("marked"),
+    import("marked-terminal"),
+    getTerminalRendererOptions(),
+  ]);
+
   const instance = new Marked();
   // The @types/marked-terminal types are slightly out of date with the
   // marked extension API, but the runtime contract is correct.
   instance.use(
-    markedTerminal(terminalRendererOptions) as unknown as MarkedExtension,
+    markedTerminal(opts) as unknown as MarkedExtension,
   );
 
   const result = instance.parse(md) as string;
@@ -160,8 +188,8 @@ export function outputInfo(msg: string): void {
  * show output, list output, etc.) — it keeps `console.log` out of the
  * main CLI module entirely.
  */
-export function outputMarkdown(md: string): void {
-  const rendered = renderMarkdown(md);
+export async function outputMarkdown(md: string): Promise<void> {
+  const rendered = await renderMarkdown(md);
   if (rendered.length > 0) {
     process.stdout.write(rendered + "\n");
   }

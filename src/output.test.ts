@@ -66,26 +66,26 @@ describe("output", () => {
   // setTtyOverride
   // -----------------------------------------------------------------------
   describe("setTtyOverride", () => {
-    it("overrides TTY detection to true", () => {
+    it("overrides TTY detection to true", async () => {
       setTtyOverride(true);
-      const result = renderMarkdown("**bold**");
+      const result = await renderMarkdown("**bold**");
       expect(result).toMatch(ANSI_RE);
     });
 
-    it("overrides TTY detection to false", () => {
+    it("overrides TTY detection to false", async () => {
       setTtyOverride(false);
-      const result = renderMarkdown("**bold**");
+      const result = await renderMarkdown("**bold**");
       expect(result).not.toMatch(ANSI_RE);
       expect(result).toBe("**bold**");
     });
 
-    it("restores default behaviour when set to undefined", () => {
+    it("restores default behaviour when set to undefined", async () => {
       setTtyOverride(true);
-      expect(renderMarkdown("**bold**")).toMatch(ANSI_RE);
+      expect(await renderMarkdown("**bold**")).toMatch(ANSI_RE);
 
       setTtyOverride(undefined);
       // In CI / vitest the process is not a TTY, so should produce raw output
-      const result = renderMarkdown("**bold**");
+      const result = await renderMarkdown("**bold**");
       expect(result).toBe("**bold**");
     });
   });
@@ -94,61 +94,61 @@ describe("output", () => {
   // renderMarkdown
   // -----------------------------------------------------------------------
   describe("renderMarkdown", () => {
-    it("returns empty string for empty input", () => {
-      expect(renderMarkdown("")).toBe("");
+    it("returns empty string for empty input", async () => {
+      expect(await renderMarkdown("")).toBe("");
     });
 
-    it("returns empty string for whitespace-only input", () => {
-      expect(renderMarkdown("   \n  \t  ")).toBe("");
+    it("returns empty string for whitespace-only input", async () => {
+      expect(await renderMarkdown("   \n  \t  ")).toBe("");
     });
 
-    it("returns raw markdown when TTY is false", () => {
+    it("returns raw markdown when TTY is false", async () => {
       setTtyOverride(false);
       const md = "# Hello\n\nThis is **bold** and *italic*.";
-      expect(renderMarkdown(md)).toBe(md);
+      expect(await renderMarkdown(md)).toBe(md);
     });
 
-    it("renders ANSI output when TTY is true", () => {
+    it("renders ANSI output when TTY is true", async () => {
       setTtyOverride(true);
-      const result = renderMarkdown("# Heading");
+      const result = await renderMarkdown("# Heading");
       expect(result).toMatch(ANSI_RE);
       expect(result).toContain("Heading");
     });
 
-    it("renders bold text with ANSI when TTY is true", () => {
+    it("renders bold text with ANSI when TTY is true", async () => {
       setTtyOverride(true);
-      const result = renderMarkdown("**bold**");
+      const result = await renderMarkdown("**bold**");
       expect(result).toMatch(ANSI_RE);
       expect(result).toContain("bold");
     });
 
-    it("renders code blocks when TTY is true", () => {
+    it("renders code blocks when TTY is true", async () => {
       setTtyOverride(true);
       const md = "```js\nconst x = 1;\n```";
-      const result = renderMarkdown(md);
+      const result = await renderMarkdown(md);
       expect(result).toContain("x");
     });
 
-    it("renders tables when TTY is true", () => {
+    it("renders tables when TTY is true", async () => {
       setTtyOverride(true);
       const md = "| A | B |\n|---|---|\n| 1 | 2 |";
-      const result = renderMarkdown(md);
+      const result = await renderMarkdown(md);
       expect(result).toContain("1");
       expect(result).toContain("2");
     });
 
-    it("suppresses ANSI when NO_COLOR is set even if TTY is true", () => {
+    it("suppresses ANSI when NO_COLOR is set even if TTY is true", async () => {
       setTtyOverride(true);
       process.env["NO_COLOR"] = "1";
-      const result = renderMarkdown("# Heading");
+      const result = await renderMarkdown("# Heading");
       expect(result).not.toMatch(ANSI_RE);
       expect(result).toBe("# Heading");
     });
 
-    it("suppresses ANSI when NO_COLOR is empty string", () => {
+    it("suppresses ANSI when NO_COLOR is empty string", async () => {
       setTtyOverride(true);
       process.env["NO_COLOR"] = "";
-      const result = renderMarkdown("**bold**");
+      const result = await renderMarkdown("**bold**");
       expect(result).not.toMatch(ANSI_RE);
     });
   });
@@ -268,37 +268,37 @@ describe("output", () => {
   });
 
   describe("outputMarkdown", () => {
-    it("writes to stdout", () => {
+    it("writes to stdout", async () => {
       setTtyOverride(false);
-      outputMarkdown("hello world");
+      await outputMarkdown("hello world");
       expect(stdoutChunks.join("")).toContain("hello world");
       expect(stderrChunks).toHaveLength(0);
     });
 
-    it("renders markdown with ANSI when TTY", () => {
+    it("renders markdown with ANSI when TTY", async () => {
       setTtyOverride(true);
-      outputMarkdown("# Heading");
+      await outputMarkdown("# Heading");
       const output = stdoutChunks.join("");
       expect(output).toMatch(ANSI_RE);
     });
 
-    it("returns raw markdown when not TTY", () => {
+    it("returns raw markdown when not TTY", async () => {
       setTtyOverride(false);
-      outputMarkdown("# Heading");
+      await outputMarkdown("# Heading");
       const output = stdoutChunks.join("");
       expect(output).toContain("# Heading");
       expect(output).not.toMatch(ANSI_RE);
     });
 
-    it("does not write anything for empty input", () => {
+    it("does not write anything for empty input", async () => {
       setTtyOverride(false);
-      outputMarkdown("");
+      await outputMarkdown("");
       expect(stdoutChunks).toHaveLength(0);
     });
 
-    it("does not write anything for whitespace-only input", () => {
+    it("does not write anything for whitespace-only input", async () => {
       setTtyOverride(false);
-      outputMarkdown("   \n  ");
+      await outputMarkdown("   \n  ");
       expect(stdoutChunks).toHaveLength(0);
     });
   });
