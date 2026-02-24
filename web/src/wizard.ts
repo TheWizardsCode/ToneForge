@@ -28,6 +28,10 @@ export function createWizard(
   function render(): void {
     container.innerHTML = "";
 
+    // Toolbar: contains demo selector (if multiple demos) + step nav tabs
+    const toolbar = document.createElement("div");
+    toolbar.className = "wizard-toolbar";
+
     // Demo selector (only shown when multiple demos are available)
     if (DEMO_LIST.length > 1) {
       const selectorBar = document.createElement("div");
@@ -57,7 +61,7 @@ export function createWizard(
       });
 
       selectorBar.appendChild(select);
-      container.appendChild(selectorBar);
+      toolbar.appendChild(selectorBar);
     }
 
     // Step indicators
@@ -76,7 +80,8 @@ export function createWizard(
       nav.appendChild(btn);
     });
 
-    container.appendChild(nav);
+    toolbar.appendChild(nav);
+    container.appendChild(toolbar);
 
     // Step content
     const step = steps[currentStep];
