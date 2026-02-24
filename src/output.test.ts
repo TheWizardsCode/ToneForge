@@ -397,6 +397,67 @@ describe("output", () => {
       const result = formatTable(cols, [["x", "y"]], false);
       expect(result).not.toMatch(ANSI_RE);
     });
+
+    it("adds row separators between data rows in non-TTY mode", () => {
+      const result = formatTable(
+        cols,
+        [["a", "desc a"], ["b", "desc b"], ["c", "desc c"]],
+        false,
+      );
+      const lines = result.split("\n");
+      // Header, header-sep, row-a, sep, row-b, sep, row-c  = 7 lines
+      expect(lines).toHaveLength(7);
+      // Separators are at index 3 and 5
+      expect(lines[3]).toMatch(/^\| -{10} \| -{20} \|$/);
+      expect(lines[5]).toMatch(/^\| -{10} \| -{20} \|$/);
+    });
+
+    it("does not add separator after the last data row in non-TTY mode", () => {
+      const result = formatTable(cols, [["a", "one"], ["b", "two"]], false);
+      const lines = result.split("\n");
+      // Last line should be data, not a separator
+      expect(lines[lines.length - 1]).not.toMatch(/^[\s|]*-+/);
+      expect(lines[lines.length - 1]).toContain("two");
+    });
+
+    it("adds row separators between data rows in TTY mode", () => {
+      const result = formatTable(
+        cols,
+        [["a", "desc a"], ["b", "desc b"]],
+        true,
+      );
+      // Mid-rule character (├) should appear twice:
+      // once for header separator, once for row separator
+      const midLeftCount = (result.match(/\u251c/g) || []).length;
+      expect(midLeftCount).toBe(2);
+    });
+
+    it("does not add row separator after the last row in TTY mode", () => {
+      const result = formatTable(cols, [["only", "row"]], true);
+      // Only one mid-rule (header separator), no row separator
+      const midLeftCount = (result.match(/\u251c/g) || []).length;
+      expect(midLeftCount).toBe(1);
+    });
+
+    it("places row separators correctly with multi-line wrapped rows", () => {
+      const longDesc = "this wraps to multiple lines in the column";
+      const result = formatTable(
+        cols,
+        [["a", longDesc], ["b", "short"]],
+        false,
+      );
+      const lines = result.split("\n");
+      // Find the separator between the two data rows
+      const sepIndices = lines.reduce<number[]>((acc, line, i) => {
+        // Skip header separator at index 1
+        if (i > 1 && /^\| -{10} \| -{20} \|$/.test(line)) acc.push(i);
+        return acc;
+      }, []);
+      expect(sepIndices).toHaveLength(1);
+      // The line before the separator should be the last continuation of row "a"
+      // The line after the separator should contain "b"
+      expect(lines[sepIndices[0] + 1]).toContain("b");
+    });
   });
 
   // -----------------------------------------------------------------------

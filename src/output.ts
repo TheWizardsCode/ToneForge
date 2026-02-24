@@ -284,7 +284,8 @@ export function formatTable(
     lines.push(hRule(BOX.ml, BOX.x, BOX.mr, BOX.m));
 
     // Data rows
-    for (const row of rows) {
+    for (let ri = 0; ri < rows.length; ri++) {
+      const row = rows[ri];
       const wrapped = row.map((cell, i) => wordWrap(cell, columns[i].width));
       const maxLines = Math.max(...wrapped.map((w) => w.length));
 
@@ -293,6 +294,11 @@ export function formatTable(
           .map((c, i) => ` ${pad(wrapped[i][ln] ?? "", c.width)} `)
           .join(`${dim}${BOX.v}${rst}`);
         lines.push(`${dim}${BOX.v}${rst}${cells}${dim}${BOX.v}${rst}`);
+      }
+
+      // Row separator (between rows, not after the last)
+      if (ri < rows.length - 1) {
+        lines.push(hRule(BOX.ml, BOX.x, BOX.mr, BOX.m));
       }
     }
 
@@ -310,7 +316,8 @@ export function formatTable(
       "| " + columns.map((c) => "-".repeat(c.width)).join(" | ") + " |",
     );
     // Data rows
-    for (const row of rows) {
+    for (let ri = 0; ri < rows.length; ri++) {
+      const row = rows[ri];
       const wrapped = row.map((cell, i) => wordWrap(cell, columns[i].width));
       const maxLines = Math.max(...wrapped.map((w) => w.length));
 
@@ -321,6 +328,13 @@ export function formatTable(
               .map((c, i) => pad(wrapped[i][ln] ?? "", c.width))
               .join(" | ") +
             " |",
+        );
+      }
+
+      // Row separator (between rows, not after the last)
+      if (ri < rows.length - 1) {
+        lines.push(
+          "| " + columns.map((c) => "-".repeat(c.width)).join(" | ") + " |",
         );
       }
     }
