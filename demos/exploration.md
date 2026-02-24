@@ -98,6 +98,17 @@ distinct groups with different characteristics?
 The cluster summaries show the centroid (average metric values) and
 exemplar candidates for each group.
 
+Compare candidates from different clusters to hear the difference.
+Seed 10 (cluster 0, loudest) versus seed 2 (cluster 1, quieter):
+
+```bash
+toneforge generate --recipe creature-vocal --seed 10
+```
+
+```bash
+toneforge generate --recipe creature-vocal --seed 2
+```
+
 > [!commentary]
 > Clustering is most useful with multiple metrics. With a single metric
 > like RMS, clusters simply reflect loudness tiers. With two or more
