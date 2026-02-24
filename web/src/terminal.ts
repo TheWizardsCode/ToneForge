@@ -21,7 +21,7 @@ export function createTerminal(
     fontSize: 14,
     fontFamily: '"SF Mono", "Cascadia Code", "Fira Code", "Consolas", monospace',
     theme: {
-      background: "#161b22",
+      background: "#0d1117",
       foreground: "#e6edf3",
       cursor: "#58a6ff",
       selectionBackground: "#264f78",

@@ -33,6 +33,8 @@ Let's build some layered sounds.
 
 The explosion preset uses three recipes. Here's each one solo:
 
+Each recipe is designed to fill a specific frequency range and time window in the final explosion. The impact-crack handles high frequencies and the initial transient. The rumble-body fills the low end with sustained weight. The debris-tail adds mid-to-high frequency scatter that trails off last. Listen to each one individually before hearing them combined.
+
 ```bash
 toneforge generate --recipe impact-crack --seed 42
 ```
@@ -58,6 +60,8 @@ toneforge generate --recipe debris-tail --seed 42
 The `stack inspect` command shows you the layer structure without
 rendering any audio:
 
+The output lists each layer's recipe name, its timing offset (when it starts relative to time zero), and its gain level (volume scaling from 0.0 to 1.0). This lets you understand the arrangement before committing to a render — useful for debugging timing or gain issues.
+
 ```bash
 toneforge stack inspect --preset presets/explosion_heavy.json
 ```
@@ -75,6 +79,8 @@ toneforge stack inspect --preset presets/explosion_heavy.json
 > explosion sound that's rich and layered — not a single flat noise burst.
 
 Render the explosion preset and hear it immediately:
+
+The renderer processes each layer independently using a deterministic seed derived from the global seed (seed+0 for layer 1, seed+1 for layer 2, seed+2 for layer 3). The resulting audio buffers are mixed with sample-accurate timing offsets and gain scaling, then clamped to the [-1, 1] range to prevent digital clipping.
 
 ```bash
 toneforge stack render --preset presets/explosion_heavy.json --seed 42
@@ -123,6 +129,8 @@ toneforge stack render --preset presets/explosion_heavy.json --seed 100 --output
 
 Inspect the door slam preset, then render and hear it:
 
+The door slam uses a different set of layer recipes tuned for an interior impact event. The slam transient provides the sharp initial contact. The resonance body simulates the wood vibrating after impact. The rattle decay adds the settling detail — the latch and frame vibrating as the energy dissipates. Timing offsets are tighter than the explosion because a door slam is a more compact event.
+
 ```bash
 toneforge stack inspect --preset presets/door_slam.json
 ```
@@ -149,6 +157,8 @@ toneforge stack render --preset presets/door_slam.json --seed 99
 > file — just combine existing recipes directly on the command line.
 
 The `--layer` flag lets you specify recipes with inline timing and gain:
+
+Each `--layer` flag defines one layer using the `recipe=name,offset=time,gain=value` syntax. Offsets accept `ms` and `s` suffixes (bare numbers default to seconds). This is useful for quick experiments — test different recipe combinations and timing without creating a preset file first.
 
 ```bash
 toneforge stack render --layer "recipe=impact-crack,offset=0ms,gain=0.9" --layer "recipe=debris-tail,offset=30ms,gain=0.6" --seed 42

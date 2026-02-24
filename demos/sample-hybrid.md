@@ -144,6 +144,8 @@ toneforge generate --recipe vehicle-engine --seed 1000
 Hybrid recipes work with `--output` and `--seed-range` just like
 procedural recipes:
 
+The batch export renders each seed independently. For hybrid recipes, the CC0 sample is loaded once and reused across all renders — only the procedural synthesis parameters change per seed. The resulting WAV files are deterministic: the same seed range will always produce the same set of files, byte for byte.
+
 ```bash
 toneforge generate --recipe footstep-gravel --seed-range 1:5 --output ./gravel-steps/
 ```
@@ -173,6 +175,8 @@ for f in ./creatures/*.wav; do toneforge play "$f"; sleep 0.5; done
 > purely procedural ones, without reading source code.
 
 The `list recipes` command shows all registered recipes including hybrids:
+
+Hybrid recipes appear alongside purely procedural ones in the recipe listing. The CLI treats them identically — same `generate`, `play`, `analyze`, and `--output` flags. The only architectural difference is that hybrid recipes load a sample file during audio graph construction, which is handled transparently by the renderer.
 
 ```bash
 toneforge list recipes

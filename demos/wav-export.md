@@ -30,6 +30,8 @@ procedurally. One tool, both workflows.
 The `--output` flag renders the audio to a file instead of playing it
 through speakers — freezing that seed into a reusable asset:
 
+The output is a standard 44.1 kHz, 16-bit PCM mono WAV file — compatible with any audio editor, game engine, or DAW. Parent directories are created automatically if they don't exist. The file is byte-identical to what `generate` would produce without `--output`, just written to disk instead of played.
+
 ```bash
 toneforge generate --recipe ui-scifi-confirm --seed 42 --output ./output/confirm.wav
 ```
@@ -47,6 +49,8 @@ toneforge generate --recipe ui-scifi-confirm --seed 42 --output ./output/confirm
 > audio player.
 
 Use ToneForge's built-in `play` command to listen to the exported file:
+
+The `play` command detects your platform's audio player automatically — `aplay` on Linux, `afplay` on macOS, `PowerShell` on Windows — so you never need to remember which player is installed. It plays the WAV file through your system's default audio output.
 
 ```bash
 toneforge play ./output/confirm.wav
@@ -67,6 +71,8 @@ toneforge play ./output/confirm.wav
 When `--output` is specified, ToneForge skips the audio player entirely.
 No speaker detection, no playback dependencies, no sound:
 
+This makes ToneForge work in headless environments where no audio hardware is available — Docker containers, CI runners, SSH sessions. The renderer produces the same WAV bytes regardless of whether audio output is available on the host machine.
+
 ```bash
 toneforge generate --recipe weapon-laser-zap --seed 1337 --output ./output/laser.wav
 ```
@@ -86,6 +92,8 @@ toneforge generate --recipe weapon-laser-zap --seed 1337 --output ./output/laser
 
 Every recipe supports `--output` identically — export only the sounds
 you want to pin:
+
+The `--output` flag works the same way regardless of recipe type — procedural, hybrid, or stacked. Each command below freezes one seed from a different recipe category into a WAV file. The files can be dropped directly into a game project, version-controlled, or shared with a sound designer.
 
 ```bash
 toneforge generate --recipe footstep-stone --seed 10 --output ./output/footstep.wav

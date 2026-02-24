@@ -80,38 +80,14 @@ Analysis: ./output/weapon-laser-zap_seed-042.wav
 
 Here is what each metric measures, in plain language:
 
-- **duration** (seconds) -- How long the sound is. This laser zap is
-  0.108 seconds -- about 108 milliseconds, a short burst.
-
-- **peak** (0.0 to 1.0+) -- The highest absolute sample value. A peak
-  of 1.0 means the signal reached the maximum before clipping. Values
-  above 1.0 indicate the signal exceeded the clipping threshold during
-  rendering (before WAV encoding clamped it).
-
-- **rms** (root mean square) -- A measure of average loudness. Higher
-  RMS means the sound is consistently louder. This zap's RMS of 0.377
-  means it is fairly loud for its short duration.
-
-- **crestFactor** (peak / RMS) -- The ratio of peak to average loudness.
-  A low crest factor (near 1.0) means the sound is very compressed --
-  consistently loud. A high crest factor means it has sharp transients
-  with quieter passages. This zap at 2.65 has moderate dynamics.
-
-- **attackTime** (seconds) -- How quickly the sound reaches 90% of its
-  peak amplitude, measured from the first sample above the noise floor.
-  This zap's attack of 0.005 seconds (5 ms) means it starts almost
-  instantly -- a sharp transient.
-
-- **spectralCentroid** (Hz) -- The "center of mass" of the frequency
-  spectrum. A low centroid (under 500 Hz) means the sound is bassy.
-  A high centroid (above 3000 Hz) means it is bright and tinny. This
-  zap at 955 Hz sits in the midrange.
-
-- **clipping** (true/false) -- Raised when peak >= 1.0. The signal hit
-  or exceeded the maximum, which can cause audible distortion.
-
-- **silence** (true/false) -- Raised when RMS is below 0.001. The sound
-  is effectively inaudible.
+- **duration** (seconds) -- How long the sound is. This laser zap is 0.108 seconds -- about 108 milliseconds, a short burst.
+- **peak** (0.0 to 1.0+) -- The highest absolute sample value. A peak of 1.0 means the signal reached the maximum before clipping. Values above 1.0 indicate the signal exceeded the clipping threshold during rendering (before WAV encoding clamped it).
+- **rms** (root mean square) -- A measure of average loudness. Higher RMS means the sound is consistently louder. This zap's RMS of 0.377 means it is fairly loud for its short duration.
+- **crestFactor** (peak / RMS) -- The ratio of peak to average loudness. A low crest factor (near 1.0) means the sound is very compressed -- consistently loud. A high crest factor means it has sharp transients with quieter passages. This zap at 2.65 has moderate dynamics.
+- **attackTime** (seconds) -- How quickly the sound reaches 90% of its peak amplitude, measured from the first sample above the noise floor. This zap's attack of 0.005 seconds (5 ms) means it starts almost instantly -- a sharp transient.
+- **spectralCentroid** (Hz) -- The "center of mass" of the frequency spectrum. A low centroid (under 500 Hz) means the sound is bassy. A high centroid (above 3000 Hz) means it is bright and tinny. This zap at 955 Hz sits in the midrange.
+- **clipping** (true/false) -- Raised when peak >= 1.0. The signal hit or exceeded the maximum, which can cause audible distortion.
+- **silence** (true/false) -- Raised when RMS is below 0.001. The sound is effectively inaudible.
 
 ## Act 3 -- Recipe+seed analysis (no disk write)
 
@@ -120,6 +96,8 @@ Here is what each metric measures, in plain language:
 
 The `--recipe` and `--seed` flags render internally and analyze the
 result in memory:
+
+This mode skips the WAV encode/decode roundtrip entirely. The renderer produces a Float32Array of PCM samples, and the analyzer runs directly on that buffer. The results are identical to analyzing a saved WAV file — the only difference is that no file is written to disk. This is useful for quick spot-checks during development.
 
 ```bash
 toneforge analyze --recipe weapon-laser-zap --seed 42
@@ -149,6 +127,10 @@ toneforge analyze --recipe ambient-wind-gust --seed 42
 
 > You want to see how the explosion stacking recipes differ from each
 > other numerically -- the sharp crack versus the deep rumble.
+
+Analyze the individual layer recipes that make up the explosion_heavy stack preset to see how their metrics reveal complementary roles.
+
+The impact-crack and rumble-body recipes are designed to fill different parts of the frequency spectrum. Comparing their spectral centroid, attack time, and duration shows exactly how they divide the work — one handles the sharp high-frequency transient, the other provides sustained low-frequency weight.
 
 ```bash
 toneforge analyze --recipe impact-crack --seed 42
@@ -207,8 +189,10 @@ The table shows key metrics for each file at a glance:
 
 ## Act 6 -- Batch output to files
 
-> You want to save analysis results alongside your WAV files for later
-> processing or integration with other tools.
+> You need jump sounds for a forest level. The audio designer specified
+> a tonal range: spectral centroid between 600 and 900 Hz so the jumps
+> blend with the ambient soundscape. You want to save analysis results
+> and pick only the seeds that fit.
 
 ```bash
 toneforge analyze --input ./output/jump-batch/ --output ./output/jump-analysis/
@@ -231,10 +215,16 @@ character-jump-seed-5.json
 ```
 
 > [!commentary]
-> One JSON per WAV, named to match. These files can be consumed by
-> scripts, CI pipelines, or downstream ToneForge features like
-> classification. The output directory is created automatically if it
-> does not exist.
+> Look back at the table from Act 5. Seeds 1, 2, 3, and 5 have spectral
+> centroids between 596 and 790 Hz -- within the 600-900 Hz range. Seed 4
+> is at 1199 Hz, too bright for the forest level. You can read these JSON
+> files programmatically and select only the seeds that meet the criteria.
+> This entire process -- generate a batch, analyze, filter by metric
+> thresholds, and copy the qualifying WAV files into a build -- could be
+> fully automated. A script or CI pipeline runs the same commands, parses
+> the JSON output, and selects sounds without any human listening. That is
+> the point of deterministic, structured metrics: machines can make the
+> same selection a human would, at any scale.
 
 ## Act 7 -- Quality flags: Clipping and silence
 
