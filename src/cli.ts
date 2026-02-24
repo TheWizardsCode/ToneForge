@@ -223,7 +223,7 @@ function printStackHelp(): void {
 
 | Subcommand | Description |
 |------------|-------------|
-| **render** | Render a layered stack to a WAV file |
+| **render** | Render a layered stack to a WAV file or play it directly |
 | **inspect** | Display the layer structure of a preset |
 
 Run \`toneforge stack <subcommand> --help\` for subcommand-specific help.`;
@@ -234,13 +234,13 @@ Run \`toneforge stack <subcommand> --help\` for subcommand-specific help.`;
 function printStackRenderHelp(): void {
   const md = `# ToneForge stack render
 
-**Render a layered stack to a WAV file**
+**Render a layered stack to a WAV file or play it directly**
 
 ## Usage
 
 \`\`\`
-toneforge stack render --preset <file> --seed <number> --output <path.wav>
-toneforge stack render --layer <spec> [--layer <spec>...] --seed <number> --output <path.wav>
+toneforge stack render --preset <file> --seed <number> [--output <path.wav>]
+toneforge stack render --layer <spec> [--layer <spec>...] --seed <number> [--output <path.wav>]
 \`\`\`
 
 ## Options
@@ -248,7 +248,7 @@ toneforge stack render --layer <spec> [--layer <spec>...] --seed <number> --outp
 - \`--preset <file>\` — Path to a JSON preset file
 - \`--layer <spec>\` — Inline layer specification (repeatable). Format: \`recipe=<name>,offset=<time>,gain=<value>\`
 - \`--seed <number>\` — Integer seed for deterministic generation *(required)*
-- \`--output <path.wav>\` — Output WAV file path *(required)*
+- \`--output <path.wav>\` — Output WAV file path. When omitted, audio is played directly
 - \`--json\` — Output results in JSON format
 - \`--help\`, \`-h\` — Show this help message
 
@@ -264,11 +264,12 @@ toneforge stack render --layer <spec> [--layer <spec>...] --seed <number> --outp
 ## Examples
 
 \`\`\`
+toneforge stack render --preset presets/explosion_heavy.json --seed 42
 toneforge stack render --preset presets/explosion_heavy.json --seed 42 --output ./explosion.wav
 toneforge stack render \\
   --layer "recipe=impact-crack,offset=0ms,gain=0.9" \\
   --layer "recipe=rumble-body,offset=5ms,gain=0.7" \\
-  --seed 42 --output ./layered.wav
+  --seed 42
 \`\`\``;
   outputMarkdown(md);
 }
@@ -780,13 +781,8 @@ export async function main(argv: string[] = process.argv): Promise<number> {
         return 1;
       }
 
-      // Require --output
+      // --output is optional: when omitted, audio is played instead of saved
       const outputPath = typeof flags["output"] === "string" ? flags["output"] : undefined;
-      if (outputPath === undefined) {
-        const msg = "--output is required for stack render. Run 'toneforge stack render --help' for usage.";
-        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
-        return 1;
-      }
 
       // Require either --preset or --layer
       const presetPath = typeof flags["preset"] === "string" ? flags["preset"] : undefined;
@@ -831,25 +827,48 @@ export async function main(argv: string[] = process.argv): Promise<number> {
           );
         }
 
-        // Write WAV file
-        await mkdir(dirname(resolve(outputPath)), { recursive: true });
-        const wavBuffer = encodeWav(result.samples, { sampleRate: result.sampleRate });
-        await writeFile(resolve(outputPath), wavBuffer);
+        if (outputPath !== undefined) {
+          // Write WAV file
+          await mkdir(dirname(resolve(outputPath)), { recursive: true });
+          const wavBuffer = encodeWav(result.samples, { sampleRate: result.sampleRate });
+          await writeFile(resolve(outputPath), wavBuffer);
 
-        if (jsonMode) {
-          jsonOut({
-            command: "stack render",
-            preset: presetPath || null,
-            name: definition.name || "inline",
-            layers: definition.layers.length,
-            seed,
-            output: outputPath,
-            duration: result.duration,
-            sampleRate: result.sampleRate,
-            samples: result.samples.length,
-          });
+          if (jsonMode) {
+            jsonOut({
+              command: "stack render",
+              preset: presetPath || null,
+              name: definition.name || "inline",
+              layers: definition.layers.length,
+              seed,
+              output: outputPath,
+              duration: result.duration,
+              sampleRate: result.sampleRate,
+              samples: result.samples.length,
+            });
+          } else {
+            outputSuccess(`Wrote ${outputPath}`);
+          }
         } else {
-          outputSuccess(`Wrote ${outputPath}`);
+          // Play audio (default when --output is not specified)
+          if (!jsonMode) {
+            outputInfo("Playing...");
+          }
+          await playAudio(result.samples, { sampleRate: result.sampleRate });
+          if (jsonMode) {
+            jsonOut({
+              command: "stack render",
+              preset: presetPath || null,
+              name: definition.name || "inline",
+              layers: definition.layers.length,
+              seed,
+              duration: result.duration,
+              sampleRate: result.sampleRate,
+              samples: result.samples.length,
+              played: true,
+            });
+          } else {
+            outputSuccess("Done.");
+          }
         }
 
         return 0;

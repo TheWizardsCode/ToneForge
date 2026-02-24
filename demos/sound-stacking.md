@@ -26,13 +26,37 @@ Two stack presets ship with ToneForge:
 
 Let's build some layered sounds.
 
-## Act 1 — Inspect a preset
+## Act 1 — Hear the ingredients
 
-> You've heard about presets but want to understand what's inside one
-> before rendering anything.
+> Before stacking, listen to the individual layer recipes on their own.
+> These are the building blocks that will be combined into complex events.
 
-The `stack inspect` command shows you the layer structure of a preset
-without rendering any audio:
+The explosion preset uses three recipes. Here's each one solo:
+
+```bash
+toneforge generate --recipe impact-crack --seed 42
+```
+
+```bash
+toneforge generate --recipe rumble-body --seed 42
+```
+
+```bash
+toneforge generate --recipe debris-tail --seed 42
+```
+
+> [!commentary]
+> Each recipe has a distinct role: the impact-crack is a sharp transient,
+> rumble-body provides low-frequency weight, and debris-tail adds scattered
+> crackle. Individually they're simple building blocks. The magic happens
+> when we layer them with precise timing and gain.
+
+## Act 2 — Inspect a preset
+
+> You want to understand what's inside a preset before rendering it.
+
+The `stack inspect` command shows you the layer structure without
+rendering any audio:
 
 ```bash
 toneforge stack inspect --preset presets/explosion_heavy.json
@@ -45,24 +69,26 @@ toneforge stack inspect --preset presets/explosion_heavy.json
 > tail enters 50ms in, quietest of all. This layered timing creates
 > the illusion of a single complex event from three simple recipes.
 
-## Act 2 — Render the explosion
+## Act 3 — Render and hear the explosion
 
 > You're building a game with destructible environments. You need an
 > explosion sound that's rich and layered — not a single flat noise burst.
 
-Render the explosion preset with a seed:
+Render the explosion preset and hear it immediately:
 
 ```bash
-toneforge stack render --preset presets/explosion_heavy.json --seed 42 --output ./output/explosion.wav
+toneforge stack render --preset presets/explosion_heavy.json --seed 42
 ```
 
 > [!commentary]
 > Three recipes rendered independently, each with a deterministic seed
 > derived from the global seed (seed+0, seed+1, seed+2). The results
 > were mixed with sample-accurate timing offsets and gain scaling, then
-> clamped to [-1, 1]. One command, one WAV, three layers of depth.
+> clamped to [-1, 1]. One command, three layers of depth. Compare what
+> you just heard to the individual ingredients from Act 1 — the layered
+> version is far richer.
 
-## Act 3 — Seed variation
+## Act 4 — Seed variation
 
 > You want several explosion variants so they don't all sound identical
 > when multiple barrels explode simultaneously.
@@ -70,11 +96,11 @@ toneforge stack render --preset presets/explosion_heavy.json --seed 42 --output 
 Different seeds produce different variations of the same layered event:
 
 ```bash
-toneforge stack render --preset presets/explosion_heavy.json --seed 100 --output ./output/explosion_v2.wav
+toneforge stack render --preset presets/explosion_heavy.json --seed 100
 ```
 
 ```bash
-toneforge stack render --preset presets/explosion_heavy.json --seed 256 --output ./output/explosion_v3.wav
+toneforge stack render --preset presets/explosion_heavy.json --seed 256
 ```
 
 > [!commentary]
@@ -84,23 +110,29 @@ toneforge stack render --preset presets/explosion_heavy.json --seed 256 --output
 > or less scattered. The event's character changes while its structure
 > stays consistent. Same seed always produces the same bytes.
 
-## Act 4 — The door slam preset
+You can also save a favourite variation to a file:
+
+```bash
+toneforge stack render --preset presets/explosion_heavy.json --seed 100 --output ./output/explosion_v2.wav
+```
+
+## Act 5 — The door slam preset
 
 > Your horror game needs door slams — a sharp impact followed by
 > resonance and a subtle rattle as the frame settles.
 
-Inspect the door slam preset, then render it:
+Inspect the door slam preset, then render and hear it:
 
 ```bash
 toneforge stack inspect --preset presets/door_slam.json
 ```
 
 ```bash
-toneforge stack render --preset presets/door_slam.json --seed 42 --output ./output/door_slam.wav
+toneforge stack render --preset presets/door_slam.json --seed 42
 ```
 
 ```bash
-toneforge stack render --preset presets/door_slam.json --seed 99 --output ./output/door_slam_v2.wav
+toneforge stack render --preset presets/door_slam.json --seed 99
 ```
 
 > [!commentary]
@@ -111,7 +143,7 @@ toneforge stack render --preset presets/door_slam.json --seed 99 --output ./outp
 > tighter here — the slam is near-instantaneous, with resonance and
 > rattle following within tens of milliseconds.
 
-## Act 5 — Ad-hoc stacking with --layer
+## Act 6 — Ad-hoc stacking with --layer
 
 > You want to prototype a new layered sound without creating a preset
 > file — just combine existing recipes directly on the command line.
@@ -119,7 +151,7 @@ toneforge stack render --preset presets/door_slam.json --seed 99 --output ./outp
 The `--layer` flag lets you specify recipes with inline timing and gain:
 
 ```bash
-toneforge stack render --layer "recipe=impact-crack,offset=0ms,gain=0.9" --layer "recipe=debris-tail,offset=30ms,gain=0.6" --seed 42 --output ./output/custom_stack.wav
+toneforge stack render --layer "recipe=impact-crack,offset=0ms,gain=0.9" --layer "recipe=debris-tail,offset=30ms,gain=0.6" --seed 42
 ```
 
 > [!commentary]
@@ -132,14 +164,15 @@ toneforge stack render --layer "recipe=impact-crack,offset=0ms,gain=0.9" --layer
 
 ## Recap — What you just saw
 
-1. Stack presets define layers with recipe names, timing offsets, and gain
+1. Individual layer recipes can be previewed solo before stacking
 2. `stack inspect` previews the layer structure without rendering
-3. `stack render` produces a single mixed mono WAV from all layers
-4. Deterministic seeds derive unique per-layer seeds automatically
-5. Different seeds vary the synthesis while preserving layer structure
-6. Inline `--layer` syntax enables ad-hoc stacking from the CLI
-7. Six purpose-built recipes across two preset categories (explosion, door slam)
-8. Output is clamped to [-1, 1] — no clipping, no normalization artifacts
+3. `stack render` produces a single mixed mono output from all layers
+4. Omit `--output` to hear the result immediately; add it to save a file
+5. Deterministic seeds derive unique per-layer seeds automatically
+6. Different seeds vary the synthesis while preserving layer structure
+7. Inline `--layer` syntax enables ad-hoc stacking from the CLI
+8. Six purpose-built recipes across two preset categories (explosion, door slam)
+9. Output is clamped to [-1, 1] — no clipping, no normalization artifacts
 
 Simple recipes as ingredients. Timing and gain as the arrangement.
 That's sound stacking.
