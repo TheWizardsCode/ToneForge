@@ -499,11 +499,26 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     if (jsonMode) {
       jsonOut({ command: "list", resource: "recipes", recipes });
     } else {
-      const header = "| Recipe | Description |\n| --- | --- |";
+      const TABLE_WIDTH = 76;
+      // Table row: "| " + name + " | " + desc + " |"  →  overhead = 7
+      const nameCol = Math.max(...recipes.map((r) => r.name.length));
+      const descCol = TABLE_WIDTH - nameCol - 7;
+
+      const pad = (s: string, w: number) => s + " ".repeat(Math.max(0, w - s.length));
+      const truncate = (s: string, w: number) =>
+        s.length <= w ? s : s.slice(0, w - 1) + "\u2026";
+
+      const header =
+        `| ${pad("Recipe", nameCol)} | ${pad("Description", descCol)} |`;
+      const separator =
+        `| ${"-".repeat(nameCol)} | ${"-".repeat(descCol)} |`;
       const rows = recipes
-        .map((r) => `| ${r.name} | ${r.description || "—"} |`)
+        .map(
+          (r) =>
+            `| ${pad(r.name, nameCol)} | ${pad(truncate(r.description || "\u2014", descCol), descCol)} |`,
+        )
         .join("\n");
-      outputMarkdown(`${header}\n${rows}`);
+      outputMarkdown(`${header}\n${separator}\n${rows}`);
     }
     return 0;
   }
