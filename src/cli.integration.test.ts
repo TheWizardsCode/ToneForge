@@ -310,12 +310,29 @@ describe("CLI Integration — stack render", () => {
     expect(stderr).toContain("--seed");
   });
 
-  it("stack render without --output returns error", async () => {
-    const { code, stderr } = await captureOutput(
+  it("stack render without --output plays audio (auto-play)", async () => {
+    const { playAudio: mockPlayAudio } = await import("./audio/player.js");
+    const { code, stdout } = await captureOutput(
       () => main(argv("stack", "render", "--preset", "presets/explosion_heavy.json", "--seed", "42")),
     );
-    expect(code).toBe(1);
-    expect(stderr).toContain("--output");
+    expect(code).toBe(0);
+    expect(stdout).toContain("Playing");
+    expect(mockPlayAudio).toHaveBeenCalled();
+  });
+
+  it("stack render --layer without --output plays audio (auto-play)", async () => {
+    const { playAudio: mockPlayAudio } = await import("./audio/player.js");
+    const { code, stdout } = await captureOutput(
+      () => main(argv(
+        "stack", "render",
+        "--layer", "recipe=impact-crack,offset=0ms,gain=0.9",
+        "--layer", "recipe=debris-tail,offset=30ms,gain=0.6",
+        "--seed", "42",
+      )),
+    );
+    expect(code).toBe(0);
+    expect(stdout).toContain("Playing");
+    expect(mockPlayAudio).toHaveBeenCalled();
   });
 
   it("stack render without --preset or --layer returns error", async () => {
@@ -325,6 +342,17 @@ describe("CLI Integration — stack render", () => {
     );
     expect(code).toBe(1);
     expect(stderr).toContain("--preset");
+  });
+
+  it("stack render auto-play returns played:true in JSON mode", async () => {
+    const { code, stdout } = await captureOutput(
+      () => main(argv("stack", "render", "--preset", "presets/explosion_heavy.json", "--seed", "42", "--json")),
+    );
+    expect(code).toBe(0);
+    const json = JSON.parse(stdout);
+    expect(json.played).toBe(true);
+    expect(json.command).toBe("stack render");
+    expect(json.name).toBe("explosion_heavy");
   });
 
   it("stack render is deterministic — same preset+seed produces same WAV", async () => {
