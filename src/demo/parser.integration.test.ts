@@ -73,8 +73,19 @@ describe("Demo markdown integration — recipe validation", () => {
         }
       }
 
-      it("contains at least one toneforge command (generate or stack)", () => {
-        expect(generateCommands.length + stackCommands.length).toBeGreaterThan(0);
+      // Collect all explore commands (explore sweep / explore mutate / etc.)
+      const exploreCommands: Array<{ stepId: string; command: string }> = [];
+
+      for (const step of parsed.steps) {
+        for (const cmd of step.commands) {
+          if (cmd.includes("explore") && cmd.includes("--recipe")) {
+            exploreCommands.push({ stepId: step.id, command: cmd });
+          }
+        }
+      }
+
+      it("contains at least one toneforge command (generate, stack, or explore)", () => {
+        expect(generateCommands.length + stackCommands.length + exploreCommands.length).toBeGreaterThan(0);
       });
 
       if (generateCommands.length > 0) {
@@ -104,6 +115,20 @@ describe("Demo markdown integration — recipe validation", () => {
           ({ command }) => {
             // Stack commands should reference a --preset or --layer
             expect(command).toMatch(/--preset|--layer/);
+          },
+        );
+      }
+
+      if (exploreCommands.length > 0) {
+        it.each(exploreCommands)(
+          "step $stepId: '$command' references a registered recipe",
+          ({ command }) => {
+            const recipeName = extractRecipeName(command);
+            expect(recipeName).toBeTruthy();
+            expect(
+              registry.getRecipe(recipeName!),
+              `Recipe '${recipeName}' from parsed markdown is not in the registry`,
+            ).toBeDefined();
           },
         );
       }
