@@ -1,7 +1,7 @@
 ---
 title: "Building a Sound: From Sine Wave to Recipe"
 id: sound-creation
-order: 60
+order: 70
 description: >
   A step-by-step tutorial that builds a character-jump sound effect from
   scratch, explaining oscillators, envelopes, filters, noise, and seeded

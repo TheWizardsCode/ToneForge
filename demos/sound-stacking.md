@@ -1,7 +1,7 @@
 ---
 title: "Sound Stacking: Layered Events"
 id: sound-stacking
-order: 40
+order: 60
 description: >
   Compose complex sound events from multiple layered recipes
   with independent timing and gain controls.
