@@ -65,6 +65,12 @@ Cluster summaries:
   Cluster 2: 2 members, centroid: rms=0.880
 ```
 
+Now listen to the top result -- seed 10 scored highest:
+
+```bash
+toneforge generate --recipe creature-vocal --seed 10
+```
+
 > [!commentary]
 > The sweep rendered all 20 seeds, analyzed each one, ranked them by
 > normalized RMS, and kept the top 5. Seed 10 scored 1.0 -- the loudest
