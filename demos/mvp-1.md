@@ -37,6 +37,8 @@ Build and test with sound now. Drop in final assets when they're ready.
 ToneForge generates placeholder sounds from recipes in milliseconds.
 No assets needed. One command, one sound.
 
+The `generate` command synthesizes audio from a named recipe and a numeric seed. The recipe defines the synthesis algorithm; the seed controls parameter variation. Together they produce a deterministic WAV output — the same recipe and seed will always yield identical audio.
+
 ```bash
 toneforge generate --recipe ui-scifi-confirm --seed 42
 ```
@@ -54,6 +56,8 @@ toneforge generate --recipe ui-scifi-confirm --seed 42
 
 Change the seed, change the sound. Same recipe, different number, instant
 variation. Try three candidates in seconds:
+
+Each seed derives a different set of synthesis parameters — frequency, envelope shape, filter cutoff — from the recipe's parameter ranges. The result is a family of sounds that share the same character but differ in detail.
 
 ```bash
 toneforge generate --recipe ui-scifi-confirm --seed 100
@@ -81,6 +85,8 @@ toneforge generate --recipe ui-scifi-confirm --seed 7
 ToneForge is deterministic. Same recipe + same seed = identical audio,
 byte for byte. Share a seed, share a sound:
 
+This generates the exact same output as Act 1 — same recipe, same seed, same bytes. Determinism means any team member can reproduce any placeholder by knowing just two values: the recipe name and the seed number.
+
 ```bash
 toneforge generate --recipe ui-scifi-confirm --seed 42
 ```
@@ -98,6 +104,8 @@ toneforge generate --recipe ui-scifi-confirm --seed 42
 
 ToneForge's test suite renders the same seed 10 times and compares every
 sample byte-for-byte. Let's run it:
+
+The renderer test generates audio for the same recipe and seed ten times in sequence. Each render produces a Float32Array of PCM samples. The test compares every sample value across all ten renders — if even one sample differs, the test fails. This is how ToneForge guarantees reproducibility in CI.
 
 ```bash
 npx vitest run src/core/renderer.test.ts

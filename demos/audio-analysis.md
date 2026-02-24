@@ -97,6 +97,8 @@ Here is what each metric measures, in plain language:
 The `--recipe` and `--seed` flags render internally and analyze the
 result in memory:
 
+This mode skips the WAV encode/decode roundtrip entirely. The renderer produces a Float32Array of PCM samples, and the analyzer runs directly on that buffer. The results are identical to analyzing a saved WAV file — the only difference is that no file is written to disk. This is useful for quick spot-checks during development.
+
 ```bash
 toneforge analyze --recipe weapon-laser-zap --seed 42
 ```
@@ -125,6 +127,10 @@ toneforge analyze --recipe ambient-wind-gust --seed 42
 
 > You want to see how the explosion stacking recipes differ from each
 > other numerically -- the sharp crack versus the deep rumble.
+
+Analyze the individual layer recipes that make up the explosion_heavy stack preset to see how their metrics reveal complementary roles.
+
+The impact-crack and rumble-body recipes are designed to fill different parts of the frequency spectrum. Comparing their spectral centroid, attack time, and duration shows exactly how they divide the work — one handles the sharp high-frequency transient, the other provides sustained low-frequency weight.
 
 ```bash
 toneforge analyze --recipe impact-crack --seed 42

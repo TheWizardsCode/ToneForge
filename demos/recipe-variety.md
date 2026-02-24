@@ -31,6 +31,8 @@ get deterministic procedural audio. Let's hear them all.
 
 The `list recipes` command shows every registered recipe:
 
+The output includes the recipe name, a short description, and its audio category. This is the discovery interface — you never need to browse source files to find what recipes are available.
+
 ```bash
 toneforge list recipes
 ```
@@ -46,6 +48,8 @@ toneforge list recipes
 
 The `weapon-laser-zap` recipe uses FM synthesis and a noise burst
 to create sci-fi blaster sounds:
+
+FM synthesis works by using one oscillator (the modulator) to rapidly vary the frequency of another (the carrier). This creates complex, harmonically rich timbres from just two sine waves. The noise burst adds percussive attack. Each seed shifts the carrier frequency, modulation depth, and noise character.
 
 ```bash
 toneforge generate --recipe weapon-laser-zap --seed 42
@@ -72,6 +76,8 @@ toneforge generate --recipe weapon-laser-zap --seed 256
 The `footstep-stone` recipe uses filtered noise with transient shaping
 to simulate hard surface impacts:
 
+Unlike tonal recipes that use oscillators, footsteps are built from noise — random audio samples filtered through a bandpass to simulate surface material. The transient shaper creates a sharp initial impact followed by a rapid decay. Each seed varies the filter frequency, resonance, and decay time.
+
 ```bash
 toneforge generate --recipe footstep-stone --seed 10
 ```
@@ -97,6 +103,8 @@ toneforge generate --recipe footstep-stone --seed 30
 The `ui-notification-chime` recipe builds a harmonic series with a
 gentle envelope:
 
+A harmonic series stacks sine waves at integer multiples of a fundamental frequency — the same physics that make bells and chimes ring musically. The seed controls the fundamental pitch, how many harmonics are included, and the envelope shape. Lower harmonic counts sound pure; higher counts sound richer and more bell-like.
+
 ```bash
 toneforge generate --recipe ui-notification-chime --seed 42
 ```
@@ -118,6 +126,8 @@ toneforge generate --recipe ui-notification-chime --seed 88
 The `ambient-wind-gust` recipe uses filtered noise with LFO-modulated
 cutoff for organic wind movement:
 
+An LFO (low-frequency oscillator) slowly modulates the filter cutoff over time, creating the characteristic "breathing" quality of wind — swelling and receding naturally. The seed controls the LFO rate, filter bandwidth, and overall duration. Slower LFO rates produce gentle breezes; faster rates produce gusty, turbulent wind.
+
 ```bash
 toneforge generate --recipe ambient-wind-gust --seed 42
 ```
@@ -137,6 +147,8 @@ toneforge generate --recipe ambient-wind-gust --seed 500
 > One architecture. One pattern. Any recipe.
 
 The original UI confirm tone still works exactly the same way:
+
+All five recipes share the same two-file architecture: a params module that derives synthesis values from a seed using pure math (no audio dependencies), and a factory module that builds the audio graph. Adding a new recipe means creating these two files and registering the recipe — no changes to the renderer, CLI, or any existing code.
 
 ```bash
 toneforge generate --recipe ui-scifi-confirm --seed 42

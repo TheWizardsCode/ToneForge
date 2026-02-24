@@ -32,6 +32,8 @@ up runtime variety.
 The `--seed-range` flag generates one WAV file per seed — a set of
 candidates to listen through:
 
+The range is inclusive: `1:5` produces seeds 1, 2, 3, 4, and 5. Each file is named `<recipe>-seed-<n>.wav` so you can trace any file back to its recipe and seed. The output directory is created automatically if it doesn't exist.
+
 ```bash
 toneforge generate --recipe weapon-laser-zap --seed-range 1:5 --output ./output/lasers/
 ```
@@ -47,6 +49,8 @@ toneforge generate --recipe weapon-laser-zap --seed-range 1:5 --output ./output/
 > so you can hear the differences and pick favorites.
 
 Audition every file in one shot with a quick loop:
+
+The shell loop plays each WAV file in alphabetical order with a short pause between them. This lets you hear all five variations back-to-back and compare their character — pitch, brightness, attack, duration — without switching between files manually.
 
 ```bash
 for f in ./output/lasers/*.wav; do toneforge play "$f"; sleep 0.25; done
@@ -66,6 +70,8 @@ for f in ./output/lasers/*.wav; do toneforge play "$f"; sleep 0.25; done
 
 Generate a set of footstep impacts to curate from:
 
+A wider seed range produces more candidates to choose from. Seeds 10 through 20 yield eleven footstep variations — each with different filter brightness, resonance, and decay characteristics. The stone surface recipe uses bandpass-filtered noise, so seed changes produce subtle timbral shifts rather than dramatic pitch changes.
+
 ```bash
 toneforge generate --recipe footstep-stone --seed-range 10:20 --output ./output/footsteps/
 ```
@@ -80,6 +86,8 @@ toneforge generate --recipe footstep-stone --seed-range 10:20 --output ./output/
 > through them to find the set that feels right for your stone surface.
 
 Audition each footstep variation:
+
+Listen for differences in the initial transient sharpness, the mid-frequency resonance, and how quickly the sound decays. Footsteps that decay too slowly might overlap when the character runs; footsteps that are too bright might not match a dungeon environment.
 
 ```bash
 for f in ./output/footsteps/*.wav; do toneforge play "$f"; sleep 0.25; done
@@ -99,6 +107,8 @@ for f in ./output/footsteps/*.wav; do toneforge play "$f"; sleep 0.25; done
 
 Generate a palette of chime variations to choose from:
 
+The notification chime recipe builds harmonic series — stacked sine waves at integer multiples of a fundamental pitch. Different seeds shift the fundamental, the harmonic count, and the envelope. Ten candidates give you a broad palette ranging from simple two-harmonic tones to rich, bell-like chimes.
+
 ```bash
 toneforge generate --recipe ui-notification-chime --seed-range 1:10 --output ./output/chimes/
 ```
@@ -113,6 +123,8 @@ toneforge generate --recipe ui-notification-chime --seed-range 1:10 --output ./o
 > them to find your hero sounds and runners-up.
 
 Audition each chime variation:
+
+Listen for the fundamental pitch, how many harmonics ring out, and the envelope shape — some chimes will have a quick attack and short decay (a tap), while others sustain longer (a ring). Your hero notification sound should be distinctive but not fatiguing on repeated plays.
 
 ```bash
 for f in ./output/chimes/*.wav; do toneforge play "$f"; sleep 0.25; done
@@ -132,6 +144,8 @@ for f in ./output/chimes/*.wav; do toneforge play "$f"; sleep 0.25; done
 The naming convention is `<recipe>-seed-<n>.wav`, making every file
 traceable back to its recipe and seed:
 
+This convention means you can reconstruct any sound from its filename alone — parse the recipe name and seed number, pass them to `toneforge generate`, and get byte-identical output. Version-control the filenames (or just the seed list) and you have a fully reproducible sound library.
+
 ```bash
 toneforge generate --recipe ambient-wind-gust --seed-range 100:102 --output ./output/wind/
 ```
@@ -148,6 +162,8 @@ toneforge generate --recipe ambient-wind-gust --seed-range 100:102 --output ./ou
 > the naming convention maps cleanly to what you hear.
 
 Play through the wind variations:
+
+Wind gusts are longer sounds (1-2 seconds) with gradual LFO-modulated swells. Listen for differences in the swell rate, filter bandwidth, and overall brightness. These ambient sounds are designed to be layered — multiple seeds playing simultaneously create a richer, more organic soundscape.
 
 ```bash
 for f in ./output/wind/*.wav; do toneforge play "$f"; sleep 0.25; done
