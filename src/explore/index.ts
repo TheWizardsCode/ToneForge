@@ -28,6 +28,7 @@ export {
   loadRunResult,
   listRunIds,
   listRuns,
+  getLatestRunId,
   generateRunId,
 } from "./persistence.js";
 

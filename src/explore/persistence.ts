@@ -103,6 +103,21 @@ export async function listRunIds(
 }
 
 /**
+ * Get the most recent run ID.
+ *
+ * Returns the run ID with the latest timestamp, or null if no runs exist.
+ *
+ * @param baseDir - Base directory for exploration data.
+ * @returns The latest run ID, or null if none exist.
+ */
+export async function getLatestRunId(
+  baseDir: string = DEFAULT_BASE_DIR,
+): Promise<string | null> {
+  const ids = await listRunIds(baseDir);
+  return ids.length > 0 ? ids[0]! : null;
+}
+
+/**
  * List all saved runs with summary info.
  *
  * @param baseDir - Base directory for exploration data.

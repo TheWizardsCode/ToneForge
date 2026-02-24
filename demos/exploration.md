@@ -216,16 +216,37 @@ Mutate complete in 344ms -- 10 variations
 | 5   | creature-vocal_seed-00868 | 0.7817 | rms=0.782 |
 ```
 
+Listen to three of the mutations to hear how they compare. The top
+scorer (seed 24, rms=1.000):
+
+```bash
+toneforge generate --recipe creature-vocal --seed 24
+```
+
+A mid-range mutation (seed 150, rms=0.912):
+
+```bash
+toneforge generate --recipe creature-vocal --seed 150
+```
+
+A lower-scoring mutation (seed 868, rms=0.782):
+
+```bash
+toneforge generate --recipe creature-vocal --seed 868
+```
+
 > [!commentary]
-> Mutation generates deterministic seed variations by hashing the base
-> seed with sequential nonces, then applying jitter to the RNG state.
-> A jitter of 0.1 keeps variations close to the original; higher values
-> (up to 1.0) produce more divergent results. The mutated seeds (24,
-> 989, 853, etc.) are not sequential neighbours of seed 10 -- they are
-> deterministic projections into the seed space that produce perceptually
-> related but distinct sounds. Several of these mutations scored higher
-> than the original range, discovering loud vocalisations that a
-> sequential sweep might have missed.
+> All three are perceptually related -- they share the character of the
+> original seed 10 -- but differ in loudness and intensity. Mutation
+> generates deterministic seed variations by hashing the base seed with
+> sequential nonces, then applying jitter to the RNG state. A jitter of
+> 0.1 keeps variations close to the original; higher values (up to 1.0)
+> produce more divergent results. The mutated seeds (24, 989, 853, etc.)
+> are not sequential neighbours of seed 10 -- they are deterministic
+> projections into the seed space that produce perceptually related but
+> distinct sounds. Several of these mutations scored higher than the
+> original range, discovering loud vocalisations that a sequential sweep
+> might have missed.
 
 ## Act 5 -- Review past runs
 
@@ -246,43 +267,57 @@ toneforge explore runs
 | run-mm0gf3o9-8226ff52     | sweep  | weapon-laser-  | 30    | 5    | 411ms    |
 ```
 
-Show details for a specific run:
+Show details for the most recent run using `--latest`:
+
+```bash
+toneforge explore show --latest
+```
+
+```
+Run: run-mm0gf3o9-8226ff52
+  Type: sweep
+  Recipe: weapon-laser-zap
+  Total candidates: 30
+  Kept: 5
+
+| #   | Candidate                    | Score  | Cluster | Promoted |
+| --- | ---------------------------- | ------ | ------- | -------- |
+| 1   | weapon-laser-zap_seed-00000  | 0.8152 | 0       | no       |
+| 2   | weapon-laser-zap_seed-00019  | 0.5430 | 1       | no       |
+| 3   | weapon-laser-zap_seed-00024  | 0.5409 | 1       | no       |
+```
+
+Or show a specific earlier run by its ID:
 
 ```bash
 toneforge explore show --run run-mm0gej70-ffeecb65
-```
-
-```
-Run: run-mm0gej70-ffeecb65
-  Type: sweep
-  Recipe: creature-vocal
-  Total candidates: 20
-  Kept: 5
-
-| #   | Candidate                 | Score  | Cluster | Promoted |
-| --- | ------------------------- | ------ | ------- | -------- |
-| 1   | creature-vocal_seed-00010 | 1.0000 | 0       | no       |
-| 2   | creature-vocal_seed-00012 | 0.8808 | 2       | no       |
-| 3   | creature-vocal_seed-00019 | 0.8792 | 2       | no       |
-| 4   | creature-vocal_seed-00007 | 0.7251 | 1       | no       |
-| 5   | creature-vocal_seed-00002 | 0.6492 | 1       | no       |
 ```
 
 > [!commentary]
 > Every exploration run is automatically persisted as a JSON index in
 > `.exploration/runs/`. The `runs` command lists all completed runs with
 > summary statistics. The `show` command displays the full ranked results
-> for any run, including which candidates have been promoted. All run
-> data is deterministic -- re-running the same sweep with the same
-> parameters produces the same run ID and results.
+> for any run, including which candidates have been promoted. Use
+> `--latest` to always see the most recent run without copying run IDs,
+> or `--run <id>` to recall a specific past run. All run data is
+> deterministic -- re-running the same sweep with the same parameters
+> produces the same results.
 
 ## Act 6 -- Promote a candidate to the library
 
 > You have found the best creature vocal (seed 10) and want to save it
 > permanently with its analysis metadata for future use.
 
+First, re-run the creature-vocal sweep so its run is the most recent:
+
 ```bash
-toneforge explore promote --run run-mm0gej70-ffeecb65 --id creature-vocal_seed-00010
+toneforge explore sweep --recipe creature-vocal --seed-range 0:19 --keep-top 5 --rank-by rms --clusters 3
+```
+
+Now promote the top candidate using `--latest`:
+
+```bash
+toneforge explore promote --latest --id creature-vocal_seed-00010
 ```
 
 ```
@@ -291,13 +326,22 @@ Promoted 'creature-vocal_seed-00010' to library as 'lib-creature-vocal-10'
   Metadata: .exploration/promoted/creature-vocal_seed-00010.json
 ```
 
+Play the promoted sound to confirm it matches what you heard earlier:
+
+```bash
+toneforge generate --recipe creature-vocal --seed 10
+```
+
 > [!commentary]
-> Promotion renders the candidate to a WAV file and writes a metadata
+> We re-ran the creature-vocal sweep so it became the most recent run,
+> then used `--latest` to promote from it without needing to copy a run
+> ID. Promotion renders the candidate to a WAV file and writes a metadata
 > JSON alongside it containing the recipe name, seed, full analysis
 > metrics, and ranking information. The promoted files are stored in
 > `.exploration/promoted/` as a staging area. Promotion is idempotent --
 > promoting the same candidate twice is a no-op. The `show` command will
-> now display "yes" in the Promoted column for this candidate. When the
+> now display "yes" in the Promoted column for this candidate. You can
+> also use `--run <id>` to promote from any specific past run. When the
 > persistent Library module is available, promote will write directly
 > into the library instead of the staging directory.
 

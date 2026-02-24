@@ -245,12 +245,12 @@ describe("CLI explore mutate — validation", () => {
 // ── Promote validation ────────────────────────────────────────────
 
 describe("CLI explore promote — validation", () => {
-  it("requires --run", async () => {
+  it("requires --run or --latest", async () => {
     const { code, stderr } = await captureOutput(
-      () => main(argv("explore", "promote")),
+      () => main(argv("explore", "promote", "--id", "some-id")),
     );
     expect(code).toBe(1);
-    expect(stderr).toContain("--run is required");
+    expect(stderr).toContain("--run or --latest is required");
   });
 
   it("requires --id", async () => {
@@ -260,17 +260,34 @@ describe("CLI explore promote — validation", () => {
     expect(code).toBe(1);
     expect(stderr).toContain("--id is required");
   });
+
+  it("rejects --run and --latest together", async () => {
+    const { code, stderr } = await captureOutput(
+      () => main(argv("explore", "promote", "--run", "some-run", "--latest", "--id", "some-id")),
+    );
+    expect(code).toBe(1);
+    expect(stderr).toContain("mutually exclusive");
+  });
+
+  it("--latest with no runs returns error", async () => {
+    try { rmSync(".exploration", { recursive: true, force: true }); } catch { /* ignore */ }
+    const { code, stderr } = await captureOutput(
+      () => main(argv("explore", "promote", "--latest", "--id", "some-id")),
+    );
+    expect(code).toBe(1);
+    expect(stderr).toContain("No exploration runs found");
+  });
 });
 
 // ── Show validation ───────────────────────────────────────────────
 
 describe("CLI explore show — validation", () => {
-  it("requires --run", async () => {
+  it("requires --run or --latest", async () => {
     const { code, stderr } = await captureOutput(
       () => main(argv("explore", "show")),
     );
     expect(code).toBe(1);
-    expect(stderr).toContain("--run is required");
+    expect(stderr).toContain("--run or --latest is required");
   });
 
   it("returns error for nonexistent run", async () => {
@@ -279,6 +296,23 @@ describe("CLI explore show — validation", () => {
     );
     expect(code).toBe(1);
     expect(stderr).toContain("Run not found");
+  });
+
+  it("rejects --run and --latest together", async () => {
+    const { code, stderr } = await captureOutput(
+      () => main(argv("explore", "show", "--run", "some-run", "--latest")),
+    );
+    expect(code).toBe(1);
+    expect(stderr).toContain("mutually exclusive");
+  });
+
+  it("--latest with no runs returns error", async () => {
+    try { rmSync(".exploration", { recursive: true, force: true }); } catch { /* ignore */ }
+    const { code, stderr } = await captureOutput(
+      () => main(argv("explore", "show", "--latest")),
+    );
+    expect(code).toBe(1);
+    expect(stderr).toContain("No exploration runs found");
   });
 });
 
@@ -473,5 +507,134 @@ describe("CLI explore runs — e2e", () => {
     );
     expect(code).toBe(0);
     expect(stdout).toContain("No exploration runs found");
+  });
+});
+
+// ── End-to-end show --latest ──────────────────────────────────────
+
+describe("CLI explore show --latest — e2e", () => {
+  afterEach(() => {
+    try { rmSync(".exploration", { recursive: true, force: true }); } catch { /* ignore */ }
+  });
+
+  it("shows the most recent run with --latest", async () => {
+    // Create a run first
+    const sweepResult = await captureOutput(
+      () => main(argv(
+        "explore", "sweep",
+        "--recipe", "impact-crack",
+        "--seed-range", "0:1",
+        "--keep-top", "2",
+        "--clusters", "1",
+        "--json",
+      )),
+    );
+    expect(sweepResult.code).toBe(0);
+    const sweepJson = JSON.parse(sweepResult.stdout);
+
+    // Now show --latest
+    const { code, stdout } = await captureOutput(
+      () => main(argv("explore", "show", "--latest", "--json")),
+    );
+    expect(code).toBe(0);
+
+    const json = JSON.parse(stdout);
+    expect(json.command).toBe("explore show");
+    expect(json.runId).toBe(sweepJson.runId);
+    expect(json.type).toBe("sweep");
+    expect(json.config.recipe).toBe("impact-crack");
+  });
+
+  it("shows the latest of multiple runs", async () => {
+    // Create two runs
+    await captureOutput(
+      () => main(argv(
+        "explore", "sweep",
+        "--recipe", "impact-crack",
+        "--seed-range", "0:1",
+        "--keep-top", "2",
+        "--clusters", "1",
+        "--json",
+      )),
+    );
+
+    const secondResult = await captureOutput(
+      () => main(argv(
+        "explore", "mutate",
+        "--recipe", "impact-crack",
+        "--seed", "42",
+        "--count", "2",
+        "--json",
+      )),
+    );
+    expect(secondResult.code).toBe(0);
+    const secondJson = JSON.parse(secondResult.stdout);
+
+    // --latest should resolve to the second (most recent) run
+    const { code, stdout } = await captureOutput(
+      () => main(argv("explore", "show", "--latest", "--json")),
+    );
+    expect(code).toBe(0);
+
+    const json = JSON.parse(stdout);
+    expect(json.runId).toBe(secondJson.runId);
+    expect(json.type).toBe("mutate");
+  });
+
+  it("shows human-readable output with --latest", async () => {
+    // Create a run
+    await captureOutput(
+      () => main(argv(
+        "explore", "sweep",
+        "--recipe", "impact-crack",
+        "--seed-range", "0:1",
+        "--keep-top", "2",
+        "--clusters", "1",
+      )),
+    );
+
+    const { code, stdout } = await captureOutput(
+      () => main(argv("explore", "show", "--latest")),
+    );
+    expect(code).toBe(0);
+    expect(stdout).toContain("Run:");
+    expect(stdout).toContain("Type: sweep");
+    expect(stdout).toContain("impact-crack");
+  });
+});
+
+// ── End-to-end promote --latest ───────────────────────────────────
+
+describe("CLI explore promote --latest — e2e", () => {
+  afterEach(() => {
+    try { rmSync(".exploration", { recursive: true, force: true }); } catch { /* ignore */ }
+  });
+
+  it("promotes a candidate from the latest run with --latest", async () => {
+    // Create a run
+    const sweepResult = await captureOutput(
+      () => main(argv(
+        "explore", "sweep",
+        "--recipe", "impact-crack",
+        "--seed-range", "0:1",
+        "--keep-top", "2",
+        "--clusters", "1",
+        "--json",
+      )),
+    );
+    expect(sweepResult.code).toBe(0);
+    const sweepJson = JSON.parse(sweepResult.stdout);
+    const candidateId = sweepJson.candidates[0].id;
+
+    // Promote using --latest
+    const { code, stdout } = await captureOutput(
+      () => main(argv("explore", "promote", "--latest", "--id", candidateId, "--json")),
+    );
+    expect(code).toBe(0);
+
+    const json = JSON.parse(stdout);
+    expect(json.command).toBe("explore promote");
+    expect(json.candidateId).toBe(candidateId);
+    expect(json.duplicate).toBe(false);
   });
 });

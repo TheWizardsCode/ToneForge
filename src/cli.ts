@@ -50,6 +50,7 @@ import {
   saveRunResult,
   loadRunResult,
   listRuns,
+  getLatestRunId,
   generateRunId,
   promoteCandidate,
   defaultConcurrency,
@@ -498,6 +499,8 @@ function printExploreHelp(): void {
 | **show** | Show details of a completed exploration run |
 | **runs** | List completed exploration runs |
 
+The \`show\` and \`promote\` subcommands accept \`--run <run-id>\` or \`--latest\` to select a run.
+
 Run \`toneforge explore <subcommand> --help\` for subcommand-specific help.`;
   outputMarkdown(md);
 }
@@ -584,11 +587,13 @@ function printExplorePromoteHelp(): void {
 
 \`\`\`
 toneforge explore promote --run <run-id> --id <candidate-id> [options]
+toneforge explore promote --latest --id <candidate-id> [options]
 \`\`\`
 
 ## Options
 
-- \`--run <run-id>\` — Exploration run ID *(required)*
+- \`--run <run-id>\` — Exploration run ID *(required unless --latest)*
+- \`--latest\` — Use the most recent exploration run *(required unless --run)*
 - \`--id <candidate-id>\` — Candidate ID to promote *(required)*
 - \`--export <dir>\` — Export promoted WAV + metadata to directory
 - \`--json\` — Output results in JSON format
@@ -598,7 +603,8 @@ toneforge explore promote --run <run-id> --id <candidate-id> [options]
 
 \`\`\`
 toneforge explore promote --run run-abc123 --id creature-vocal_seed-04821
-toneforge explore promote --run run-abc123 --id creature-vocal_seed-04821 --export ./promoted/ --json
+toneforge explore promote --latest --id creature-vocal_seed-04821
+toneforge explore promote --latest --id creature-vocal_seed-04821 --export ./promoted/ --json
 \`\`\``;
   outputMarkdown(md);
 }
@@ -2554,12 +2560,30 @@ export async function main(argv: string[] = process.argv): Promise<number> {
         return 0;
       }
 
-      const runId = typeof flags["run"] === "string" ? flags["run"] : undefined;
+      const runFlag = typeof flags["run"] === "string" ? flags["run"] : undefined;
+      const latestFlag = flags["latest"] === true;
       const candidateId = typeof flags["id"] === "string" ? flags["id"] : undefined;
       const exportDir = typeof flags["export"] === "string" ? flags["export"] : undefined;
 
+      if (runFlag !== undefined && latestFlag) {
+        const msg = "--run and --latest are mutually exclusive. Use one or the other.";
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      let runId: string | undefined = runFlag;
+      if (latestFlag) {
+        const latest = await getLatestRunId();
+        if (latest === null) {
+          const msg = "No exploration runs found. Run a sweep or mutate first.";
+          if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+          return 1;
+        }
+        runId = latest;
+      }
+
       if (runId === undefined) {
-        const msg = "--run is required. Run 'toneforge explore promote --help' for usage.";
+        const msg = "--run or --latest is required. Run 'toneforge explore promote --help' for usage.";
         if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
         return 1;
       }
@@ -2602,9 +2626,28 @@ export async function main(argv: string[] = process.argv): Promise<number> {
         return 0;
       }
 
-      const runId = typeof flags["run"] === "string" ? flags["run"] : undefined;
+      const runFlag = typeof flags["run"] === "string" ? flags["run"] : undefined;
+      const latestFlag = flags["latest"] === true;
+
+      if (runFlag !== undefined && latestFlag) {
+        const msg = "--run and --latest are mutually exclusive. Use one or the other.";
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      let runId: string | undefined = runFlag;
+      if (latestFlag) {
+        const latest = await getLatestRunId();
+        if (latest === null) {
+          const msg = "No exploration runs found. Run a sweep or mutate first.";
+          if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+          return 1;
+        }
+        runId = latest;
+      }
+
       if (runId === undefined) {
-        const msg = "--run is required. Usage: toneforge explore show --run <run-id>";
+        const msg = "--run or --latest is required. Usage: toneforge explore show --run <run-id> | --latest";
         if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
         return 1;
       }
