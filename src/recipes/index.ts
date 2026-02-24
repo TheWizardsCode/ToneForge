@@ -2,53 +2,39 @@
  * Recipe Registry Index
  *
  * Registers all built-in recipes and exports the shared registry instance.
- * Each recipe provides a full RecipeRegistration with:
- *   - factory: Tone.js factory for browser/interactive playback
+ * Each recipe provides a LazyRecipeRegistration with:
+ *   - factoryLoader: deferred Tone.js factory import (avoids loading
+ *     heavy dependencies at module load time)
  *   - getDuration: compute natural duration from a seeded RNG
  *   - buildOfflineGraph: build Web Audio API graph on OfflineAudioContext
+ *
+ * Only the lightweight param modules are imported eagerly. Recipe factory
+ * modules (which import Tone.js) are loaded on demand via dynamic import()
+ * when the factory is actually needed (browser/interactive contexts).
  */
 
 import type { OfflineAudioContext } from "node-web-audio-api";
 import { RecipeRegistry } from "../core/recipe.js";
 import type { Rng } from "../core/rng.js";
-import { createUiSciFiConfirm } from "./ui-scifi-confirm.js";
 import { getUiSciFiConfirmParams } from "./ui-scifi-confirm-params.js";
-import { createWeaponLaserZap } from "./weapon-laser-zap.js";
 import { getWeaponLaserZapParams } from "./weapon-laser-zap-params.js";
-import { createFootstepStone } from "./footstep-stone.js";
 import { getFootstepStoneParams } from "./footstep-stone-params.js";
-import { createUiNotificationChime } from "./ui-notification-chime.js";
 import { getUiNotificationChimeParams } from "./ui-notification-chime-params.js";
-import { createAmbientWindGust } from "./ambient-wind-gust.js";
 import { getAmbientWindGustParams } from "./ambient-wind-gust-params.js";
-import { createFootstepGravel } from "./footstep-gravel.js";
 import { getFootstepGravelParams } from "./footstep-gravel-params.js";
-import { createCreatureVocal } from "./creature-vocal.js";
 import { getCreatureVocalParams } from "./creature-vocal-params.js";
-import { createVehicleEngine } from "./vehicle-engine.js";
 import { getVehicleEngineParams } from "./vehicle-engine-params.js";
-import { createCharacterJumpStep1 } from "./character-jump-step1.js";
 import { getCharacterJumpStep1Params } from "./character-jump-step1-params.js";
-import { createCharacterJumpStep2 } from "./character-jump-step2.js";
 import { getCharacterJumpStep2Params } from "./character-jump-step2-params.js";
-import { createCharacterJumpStep3 } from "./character-jump-step3.js";
 import { getCharacterJumpStep3Params } from "./character-jump-step3-params.js";
-import { createCharacterJumpStep4 } from "./character-jump-step4.js";
 import { getCharacterJumpStep4Params } from "./character-jump-step4-params.js";
-import { createCharacterJump } from "./character-jump.js";
 import { getCharacterJumpParams } from "./character-jump-params.js";
 import { loadSample } from "../audio/sample-loader.js";
-import { createImpactCrack } from "./impact-crack.js";
 import { getImpactCrackParams } from "./impact-crack-params.js";
-import { createRumbleBody } from "./rumble-body.js";
 import { getRumbleBodyParams } from "./rumble-body-params.js";
-import { createDebrisTail } from "./debris-tail.js";
 import { getDebrisTailParams } from "./debris-tail-params.js";
-import { createSlamTransient } from "./slam-transient.js";
 import { getSlamTransientParams } from "./slam-transient-params.js";
-import { createResonanceBody } from "./resonance-body.js";
 import { getResonanceBodyParams } from "./resonance-body-params.js";
-import { createRattleDecay } from "./rattle-decay.js";
 import { getRattleDecayParams } from "./rattle-decay-params.js";
 
 /** The global recipe registry instance with all built-in recipes registered. */
@@ -97,7 +83,7 @@ function uiSciFiConfirmOfflineGraph(
 }
 
 registry.register("ui-scifi-confirm", {
-  factory: createUiSciFiConfirm,
+  factoryLoader: async () => (await import("./ui-scifi-confirm.js")).createUiSciFiConfirm,
   getDuration: uiSciFiConfirmDuration,
   buildOfflineGraph: uiSciFiConfirmOfflineGraph,
   description: "Short sci-fi confirmation tone using sine synthesis with a filtered sweep.",
@@ -202,7 +188,7 @@ function weaponLaserZapOfflineGraph(
 }
 
 registry.register("weapon-laser-zap", {
-  factory: createWeaponLaserZap,
+  factoryLoader: async () => (await import("./weapon-laser-zap.js")).createWeaponLaserZap,
   getDuration: weaponLaserZapDuration,
   buildOfflineGraph: weaponLaserZapOfflineGraph,
   description: "Punchy laser zap using FM synthesis with a bandpass-filtered noise burst.",
@@ -312,7 +298,7 @@ function footstepStoneOfflineGraph(
 }
 
 registry.register("footstep-stone", {
-  factory: createFootstepStone,
+  factoryLoader: async () => (await import("./footstep-stone.js")).createFootstepStone,
   getDuration: footstepStoneDuration,
   buildOfflineGraph: footstepStoneOfflineGraph,
   description: "Percussive stone footstep impact using bandpass-filtered noise with transient shaping.",
@@ -434,7 +420,7 @@ async function footstepGravelOfflineGraph(
 }
 
 registry.register("footstep-gravel", {
-  factory: createFootstepGravel,
+  factoryLoader: async () => (await import("./footstep-gravel.js")).createFootstepGravel,
   getDuration: footstepGravelDuration,
   buildOfflineGraph: footstepGravelOfflineGraph,
   description: "Sample-hybrid gravel footstep layering a CC0 impact transient with procedurally varied noise synthesis.",
@@ -533,7 +519,7 @@ async function creatureVocalOfflineGraph(
 }
 
 registry.register("creature-vocal", {
-  factory: createCreatureVocal,
+  factoryLoader: async () => (await import("./creature-vocal.js")).createCreatureVocal,
   getDuration: creatureVocalDuration,
   buildOfflineGraph: creatureVocalOfflineGraph,
   description: "Sample-hybrid creature vocalization layering a CC0 growl sample with FM synthesis and formant filtering.",
@@ -637,7 +623,7 @@ async function vehicleEngineOfflineGraph(
 }
 
 registry.register("vehicle-engine", {
-  factory: createVehicleEngine,
+  factoryLoader: async () => (await import("./vehicle-engine.js")).createVehicleEngine,
   getDuration: vehicleEngineDuration,
   buildOfflineGraph: vehicleEngineOfflineGraph,
   description: "Sample-hybrid vehicle engine layering a CC0 engine loop with sawtooth oscillator and LFO-modulated lowpass filter.",
@@ -712,7 +698,7 @@ function uiNotificationChimeOfflineGraph(
 }
 
 registry.register("ui-notification-chime", {
-  factory: createUiNotificationChime,
+  factoryLoader: async () => (await import("./ui-notification-chime.js")).createUiNotificationChime,
   getDuration: uiNotificationChimeDuration,
   buildOfflineGraph: uiNotificationChimeOfflineGraph,
   description: "Pleasant musical chime using harmonic series synthesis with ADSR envelope.",
@@ -817,7 +803,7 @@ function ambientWindGustOfflineGraph(
 }
 
 registry.register("ambient-wind-gust", {
-  factory: createAmbientWindGust,
+  factoryLoader: async () => (await import("./ambient-wind-gust.js")).createAmbientWindGust,
   getDuration: ambientWindGustDuration,
   buildOfflineGraph: ambientWindGustOfflineGraph,
   description: "Environmental wind burst with filtered noise and LFO-modulated bandpass sweep.",
@@ -876,7 +862,7 @@ function characterJumpStep1OfflineGraph(
 }
 
 registry.register("character-jump-step1", {
-  factory: createCharacterJumpStep1,
+  factoryLoader: async () => (await import("./character-jump-step1.js")).createCharacterJumpStep1,
   getDuration: characterJumpStep1Duration,
   buildOfflineGraph: characterJumpStep1OfflineGraph,
   description: "Raw sine oscillator at a seed-derived frequency. No envelope, fixed 0.2 s duration.",
@@ -925,7 +911,7 @@ function characterJumpStep2OfflineGraph(
 }
 
 registry.register("character-jump-step2", {
-  factory: createCharacterJumpStep2,
+  factoryLoader: async () => (await import("./character-jump-step2.js")).createCharacterJumpStep2,
   getDuration: characterJumpStep2Duration,
   buildOfflineGraph: characterJumpStep2OfflineGraph,
   description: "Sine oscillator with attack/decay amplitude envelope. Sound starts quickly and fades naturally.",
@@ -980,7 +966,7 @@ function characterJumpStep3OfflineGraph(
 }
 
 registry.register("character-jump-step3", {
-  factory: createCharacterJumpStep3,
+  factoryLoader: async () => (await import("./character-jump-step3.js")).createCharacterJumpStep3,
   getDuration: characterJumpStep3Duration,
   buildOfflineGraph: characterJumpStep3OfflineGraph,
   description: "Sine oscillator with amplitude envelope and rising pitch sweep for upward motion.",
@@ -1069,7 +1055,7 @@ function characterJumpStep4OfflineGraph(
 }
 
 registry.register("character-jump-step4", {
-  factory: createCharacterJumpStep4,
+  factoryLoader: async () => (await import("./character-jump-step4.js")).createCharacterJumpStep4,
   getDuration: characterJumpStep4Duration,
   buildOfflineGraph: characterJumpStep4OfflineGraph,
   description: "Sine oscillator with envelope, pitch sweep, and unfiltered white noise burst.",
@@ -1169,7 +1155,7 @@ function characterJumpOfflineGraph(
 }
 
 registry.register("character-jump", {
-  factory: createCharacterJump,
+  factoryLoader: async () => (await import("./character-jump.js")).createCharacterJump,
   getDuration: characterJumpDuration,
   buildOfflineGraph: characterJumpOfflineGraph,
   description: "Springy jump sound using a rising pitch sweep with a filtered noise burst for impact.",
@@ -1251,7 +1237,7 @@ function impactCrackOfflineGraph(
 }
 
 registry.register("impact-crack", {
-  factory: createImpactCrack,
+  factoryLoader: async () => (await import("./impact-crack.js")).createImpactCrack,
   getDuration: impactCrackDuration,
   buildOfflineGraph: impactCrackOfflineGraph,
   description: "Short, sharp transient crack for explosion attack layers using highpass-filtered noise with fast decay.",
@@ -1352,7 +1338,7 @@ function rumbleBodyOfflineGraph(
 }
 
 registry.register("rumble-body", {
-  factory: createRumbleBody,
+  factoryLoader: async () => (await import("./rumble-body.js")).createRumbleBody,
   getDuration: rumbleBodyDuration,
   buildOfflineGraph: rumbleBodyOfflineGraph,
   description: "Low-frequency rumble body for explosion layers using filtered brown noise with sub-bass oscillator.",
@@ -1446,7 +1432,7 @@ function debrisTailOfflineGraph(
 }
 
 registry.register("debris-tail", {
-  factory: createDebrisTail,
+  factoryLoader: async () => (await import("./debris-tail.js")).createDebrisTail,
   getDuration: debrisTailDuration,
   buildOfflineGraph: debrisTailOfflineGraph,
   description: "Scattered debris crackle tail for explosion layers using granular noise bursts with decreasing density.",
@@ -1552,7 +1538,7 @@ function slamTransientOfflineGraph(
 }
 
 registry.register("slam-transient", {
-  factory: createSlamTransient,
+  factoryLoader: async () => (await import("./slam-transient.js")).createSlamTransient,
   getDuration: slamTransientDuration,
   buildOfflineGraph: slamTransientOfflineGraph,
   description: "Short door impact transient using bandpass-filtered noise thud with highpass click component.",
@@ -1635,7 +1621,7 @@ function resonanceBodyOfflineGraph(
 }
 
 registry.register("resonance-body", {
-  factory: createResonanceBody,
+  factoryLoader: async () => (await import("./resonance-body.js")).createResonanceBody,
   getDuration: resonanceBodyDuration,
   buildOfflineGraph: resonanceBodyOfflineGraph,
   description: "Woody/metallic resonance body for door slam layers using damped sine oscillators at harmonic frequencies.",
@@ -1726,7 +1712,7 @@ function rattleDecayOfflineGraph(
 }
 
 registry.register("rattle-decay", {
-  factory: createRattleDecay,
+  factoryLoader: async () => (await import("./rattle-decay.js")).createRattleDecay,
   getDuration: rattleDecayDuration,
   buildOfflineGraph: rattleDecayOfflineGraph,
   description: "Rattling/settling decay for door slam tail layers using granular noise bursts with irregular timing.",

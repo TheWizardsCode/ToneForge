@@ -108,64 +108,182 @@ export interface RecipeRegistration {
 }
 
 /**
+ * Lazy recipe registration entry.
+ *
+ * Stores all metadata and offline rendering capabilities eagerly, but
+ * defers loading the Tone.js factory (which imports heavy dependencies)
+ * until it is actually needed. This avoids importing all recipe modules
+ * at startup when only one recipe is rendered.
+ */
+export interface LazyRecipeRegistration {
+  /**
+   * Async loader that returns the Tone.js factory on demand.
+   * Called only when `getRecipe()` or `resolveFactory()` is used.
+   */
+  factoryLoader: () => Promise<RecipeFactory>;
+
+  /** @see RecipeRegistration.getDuration */
+  getDuration: (rng: Rng) => number;
+
+  /** @see RecipeRegistration.buildOfflineGraph */
+  buildOfflineGraph: (
+    rng: Rng,
+    ctx: OfflineAudioContext,
+    duration: number,
+  ) => void | Promise<void>;
+
+  /** @see RecipeRegistration.description */
+  description: string;
+
+  /** @see RecipeRegistration.category */
+  category: string;
+
+  /** @see RecipeRegistration.tags */
+  tags?: string[];
+
+  /** @see RecipeRegistration.signalChain */
+  signalChain: string;
+
+  /** @see RecipeRegistration.params */
+  params: ParamDescriptor[];
+
+  /** @see RecipeRegistration.getParams */
+  getParams: (rng: Rng) => Record<string, number>;
+}
+
+/** Internal entry type: either a fully resolved registration or a lazy one. */
+type RegistryEntry =
+  | { kind: "eager"; registration: RecipeRegistration }
+  | { kind: "lazy"; lazy: LazyRecipeRegistration; resolved?: RecipeFactory };
+
+/**
  * Registry of named recipe registrations.
  * Maps recipe names to their registration entries.
+ *
+ * Supports both eager registrations (factory provided up-front) and
+ * lazy registrations (factory loaded on demand via dynamic import).
+ * Lazy registration avoids importing heavy Tone.js dependencies at
+ * module load time, reducing CLI startup latency.
  */
 export class RecipeRegistry {
-  private readonly entries = new Map<string, RecipeRegistration>();
+  private readonly entries = new Map<string, RegistryEntry>();
 
   /**
    * Register a recipe under the given name.
    *
    * Accepts either a full RecipeRegistration object (with offline
-   * rendering capabilities) or a bare RecipeFactory for backward
-   * compatibility (browser-only recipes without offline support).
+   * rendering capabilities), a bare RecipeFactory for backward
+   * compatibility (browser-only recipes without offline support),
+   * or a LazyRecipeRegistration for deferred factory loading.
    *
    * Overwrites any existing entry with the same name.
    */
-  register(name: string, entry: RecipeRegistration | RecipeFactory): void {
+  register(
+    name: string,
+    entry: RecipeRegistration | RecipeFactory | LazyRecipeRegistration,
+  ): void {
     if (typeof entry === "function") {
       // Bare factory — wrap in a registration without offline support.
       // getDuration and buildOfflineGraph will throw if called.
       this.entries.set(name, {
-        factory: entry,
-        getDuration: () => {
-          throw new Error(
-            `Recipe "${name}" was registered without getDuration. ` +
-            `Use a full RecipeRegistration to enable offline rendering.`,
-          );
+        kind: "eager",
+        registration: {
+          factory: entry,
+          getDuration: () => {
+            throw new Error(
+              `Recipe "${name}" was registered without getDuration. ` +
+              `Use a full RecipeRegistration to enable offline rendering.`,
+            );
+          },
+          buildOfflineGraph: () => {
+            throw new Error(
+              `Recipe "${name}" was registered without buildOfflineGraph. ` +
+              `Use a full RecipeRegistration to enable offline rendering.`,
+            );
+          },
+          description: "",
+          category: "",
+          signalChain: "",
+          params: [],
+          getParams: () => ({}),
         },
-        buildOfflineGraph: () => {
-          throw new Error(
-            `Recipe "${name}" was registered without buildOfflineGraph. ` +
-            `Use a full RecipeRegistration to enable offline rendering.`,
-          );
-        },
-        description: "",
-        category: "",
-        signalChain: "",
-        params: [],
-        getParams: () => ({}),
       });
+    } else if ("factoryLoader" in entry) {
+      // Lazy registration — defer factory loading.
+      this.entries.set(name, { kind: "lazy", lazy: entry });
     } else {
-      this.entries.set(name, entry);
+      this.entries.set(name, { kind: "eager", registration: entry });
     }
   }
 
   /**
-   * Retrieve the Tone.js factory for a recipe by name.
+   * Retrieve the Tone.js factory for a recipe by name (synchronous).
+   *
+   * For eager registrations, returns the factory immediately.
+   * For lazy registrations, returns undefined unless the factory has
+   * been previously resolved via `resolveFactory()`.
+   *
    * Returns undefined if no recipe is registered under that name.
    */
   getRecipe(name: string): RecipeFactory | undefined {
-    return this.entries.get(name)?.factory;
+    const entry = this.entries.get(name);
+    if (!entry) return undefined;
+    if (entry.kind === "eager") return entry.registration.factory;
+    return entry.resolved;
+  }
+
+  /**
+   * Resolve and return the Tone.js factory for a recipe by name.
+   *
+   * For lazy registrations, this triggers the dynamic import on first
+   * call and caches the result for subsequent calls.
+   *
+   * Returns undefined if no recipe is registered under that name.
+   */
+  async resolveFactory(name: string): Promise<RecipeFactory | undefined> {
+    const entry = this.entries.get(name);
+    if (!entry) return undefined;
+    if (entry.kind === "eager") return entry.registration.factory;
+    if (entry.resolved) return entry.resolved;
+    entry.resolved = await entry.lazy.factoryLoader();
+    return entry.resolved;
   }
 
   /**
    * Retrieve the full registration entry for a recipe by name.
+   *
+   * For lazy registrations, the returned object has all metadata and
+   * offline rendering fields populated. The `factory` field is a
+   * placeholder that throws; use `resolveFactory()` to get the
+   * actual Tone.js factory when needed.
+   *
    * Returns undefined if no recipe is registered under that name.
    */
   getRegistration(name: string): RecipeRegistration | undefined {
-    return this.entries.get(name);
+    const entry = this.entries.get(name);
+    if (!entry) return undefined;
+    if (entry.kind === "eager") return entry.registration;
+
+    // Return a view of the lazy registration with a factory placeholder.
+    // The factory will throw if called directly — callers that need the
+    // factory should use resolveFactory() instead.
+    const lazy = entry.lazy;
+    return {
+      factory: entry.resolved ?? ((_rng: Rng) => {
+        throw new Error(
+          `Recipe "${name}" has a lazy factory. ` +
+          `Use registry.resolveFactory("${name}") to load it first.`,
+        );
+      }),
+      getDuration: lazy.getDuration,
+      buildOfflineGraph: lazy.buildOfflineGraph,
+      description: lazy.description,
+      category: lazy.category,
+      tags: lazy.tags,
+      signalChain: lazy.signalChain,
+      params: lazy.params,
+      getParams: lazy.getParams,
+    };
   }
 
   /**
@@ -181,7 +299,10 @@ export class RecipeRegistry {
   listSummaries(): Array<{ name: string; description: string }> {
     return [...this.entries.entries()].map(([name, entry]) => ({
       name,
-      description: entry.description,
+      description:
+        entry.kind === "eager"
+          ? entry.registration.description
+          : entry.lazy.description,
     }));
   }
 }
