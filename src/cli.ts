@@ -36,6 +36,9 @@ import { renderStack } from "./stack/renderer.js";
 import type { StackDefinition } from "./stack/renderer.js";
 import { loadPreset } from "./stack/preset-loader.js";
 import { parseLayers } from "./stack/layer-parser.js";
+import { createAnalysisEngine, registerBuiltinExtractors } from "./analyze/index.js";
+import type { AnalysisResult } from "./analyze/index.js";
+import { decodeWavFile } from "./audio/wav-decoder.js";
 
 /** Parse command-line arguments into a structured map. */
 function parseArgs(argv: string[]): {
@@ -100,6 +103,7 @@ function printHelp(): void {
 | Command | Description |
 |---------|-------------|
 | **generate** | Render and export procedural sounds |
+| **analyze** | Analyze audio files and extract structured metrics |
 | **stack** | Compose layered sound events from multiple recipes |
 | **show** | Display recipe metadata and parameters |
 | **play** | Play a WAV file through the system audio player |
@@ -149,6 +153,56 @@ ${recipes.length > 0 ? recipes.map((r) => `- \`${r}\``).join("\n") : "*(none reg
 toneforge generate --recipe ui-scifi-confirm --seed 42
 toneforge generate --recipe ui-scifi-confirm --seed 42 --output ./my-sound.wav
 toneforge generate --recipe weapon-laser-zap --seed-range 1:10 --output ./lasers/
+\`\`\``;
+  outputMarkdown(md);
+}
+
+/** Print help text for the analyze command. */
+function printAnalyzeHelp(): void {
+  const recipes = registry.list();
+  const md = `# ToneForge analyze
+
+**Analyze audio files and extract structured metrics**
+
+## Usage
+
+\`\`\`
+toneforge analyze --input <file.wav>
+toneforge analyze --recipe <name> --seed <number>
+toneforge analyze --input <directory> --output <dir>
+toneforge analyze --input <directory> --format table
+\`\`\`
+
+## Options
+
+- \`--input <path>\` — Path to a WAV file or directory of WAV files
+- \`--recipe <name>\` — Recipe name for direct analysis (renders internally)
+- \`--seed <number>\` — Seed for recipe rendering (used with \`--recipe\`)
+- \`--output <dir>\` — Write one JSON file per input WAV to this directory (batch mode)
+- \`--format <json|table>\` — Output format. \`json\` (default for single file), \`table\` for batch summary
+- \`--json\` — Output structured JSON to stdout
+- \`--help\`, \`-h\` — Show this help message
+
+## Metrics
+
+| Category | Metrics |
+|----------|---------|
+| **time** | duration, peak, rms, crestFactor |
+| **quality** | clipping, silence |
+| **envelope** | attackTime |
+| **spectral** | spectralCentroid |
+
+## Available recipes
+
+${recipes.length > 0 ? recipes.map((r) => `- \`${r}\``).join("\n") : "*(none registered)*"}
+
+## Examples
+
+\`\`\`
+toneforge analyze --input ./renders/weapon-laser-zap_seed-001.wav
+toneforge analyze --recipe weapon-laser-zap --seed 42
+toneforge analyze --input ./renders/ --format table
+toneforge analyze --input ./renders/ --output ./analysis/
 \`\`\``;
   outputMarkdown(md);
 }
@@ -552,6 +606,70 @@ function jsonErr(message: string): void {
   process.stderr.write(JSON.stringify({ error: message }) + "\n");
 }
 
+/**
+ * Format an analysis result as human-readable styled output.
+ */
+function formatAnalysisHumanReadable(result: AnalysisResult, label: string): void {
+  outputInfo(`Analysis: ${label}`);
+  outputInfo(`  Version: ${result.analysisVersion}`);
+  outputInfo(`  Sample Rate: ${result.sampleRate} Hz`);
+  outputInfo(`  Samples: ${result.sampleCount}`);
+
+  for (const [category, metrics] of Object.entries(result.metrics)) {
+    outputInfo(`  [${category}]`);
+    for (const [key, value] of Object.entries(metrics)) {
+      const display = value === null ? "N/A" : String(value);
+      outputInfo(`    ${key}: ${display}`);
+    }
+  }
+}
+
+/**
+ * Format batch analysis results as a summary table.
+ */
+function formatAnalysisBatchTable(
+  results: Array<{ file: string; result: AnalysisResult }>,
+): void {
+  // Build table rows: filename, duration, peak, rms, crestFactor, spectralCentroid, flags
+  const rows = results.map((r) => {
+    const time = r.result.metrics["time"] ?? {};
+    const quality = r.result.metrics["quality"] ?? {};
+    const spectral = r.result.metrics["spectral"] ?? {};
+
+    const duration = typeof time["duration"] === "number" ? time["duration"].toFixed(3) : "—";
+    const peak = typeof time["peak"] === "number" ? time["peak"].toFixed(4) : "—";
+    const rms = typeof time["rms"] === "number" ? time["rms"].toFixed(4) : "—";
+    const crest = typeof time["crestFactor"] === "number"
+      ? (Number.isFinite(time["crestFactor"]) ? (time["crestFactor"] as number).toFixed(2) : "Inf")
+      : "—";
+    const centroid = typeof spectral["spectralCentroid"] === "number"
+      ? (spectral["spectralCentroid"] as number).toFixed(0)
+      : "—";
+
+    const flags: string[] = [];
+    if (quality["clipping"] === true) flags.push("!clip");
+    if (quality["silence"] === true) flags.push("!silent");
+    const flagStr = flags.length > 0 ? flags.join(" ") : "ok";
+
+    return [r.file, duration, peak, rms, crest, centroid, flagStr];
+  });
+
+  // Compute column widths
+  const maxFile = Math.max(4, ...rows.map((r) => r[0]!.length));
+  outputTable(
+    [
+      { header: "File", width: Math.min(maxFile, 40) },
+      { header: "Dur(s)", width: 7 },
+      { header: "Peak", width: 7 },
+      { header: "RMS", width: 7 },
+      { header: "Crest", width: 7 },
+      { header: "Centroid", width: 9 },
+      { header: "Flags", width: 10 },
+    ],
+    rows,
+  );
+}
+
 /** Main CLI entry point. Exported for testability. */
 export async function main(argv: string[] = process.argv): Promise<number> {
   const { command, subcommand, flags, layers } = parseArgs(argv);
@@ -585,6 +703,8 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       printListHelp();
     } else if (command === "play") {
       printPlayHelp();
+    } else if (command === "analyze") {
+      printAnalyzeHelp();
     } else {
       printHelp();
     }
@@ -956,6 +1076,243 @@ export async function main(argv: string[] = process.argv): Promise<number> {
 
     printStackHelp();
     return 0;
+  }
+
+  // ── analyze command ─────────────────────────────────────────────
+
+  if (command === "analyze") {
+    if (flags["help"]) {
+      printAnalyzeHelp();
+      return 0;
+    }
+
+    const inputPath = typeof flags["input"] === "string" ? flags["input"] : undefined;
+    const recipeName = typeof flags["recipe"] === "string" ? flags["recipe"] : undefined;
+    const seedRaw = flags["seed"];
+    const formatFlag = typeof flags["format"] === "string" ? flags["format"] : undefined;
+    const outputDir = typeof flags["output"] === "string" ? flags["output"] : undefined;
+
+    // Validate --format value
+    if (formatFlag !== undefined && formatFlag !== "json" && formatFlag !== "table") {
+      const msg = `--format must be 'json' or 'table', got '${formatFlag}'.`;
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+
+    // Mutual exclusion: --input and --recipe cannot both be specified
+    if (inputPath !== undefined && recipeName !== undefined) {
+      const msg = "--input and --recipe are mutually exclusive. Use one or the other.";
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+
+    // Require at least one source
+    if (inputPath === undefined && recipeName === undefined) {
+      const msg = "Either --input or --recipe is required. Run 'toneforge analyze --help' for usage.";
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+
+    // Create analysis engine with all built-in extractors
+    const engine = createAnalysisEngine();
+    registerBuiltinExtractors(engine);
+
+    // ── Recipe+Seed mode ──────────────────────────────────────
+    if (recipeName !== undefined) {
+      // --seed is required for recipe mode
+      if (seedRaw === undefined || seedRaw === true) {
+        const msg = "--seed is required when using --recipe. Run 'toneforge analyze --help' for usage.";
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+      const seed = parseInt(seedRaw as string, 10);
+      if (Number.isNaN(seed)) {
+        const msg = `--seed must be an integer, got '${seedRaw}'.`;
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      // Validate recipe exists
+      if (!registry.getRegistration(recipeName)) {
+        const allNames = registry.list();
+        const suggestions = suggestRecipes(recipeName, allNames);
+        let msg = `Unknown recipe '${recipeName}'.`;
+        if (suggestions.length > 0) {
+          msg += ` Did you mean: ${suggestions.join(", ")}?`;
+        }
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      try {
+        if (!jsonMode) {
+          outputInfo(`Analyzing recipe '${recipeName}' with seed ${seed}...`);
+        }
+
+        const renderResult = await renderRecipe(recipeName, seed);
+        const analysisResult = engine.analyze(renderResult.samples, renderResult.sampleRate);
+
+        const output = {
+          command: "analyze",
+          source: { recipe: recipeName, seed },
+          ...analysisResult,
+        };
+
+        if (jsonMode || formatFlag === "json" || formatFlag === undefined) {
+          jsonOut(output);
+        } else {
+          // Human-readable table for single result
+          formatAnalysisHumanReadable(analysisResult, `${recipeName} (seed ${seed})`);
+        }
+        return 0;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(message); } else { outputError(`Error: ${message}`); }
+        return 1;
+      }
+    }
+
+    // ── File/directory input mode ─────────────────────────────
+    const resolvedInput = resolve(inputPath!);
+
+    if (!existsSync(resolvedInput)) {
+      const msg = `File not found: ${inputPath}`;
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+
+    // Check if input is a directory
+    const { statSync } = await import("node:fs");
+    const inputStat = statSync(resolvedInput);
+
+    if (inputStat.isDirectory()) {
+      // ── Batch directory mode ──────────────────────────────
+      const { readdirSync } = await import("node:fs");
+      const entries = readdirSync(resolvedInput)
+        .filter((f: string) => f.toLowerCase().endsWith(".wav"))
+        .sort();
+
+      if (entries.length === 0) {
+        if (jsonMode) {
+          jsonOut({ command: "analyze", input: inputPath, files: [], count: 0 });
+        } else {
+          outputInfo(`No .wav files found in ${inputPath}`);
+        }
+        return 0;
+      }
+
+      if (!jsonMode) {
+        outputInfo(`Analyzing ${entries.length} WAV file${entries.length !== 1 ? "s" : ""} in ${inputPath}...`);
+      }
+
+      // If --output is specified, create the directory
+      if (outputDir !== undefined) {
+        await mkdir(resolve(outputDir), { recursive: true });
+      }
+
+      const batchResults: Array<{
+        file: string;
+        result: AnalysisResult;
+      }> = [];
+
+      for (const entry of entries) {
+        const filePath = resolve(resolvedInput, entry);
+        try {
+          const wav = await decodeWavFile(filePath);
+          const analysisResult = engine.analyze(wav.samples, wav.sampleRate);
+          batchResults.push({ file: entry, result: analysisResult });
+
+          // Write individual JSON file if --output is specified
+          if (outputDir !== undefined) {
+            const jsonFileName = entry.replace(/\.wav$/i, ".json");
+            const jsonPath = resolve(outputDir, jsonFileName);
+            const jsonContent = JSON.stringify(
+              { command: "analyze", file: entry, ...analysisResult },
+              null,
+              2,
+            );
+            await writeFile(jsonPath, jsonContent);
+            if (!jsonMode) {
+              outputSuccess(`Wrote ${jsonPath}`);
+            }
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          if (jsonMode) {
+            jsonErr(`Failed to analyze '${entry}': ${message}`);
+          } else {
+            outputError(`Error: Failed to analyze '${entry}': ${message}`);
+          }
+          return 1;
+        }
+      }
+
+      if (formatFlag === "table" && !jsonMode) {
+        // Table output
+        formatAnalysisBatchTable(batchResults);
+      } else if (jsonMode || formatFlag === "json" || formatFlag === undefined) {
+        // JSON output
+        jsonOut({
+          command: "analyze",
+          input: inputPath,
+          count: batchResults.length,
+          files: batchResults.map((r) => ({
+            file: r.file,
+            ...r.result,
+          })),
+        });
+      } else if (formatFlag === "table" && jsonMode) {
+        // --json takes priority over --format table
+        jsonOut({
+          command: "analyze",
+          input: inputPath,
+          count: batchResults.length,
+          files: batchResults.map((r) => ({
+            file: r.file,
+            ...r.result,
+          })),
+        });
+      }
+
+      if (!jsonMode) {
+        outputInfo(`Analyzed ${batchResults.length} file${batchResults.length !== 1 ? "s" : ""}`);
+      }
+
+      return 0;
+    }
+
+    // ── Single file mode ──────────────────────────────────────
+    if (!resolvedInput.toLowerCase().endsWith(".wav")) {
+      const msg = `Input file must be a .wav file, got '${inputPath}'.`;
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+
+    try {
+      if (!jsonMode) {
+        outputInfo(`Analyzing ${inputPath}...`);
+      }
+
+      const wav = await decodeWavFile(resolvedInput);
+      const analysisResult = engine.analyze(wav.samples, wav.sampleRate);
+
+      const output = {
+        command: "analyze",
+        file: inputPath,
+        ...analysisResult,
+      };
+
+      if (jsonMode || formatFlag === "json" || formatFlag === undefined) {
+        jsonOut(output);
+      } else {
+        formatAnalysisHumanReadable(analysisResult, inputPath!);
+      }
+      return 0;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (jsonMode) { jsonErr(message); } else { outputError(`Error: ${message}`); }
+      return 1;
+    }
   }
 
   if (command !== "generate") {

@@ -1619,4 +1619,303 @@ describe("CLI", () => {
       });
     });
   });
+
+  describe("analyze command", () => {
+    let tempDir: string;
+
+    beforeEach(() => {
+      tempDir = join(tmpdir(), `toneforge-analyze-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    });
+
+    afterEach(() => {
+      try { rmSync(tempDir, { recursive: true, force: true }); } catch { /* ignore */ }
+    });
+
+    describe("help", () => {
+      it("prints analyze help with --help flag", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("analyze", "--help")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toContain("analyze");
+        expect(stdout).toContain("--input");
+        expect(stdout).toContain("--recipe");
+      });
+    });
+
+    describe("error handling", () => {
+      it("returns exit code 1 when neither --input nor --recipe given", async () => {
+        const { code, stderr } = await captureOutput(
+          () => main(argv("analyze", "--json")),
+        );
+        expect(code).toBe(1);
+        const data = JSON.parse(stderr);
+        expect(data.error).toContain("--input");
+        expect(data.error).toContain("--recipe");
+      });
+
+      it("returns exit code 1 when both --input and --recipe given", async () => {
+        const { code, stderr } = await captureOutput(
+          () => main(argv("analyze", "--input", "file.wav", "--recipe", "foo", "--json")),
+        );
+        expect(code).toBe(1);
+        const data = JSON.parse(stderr);
+        expect(data.error).toContain("mutually exclusive");
+      });
+
+      it("returns exit code 1 for non-existent input file", async () => {
+        const { code, stderr } = await captureOutput(
+          () => main(argv("analyze", "--input", "/tmp/does-not-exist.wav", "--json")),
+        );
+        expect(code).toBe(1);
+        const data = JSON.parse(stderr);
+        expect(data.error).toContain("not found");
+      });
+
+      it("returns exit code 1 when --recipe without --seed", async () => {
+        const { code, stderr } = await captureOutput(
+          () => main(argv("analyze", "--recipe", "ui-scifi-confirm", "--json")),
+        );
+        expect(code).toBe(1);
+        const data = JSON.parse(stderr);
+        expect(data.error).toContain("--seed");
+      });
+
+      it("returns exit code 1 for unknown recipe name", async () => {
+        const { code, stderr } = await captureOutput(
+          () => main(argv("analyze", "--recipe", "nonexistent-recipe", "--seed", "42", "--json")),
+        );
+        expect(code).toBe(1);
+        const data = JSON.parse(stderr);
+        expect(data.error).toContain("Unknown recipe");
+      });
+
+      it("returns exit code 1 for invalid --format value", async () => {
+        const { code, stderr } = await captureOutput(
+          () => main(argv("analyze", "--input", "test.wav", "--format", "csv", "--json")),
+        );
+        expect(code).toBe(1);
+        const data = JSON.parse(stderr);
+        expect(data.error).toContain("--format");
+      });
+
+      it("returns exit code 1 for non-WAV input file", async () => {
+        // Create a temp non-wav file
+        const { mkdirSync, writeFileSync } = await import("node:fs");
+        mkdirSync(tempDir, { recursive: true });
+        const txtPath = join(tempDir, "test.txt");
+        writeFileSync(txtPath, "not a wav");
+        const { code, stderr } = await captureOutput(
+          () => main(argv("analyze", "--input", txtPath, "--json")),
+        );
+        expect(code).toBe(1);
+        const data = JSON.parse(stderr);
+        expect(data.error).toContain(".wav");
+      });
+    });
+
+    describe("single file analysis (--input)", () => {
+      it("analyzes a generated WAV file and returns JSON", async () => {
+        const { mkdirSync } = await import("node:fs");
+        mkdirSync(tempDir, { recursive: true });
+        const wavPath = join(tempDir, "test.wav");
+
+        // Generate a WAV file first
+        await captureOutput(
+          () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "42", "--output", wavPath)),
+        );
+
+        // Now analyze it
+        const { code, stdout } = await captureOutput(
+          () => main(argv("analyze", "--input", wavPath, "--json")),
+        );
+        expect(code).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.command).toBe("analyze");
+        expect(data.file).toBe(wavPath);
+        expect(data.analysisVersion).toBe("1.0");
+        expect(typeof data.sampleRate).toBe("number");
+        expect(typeof data.sampleCount).toBe("number");
+        expect(data.metrics).toBeDefined();
+        expect(data.metrics.time).toBeDefined();
+        expect(typeof data.metrics.time.duration).toBe("number");
+        expect(typeof data.metrics.time.peak).toBe("number");
+        expect(typeof data.metrics.time.rms).toBe("number");
+        expect(typeof data.metrics.time.crestFactor).toBe("number");
+        expect(data.metrics.quality).toBeDefined();
+        expect(typeof data.metrics.quality.clipping).toBe("boolean");
+        expect(typeof data.metrics.quality.silence).toBe("boolean");
+        expect(data.metrics.envelope).toBeDefined();
+        expect(data.metrics.spectral).toBeDefined();
+        expect(typeof data.metrics.spectral.spectralCentroid).toBe("number");
+      });
+
+      it("produces deterministic output for the same input", async () => {
+        const { mkdirSync } = await import("node:fs");
+        mkdirSync(tempDir, { recursive: true });
+        const wavPath = join(tempDir, "determinism.wav");
+
+        await captureOutput(
+          () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "42", "--output", wavPath)),
+        );
+
+        const { stdout: out1 } = await captureOutput(
+          () => main(argv("analyze", "--input", wavPath, "--json")),
+        );
+        const { stdout: out2 } = await captureOutput(
+          () => main(argv("analyze", "--input", wavPath, "--json")),
+        );
+        expect(out1).toBe(out2);
+      });
+
+      it("displays human-readable output without --json", async () => {
+        const { mkdirSync } = await import("node:fs");
+        mkdirSync(tempDir, { recursive: true });
+        const wavPath = join(tempDir, "human.wav");
+
+        await captureOutput(
+          () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "42", "--output", wavPath)),
+        );
+
+        const { code, stdout } = await captureOutput(
+          () => main(argv("analyze", "--input", wavPath, "--format", "table")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toContain("Analysis:");
+        expect(stdout).toContain("duration");
+        expect(stdout).toContain("peak");
+        expect(stdout).toContain("rms");
+      });
+    });
+
+    describe("recipe+seed analysis (--recipe)", () => {
+      it("analyzes a recipe+seed and returns JSON", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("analyze", "--recipe", "ui-scifi-confirm", "--seed", "42", "--json")),
+        );
+        expect(code).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.command).toBe("analyze");
+        expect(data.source).toEqual({ recipe: "ui-scifi-confirm", seed: 42 });
+        expect(data.analysisVersion).toBe("1.0");
+        expect(data.metrics.time).toBeDefined();
+        expect(data.metrics.quality).toBeDefined();
+        expect(data.metrics.envelope).toBeDefined();
+        expect(data.metrics.spectral).toBeDefined();
+      });
+
+      it("produces deterministic output for the same recipe+seed", async () => {
+        const { stdout: out1 } = await captureOutput(
+          () => main(argv("analyze", "--recipe", "ui-scifi-confirm", "--seed", "42", "--json")),
+        );
+        const { stdout: out2 } = await captureOutput(
+          () => main(argv("analyze", "--recipe", "ui-scifi-confirm", "--seed", "42", "--json")),
+        );
+        expect(out1).toBe(out2);
+      });
+
+      it("displays human-readable output without --json", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("analyze", "--recipe", "ui-scifi-confirm", "--seed", "42")),
+        );
+        expect(code).toBe(0);
+        // Without --json, defaults to JSON output for single-source analysis
+        // but also shows info messages
+        expect(stdout).toContain("Analyzing recipe");
+      });
+    });
+
+    describe("batch directory analysis", () => {
+      it("analyzes all WAV files in a directory", async () => {
+        const { mkdirSync } = await import("node:fs");
+        mkdirSync(tempDir, { recursive: true });
+
+        // Generate two WAV files
+        await captureOutput(
+          () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "1", "--output", join(tempDir, "sound-1.wav"))),
+        );
+        await captureOutput(
+          () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "2", "--output", join(tempDir, "sound-2.wav"))),
+        );
+
+        const { code, stdout } = await captureOutput(
+          () => main(argv("analyze", "--input", tempDir, "--json")),
+        );
+        expect(code).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.command).toBe("analyze");
+        expect(data.count).toBe(2);
+        expect(data.files).toHaveLength(2);
+        expect(data.files[0].analysisVersion).toBe("1.0");
+        expect(data.files[0].metrics.time).toBeDefined();
+      });
+
+      it("writes individual JSON files with --output", async () => {
+        const { mkdirSync } = await import("node:fs");
+        mkdirSync(tempDir, { recursive: true });
+        const outputAnalysisDir = join(tempDir, "analysis");
+
+        // Generate a WAV file
+        await captureOutput(
+          () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "1", "--output", join(tempDir, "sound.wav"))),
+        );
+
+        const { code } = await captureOutput(
+          () => main(argv("analyze", "--input", tempDir, "--output", outputAnalysisDir, "--json")),
+        );
+        expect(code).toBe(0);
+        expect(existsSync(join(outputAnalysisDir, "sound.json"))).toBe(true);
+
+        const jsonContent = JSON.parse(readFileSync(join(outputAnalysisDir, "sound.json"), "utf-8"));
+        expect(jsonContent.file).toBe("sound.wav");
+        expect(jsonContent.metrics.time).toBeDefined();
+      });
+
+      it("handles empty directory gracefully", async () => {
+        const { mkdirSync } = await import("node:fs");
+        mkdirSync(tempDir, { recursive: true });
+
+        const { code, stdout } = await captureOutput(
+          () => main(argv("analyze", "--input", tempDir, "--json")),
+        );
+        expect(code).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.count).toBe(0);
+        expect(data.files).toHaveLength(0);
+      });
+
+      it("outputs table format for batch analysis", async () => {
+        const { mkdirSync } = await import("node:fs");
+        mkdirSync(tempDir, { recursive: true });
+
+        await captureOutput(
+          () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "1", "--output", join(tempDir, "sound-1.wav"))),
+        );
+        await captureOutput(
+          () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "2", "--output", join(tempDir, "sound-2.wav"))),
+        );
+
+        const { code, stdout } = await captureOutput(
+          () => main(argv("analyze", "--input", tempDir, "--format", "table")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toContain("File");
+        expect(stdout).toContain("Peak");
+        expect(stdout).toContain("RMS");
+        expect(stdout).toContain("sound-1.wav");
+        expect(stdout).toContain("sound-2.wav");
+        expect(stdout).toContain("Analyzed 2 files");
+      });
+    });
+
+    describe("analyze appears in main help", () => {
+      it("lists analyze command in main help output", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("--help")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toContain("analyze");
+      });
+    });
+  });
 });
