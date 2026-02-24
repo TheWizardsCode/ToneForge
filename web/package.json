@@ -26,6 +26,7 @@
     "@types/express": "^5.0.2",
     "@types/node": "^22.15.0",
     "@types/ws": "^8.18.1",
+    "happy-dom": "^20.7.0",
     "typescript": "^5.9.3",
     "vite": "^6.3.5",
     "vitest": "^4.0.18"

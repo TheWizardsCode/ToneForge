@@ -9,6 +9,10 @@ const MAX_RECONNECT_ATTEMPTS = 10;
 export interface TerminalController {
   /** Send a command string to the terminal (types it and presses Enter) */
   sendCommand(command: string): void;
+  /** Execute a command and wait for it to complete. Returns the exit code. */
+  executeCommand(command: string): Promise<{ exitCode: number }>;
+  /** Subscribe to raw PTY output data. Returns an unsubscribe function. */
+  onOutput(callback: (data: string) => void): () => void;
   /** Dispose of the terminal and close the WebSocket */
   dispose(): void;
 }
@@ -38,6 +42,8 @@ export function createTerminal(
   let reconnectAttempts = 0;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   let hasConnectedOnce = false;
+  const outputListeners = new Set<(data: string) => void>();
+  const commandDoneListeners = new Set<(exitCode: number) => void>();
 
   function connect(): void {
     if (disposed) return;
@@ -66,7 +72,27 @@ export function createTerminal(
     };
 
     ws.onmessage = (event) => {
-      term.write(event.data as string);
+      const raw = event.data as string;
+
+      // Check if this is a structured JSON message from the server
+      if (raw.startsWith("{")) {
+        try {
+          const msg = JSON.parse(raw);
+          if (msg.type === "commandDone" && typeof msg.exitCode === "number") {
+            for (const listener of commandDoneListeners) {
+              listener(msg.exitCode);
+            }
+            return;
+          }
+        } catch {
+          // Not valid JSON — treat as raw PTY output
+        }
+      }
+
+      term.write(raw);
+      for (const listener of outputListeners) {
+        listener(raw);
+      }
     };
 
     ws.onclose = () => {
@@ -147,8 +173,31 @@ export function createTerminal(
         console.warn("[ToneForge] Cannot send command — WebSocket not connected (readyState:", ws?.readyState ?? "null", ")");
       }
     },
+    executeCommand(command: string): Promise<{ exitCode: number }> {
+      return new Promise((resolve, reject) => {
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+          reject(new Error("WebSocket not connected"));
+          return;
+        }
+        console.log("[ToneForge] Executing command:", command);
+        const onDone = (exitCode: number): void => {
+          commandDoneListeners.delete(onDone);
+          resolve({ exitCode });
+        };
+        commandDoneListeners.add(onDone);
+        ws.send(JSON.stringify({ type: "exec", data: command + "\n" }));
+      });
+    },
+    onOutput(callback: (data: string) => void): () => void {
+      outputListeners.add(callback);
+      return () => {
+        outputListeners.delete(callback);
+      };
+    },
     dispose(): void {
       disposed = true;
+      outputListeners.clear();
+      commandDoneListeners.clear();
       if (reconnectTimer) {
         clearTimeout(reconnectTimer);
         reconnectTimer = null;

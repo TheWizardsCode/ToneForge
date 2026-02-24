@@ -111,10 +111,53 @@ wss.on("connection", (ws: WebSocket) => {
     env: { ...process.env } as Record<string, string>,
   });
 
+  // Buffer for detecting and stripping OSC 133;D exit-code sequences from PTY output.
+  // The OSC sequence format is: \x1b]133;D;<exitCode>\x07
+  // We intercept this, strip it from the forwarded output, and send a structured
+  // { type: "commandDone", exitCode: number } JSON message to the client.
+  let outputBuffer = "";
+
+  // Regex to match the OSC 133;D exit-code sequence (may span chunk boundaries)
+  const OSC_DONE_RE = /\x1b\]133;D;(\d+)\x07/;
+  // Partial match: detects if we might be in the middle of receiving an OSC sequence
+  const OSC_PARTIAL_RE = /\x1b(?:\](?:1(?:3(?:3(?:;(?:D(?:;(?:\d+)?)?)?)?)?)?)?)?$/;
+
   // PTY output -> WebSocket
   ptyProcess.onData((data: string) => {
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.send(data);
+    if (ws.readyState !== WebSocket.OPEN) return;
+
+    outputBuffer += data;
+
+    // Process all complete OSC sequences in the buffer
+    let match: RegExpExecArray | null;
+    while ((match = OSC_DONE_RE.exec(outputBuffer)) !== null) {
+      const exitCode = parseInt(match[1], 10);
+      // Send everything before the OSC as raw PTY output
+      const before = outputBuffer.slice(0, match.index);
+      if (before) {
+        ws.send(before);
+      }
+      // Send the structured commandDone message
+      ws.send(JSON.stringify({ type: "commandDone", exitCode }));
+      // Continue processing after the OSC sequence
+      outputBuffer = outputBuffer.slice(match.index + match[0].length);
+    }
+
+    // Check if the buffer ends with a partial OSC sequence
+    const partialMatch = OSC_PARTIAL_RE.exec(outputBuffer);
+    if (partialMatch) {
+      // Send everything before the partial match, keep the rest buffered
+      const safe = outputBuffer.slice(0, partialMatch.index);
+      if (safe) {
+        ws.send(safe);
+      }
+      outputBuffer = outputBuffer.slice(partialMatch.index);
+    } else {
+      // No partial match — flush the entire buffer
+      if (outputBuffer) {
+        ws.send(outputBuffer);
+      }
+      outputBuffer = "";
     }
   });
 
@@ -132,6 +175,15 @@ wss.on("connection", (ws: WebSocket) => {
 
       if (msg.type === "input" && typeof msg.data === "string") {
         ptyProcess.write(msg.data);
+      } else if (msg.type === "exec" && typeof msg.data === "string") {
+        // Execute a command with exit-code capture.
+        // Write the command followed by a shell snippet that emits an OSC 133;D
+        // sequence containing the exit code. This sequence is invisible to the
+        // terminal and will be intercepted by the output handler above.
+        const cmd = msg.data.replace(/\n$/, "");
+        ptyProcess.write(
+          `${cmd}; __TF_EC=$?; printf '\\033]133;D;%d\\007' $__TF_EC\n`,
+        );
       } else if (
         msg.type === "resize" &&
         typeof msg.cols === "number" &&
