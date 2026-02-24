@@ -21,6 +21,8 @@ Worklog Specific Ignores
 output/
 gravel-steps/
 creatures/
+analysis/
+classification/
 
 ##################################
 # Node / TypeScript

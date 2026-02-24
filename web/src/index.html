@@ -258,6 +258,31 @@
         margin-bottom: 0.25rem;
       }
 
+      .wizard-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.85rem;
+        line-height: 1.5;
+        margin: 0 0 0.75rem 0;
+      }
+
+      .wizard-table th,
+      .wizard-table td {
+        border: 1px solid var(--border);
+        padding: 0.4rem 0.6rem;
+        text-align: left;
+        color: var(--text);
+      }
+
+      .wizard-table th {
+        background: var(--bg);
+        font-weight: 600;
+      }
+
+      .wizard-table tbody tr:nth-child(even) {
+        background: rgba(255, 255, 255, 0.02);
+      }
+
       .wizard-commands {
         background: var(--bg);
         border: 1px solid var(--border);
