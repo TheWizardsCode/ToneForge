@@ -36,6 +36,7 @@
     "marked": "^15.0.12",
     "marked-terminal": "^7.3.0",
     "node-web-audio-api": "^1.0.8",
+    "remark-gfm": "^4.0.1",
     "remark-parse": "^11.0.0",
     "tone": "^15.1.22",
     "unified": "^11.0.5"

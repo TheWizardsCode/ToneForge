@@ -1918,4 +1918,586 @@ describe("CLI", () => {
       });
     });
   });
+
+  describe("classify command", () => {
+    let tempDir: string;
+
+    beforeEach(() => {
+      tempDir = join(tmpdir(), `toneforge-classify-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    });
+
+    afterEach(() => {
+      try { rmSync(tempDir, { recursive: true, force: true }); } catch { /* ignore */ }
+    });
+
+    describe("help", () => {
+      it("prints classify help with --help flag", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("classify", "--help")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toContain("classify");
+        expect(stdout).toContain("--analysis");
+        expect(stdout).toContain("--input");
+        expect(stdout).toContain("--recipe");
+        expect(stdout).toContain("search");
+      });
+    });
+
+    describe("error handling", () => {
+      it("returns exit code 1 when no source flag given", async () => {
+        const { code, stderr } = await captureOutput(
+          () => main(argv("classify", "--json")),
+        );
+        expect(code).toBe(1);
+        const data = JSON.parse(stderr);
+        expect(data.error).toContain("--analysis");
+      });
+
+      it("returns exit code 1 when multiple source flags given", async () => {
+        const { code, stderr } = await captureOutput(
+          () => main(argv("classify", "--input", "file.wav", "--recipe", "foo", "--json")),
+        );
+        expect(code).toBe(1);
+        const data = JSON.parse(stderr);
+        expect(data.error).toContain("mutually exclusive");
+      });
+
+      it("returns exit code 1 for invalid --format value", async () => {
+        const { code, stderr } = await captureOutput(
+          () => main(argv("classify", "--input", "test.wav", "--format", "csv", "--json")),
+        );
+        expect(code).toBe(1);
+        const data = JSON.parse(stderr);
+        expect(data.error).toContain("--format");
+      });
+
+      it("returns exit code 1 when --recipe without --seed", async () => {
+        const { code, stderr } = await captureOutput(
+          () => main(argv("classify", "--recipe", "ui-scifi-confirm", "--json")),
+        );
+        expect(code).toBe(1);
+        const data = JSON.parse(stderr);
+        expect(data.error).toContain("--seed");
+      });
+
+      it("returns exit code 1 for unknown recipe name", async () => {
+        const { code, stderr } = await captureOutput(
+          () => main(argv("classify", "--recipe", "nonexistent-recipe", "--seed", "42", "--json")),
+        );
+        expect(code).toBe(1);
+        const data = JSON.parse(stderr);
+        expect(data.error).toContain("Unknown recipe");
+      });
+
+      it("returns exit code 1 for non-existent input file", async () => {
+        const { code, stderr } = await captureOutput(
+          () => main(argv("classify", "--input", "/tmp/does-not-exist.wav", "--json")),
+        );
+        expect(code).toBe(1);
+        const data = JSON.parse(stderr);
+        expect(data.error).toContain("not found");
+      });
+
+      it("returns exit code 1 for non-WAV single file input", async () => {
+        const { mkdirSync, writeFileSync } = await import("node:fs");
+        mkdirSync(tempDir, { recursive: true });
+        const txtPath = join(tempDir, "test.txt");
+        writeFileSync(txtPath, "not a wav");
+        const { code, stderr } = await captureOutput(
+          () => main(argv("classify", "--input", txtPath, "--json")),
+        );
+        expect(code).toBe(1);
+        const data = JSON.parse(stderr);
+        expect(data.error).toContain(".wav");
+      });
+
+      it("returns exit code 1 for non-existent analysis directory", async () => {
+        const { code, stderr } = await captureOutput(
+          () => main(argv("classify", "--analysis", "/tmp/does-not-exist-dir", "--json")),
+        );
+        expect(code).toBe(1);
+        const data = JSON.parse(stderr);
+        expect(data.error).toContain("not found");
+      });
+    });
+
+    describe("recipe+seed classification (--recipe)", () => {
+      it("classifies a recipe+seed and returns JSON", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("classify", "--recipe", "ui-scifi-confirm", "--seed", "42", "--json")),
+        );
+        expect(code).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.command).toBe("classify");
+        expect(data.source).toBe("ui-scifi-confirm_seed-042");
+        expect(typeof data.category).toBe("string");
+        expect(data.category).toBe("ui");
+        expect(typeof data.intensity).toBe("string");
+        expect(Array.isArray(data.texture)).toBe(true);
+        expect(Array.isArray(data.tags)).toBe(true);
+        expect(data.classificationVersion).toBe("1.0");
+      });
+
+      it("produces deterministic output for the same recipe+seed", async () => {
+        const { stdout: out1 } = await captureOutput(
+          () => main(argv("classify", "--recipe", "ui-scifi-confirm", "--seed", "42", "--json")),
+        );
+        const { stdout: out2 } = await captureOutput(
+          () => main(argv("classify", "--recipe", "ui-scifi-confirm", "--seed", "42", "--json")),
+        );
+        expect(out1).toBe(out2);
+      });
+
+      it("displays human-readable output without --json", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("classify", "--recipe", "ui-scifi-confirm", "--seed", "42")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toContain("Classification:");
+        expect(stdout).toContain("Category:");
+        expect(stdout).toContain("Intensity:");
+      });
+
+      it("writes output file with --output", async () => {
+        const { mkdirSync } = await import("node:fs");
+        mkdirSync(tempDir, { recursive: true });
+        const outputClassifyDir = join(tempDir, "classification");
+
+        const { code } = await captureOutput(
+          () => main(argv("classify", "--recipe", "ui-scifi-confirm", "--seed", "42", "--output", outputClassifyDir, "--json")),
+        );
+        expect(code).toBe(0);
+        expect(existsSync(join(outputClassifyDir, "ui-scifi-confirm_seed-042.json"))).toBe(true);
+
+        const content = JSON.parse(readFileSync(join(outputClassifyDir, "ui-scifi-confirm_seed-042.json"), "utf-8"));
+        expect(content.category).toBe("ui");
+        expect(content.classificationVersion).toBe("1.0");
+      });
+
+      it("classifies weapon recipe correctly", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("classify", "--recipe", "weapon-laser-zap", "--seed", "1", "--json")),
+        );
+        expect(code).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.category).toBe("weapon");
+      });
+    });
+
+    describe("single WAV file classification (--input)", () => {
+      it("classifies a WAV file end-to-end and returns JSON", async () => {
+        const { mkdirSync } = await import("node:fs");
+        mkdirSync(tempDir, { recursive: true });
+        const wavPath = join(tempDir, "weapon-laser-zap_seed-001.wav");
+
+        // Generate a WAV file first
+        await captureOutput(
+          () => main(argv("generate", "--recipe", "weapon-laser-zap", "--seed", "1", "--output", wavPath)),
+        );
+
+        const { code, stdout } = await captureOutput(
+          () => main(argv("classify", "--input", wavPath, "--json")),
+        );
+        expect(code).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.command).toBe("classify");
+        expect(typeof data.category).toBe("string");
+        expect(data.category).toBe("weapon");
+        expect(typeof data.intensity).toBe("string");
+        expect(Array.isArray(data.texture)).toBe(true);
+        expect(Array.isArray(data.tags)).toBe(true);
+        expect(data.classificationVersion).toBe("1.0");
+      });
+
+      it("produces deterministic output for the same WAV file", async () => {
+        const { mkdirSync } = await import("node:fs");
+        mkdirSync(tempDir, { recursive: true });
+        const wavPath = join(tempDir, "test-determinism.wav");
+
+        await captureOutput(
+          () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "42", "--output", wavPath)),
+        );
+
+        const { stdout: out1 } = await captureOutput(
+          () => main(argv("classify", "--input", wavPath, "--json")),
+        );
+        const { stdout: out2 } = await captureOutput(
+          () => main(argv("classify", "--input", wavPath, "--json")),
+        );
+        expect(out1).toBe(out2);
+      });
+    });
+
+    describe("batch WAV directory classification (--input <dir>)", () => {
+      it("classifies all WAV files in a directory", async () => {
+        const { mkdirSync } = await import("node:fs");
+        mkdirSync(tempDir, { recursive: true });
+
+        await captureOutput(
+          () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "1", "--output", join(tempDir, "sound-1.wav"))),
+        );
+        await captureOutput(
+          () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "2", "--output", join(tempDir, "sound-2.wav"))),
+        );
+
+        const { code, stdout } = await captureOutput(
+          () => main(argv("classify", "--input", tempDir, "--json")),
+        );
+        expect(code).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.command).toBe("classify");
+        expect(data.count).toBe(2);
+        expect(data.files).toHaveLength(2);
+        expect(data.files[0].classificationVersion).toBe("1.0");
+        expect(typeof data.files[0].category).toBe("string");
+      });
+
+      it("writes individual JSON files with --output", async () => {
+        const { mkdirSync } = await import("node:fs");
+        mkdirSync(tempDir, { recursive: true });
+        const outputClassifyDir = join(tempDir, "classification");
+
+        await captureOutput(
+          () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "1", "--output", join(tempDir, "sound.wav"))),
+        );
+
+        const { code } = await captureOutput(
+          () => main(argv("classify", "--input", tempDir, "--output", outputClassifyDir, "--json")),
+        );
+        expect(code).toBe(0);
+        expect(existsSync(join(outputClassifyDir, "sound.json"))).toBe(true);
+
+        const content = JSON.parse(readFileSync(join(outputClassifyDir, "sound.json"), "utf-8"));
+        expect(typeof content.category).toBe("string");
+        expect(content.classificationVersion).toBe("1.0");
+      });
+
+      it("handles empty directory gracefully", async () => {
+        const { mkdirSync } = await import("node:fs");
+        mkdirSync(tempDir, { recursive: true });
+
+        const { code, stdout } = await captureOutput(
+          () => main(argv("classify", "--input", tempDir, "--json")),
+        );
+        expect(code).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.count).toBe(0);
+        expect(data.files).toHaveLength(0);
+      });
+
+      it("outputs table format for batch classification", async () => {
+        const { mkdirSync } = await import("node:fs");
+        mkdirSync(tempDir, { recursive: true });
+
+        await captureOutput(
+          () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "1", "--output", join(tempDir, "sound-1.wav"))),
+        );
+
+        const { code, stdout } = await captureOutput(
+          () => main(argv("classify", "--input", tempDir, "--format", "table")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toContain("Source");
+        expect(stdout).toContain("Category");
+        expect(stdout).toContain("Intensity");
+        expect(stdout).toContain("Classified 1 file");
+      });
+    });
+
+    describe("batch from analysis directory (--analysis)", () => {
+      it("classifies analysis JSON files in a directory", async () => {
+        const { mkdirSync } = await import("node:fs");
+        mkdirSync(tempDir, { recursive: true });
+        const wavDir = join(tempDir, "renders");
+        const analysisDir = join(tempDir, "analysis");
+        mkdirSync(wavDir, { recursive: true });
+
+        // Generate WAV, then analyze to produce JSON files
+        await captureOutput(
+          () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "1", "--output", join(wavDir, "ui-scifi-confirm_seed-001.wav"))),
+        );
+        await captureOutput(
+          () => main(argv("analyze", "--input", wavDir, "--output", analysisDir)),
+        );
+
+        // Now classify from analysis
+        const { code, stdout } = await captureOutput(
+          () => main(argv("classify", "--analysis", analysisDir, "--json")),
+        );
+        expect(code).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.command).toBe("classify");
+        expect(data.count).toBe(1);
+        expect(data.files).toHaveLength(1);
+        expect(data.files[0].category).toBe("ui");
+        expect(data.files[0].classificationVersion).toBe("1.0");
+      });
+
+      it("writes classification JSON files with --output", async () => {
+        const { mkdirSync } = await import("node:fs");
+        mkdirSync(tempDir, { recursive: true });
+        const wavDir = join(tempDir, "renders");
+        const analysisDir = join(tempDir, "analysis");
+        const classifyDir = join(tempDir, "classification");
+        mkdirSync(wavDir, { recursive: true });
+
+        await captureOutput(
+          () => main(argv("generate", "--recipe", "weapon-laser-zap", "--seed", "1", "--output", join(wavDir, "weapon-laser-zap_seed-001.wav"))),
+        );
+        await captureOutput(
+          () => main(argv("analyze", "--input", wavDir, "--output", analysisDir)),
+        );
+        const { code } = await captureOutput(
+          () => main(argv("classify", "--analysis", analysisDir, "--output", classifyDir, "--json")),
+        );
+        expect(code).toBe(0);
+        expect(existsSync(join(classifyDir, "weapon-laser-zap_seed-001.json"))).toBe(true);
+
+        const content = JSON.parse(readFileSync(join(classifyDir, "weapon-laser-zap_seed-001.json"), "utf-8"));
+        expect(content.category).toBe("weapon");
+      });
+
+      it("handles empty analysis directory", async () => {
+        const { mkdirSync } = await import("node:fs");
+        mkdirSync(tempDir, { recursive: true });
+
+        const { code, stdout } = await captureOutput(
+          () => main(argv("classify", "--analysis", tempDir, "--json")),
+        );
+        expect(code).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.count).toBe(0);
+      });
+    });
+
+    describe("classify search subcommand", () => {
+      it("returns exit code 1 when no filter given", async () => {
+        const { code, stderr } = await captureOutput(
+          () => main(argv("classify", "search", "--json")),
+        );
+        expect(code).toBe(1);
+        const data = JSON.parse(stderr);
+        expect(data.error).toContain("filter");
+      });
+
+      it("returns exit code 1 for non-existent search directory", async () => {
+        const { code, stderr } = await captureOutput(
+          () => main(argv("classify", "search", "--category", "weapon", "--dir", "/tmp/does-not-exist-dir", "--json")),
+        );
+        expect(code).toBe(1);
+        const data = JSON.parse(stderr);
+        expect(data.error).toContain("not found");
+      });
+
+      it("searches classification files by category", async () => {
+        const { mkdirSync, writeFileSync } = await import("node:fs");
+        mkdirSync(tempDir, { recursive: true });
+
+        // Write two classification JSON files
+        writeFileSync(join(tempDir, "weapon-1.json"), JSON.stringify({
+          source: "weapon-laser-zap_seed-001",
+          category: "weapon",
+          intensity: "hard",
+          texture: ["sharp", "bright"],
+          material: "energy",
+          tags: ["sci-fi", "ranged"],
+          analysisRef: "./analysis/weapon-1.json",
+        }));
+        writeFileSync(join(tempDir, "ui-1.json"), JSON.stringify({
+          source: "ui-scifi-confirm_seed-001",
+          category: "ui",
+          intensity: "soft",
+          texture: ["smooth"],
+          material: null,
+          tags: ["interface"],
+          analysisRef: "./analysis/ui-1.json",
+        }));
+
+        const { code, stdout } = await captureOutput(
+          () => main(argv("classify", "search", "--category", "weapon", "--dir", tempDir, "--json")),
+        );
+        expect(code).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.count).toBe(1);
+        expect(data.matches).toHaveLength(1);
+        expect(data.matches[0].category).toBe("weapon");
+        expect(data.matches[0].source).toBe("weapon-laser-zap_seed-001");
+      });
+
+      it("searches by intensity", async () => {
+        const { mkdirSync, writeFileSync } = await import("node:fs");
+        mkdirSync(tempDir, { recursive: true });
+
+        writeFileSync(join(tempDir, "hard-1.json"), JSON.stringify({
+          source: "weapon-1",
+          category: "weapon",
+          intensity: "hard",
+          texture: ["sharp"],
+          material: "metal",
+          tags: [],
+          analysisRef: "./a.json",
+        }));
+        writeFileSync(join(tempDir, "soft-1.json"), JSON.stringify({
+          source: "ui-1",
+          category: "ui",
+          intensity: "soft",
+          texture: ["smooth"],
+          material: null,
+          tags: [],
+          analysisRef: "./b.json",
+        }));
+
+        const { code, stdout } = await captureOutput(
+          () => main(argv("classify", "search", "--intensity", "soft", "--dir", tempDir, "--json")),
+        );
+        expect(code).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.count).toBe(1);
+        expect(data.matches[0].intensity).toBe("soft");
+      });
+
+      it("searches by texture (partial match)", async () => {
+        const { mkdirSync, writeFileSync } = await import("node:fs");
+        mkdirSync(tempDir, { recursive: true });
+
+        writeFileSync(join(tempDir, "sharp-1.json"), JSON.stringify({
+          source: "weapon-1",
+          category: "weapon",
+          intensity: "hard",
+          texture: ["sharp", "bright"],
+          material: "metal",
+          tags: [],
+          analysisRef: "./a.json",
+        }));
+        writeFileSync(join(tempDir, "smooth-1.json"), JSON.stringify({
+          source: "ui-1",
+          category: "ui",
+          intensity: "soft",
+          texture: ["smooth"],
+          material: null,
+          tags: [],
+          analysisRef: "./b.json",
+        }));
+
+        const { code, stdout } = await captureOutput(
+          () => main(argv("classify", "search", "--texture", "sharp", "--dir", tempDir, "--json")),
+        );
+        expect(code).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.count).toBe(1);
+        expect(data.matches[0].texture).toContain("sharp");
+      });
+
+      it("combines multiple filters", async () => {
+        const { mkdirSync, writeFileSync } = await import("node:fs");
+        mkdirSync(tempDir, { recursive: true });
+
+        writeFileSync(join(tempDir, "match.json"), JSON.stringify({
+          source: "weapon-1",
+          category: "weapon",
+          intensity: "hard",
+          texture: ["sharp"],
+          material: "metal",
+          tags: [],
+          analysisRef: "./a.json",
+        }));
+        writeFileSync(join(tempDir, "no-match.json"), JSON.stringify({
+          source: "weapon-2",
+          category: "weapon",
+          intensity: "soft",
+          texture: ["smooth"],
+          material: null,
+          tags: [],
+          analysisRef: "./b.json",
+        }));
+
+        const { code, stdout } = await captureOutput(
+          () => main(argv("classify", "search", "--category", "weapon", "--intensity", "hard", "--dir", tempDir, "--json")),
+        );
+        expect(code).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.count).toBe(1);
+        expect(data.matches[0].source).toBe("weapon-1");
+      });
+
+      it("returns empty results when no matches found", async () => {
+        const { mkdirSync, writeFileSync } = await import("node:fs");
+        mkdirSync(tempDir, { recursive: true });
+
+        writeFileSync(join(tempDir, "ui-1.json"), JSON.stringify({
+          source: "ui-1",
+          category: "ui",
+          intensity: "soft",
+          texture: ["smooth"],
+          material: null,
+          tags: [],
+          analysisRef: "./a.json",
+        }));
+
+        const { code, stdout } = await captureOutput(
+          () => main(argv("classify", "search", "--category", "weapon", "--dir", tempDir, "--json")),
+        );
+        expect(code).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.count).toBe(0);
+        expect(data.matches).toHaveLength(0);
+      });
+
+      it("displays table output by default", async () => {
+        const { mkdirSync, writeFileSync } = await import("node:fs");
+        mkdirSync(tempDir, { recursive: true });
+
+        writeFileSync(join(tempDir, "weapon-1.json"), JSON.stringify({
+          source: "weapon-laser-zap_seed-001",
+          category: "weapon",
+          intensity: "hard",
+          texture: ["sharp", "bright"],
+          material: "energy",
+          tags: ["sci-fi"],
+          analysisRef: "./a.json",
+        }));
+
+        const { code, stdout } = await captureOutput(
+          () => main(argv("classify", "search", "--category", "weapon", "--dir", tempDir)),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toContain("Source");
+        expect(stdout).toContain("Category");
+        expect(stdout).toContain("weapon");
+        expect(stdout).toContain("Found 1 match");
+      });
+
+      it("shows help with --help in search subcommand", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("classify", "search", "--help")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toContain("classify");
+        expect(stdout).toContain("--category");
+      });
+
+      it("handles empty classification directory", async () => {
+        const { mkdirSync } = await import("node:fs");
+        mkdirSync(tempDir, { recursive: true });
+
+        const { code, stdout } = await captureOutput(
+          () => main(argv("classify", "search", "--category", "weapon", "--dir", tempDir, "--json")),
+        );
+        expect(code).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.count).toBe(0);
+      });
+    });
+
+    describe("classify appears in main help", () => {
+      it("lists classify command in main help output", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("--help")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toContain("classify");
+      });
+    });
+  });
 });

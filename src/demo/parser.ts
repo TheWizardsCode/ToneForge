@@ -9,9 +9,10 @@
  */
 
 import matter from "gray-matter";
+import remarkGfm from "remark-gfm";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
-import type { Root, Content, Heading, Blockquote, Code, Paragraph, List } from "mdast";
+import type { Root, Content, Heading, Blockquote, Code, Paragraph, List, Table, TableRow } from "mdast";
 
 // ── Public types ───────────────────────────────────────────────────
 
@@ -128,9 +129,50 @@ function extractCommentary(bq: Blockquote): string | null {
 }
 
 /**
- * Serialize list and paragraph nodes into plain description text.
+ * Serialize a GFM table AST node back to markdown table syntax.
+ * Preserves column alignment and inline text (bold, links, etc.)
+ * by recursively extracting text from each cell.
+ */
+function tableToMarkdown(table: Table): string {
+  const rows = table.children as TableRow[];
+  if (rows.length === 0) return "";
+
+  // Build a 2D string grid from the AST cells
+  const grid: string[][] = rows.map((row) =>
+    row.children.map((cell) => nodeToText(cell).trim()),
+  );
+
+  // Determine column widths (minimum 3 for the separator dashes)
+  const colCount = Math.max(...grid.map((r) => r.length));
+  const widths: number[] = Array.from({ length: colCount }, (_, col) =>
+    Math.max(3, ...grid.map((row) => (row[col] ?? "").length)),
+  );
+
+  // Format a single row with pipe separators and padding
+  const formatRow = (cells: string[]): string => {
+    const padded = widths.map((w, i) => (cells[i] ?? "").padEnd(w));
+    return "| " + padded.join(" | ") + " |";
+  };
+
+  // Build separator row using alignment hints from the AST
+  const separator = widths.map((w, i) => {
+    const align = table.align?.[i];
+    if (align === "center") return ":" + "-".repeat(w - 2) + ":";
+    if (align === "right") return "-".repeat(w - 1) + ":";
+    return "-".repeat(w);
+  });
+  const sepRow = "| " + separator.join(" | ") + " |";
+
+  // Header row + separator + data rows
+  const lines = [formatRow(grid[0]), sepRow, ...grid.slice(1).map(formatRow)];
+  return lines.join("\n");
+}
+
+/**
+ * Serialize list, paragraph, and table nodes into description text.
  * Paragraphs and lists are separated by double newlines so renderers
  * can distinguish paragraph breaks from line breaks within a list.
+ * Tables are serialized back to GFM markdown syntax.
  */
 function nodesToDescription(nodes: Content[]): string {
   const blocks: string[] = [];
@@ -145,6 +187,8 @@ function nodesToDescription(nodes: Content[]): string {
         return prefix + text;
       });
       blocks.push(items.join("\n"));
+    } else if (node.type === "table") {
+      blocks.push(tableToMarkdown(node as Table));
     }
   }
   return blocks.join("\n\n").trim();
@@ -177,8 +221,8 @@ export function parseDemoMarkdown(rawMarkdown: string): ParsedDemo {
     ...(rawOrder != null && Number.isFinite(Number(rawOrder)) && { order: Number(rawOrder) }),
   };
 
-  // Parse markdown body to AST
-  const tree = unified().use(remarkParse).parse(content) as Root;
+  // Parse markdown body to AST (remark-gfm enables GFM table support)
+  const tree = unified().use(remarkParse).use(remarkGfm).parse(content) as Root;
 
   // Count total acts for label generation
   const totalActs = tree.children.filter(
@@ -239,14 +283,16 @@ export function parseDemoMarkdown(rawMarkdown: string): ParsedDemo {
         continue;
       }
 
-      // Paragraphs after a problem but before commands/commentary → solution
+      // Paragraphs/lists/tables after a problem but before commands/commentary → solution
       if (
         foundProblem &&
         !foundSolution &&
-        (node.type === "paragraph" || node.type === "list") &&
+        (node.type === "paragraph" || node.type === "list" || node.type === "table") &&
         commands.length === 0
       ) {
-        const text = nodeToText(node).trim();
+        const text = node.type === "table"
+          ? tableToMarkdown(node as Table)
+          : nodeToText(node).trim();
         if (text) {
           solution = solution ? solution + "\n" + text : text;
           foundSolution = true;

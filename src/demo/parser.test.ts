@@ -354,3 +354,148 @@ Content.
     expect(result.meta.order).toBeUndefined();
   });
 });
+
+// ── GFM table support ─────────────────────────────────────────────
+
+describe("parseDemoMarkdown — GFM table support", () => {
+  it("preserves a table in description as markdown table syntax", () => {
+    const md = `---
+title: Table Test
+id: table-test
+description: Test tables.
+---
+
+## Step
+
+Some introductory text.
+
+| Header A | Header B |
+|----------|----------|
+| cell 1   | cell 2   |
+| cell 3   | cell 4   |
+
+\`\`\`bash
+echo "after table"
+\`\`\`
+`;
+    const result = parseDemoMarkdown(md);
+    expect(result.steps).toHaveLength(1);
+    const step = result.steps[0];
+    // Table should end up in description since there is no preceding problem blockquote
+    expect(step.description).toContain("Header A");
+    expect(step.description).toContain("Header B");
+    expect(step.description).toContain("cell 1");
+    expect(step.description).toContain("cell 4");
+    // Should be formatted as pipe-delimited markdown table
+    expect(step.description).toContain("|");
+    expect(step.description).toContain("---");
+  });
+
+  it("classifies a table between problem and commands as solution", () => {
+    const md = `---
+title: Table Solution
+id: table-solution
+description: Table as solution.
+---
+
+## Act 1 -- Dimension overview
+
+> You want to understand the classification dimensions.
+
+| Dimension | Description |
+|-----------|-------------|
+| category  | Primary type |
+| intensity | Energy level |
+
+\`\`\`bash
+echo "classify"
+\`\`\`
+
+> [!commentary]
+> This explains the dimensions.
+`;
+    const result = parseDemoMarkdown(md);
+    expect(result.steps).toHaveLength(1);
+    const step = result.steps[0];
+    expect(step.problem).toMatch(/understand the classification/);
+    // Table should be classified as solution (between problem and first command)
+    expect(step.solution).toBeDefined();
+    expect(step.solution).toContain("Dimension");
+    expect(step.solution).toContain("category");
+    expect(step.solution).toContain("intensity");
+    expect(step.solution).toContain("|");
+    expect(step.commentary).toMatch(/explains the dimensions/);
+  });
+
+  it("renders multi-column table with alignment preserved", () => {
+    const md = `---
+title: Alignment
+id: alignment
+description: Test alignment.
+---
+
+## Step
+
+| Left | Center | Right |
+|:-----|:------:|------:|
+| a    | b      | c     |
+`;
+    const result = parseDemoMarkdown(md);
+    const step = result.steps[0];
+    // Table ends up in description (no problem blockquote)
+    expect(step.description).toContain("Left");
+    expect(step.description).toContain("Center");
+    expect(step.description).toContain("Right");
+  });
+
+  it("handles bold text inside table cells", () => {
+    const md = `---
+title: Bold Cells
+id: bold-cells
+description: Bold in tables.
+---
+
+## Step
+
+| Name | Value |
+|------|-------|
+| **bold** | normal |
+`;
+    const result = parseDemoMarkdown(md);
+    const step = result.steps[0];
+    expect(step.description).toContain("bold");
+    expect(step.description).toContain("normal");
+  });
+
+  it("classification demo Act 2 table parses correctly", () => {
+    // Simulate the exact structure from demos/classification.md Act 2
+    const md = `---
+title: Classification Demo
+id: classification
+description: Test.
+---
+
+## Act 2 -- What each dimension means
+
+> You see labels but want to understand how each one is determined.
+
+| Dimension | What it describes | How it is determined |
+|-----------|-------------------|----------------------|
+| **category** | Primary sound type | Recipe metadata first |
+| **intensity** | Energy level | RMS loudness thresholds |
+
+> [!commentary]
+> Classification is hierarchical.
+`;
+    const result = parseDemoMarkdown(md);
+    expect(result.steps).toHaveLength(1);
+    const step = result.steps[0];
+    expect(step.problem).toMatch(/understand how each one/);
+    expect(step.solution).toBeDefined();
+    expect(step.solution).toContain("Dimension");
+    expect(step.solution).toContain("category");
+    expect(step.solution).toContain("intensity");
+    expect(step.solution).toContain("Primary sound type");
+    expect(step.commentary).toMatch(/hierarchical/);
+  });
+});

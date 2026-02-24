@@ -129,7 +129,7 @@ export function createWizard(
     const desc = document.createElement("div");
     desc.className = "wizard-description";
 
-    // Split on double newlines to get logical blocks (paragraphs / lists)
+    // Split on double newlines to get logical blocks (paragraphs / lists / tables)
     const blocks = description.split(/\n\n+/);
     for (const block of blocks) {
       const trimmed = block.trim();
@@ -139,8 +139,15 @@ export function createWizard(
       const lines = trimmed.split("\n");
       const isOrderedList = lines.every((l) => /^\d+\.\s/.test(l));
       const isUnorderedList = lines.every((l) => /^[-*]\s/.test(l));
+      // Detect GFM table blocks (lines start/end with pipes, has separator row)
+      const isTable =
+        lines.length >= 2 &&
+        lines.every((l) => l.startsWith("|") && l.endsWith("|")) &&
+        /^\|[\s:]*-+[\s:]*(\|[\s:]*-+[\s:]*)*\|$/.test(lines[1]);
 
-      if (isOrderedList) {
+      if (isTable) {
+        desc.appendChild(buildTableElement(lines));
+      } else if (isOrderedList) {
         const ol = document.createElement("ol");
         for (const line of lines) {
           const li = document.createElement("li");
@@ -164,6 +171,61 @@ export function createWizard(
     }
 
     return desc;
+  }
+
+  /**
+   * Build an HTML table element from GFM markdown table lines.
+   * Handles bold (**text**) inline formatting in cells.
+   */
+  function buildTableElement(lines: string[]): HTMLTableElement {
+    const table = document.createElement("table");
+    table.className = "wizard-table";
+
+    // Parse cells from a pipe-delimited row, trimming outer pipes
+    const parseCells = (line: string): string[] =>
+      line
+        .replace(/^\|/, "")
+        .replace(/\|$/, "")
+        .split("|")
+        .map((c) => c.trim());
+
+    // Set cell innerHTML, converting **bold** to <strong>
+    const setCellContent = (cell: HTMLElement, text: string): void => {
+      const html = text.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+      if (html !== text) {
+        cell.innerHTML = html;
+      } else {
+        cell.textContent = text;
+      }
+    };
+
+    // Header row
+    const headerCells = parseCells(lines[0]);
+    const thead = document.createElement("thead");
+    const headerRow = document.createElement("tr");
+    for (const text of headerCells) {
+      const th = document.createElement("th");
+      setCellContent(th, text);
+      headerRow.appendChild(th);
+    }
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+
+    // Data rows (skip separator at index 1)
+    const tbody = document.createElement("tbody");
+    for (let i = 2; i < lines.length; i++) {
+      const cells = parseCells(lines[i]);
+      const tr = document.createElement("tr");
+      for (const text of cells) {
+        const td = document.createElement("td");
+        setCellContent(td, text);
+        tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+
+    return table;
   }
 
   function buildCommandsElement(
@@ -234,9 +296,9 @@ export function createWizard(
       solutionLabel.className = "wizard-block-label";
       solutionLabel.textContent = "SOLUTION";
       solutionBlock.appendChild(solutionLabel);
-      const solutionText = document.createElement("p");
-      solutionText.textContent = step.solution;
-      solutionBlock.appendChild(solutionText);
+      const solutionContent = buildDescriptionElement(step.solution);
+      solutionContent.className = "wizard-solution-content";
+      solutionBlock.appendChild(solutionContent);
       section.appendChild(solutionBlock);
     }
 

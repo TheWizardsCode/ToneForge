@@ -39,6 +39,8 @@ import { parseLayers } from "./stack/layer-parser.js";
 import { createAnalysisEngine, registerBuiltinExtractors } from "./analyze/index.js";
 import type { AnalysisResult } from "./analyze/index.js";
 import { decodeWavFile } from "./audio/wav-decoder.js";
+import { createClassificationEngine, registerBuiltinClassifiers, CLASSIFICATION_VERSION } from "./classify/index.js";
+import type { ClassificationResult, RecipeContext } from "./classify/index.js";
 
 /** Parse command-line arguments into a structured map. */
 function parseArgs(argv: string[]): {
@@ -104,6 +106,7 @@ function printHelp(): void {
 |---------|-------------|
 | **generate** | Render and export procedural sounds |
 | **analyze** | Analyze audio files and extract structured metrics |
+| **classify** | Assign semantic labels to analyzed sounds |
 | **stack** | Compose layered sound events from multiple recipes |
 | **show** | Display recipe metadata and parameters |
 | **play** | Play a WAV file through the system audio player |
@@ -203,6 +206,73 @@ toneforge analyze --input ./renders/weapon-laser-zap_seed-001.wav
 toneforge analyze --recipe weapon-laser-zap --seed 42
 toneforge analyze --input ./renders/ --format table
 toneforge analyze --input ./renders/ --output ./analysis/
+\`\`\``;
+  outputMarkdown(md);
+}
+
+/** Print help text for the classify command. */
+function printClassifyHelp(): void {
+  const recipes = registry.list();
+  const md = `# ToneForge classify
+
+**Assign semantic labels to analyzed sounds**
+
+## Usage
+
+\`\`\`
+toneforge classify --analysis <dir> --output <dir>
+toneforge classify --input <path>
+toneforge classify --recipe <name> --seed <number>
+toneforge classify search --category <c> [--intensity <i>] [--texture <t>] [--dir <path>]
+\`\`\`
+
+## Modes
+
+- **Batch from analysis** — Classify pre-analyzed JSON files in a directory
+- **WAV end-to-end** — Analyze and classify WAV file(s) in one step
+- **Recipe+seed** — Render, analyze, and classify a recipe directly
+- **Search** — Find classified sounds by category, intensity, or texture
+
+## Options
+
+- \`--analysis <dir>\` — Directory of analysis JSON files to classify
+- \`--input <path>\` — Path to a WAV file or directory of WAV files
+- \`--recipe <name>\` — Recipe name for direct classification (renders internally)
+- \`--seed <number>\` — Seed for recipe rendering (used with \`--recipe\`)
+- \`--output <dir>\` — Write classification JSON files to this directory
+- \`--format <json|table>\` — Output format (default: table for batch, json for single)
+- \`--json\` — Output structured JSON to stdout
+- \`--help\`, \`-h\` — Show this help message
+
+## Search Options
+
+- \`--category <c>\` — Filter by category (e.g. weapon, footstep, ui)
+- \`--intensity <i>\` — Filter by intensity (soft, medium, hard, aggressive, subtle)
+- \`--texture <t>\` — Filter by texture (sharp, bright, warm, dark, smooth, etc.)
+- \`--dir <path>\` — Directory of classification JSON files (default: ./classification/)
+
+## Classification Dimensions
+
+| Dimension | Values |
+|-----------|--------|
+| **category** | weapon, footstep, ui, ambient, character, impact, creature, vehicle |
+| **intensity** | soft, medium, hard, aggressive, subtle |
+| **texture** | crunchy, smooth, noisy, tonal, harsh, warm, bright, dark, sharp |
+| **material** | metal, wood, stone, organic, synthetic, energy, mechanical, magical |
+| **tags** | Contextual use-case tags derived from category and recipe |
+
+## Available recipes
+
+${recipes.length > 0 ? recipes.map((r) => `- \`${r}\``).join("\n") : "*(none registered)*"}
+
+## Examples
+
+\`\`\`
+toneforge classify --analysis ./analysis/ --output ./classification/
+toneforge classify --input ./renders/weapon-laser-zap_seed-001.wav
+toneforge classify --recipe weapon-laser-zap --seed 42
+toneforge classify search --category weapon --dir ./classification/
+toneforge classify search --intensity aggressive --texture sharp
 \`\`\``;
   outputMarkdown(md);
 }
@@ -670,6 +740,52 @@ function formatAnalysisBatchTable(
   );
 }
 
+/**
+ * Format a single classification result as human-readable styled output.
+ */
+function formatClassificationHumanReadable(result: ClassificationResult): void {
+  outputInfo(`Classification: ${result.source}`);
+  outputInfo(`  Category:  ${result.category || "(none)"}`);
+  outputInfo(`  Intensity: ${result.intensity || "(none)"}`);
+  outputInfo(`  Texture:   ${result.texture.length > 0 ? result.texture.join(", ") : "(none)"}`);
+  outputInfo(`  Material:  ${result.material ?? "(none)"}`);
+  outputInfo(`  Tags:      ${result.tags.length > 0 ? result.tags.join(", ") : "(none)"}`);
+  outputInfo(`  Ref:       ${result.analysisRef}`);
+}
+
+/**
+ * Format batch classification results as a summary table.
+ */
+function formatClassificationBatchTable(
+  results: Array<{ file: string; result: ClassificationResult }>,
+): void {
+  const rows = results.map((r) => {
+    const source = r.result.source || r.file;
+    const category = r.result.category || "—";
+    const intensity = r.result.intensity || "—";
+    const texture = r.result.texture.length > 0 ? r.result.texture.join(", ") : "—";
+    const material = r.result.material ?? "—";
+    const tags = r.result.tags.length > 0 ? r.result.tags.join(", ") : "—";
+    return [source, category, intensity, texture, material, tags];
+  });
+
+  const maxSource = Math.max(6, ...rows.map((r) => r[0]!.length));
+  const maxTexture = Math.max(7, ...rows.map((r) => r[3]!.length));
+  const maxTags = Math.max(4, ...rows.map((r) => r[5]!.length));
+
+  outputTable(
+    [
+      { header: "Source", width: Math.min(maxSource, 40) },
+      { header: "Category", width: 10 },
+      { header: "Intensity", width: 10 },
+      { header: "Texture", width: Math.min(maxTexture, 25) },
+      { header: "Material", width: 10 },
+      { header: "Tags", width: Math.min(maxTags, 30) },
+    ],
+    rows,
+  );
+}
+
 /** Main CLI entry point. Exported for testability. */
 export async function main(argv: string[] = process.argv): Promise<number> {
   const { command, subcommand, flags, layers } = parseArgs(argv);
@@ -705,6 +821,8 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       printPlayHelp();
     } else if (command === "analyze") {
       printAnalyzeHelp();
+    } else if (command === "classify") {
+      printClassifyHelp();
     } else {
       printHelp();
     }
@@ -1296,6 +1414,574 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       } else {
         formatAnalysisHumanReadable(analysisResult, inputPath!);
       }
+      return 0;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (jsonMode) { jsonErr(message); } else { outputError(`Error: ${message}`); }
+      return 1;
+    }
+  }
+
+  // ── classify command ────────────────────────────────────────────
+
+  if (command === "classify") {
+    if (flags["help"] && subcommand !== "search") {
+      printClassifyHelp();
+      return 0;
+    }
+
+    const analysisDir = typeof flags["analysis"] === "string" ? flags["analysis"] : undefined;
+    const inputPath = typeof flags["input"] === "string" ? flags["input"] : undefined;
+    const recipeName = typeof flags["recipe"] === "string" ? flags["recipe"] : undefined;
+    const seedRaw = flags["seed"];
+    const formatFlag = typeof flags["format"] === "string" ? flags["format"] : undefined;
+    const outputDir = typeof flags["output"] === "string" ? flags["output"] : undefined;
+
+    // Validate --format value
+    if (formatFlag !== undefined && formatFlag !== "json" && formatFlag !== "table") {
+      const msg = `--format must be 'json' or 'table', got '${formatFlag}'.`;
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+
+    // ── classify search subcommand ──────────────────────────────
+    if (subcommand === "search") {
+      if (flags["help"]) {
+        printClassifyHelp();
+        return 0;
+      }
+
+      const categoryFilter = typeof flags["category"] === "string" ? flags["category"].toLowerCase() : undefined;
+      const intensityFilter = typeof flags["intensity"] === "string" ? flags["intensity"].toLowerCase() : undefined;
+      const textureFilter = typeof flags["texture"] === "string" ? flags["texture"].toLowerCase() : undefined;
+      const searchDir = typeof flags["dir"] === "string" ? flags["dir"] : "./classification/";
+
+      // At least one filter is required
+      if (categoryFilter === undefined && intensityFilter === undefined && textureFilter === undefined) {
+        const msg = "At least one filter is required: --category, --intensity, or --texture. Run 'toneforge classify --help' for usage.";
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      const resolvedSearchDir = resolve(searchDir);
+
+      if (!existsSync(resolvedSearchDir)) {
+        const msg = `Directory not found: ${searchDir}`;
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      try {
+        const { readdirSync, readFileSync } = await import("node:fs");
+        const entries = readdirSync(resolvedSearchDir)
+          .filter((f: string) => f.toLowerCase().endsWith(".json"))
+          .sort();
+
+        if (entries.length === 0) {
+          if (jsonMode) {
+            jsonOut({ command: "classify search", dir: searchDir, matches: [], count: 0 });
+          } else {
+            outputInfo(`No classification JSON files found in ${searchDir}`);
+          }
+          return 0;
+        }
+
+        const matches: ClassificationResult[] = [];
+
+        for (const entry of entries) {
+          const filePath = resolve(resolvedSearchDir, entry);
+          try {
+            const raw = readFileSync(filePath, "utf-8");
+            const data = JSON.parse(raw) as Record<string, unknown>;
+
+            // Validate it looks like a classification result
+            if (typeof data["category"] !== "string") continue;
+
+            const result: ClassificationResult = {
+              source: String(data["source"] ?? entry.replace(/\.json$/i, "")),
+              category: String(data["category"] ?? ""),
+              intensity: String(data["intensity"] ?? ""),
+              texture: Array.isArray(data["texture"]) ? (data["texture"] as string[]) : [],
+              material: typeof data["material"] === "string" ? data["material"] : null,
+              tags: Array.isArray(data["tags"]) ? (data["tags"] as string[]) : [],
+              analysisRef: String(data["analysisRef"] ?? ""),
+            };
+
+            // Apply filters
+            if (categoryFilter !== undefined && result.category.toLowerCase() !== categoryFilter) continue;
+            if (intensityFilter !== undefined && result.intensity.toLowerCase() !== intensityFilter) continue;
+            if (textureFilter !== undefined && !result.texture.some((t) => t.toLowerCase() === textureFilter)) continue;
+
+            matches.push(result);
+          } catch {
+            // Skip files that cannot be parsed
+            continue;
+          }
+        }
+
+        if (jsonMode || formatFlag === "json") {
+          jsonOut({
+            command: "classify search",
+            dir: searchDir,
+            filters: {
+              ...(categoryFilter !== undefined ? { category: categoryFilter } : {}),
+              ...(intensityFilter !== undefined ? { intensity: intensityFilter } : {}),
+              ...(textureFilter !== undefined ? { texture: textureFilter } : {}),
+            },
+            count: matches.length,
+            matches,
+          });
+        } else if (matches.length === 0) {
+          outputInfo("No matching classifications found.");
+        } else {
+          formatClassificationBatchTable(
+            matches.map((m) => ({ file: m.source, result: m })),
+          );
+          outputInfo(`Found ${matches.length} match${matches.length !== 1 ? "es" : ""}`);
+        }
+        return 0;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(message); } else { outputError(`Error: ${message}`); }
+        return 1;
+      }
+    }
+
+    // Mutual exclusion: only one source mode allowed
+    const sourceCount = [analysisDir, inputPath, recipeName].filter((x) => x !== undefined).length;
+    if (sourceCount > 1) {
+      const msg = "--analysis, --input, and --recipe are mutually exclusive. Use one at a time.";
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+    if (sourceCount === 0) {
+      const msg = "A source is required: --analysis, --input, or --recipe. Run 'toneforge classify --help' for usage.";
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+
+    // Create classification engine with all built-in classifiers
+    const classifyEngine = createClassificationEngine();
+    registerBuiltinClassifiers(classifyEngine);
+
+    // ── Recipe+Seed mode ──────────────────────────────────────
+    if (recipeName !== undefined) {
+      if (seedRaw === undefined || seedRaw === true) {
+        const msg = "--seed is required when using --recipe. Run 'toneforge classify --help' for usage.";
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+      const seed = parseInt(seedRaw as string, 10);
+      if (Number.isNaN(seed)) {
+        const msg = `--seed must be an integer, got '${seedRaw}'.`;
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      // Validate recipe exists
+      const reg = registry.getRegistration(recipeName);
+      if (!reg) {
+        const allNames = registry.list();
+        const suggestions = suggestRecipes(recipeName, allNames);
+        let msg = `Unknown recipe '${recipeName}'.`;
+        if (suggestions.length > 0) {
+          msg += ` Did you mean: ${suggestions.join(", ")}?`;
+        }
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      try {
+        if (!jsonMode) {
+          outputInfo(`Classifying recipe '${recipeName}' with seed ${seed}...`);
+        }
+
+        // Render -> Analyze -> Classify
+        const renderResult = await renderRecipe(recipeName, seed);
+        const analysisEngine = createAnalysisEngine();
+        registerBuiltinExtractors(analysisEngine);
+        const analysisResult = analysisEngine.analyze(renderResult.samples, renderResult.sampleRate);
+
+        const source = `${recipeName}_seed-${String(seed).padStart(3, "0")}`;
+        const recipeContext: RecipeContext = {
+          name: recipeName,
+          category: reg.category,
+          tags: reg.tags,
+        };
+
+        const classificationResult = classifyEngine.classify(
+          analysisResult,
+          source,
+          `(recipe: ${recipeName}, seed: ${seed})`,
+          recipeContext,
+        );
+
+        if (jsonMode || formatFlag === "json") {
+          jsonOut({
+            command: "classify",
+            ...classificationResult,
+            classificationVersion: CLASSIFICATION_VERSION,
+          });
+        } else {
+          formatClassificationHumanReadable(classificationResult);
+        }
+
+        // Write to output dir if specified
+        if (outputDir !== undefined) {
+          await mkdir(resolve(outputDir), { recursive: true });
+          const jsonFileName = `${source}.json`;
+          const jsonPath = resolve(outputDir, jsonFileName);
+          const jsonContent = JSON.stringify(
+            {
+              command: "classify",
+              ...classificationResult,
+              classificationVersion: CLASSIFICATION_VERSION,
+            },
+            null,
+            2,
+          );
+          await writeFile(jsonPath, jsonContent);
+          if (!jsonMode) {
+            outputSuccess(`Wrote ${jsonPath}`);
+          }
+        }
+
+        return 0;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(message); } else { outputError(`Error: ${message}`); }
+        return 1;
+      }
+    }
+
+    // ── Batch from analysis directory ─────────────────────────
+    if (analysisDir !== undefined) {
+      const resolvedAnalysisDir = resolve(analysisDir);
+
+      if (!existsSync(resolvedAnalysisDir)) {
+        const msg = `Directory not found: ${analysisDir}`;
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      const { readdirSync, readFileSync, statSync: statSyncFs } = await import("node:fs");
+      const analysisStat = statSyncFs(resolvedAnalysisDir);
+      if (!analysisStat.isDirectory()) {
+        const msg = `--analysis must be a directory, got '${analysisDir}'.`;
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      const entries = readdirSync(resolvedAnalysisDir)
+        .filter((f: string) => f.toLowerCase().endsWith(".json"))
+        .sort();
+
+      if (entries.length === 0) {
+        if (jsonMode) {
+          jsonOut({ command: "classify", analysis: analysisDir, files: [], count: 0 });
+        } else {
+          outputInfo(`No analysis JSON files found in ${analysisDir}`);
+        }
+        return 0;
+      }
+
+      if (!jsonMode) {
+        outputInfo(`Classifying ${entries.length} analysis file${entries.length !== 1 ? "s" : ""} from ${analysisDir}...`);
+      }
+
+      if (outputDir !== undefined) {
+        await mkdir(resolve(outputDir), { recursive: true });
+      }
+
+      const batchResults: Array<{
+        file: string;
+        result: ClassificationResult;
+      }> = [];
+
+      for (const entry of entries) {
+        const filePath = resolve(resolvedAnalysisDir, entry);
+        try {
+          const raw = readFileSync(filePath, "utf-8");
+          const data = JSON.parse(raw) as Record<string, unknown>;
+
+          // Extract analysis result from the JSON file
+          const analysisResult: AnalysisResult = {
+            analysisVersion: String(data["analysisVersion"] ?? "1.0"),
+            sampleRate: Number(data["sampleRate"] ?? 44100),
+            sampleCount: Number(data["sampleCount"] ?? 0),
+            metrics: (data["metrics"] as AnalysisResult["metrics"]) ?? {},
+          };
+
+          // Try to extract recipe context from the source filename
+          const sourceName = entry.replace(/\.json$/i, "");
+          let recipeContext: RecipeContext | undefined;
+
+          // Attempt to match a recipe name from the filename
+          // Filenames like "weapon-laser-zap_seed-001.json" -> recipe = "weapon-laser-zap"
+          const seedMatch = sourceName.match(/^(.+?)_seed-\d+$/);
+          const possibleRecipeName = seedMatch ? seedMatch[1] : sourceName;
+          const reg = possibleRecipeName ? registry.getRegistration(possibleRecipeName) : undefined;
+          if (reg) {
+            recipeContext = {
+              name: possibleRecipeName!,
+              category: reg.category,
+              tags: reg.tags,
+            };
+          }
+
+          const analysisRef = `./${analysisDir}/${entry}`;
+          const classificationResult = classifyEngine.classify(
+            analysisResult,
+            sourceName,
+            analysisRef,
+            recipeContext,
+          );
+
+          batchResults.push({ file: entry, result: classificationResult });
+
+          // Write individual JSON file if --output is specified
+          if (outputDir !== undefined) {
+            const jsonFileName = entry; // same filename as the analysis file
+            const jsonPath = resolve(outputDir, jsonFileName);
+            const jsonContent = JSON.stringify(
+              {
+                command: "classify",
+                ...classificationResult,
+                classificationVersion: CLASSIFICATION_VERSION,
+              },
+              null,
+              2,
+            );
+            await writeFile(jsonPath, jsonContent);
+            if (!jsonMode) {
+              outputSuccess(`Wrote ${jsonPath}`);
+            }
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          if (jsonMode) {
+            jsonErr(`Failed to classify '${entry}': ${message}`);
+          } else {
+            outputError(`Error: Failed to classify '${entry}': ${message}`);
+          }
+          return 1;
+        }
+      }
+
+      if (jsonMode || formatFlag === "json") {
+        jsonOut({
+          command: "classify",
+          analysis: analysisDir,
+          count: batchResults.length,
+          files: batchResults.map((r) => ({
+            file: r.file,
+            ...r.result,
+            classificationVersion: CLASSIFICATION_VERSION,
+          })),
+        });
+      } else {
+        formatClassificationBatchTable(batchResults);
+        outputInfo(`Classified ${batchResults.length} file${batchResults.length !== 1 ? "s" : ""}`);
+      }
+
+      return 0;
+    }
+
+    // ── WAV file/directory input mode ─────────────────────────
+    const resolvedInput = resolve(inputPath!);
+
+    if (!existsSync(resolvedInput)) {
+      const msg = `File not found: ${inputPath}`;
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+
+    const { statSync: statSyncWav } = await import("node:fs");
+    const inputStat = statSyncWav(resolvedInput);
+
+    if (inputStat.isDirectory()) {
+      // ── Batch WAV directory mode ──────────────────────────
+      const { readdirSync } = await import("node:fs");
+      const entries = readdirSync(resolvedInput)
+        .filter((f: string) => f.toLowerCase().endsWith(".wav"))
+        .sort();
+
+      if (entries.length === 0) {
+        if (jsonMode) {
+          jsonOut({ command: "classify", input: inputPath, files: [], count: 0 });
+        } else {
+          outputInfo(`No .wav files found in ${inputPath}`);
+        }
+        return 0;
+      }
+
+      if (!jsonMode) {
+        outputInfo(`Classifying ${entries.length} WAV file${entries.length !== 1 ? "s" : ""} in ${inputPath}...`);
+      }
+
+      if (outputDir !== undefined) {
+        await mkdir(resolve(outputDir), { recursive: true });
+      }
+
+      const analysisEngine = createAnalysisEngine();
+      registerBuiltinExtractors(analysisEngine);
+
+      const batchResults: Array<{
+        file: string;
+        result: ClassificationResult;
+      }> = [];
+
+      for (const entry of entries) {
+        const filePath = resolve(resolvedInput, entry);
+        try {
+          const wav = await decodeWavFile(filePath);
+          const analysisResult = analysisEngine.analyze(wav.samples, wav.sampleRate);
+
+          const sourceName = entry.replace(/\.wav$/i, "");
+
+          // Try to extract recipe context from filename
+          const seedMatch = sourceName.match(/^(.+?)_seed-\d+$/);
+          const possibleRecipeName = seedMatch ? seedMatch[1] : undefined;
+          let recipeContext: RecipeContext | undefined;
+          if (possibleRecipeName) {
+            const reg = registry.getRegistration(possibleRecipeName);
+            if (reg) {
+              recipeContext = {
+                name: possibleRecipeName,
+                category: reg.category,
+                tags: reg.tags,
+              };
+            }
+          }
+
+          const analysisRef = `./${inputPath}/${entry}`;
+          const classificationResult = classifyEngine.classify(
+            analysisResult,
+            sourceName,
+            analysisRef,
+            recipeContext,
+          );
+
+          batchResults.push({ file: entry, result: classificationResult });
+
+          if (outputDir !== undefined) {
+            const jsonFileName = entry.replace(/\.wav$/i, ".json");
+            const jsonPath = resolve(outputDir, jsonFileName);
+            const jsonContent = JSON.stringify(
+              {
+                command: "classify",
+                ...classificationResult,
+                classificationVersion: CLASSIFICATION_VERSION,
+              },
+              null,
+              2,
+            );
+            await writeFile(jsonPath, jsonContent);
+            if (!jsonMode) {
+              outputSuccess(`Wrote ${jsonPath}`);
+            }
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          if (jsonMode) {
+            jsonErr(`Failed to classify '${entry}': ${message}`);
+          } else {
+            outputError(`Error: Failed to classify '${entry}': ${message}`);
+          }
+          return 1;
+        }
+      }
+
+      if (jsonMode || formatFlag === "json") {
+        jsonOut({
+          command: "classify",
+          input: inputPath,
+          count: batchResults.length,
+          files: batchResults.map((r) => ({
+            file: r.file,
+            ...r.result,
+            classificationVersion: CLASSIFICATION_VERSION,
+          })),
+        });
+      } else {
+        formatClassificationBatchTable(batchResults);
+        outputInfo(`Classified ${batchResults.length} file${batchResults.length !== 1 ? "s" : ""}`);
+      }
+
+      return 0;
+    }
+
+    // ── Single WAV file mode ──────────────────────────────────
+    if (!resolvedInput.toLowerCase().endsWith(".wav")) {
+      const msg = `Input file must be a .wav file, got '${inputPath}'.`;
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+
+    try {
+      if (!jsonMode) {
+        outputInfo(`Classifying ${inputPath}...`);
+      }
+
+      const wav = await decodeWavFile(resolvedInput);
+      const analysisEngine = createAnalysisEngine();
+      registerBuiltinExtractors(analysisEngine);
+      const analysisResult = analysisEngine.analyze(wav.samples, wav.sampleRate);
+
+      const sourceName = inputPath!.replace(/^.*[\\/]/, "").replace(/\.wav$/i, "");
+
+      // Try to extract recipe context from filename
+      const seedMatch = sourceName.match(/^(.+?)_seed-\d+$/);
+      const possibleRecipeName = seedMatch ? seedMatch[1] : undefined;
+      let recipeContext: RecipeContext | undefined;
+      if (possibleRecipeName) {
+        const reg = registry.getRegistration(possibleRecipeName);
+        if (reg) {
+          recipeContext = {
+            name: possibleRecipeName,
+            category: reg.category,
+            tags: reg.tags,
+          };
+        }
+      }
+
+      const classificationResult = classifyEngine.classify(
+        analysisResult,
+        sourceName,
+        inputPath!,
+        recipeContext,
+      );
+
+      if (jsonMode || formatFlag === "json") {
+        jsonOut({
+          command: "classify",
+          ...classificationResult,
+          classificationVersion: CLASSIFICATION_VERSION,
+        });
+      } else {
+        formatClassificationHumanReadable(classificationResult);
+      }
+
+      // Write to output dir if specified
+      if (outputDir !== undefined) {
+        await mkdir(resolve(outputDir), { recursive: true });
+        const jsonFileName = `${sourceName}.json`;
+        const jsonPath = resolve(outputDir, jsonFileName);
+        const jsonContent = JSON.stringify(
+          {
+            command: "classify",
+            ...classificationResult,
+            classificationVersion: CLASSIFICATION_VERSION,
+          },
+          null,
+          2,
+        );
+        await writeFile(jsonPath, jsonContent);
+        if (!jsonMode) {
+          outputSuccess(`Wrote ${jsonPath}`);
+        }
+      }
+
       return 0;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
