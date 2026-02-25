@@ -71,15 +71,16 @@ Cluster summaries:
 ```
 
 Clusters 0 and 1 sit close together -- bright, punchy lasers with high
-spectral centroid. Listen to five candidates drawn from those two
-clusters to compare them by ear:
+spectral centroid. Audition five candidates drawn from those two
+clusters to compare them by ear. The `generate` command renders a seed
+and plays it back immediately when `--output` is omitted:
 
 ```bash
-toneforge play .exploration/runs/<run-id>/weapon-laser-zap_seed-00042.wav
-toneforge play .exploration/runs/<run-id>/weapon-laser-zap_seed-00017.wav
-toneforge play .exploration/runs/<run-id>/weapon-laser-zap_seed-00031.wav
-toneforge play .exploration/runs/<run-id>/weapon-laser-zap_seed-00009.wav
-toneforge play .exploration/runs/<run-id>/weapon-laser-zap_seed-00025.wav
+toneforge generate --recipe weapon-laser-zap --seed 42
+toneforge generate --recipe weapon-laser-zap --seed 17
+toneforge generate --recipe weapon-laser-zap --seed 31
+toneforge generate --recipe weapon-laser-zap --seed 9
+toneforge generate --recipe weapon-laser-zap --seed 25
 ```
 
 Seeds 42 and 17 (cluster 0) are the sharpest and loudest. Seeds 31, 9,
