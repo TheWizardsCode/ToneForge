@@ -16,6 +16,7 @@ export {
   readEntryMetadata,
   entryWavExists,
 } from "./storage.js";
+export type { AddEntryOptions, BuildEntryOptions } from "./storage.js";
 
 export {
   loadIndex,
