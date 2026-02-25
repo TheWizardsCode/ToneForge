@@ -1,58 +1,68 @@
 ---
-title: "Sequential Execution: Reliable Multi-Command Steps"
+title: "Run Button: Sequential Execution & Completion Detection"
 id: sequential-execution
 order: 90
 description: >
-  Demonstrates how multi-command steps execute sequentially with completion
-  detection. Each command waits for the previous one to finish before running,
-  with automatic failure detection that halts the sequence on errors.
+  Explore the Run button's sequential execution engine. Watch completion
+  detection, button state transitions, failure halting, and the global
+  run guard in action -- features that make multi-command steps reliable.
 ---
 
 ## Intro
 
-Many ToneForge workflows involve multiple commands in sequence: generate
-a sound, then analyze it. Export a file, then play it back. Batch-render
-variations, then classify them.
+Every other demo in this dropdown uses the Run button without explaining
+how it works. This demo puts the Run button itself under the spotlight.
 
-When you click **Run** on a step with multiple commands, the web demo
-executes them sequentially -- each command waits for the previous one to
-complete before the next one starts. This is not a fixed delay or a
-timer. The system detects actual command completion through exit-code
-signalling, so even slow commands finish cleanly before the next begins.
+When a step has multiple commands, the Run button does not fire them all
+at once or use a fixed timer. It executes them one at a time, waits for
+each to finish, checks the exit code, and stops if anything fails. The
+button's label and state change throughout to show you exactly what is
+happening.
 
-In this walkthrough you will see:
+Here is what to watch for as you step through:
 
-1. A single command executing normally
-2. Multiple commands running in strict sequence, each waiting for the prior one
-3. A multi-step pipeline where output from one command feeds the next
-4. What happens when a command fails -- the sequence halts immediately
+1. **Button label transitions** -- "Run" to "Running..." to "Run" (or "Failed")
+2. **Completion detection** -- each command finishes before the next starts
+3. **Exit-code awareness** -- a non-zero exit code halts the sequence
+4. **Global run guard** -- all Run buttons disable while any step is running
 
-## Act 1 -- Single command baseline
+## Act 1 -- Button state: Running and Done
 
-> You want to hear a quick UI confirmation tone. One command, one sound.
+> You click Run and want to know whether the command is still executing
+> or has finished.
 
-This is the simplest case. A single command executes and the Run button
-re-enables when it finishes. Watch the button change to "Running..." and
-return to "Run" after the sound plays.
+Watch the Run button below. When you click it, the label changes from
+"Run" to **"Running..."** and the button disables. When the command
+finishes, it re-enables and the label returns to "Run".
+
+This is completion detection at work. The server wraps each command with
+an OSC 133;D escape sequence that carries the exit code back over the
+WebSocket. The client receives a structured `commandDone` message and
+knows the command is finished -- no polling, no timers, no guessing.
 
 ```bash
 toneforge generate --recipe ui-scifi-confirm --seed 42
 ```
 
 > [!commentary]
-> The button disabled itself, changed its label to "Running...", and
-> re-enabled when the command completed. Even for a single command, the
-> system tracks completion -- there is no arbitrary timeout or delay.
+> The button went through three states: enabled ("Run"), disabled
+> ("Running..."), and enabled again ("Run"). That state transition
+> is driven by the `executeCommand()` Promise resolving with the
+> exit code -- not by a timeout or delay. Even a command that takes
+> 10 seconds would hold "Running..." until it actually finishes.
 
-## Act 2 -- Sequential execution: generate then analyze
+## Act 2 -- Sequential execution: ordered dependencies
 
-> You generated a sound and immediately want to measure its properties.
-> These commands must run in order -- the analysis needs the generated
-> file to exist first.
+> You need to generate a file and then analyze it. The analysis
+> cannot start until the file exists. Order matters.
 
-Click **Run** once. Both commands execute in sequence. The generate
-command finishes, then the analyze command starts. You will see the
-generation output first, followed by the analysis metrics.
+This step has two commands. Click Run once. The generate command runs
+first and writes a WAV file. Only after it completes does the analyze
+command start and read that file.
+
+Watch the terminal output: you will see the generation output appear
+first, then a pause, then the analysis metrics. The button stays on
+"Running..." the entire time -- it does not flicker between commands.
 
 ```bash
 toneforge generate --recipe weapon-laser-zap --seed 42 --output ./output/seq-demo-zap.wav
@@ -63,18 +73,21 @@ toneforge analyze --input ./output/seq-demo-zap.wav
 ```
 
 > [!commentary]
-> Two commands, one click. The analyze command did not start until the
-> WAV file was fully written by the generate command. Without sequential
-> execution, the analyzer would try to read a file that does not exist
-> yet or is still being written -- producing an error or corrupt results.
+> Under the hood, the wizard uses an async for-of loop. It calls
+> `terminal.executeCommand(cmd)` for each command and awaits the
+> Promise before moving to the next. The Promise resolves when the
+> server sends `{ type: "commandDone", exitCode: 0 }` over the
+> WebSocket. If the generate command had been slow, the analyze
+> command would have waited -- there is no fixed delay between them.
 
-## Act 3 -- Three-command pipeline: generate, analyze, classify
+## Act 3 -- Three-command pipeline
 
-> You want to generate a sound, extract its metrics, and then classify
-> it -- a complete pipeline from synthesis to semantic labeling.
+> You want to generate a sound, measure its properties, and classify
+> it -- a full pipeline where each step feeds the next.
 
-This step chains three commands. Each one depends on the previous
-command's output. Watch the terminal as they execute one after another.
+Three commands, one click. Each waits for the previous to finish.
+The button stays on "Running..." from the moment you click until
+the last command completes.
 
 ```bash
 toneforge generate --recipe impact-crack --seed 77 --output ./output/seq-demo-crack.wav
@@ -89,46 +102,26 @@ toneforge classify --input ./output/seq-demo-crack-analysis.json
 ```
 
 > [!commentary]
-> Three commands ran in strict sequence. The generate command created the
-> WAV file. The analyze command read that file and wrote a JSON analysis.
-> The classify command read that JSON and assigned semantic labels. If
-> any of these commands had been sent simultaneously (as the old 500ms
-> stagger did), the later commands would fail because their input files
-> would not exist yet. Sequential execution with completion detection
-> eliminates that entire class of timing bugs.
+> The generate command created the WAV. The analyze command read it
+> and wrote JSON. The classify command read the JSON and assigned
+> labels. All three ran sequentially because `executeCommand()` awaits
+> each one's `commandDone` message before dispatching the next. Without
+> this, the analyze command would try to open a file that does not
+> exist yet.
 
-## Act 4 -- Parallel-safe: multiple variations in sequence
+## Act 4 -- Failure detection: the sequence halts
 
-> You want to compare three different seeds of the same recipe. Each
-> generate command must finish before the next starts, so the terminal
-> output stays clean and readable.
+> A command in the middle of a sequence fails. What happens to the
+> remaining commands?
 
-```bash
-toneforge generate --recipe ui-notification-chime --seed 10
-```
+This step has three commands. The second one tries to analyze a file
+that does not exist -- it will exit with a non-zero code. Watch what
+happens:
 
-```bash
-toneforge generate --recipe ui-notification-chime --seed 20
-```
-
-```bash
-toneforge generate --recipe ui-notification-chime --seed 30
-```
-
-> [!commentary]
-> Three generate commands, three distinct chime variations. Each one
-> played fully before the next began. Without sequential execution,
-> these sounds would overlap in the terminal and the audio output
-> would be garbled -- multiple sounds playing simultaneously with
-> interleaved console output.
-
-## Act 5 -- Failure detection: what happens when a command fails
-
-> You try to analyze a file that does not exist. The sequence should
-> halt at the failure rather than blindly continuing to the next command.
-
-This step has three commands. The second command references a
-non-existent file and will fail. The third command should never run.
+1. The first command succeeds -- you hear the sound
+2. The second command fails -- the terminal shows an error
+3. The **third command never runs** -- the sequence halts
+4. The button changes to **"Failed"** instead of returning to "Run"
 
 ```bash
 toneforge generate --recipe footstep-stone --seed 55
@@ -143,28 +136,57 @@ toneforge generate --recipe ui-scifi-confirm --seed 99
 ```
 
 > [!commentary]
-> The first command succeeded -- you heard the footstep. The second
-> command failed because the file does not exist. The Run button changed
-> to "Failed" and the third command never executed. This is the
-> exit-code detection at work: the system reads the non-zero exit code
-> from the failed command and halts the sequence immediately. You can
-> see exactly which command failed without sifting through garbled output
-> from commands that should not have run.
+> The exit code from the failed analyze command was non-zero. The
+> wizard's async loop checks `result.exitCode !== 0` after each
+> command. When it detects failure, it breaks out of the loop and
+> sets the button to "Failed" with a red error state. The third
+> generate command was never sent to the terminal. You can re-run
+> this step to see the failure again -- the "Failed" label resets
+> to "Running..." on the next click.
 
-## Recap -- How sequential execution works
+## Act 5 -- Global run guard: one sequence at a time
 
-1. **Completion detection** -- The server signals command completion via
-   exit-code messages over WebSocket. No timers, no guessing.
-2. **Sequential dispatch** -- Each command waits for the previous one to
-   complete before being sent to the terminal.
-3. **Failure halts the sequence** -- A non-zero exit code stops execution
-   immediately. The Run button shows "Failed" so you know something
-   went wrong.
-4. **Button state management** -- The Run button disables and shows
-   "Running..." during execution, preventing accidental double-clicks
-   or concurrent runs from other steps.
-5. **Global run guard** -- While any step is running, all other Run
-   buttons are disabled. Only one sequence runs at a time.
+> You are on a step with a slow command running. Can you switch to
+> another step and click its Run button too?
 
-These behaviors apply to every demo in the dropdown. Any step with
+No. The global run guard prevents it. While any step's commands are
+executing, every Run button in the wizard disables -- not just the
+one you clicked. This prevents race conditions where two command
+sequences interleave in the same terminal.
+
+Try it: click Run below, then quickly navigate to another step (use
+the tabs above). You will see that step's Run button is disabled and
+grayed out until this step's commands finish.
+
+```bash
+toneforge generate --recipe ambient-wind-gust --seed 42
+```
+
+```bash
+toneforge generate --recipe rumble-body --seed 42
+```
+
+```bash
+toneforge generate --recipe debris-tail --seed 42
+```
+
+> [!commentary]
+> The wizard tracks a global `isRunning` flag and a Set of all Run
+> buttons across all rendered steps. When execution starts, every
+> button in the Set is disabled. When it ends (success or failure),
+> they all re-enable. This means you can never have two sequences
+> running simultaneously -- the terminal stays clean and commands
+> never interleave.
+
+## Recap
+
+| Feature | What you saw | How it works |
+| --- | --- | --- |
+| **Completion detection** | Button waits for command to finish | Server emits OSC 133;D with exit code; client receives `commandDone` JSON |
+| **Button states** | "Run" / "Running..." / "Failed" | `executeCommand()` returns a Promise that resolves with `{ exitCode }` |
+| **Sequential dispatch** | Commands run one at a time | Async for-of loop awaits each `executeCommand()` |
+| **Failure halting** | Sequence stops on error, skips remaining | Loop breaks on `exitCode !== 0`, button shows "Failed" |
+| **Global run guard** | All Run buttons disable during execution | `isRunning` flag + `allRunButtons` Set disable/enable all buttons |
+
+These features apply to every demo in the dropdown. Any step with
 multiple commands benefits from sequential execution automatically.
