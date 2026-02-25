@@ -64,6 +64,17 @@ import type {
   ExploreRunResult,
   RankMetric,
 } from "./explore/index.js";
+import {
+  listEntries,
+  getEntry,
+  countEntries,
+  DEFAULT_LIBRARY_DIR,
+} from "./library/index.js";
+import { searchEntries } from "./library/search.js";
+import type { SearchQuery } from "./library/search.js";
+import { findSimilar } from "./library/similarity.js";
+import { exportEntries } from "./library/export.js";
+import { regenerateEntry } from "./library/regenerate.js";
 
 /** Parse command-line arguments into a structured map. */
 function parseArgs(argv: string[]): {
@@ -133,6 +144,7 @@ async function printHelp(): Promise<void> {
 | **analyze** | Analyze audio files and extract structured metrics |
 | **classify** | Assign semantic labels to analyzed sounds |
 | **explore** | Discover, rank, and curate sounds across seed spaces |
+| **library** | Manage the curated sound library (list, search, export) |
 | **stack** | Compose layered sound events from multiple recipes |
 | **show** | Display recipe metadata and parameters |
 | **play** | Play a WAV file through the system audio player |
@@ -613,6 +625,60 @@ toneforge explore promote --latest --id creature-vocal_seed-04821 --category wea
   await outputMarkdown(md);
 }
 
+/** Print help text for the library command group. */
+async function printLibraryHelp(): Promise<void> {
+  const md = `# ToneForge library
+
+**Manage the curated sound library**
+
+Browse, search, discover similar sounds, export WAVs, and regenerate entries from stored presets.
+
+## Subcommands
+
+| Subcommand | Description |
+|------------|-------------|
+| **list** | List all library entries, optionally filtered by category |
+| **search** | Search entries by attributes (intensity, texture, tags, category) |
+| **similar** | Find entries similar to a given entry |
+| **export** | Export library entries as WAV files by category |
+| **regenerate** | Re-render an entry from its stored preset |
+
+## Usage
+
+\`\`\`
+toneforge library list [--category <c>] [--json]
+toneforge library search [--category <c>] [--intensity <i>] [--texture <t>] [--tags <t1,t2>] [--json]
+toneforge library similar --id <id> [--limit <n>] [--json]
+toneforge library export --output <dir> [--category <c>] --format wav [--json]
+toneforge library regenerate --id <id> [--json]
+\`\`\`
+
+## Options
+
+- \`--category <c>\` — Filter by category
+- \`--intensity <i>\` — Filter by intensity (search only)
+- \`--texture <t>\` — Filter by texture (search only)
+- \`--tags <t1,t2>\` — Filter by tags, comma-separated (search only)
+- \`--id <id>\` — Library entry ID (similar, regenerate)
+- \`--limit <n>\` — Max results for similarity search (default: 10)
+- \`--output <dir>\` — Output directory for export
+- \`--format wav\` — Export format (currently only wav)
+- \`--json\` — Output results in JSON format
+- \`--help\`, \`-h\` — Show this help message
+
+## Examples
+
+\`\`\`
+toneforge library list
+toneforge library list --category weapon --json
+toneforge library search --intensity high --tags hit,impact
+toneforge library similar --id lib-impact-crack_seed-00042 --limit 5
+toneforge library export --output ./export --category creature --format wav
+toneforge library regenerate --id lib-creature-vocal_seed-04821 --json
+\`\`\``;
+  await outputMarkdown(md);
+}
+
 /**
  * Compute the Levenshtein edit distance between two strings.
  * Used for fuzzy recipe name matching when a recipe is not found.
@@ -997,6 +1063,8 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       } else {
         await printExploreHelp();
       }
+    } else if (command === "library") {
+      await printLibraryHelp();
     } else {
       await printHelp();
     }
@@ -2773,6 +2841,334 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     }
 
     await printExploreHelp();
+    return 0;
+  }
+
+  // ── library ────────────────────────────────────────────────────
+
+  if (command === "library") {
+    // Group-level help
+    if (flags["help"] && subcommand === undefined) {
+      await printLibraryHelp();
+      return 0;
+    }
+
+    // ── library list ──────────────────────────────────────────
+    if (subcommand === "list") {
+      if (flags["help"]) {
+        await printLibraryHelp();
+        return 0;
+      }
+
+      const categoryFilter = typeof flags["category"] === "string" ? flags["category"] : undefined;
+
+      try {
+        const filter = categoryFilter ? { category: categoryFilter } : undefined;
+        const entries = await listEntries(filter);
+
+        if (jsonMode) {
+          jsonOut({
+            command: "library list",
+            ...(categoryFilter !== undefined ? { category: categoryFilter } : {}),
+            count: entries.length,
+            entries: entries.map((e) => ({
+              id: e.id,
+              recipe: e.recipe,
+              seed: e.seed,
+              category: e.category,
+              duration: e.duration,
+              tags: e.tags,
+              promotedAt: e.promotedAt,
+            })),
+          });
+        } else if (entries.length === 0) {
+          if (categoryFilter) {
+            outputInfo(`No library entries found for category '${categoryFilter}'.`);
+          } else {
+            outputInfo("No library entries found. Promote candidates with 'toneforge explore promote'.");
+          }
+        } else {
+          outputTable(
+            [
+              { header: "ID", width: 40 },
+              { header: "Recipe", width: 20 },
+              { header: "Category", width: 16 },
+              { header: "Duration", width: 10 },
+              { header: "Tags", width: 30 },
+            ],
+            entries.map((e) => [
+              e.id,
+              e.recipe,
+              e.category,
+              `${e.duration.toFixed(2)}s`,
+              e.tags.join(", ") || "\u2014",
+            ]),
+          );
+          outputInfo(`${entries.length} entr${entries.length !== 1 ? "ies" : "y"} listed`);
+        }
+        return 0;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(message); } else { outputError(`Error: ${message}`); }
+        return 1;
+      }
+    }
+
+    // ── library search ────────────────────────────────────────
+    if (subcommand === "search") {
+      if (flags["help"]) {
+        await printLibraryHelp();
+        return 0;
+      }
+
+      const categoryFilter = typeof flags["category"] === "string" ? flags["category"] : undefined;
+      const intensityFilter = typeof flags["intensity"] === "string" ? flags["intensity"] : undefined;
+      const textureFilter = typeof flags["texture"] === "string" ? flags["texture"] : undefined;
+      const tagsFlag = typeof flags["tags"] === "string" ? flags["tags"] : undefined;
+
+      // At least one filter is required
+      if (categoryFilter === undefined && intensityFilter === undefined && textureFilter === undefined && tagsFlag === undefined) {
+        const msg = "At least one filter is required: --category, --intensity, --texture, or --tags. Run 'toneforge library --help' for usage.";
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      try {
+        const query: SearchQuery = {};
+        if (categoryFilter !== undefined) query.category = categoryFilter;
+        if (intensityFilter !== undefined) query.intensity = intensityFilter;
+        if (textureFilter !== undefined) query.texture = textureFilter;
+        if (tagsFlag !== undefined) query.tags = tagsFlag.split(",").map((t) => t.trim());
+
+        const matches = await searchEntries(query);
+
+        if (jsonMode) {
+          jsonOut({
+            command: "library search",
+            filters: {
+              ...(categoryFilter !== undefined ? { category: categoryFilter } : {}),
+              ...(intensityFilter !== undefined ? { intensity: intensityFilter } : {}),
+              ...(textureFilter !== undefined ? { texture: textureFilter } : {}),
+              ...(tagsFlag !== undefined ? { tags: tagsFlag.split(",").map((t) => t.trim()) } : {}),
+            },
+            count: matches.length,
+            entries: matches.map((e) => ({
+              id: e.id,
+              recipe: e.recipe,
+              seed: e.seed,
+              category: e.category,
+              duration: e.duration,
+              tags: e.tags,
+              intensity: e.classification?.intensity ?? null,
+              texture: e.classification?.texture ?? [],
+            })),
+          });
+        } else if (matches.length === 0) {
+          outputInfo("No matching library entries found.");
+        } else {
+          outputTable(
+            [
+              { header: "ID", width: 40 },
+              { header: "Recipe", width: 20 },
+              { header: "Category", width: 16 },
+              { header: "Intensity", width: 12 },
+              { header: "Tags", width: 30 },
+            ],
+            matches.map((e) => [
+              e.id,
+              e.recipe,
+              e.category,
+              e.classification?.intensity ?? "\u2014",
+              e.tags.join(", ") || "\u2014",
+            ]),
+          );
+          outputInfo(`Found ${matches.length} match${matches.length !== 1 ? "es" : ""}`);
+        }
+        return 0;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(message); } else { outputError(`Error: ${message}`); }
+        return 1;
+      }
+    }
+
+    // ── library similar ───────────────────────────────────────
+    if (subcommand === "similar") {
+      if (flags["help"]) {
+        await printLibraryHelp();
+        return 0;
+      }
+
+      const entryId = typeof flags["id"] === "string" ? flags["id"] : undefined;
+      if (entryId === undefined) {
+        const msg = "--id is required. Run 'toneforge library --help' for usage.";
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      const limitFlag = typeof flags["limit"] === "string" ? parseInt(flags["limit"], 10) : 10;
+      if (isNaN(limitFlag) || limitFlag < 1) {
+        const msg = "--limit must be a positive integer.";
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      try {
+        // Verify the entry exists
+        const entry = await getEntry(entryId);
+        if (!entry) {
+          const msg = `Library entry not found: ${entryId}`;
+          if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+          return 1;
+        }
+
+        const results = await findSimilar(entryId, { limit: limitFlag });
+
+        if (jsonMode) {
+          jsonOut({
+            command: "library similar",
+            queryId: entryId,
+            limit: limitFlag,
+            count: results.length,
+            results: results.map((r) => ({
+              id: r.entry.id,
+              recipe: r.entry.recipe,
+              category: r.entry.category,
+              distance: parseFloat(r.distance.toFixed(6)),
+              metricDistance: parseFloat(r.metricDistance.toFixed(6)),
+              tagSimilarity: parseFloat(r.tagSimilarity.toFixed(4)),
+            })),
+          });
+        } else if (results.length === 0) {
+          outputInfo("No similar entries found. Library may have too few entries for comparison.");
+        } else {
+          outputTable(
+            [
+              { header: "ID", width: 40 },
+              { header: "Recipe", width: 20 },
+              { header: "Category", width: 16 },
+              { header: "Distance", width: 12 },
+              { header: "Tag Sim", width: 10 },
+            ],
+            results.map((r) => [
+              r.entry.id,
+              r.entry.recipe,
+              r.entry.category,
+              r.distance.toFixed(4),
+              r.tagSimilarity.toFixed(2),
+            ]),
+          );
+          outputInfo(`${results.length} similar entr${results.length !== 1 ? "ies" : "y"} found`);
+        }
+        return 0;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(message); } else { outputError(`Error: ${message}`); }
+        return 1;
+      }
+    }
+
+    // ── library export ────────────────────────────────────────
+    if (subcommand === "export") {
+      if (flags["help"]) {
+        await printLibraryHelp();
+        return 0;
+      }
+
+      const outputDir = typeof flags["output"] === "string" ? flags["output"] : undefined;
+      if (outputDir === undefined) {
+        const msg = "--output is required. Run 'toneforge library --help' for usage.";
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      const formatFlag = typeof flags["format"] === "string" ? flags["format"] : "wav";
+      if (formatFlag !== "wav") {
+        const msg = `Unsupported format '${formatFlag}'. Only 'wav' is supported.`;
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      const categoryFilter = typeof flags["category"] === "string" ? flags["category"] : undefined;
+
+      try {
+        const result = await exportEntries({
+          outputDir,
+          category: categoryFilter,
+          format: "wav",
+        });
+
+        if (jsonMode) {
+          jsonOut({
+            command: "library export",
+            ...(categoryFilter !== undefined ? { category: categoryFilter } : {}),
+            format: "wav",
+            outputDir: result.outputDir,
+            count: result.count,
+            files: result.files,
+            skipped: result.skipped,
+          });
+        } else {
+          if (result.count === 0) {
+            outputInfo("No entries to export.");
+          } else {
+            outputSuccess(`Exported ${result.count} WAV file${result.count !== 1 ? "s" : ""} to ${outputDir}`);
+          }
+          if (result.skipped.length > 0) {
+            outputWarning(`Skipped ${result.skipped.length} entr${result.skipped.length !== 1 ? "ies" : "y"} (missing WAV files)`);
+          }
+        }
+        return 0;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(message); } else { outputError(`Error: ${message}`); }
+        return 1;
+      }
+    }
+
+    // ── library regenerate ────────────────────────────────────
+    if (subcommand === "regenerate") {
+      if (flags["help"]) {
+        await printLibraryHelp();
+        return 0;
+      }
+
+      const entryId = typeof flags["id"] === "string" ? flags["id"] : undefined;
+      if (entryId === undefined) {
+        const msg = "--id is required. Run 'toneforge library --help' for usage.";
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      try {
+        const result = await regenerateEntry(entryId);
+
+        if (jsonMode) {
+          jsonOut({
+            command: "library regenerate",
+            ...result,
+          });
+        } else {
+          outputSuccess(`Regenerated '${entryId}' successfully`);
+          outputInfo(`  WAV: ${result.wavPath}`);
+          outputInfo(`  Regenerated at: ${result.regeneratedAt}`);
+        }
+        return 0;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(message); } else { outputError(`Error: ${message}`); }
+        return 1;
+      }
+    }
+
+    // Unknown subcommand
+    if (subcommand !== undefined) {
+      const msg = `Unknown library subcommand '${subcommand}'. Run 'toneforge library --help' for usage.`;
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+
+    await printLibraryHelp();
     return 0;
   }
 
