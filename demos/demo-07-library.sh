@@ -3,7 +3,11 @@
 # Demo 7: Library -- Structured Asset Storage
 #
 # End-to-end walkthrough exercising the full explore-to-library flow:
-#   generate -> explore -> promote -> list -> search -> similar -> export -> regenerate
+#   sweep -> audition -> promote (x3) -> list -> search -> similar -> export -> regenerate
+#
+# Narrative: a sound designer builds a laser-sound palette by sweeping
+# weapon-laser-zap seeds, picking candidates from two adjacent clusters,
+# and promoting three complementary sounds into the Library.
 #
 # Key proof points (from DEMO_ROADMAP):
 #   1. Generated sounds become persistent, searchable assets
@@ -47,93 +51,77 @@ echo "Working directory: $DEMO_DIR"
 echo ""
 
 # ---------------------------------------------------------------------------
-# Step 1: Explore -- sweep creature vocals
+# Step 1: Explore -- sweep weapon-laser-zap across 50 seeds
 # ---------------------------------------------------------------------------
-echo "--- Step 1: Sweep creature vocals (seeds 0-19) ---"
-$TONEFORGE explore sweep \
-  --recipe creature-vocal \
-  --seed-range 0:19 \
-  --keep-top 5 \
-  --rank-by rms \
-  --clusters 3 \
-  $JSON_FLAG
-
-echo ""
-
-# ---------------------------------------------------------------------------
-# Step 2: Promote -- save top candidate to the Library
-# ---------------------------------------------------------------------------
-echo "--- Step 2: Promote top creature vocal to Library ---"
-
-# Get the top candidate ID from the latest run
-TOP_ID=$($TONEFORGE explore show --latest --json | \
-  node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); console.log(d.candidates[0].id)")
-
-echo "Promoting candidate: $TOP_ID"
-$TONEFORGE explore promote --latest --id "$TOP_ID" $JSON_FLAG
-
-echo ""
-
-# ---------------------------------------------------------------------------
-# Step 3: Explore and promote weapon sounds
-# ---------------------------------------------------------------------------
-echo "--- Step 3: Sweep weapon laser zaps (seeds 0-29) ---"
+echo "--- Step 1: Sweep weapon-laser-zap (seeds 0-49, 4 clusters) ---"
 $TONEFORGE explore sweep \
   --recipe weapon-laser-zap \
-  --seed-range 0:29 \
-  --keep-top 5 \
+  --seed-range 0:49 \
+  --keep-top 10 \
   --rank-by rms,spectral-centroid \
-  --clusters 3 \
+  --clusters 4 \
   $JSON_FLAG
 
 echo ""
 
-echo "--- Step 4: Promote top weapon sound to Library ---"
-WEAPON_ID=$($TONEFORGE explore show --latest --json | \
-  node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); console.log(d.candidates[0].id)")
+# ---------------------------------------------------------------------------
+# Step 2: Pick 3 candidates from the top of the sweep and promote them
+#         (1 from the top cluster, 2 from the next cluster down)
+# ---------------------------------------------------------------------------
+echo "--- Step 2: Promote 3 candidates to build a laser palette ---"
 
-echo "Promoting candidate: $WEAPON_ID"
-$TONEFORGE explore promote --latest --id "$WEAPON_ID" $JSON_FLAG
+# Extract the top 3 candidate IDs from the latest run
+CANDIDATES=$($TONEFORGE explore show --latest --json | \
+  node -e "
+    const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
+    // Take 1st candidate (top cluster) and 3rd + 4th (next cluster down)
+    const picks = [d.candidates[0], d.candidates[2], d.candidates[3]];
+    picks.forEach(c => console.log(c.id));
+  ")
 
-echo ""
+# Promote each candidate
+for CID in $CANDIDATES; do
+  echo "Promoting candidate: $CID"
+  $TONEFORGE explore promote --latest --id "$CID" $JSON_FLAG
+  echo ""
+done
+
+# Capture the first promoted ID for later steps
+FIRST_LIB_ID="lib-$(echo "$CANDIDATES" | head -1)"
 
 # ---------------------------------------------------------------------------
-# Step 5: List Library entries
+# Step 3: List Library entries
 # ---------------------------------------------------------------------------
-echo "--- Step 5: List all Library entries ---"
+echo "--- Step 3: List all Library entries ---"
 $TONEFORGE library list $JSON_FLAG
 
 echo ""
 
-echo "--- Step 5b: List creature category only ---"
-$TONEFORGE library list --category creature $JSON_FLAG
+echo "--- Step 3b: Filter by category ---"
+$TONEFORGE library list --category uncategorized $JSON_FLAG
 
 echo ""
 
 # ---------------------------------------------------------------------------
-# Step 6: Search by attributes
+# Step 4: Search by attributes
 # ---------------------------------------------------------------------------
-echo "--- Step 6: Search by intensity=high ---"
-# Some entries may not have high intensity depending on classification;
-# use a broader search if needed
-$TONEFORGE library search --intensity high $JSON_FLAG || \
-  $TONEFORGE library search --intensity medium $JSON_FLAG
+echo "--- Step 4: Search by category ---"
+$TONEFORGE library search --category uncategorized $JSON_FLAG
 
 echo ""
 
 # ---------------------------------------------------------------------------
-# Step 7: Find similar sounds
+# Step 5: Find similar sounds
 # ---------------------------------------------------------------------------
-echo "--- Step 7: Find sounds similar to the creature vocal ---"
-CREATURE_LIB_ID="lib-${TOP_ID}"
-$TONEFORGE library similar --id "$CREATURE_LIB_ID" --limit 5 $JSON_FLAG
+echo "--- Step 5: Find sounds similar to $FIRST_LIB_ID ---"
+$TONEFORGE library similar --id "$FIRST_LIB_ID" --limit 5 $JSON_FLAG
 
 echo ""
 
 # ---------------------------------------------------------------------------
-# Step 8: Export WAV files
+# Step 6: Export WAV files
 # ---------------------------------------------------------------------------
-echo "--- Step 8: Export all Library entries as WAV ---"
+echo "--- Step 6: Export all Library entries as WAV ---"
 EXPORT_DIR="$DEMO_DIR/export"
 $TONEFORGE library export --output "$EXPORT_DIR" --format wav $JSON_FLAG
 
@@ -144,48 +132,49 @@ ls -la "$EXPORT_DIR/" 2>/dev/null || echo "(no files)"
 echo ""
 
 # ---------------------------------------------------------------------------
-# Step 9: Regenerate from stored preset
+# Step 7: Regenerate from stored preset
 # ---------------------------------------------------------------------------
-echo "--- Step 9: Regenerate creature vocal from stored preset ---"
-$TONEFORGE library regenerate --id "$CREATURE_LIB_ID" $JSON_FLAG
+echo "--- Step 7: Regenerate $FIRST_LIB_ID from stored preset ---"
+$TONEFORGE library regenerate --id "$FIRST_LIB_ID" $JSON_FLAG
 
 echo ""
 
 # ---------------------------------------------------------------------------
-# Step 10: Verify idempotent promotion
+# Step 8: Verify idempotent promotion
 # ---------------------------------------------------------------------------
-echo "--- Step 10: Verify idempotent promotion (same candidate again) ---"
-# Re-run the creature sweep to get the same run
+echo "--- Step 8: Verify idempotent promotion (same candidate again) ---"
+FIRST_CID=$(echo "$CANDIDATES" | head -1)
+# Re-run the sweep to get the same run
 $TONEFORGE explore sweep \
-  --recipe creature-vocal \
-  --seed-range 0:19 \
-  --keep-top 5 \
-  --rank-by rms \
-  --clusters 3 \
+  --recipe weapon-laser-zap \
+  --seed-range 0:49 \
+  --keep-top 10 \
+  --rank-by rms,spectral-centroid \
+  --clusters 4 \
   --json > /dev/null
 
-$TONEFORGE explore promote --latest --id "$TOP_ID" $JSON_FLAG
+$TONEFORGE explore promote --latest --id "$FIRST_CID" $JSON_FLAG
 
 echo ""
 
 # ---------------------------------------------------------------------------
-# Step 11: Final Library state
+# Step 9: Final Library state
 # ---------------------------------------------------------------------------
-echo "--- Step 11: Final Library state ---"
+echo "--- Step 9: Final Library state ---"
 $TONEFORGE library list $JSON_FLAG
 
 echo ""
 
 # ---------------------------------------------------------------------------
-# Verify: at least one library entry exists
+# Verify: at least 3 library entries exist
 # ---------------------------------------------------------------------------
 ENTRY_COUNT=$($TONEFORGE library list --json | \
   node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); console.log(d.count)")
 
-if [[ "$ENTRY_COUNT" -ge 1 ]]; then
+if [[ "$ENTRY_COUNT" -ge 3 ]]; then
   echo "=== PASS: Library contains $ENTRY_COUNT entries ==="
 else
-  echo "=== FAIL: Library is empty ==="
+  echo "=== FAIL: Library contains only $ENTRY_COUNT entries (expected >= 3) ==="
   exit 1
 fi
 

@@ -23,79 +23,119 @@ can then list, search, find similar sounds, export WAV files by category,
 and regenerate any entry from its stored preset -- deterministically and
 reproducibly.
 
-In this walkthrough you will learn:
+In this walkthrough you will build a laser-sound palette from a single
+sweep, promoting three complementary candidates into the Library. Then
+you will learn to:
 
-1. How promotion writes directly to the Library
-2. How to list and browse Library entries
-3. How to search by attributes (intensity, texture, tags)
-4. How to discover similar sounds
-5. How to export WAV files organized by category
-6. How to regenerate a sound from its stored preset
+1. List and browse Library entries
+2. Search by attributes (intensity, texture, tags)
+3. Discover similar sounds
+4. Export WAV files organized by category
+5. Regenerate a sound from its stored preset
 
-## Act 1 -- Promote candidates to the Library
+## Act 1 -- Build a laser palette
 
-> You swept creature vocals and weapon sounds in the exploration
-> walkthrough. Now you want to save the best ones permanently.
+> You are designing weapon audio for a sci-fi shooter. You need a group
+> of laser sounds that share a common character but vary enough to avoid
+> repetition when the player fires rapidly. Your goal: sweep a wide seed
+> range, audition candidates from adjacent clusters, and promote three
+> complementary picks into the Library.
 
-First, sweep creature vocals and promote the top candidate:
+Sweep 50 seeds of the `weapon-laser-zap` recipe, keep the top 10
+candidates, and cluster them into 4 groups so you can spot natural
+groupings:
 
 ```bash
-toneforge explore sweep --recipe creature-vocal --seed-range 0:19 --keep-top 5 --rank-by rms --clusters 3
+toneforge explore sweep --recipe weapon-laser-zap --seed-range 0:49 --keep-top 10 --rank-by rms,spectral-centroid --clusters 4
 ```
 
-Promote the top-scoring candidate using `--latest`:
+```
+| #  | Candidate                          | Score  | Cluster | Metrics                             |
+| -- | ---------------------------------- | ------ | ------- | ----------------------------------- |
+| 1  | weapon-laser-zap_seed-00042        | 0.8731 | 0       | rms=0.912, spectral-centroid=0.834  |
+| 2  | weapon-laser-zap_seed-00017        | 0.8544 | 0       | rms=0.889, spectral-centroid=0.820  |
+| 3  | weapon-laser-zap_seed-00031        | 0.8210 | 1       | rms=0.845, spectral-centroid=0.797  |
+| 4  | weapon-laser-zap_seed-00009        | 0.7998 | 1       | rms=0.831, spectral-centroid=0.769  |
+| 5  | weapon-laser-zap_seed-00025        | 0.7812 | 1       | rms=0.802, spectral-centroid=0.760  |
+| 6  | weapon-laser-zap_seed-00003        | 0.7650 | 2       | rms=0.778, spectral-centroid=0.752  |
+| 7  | weapon-laser-zap_seed-00038        | 0.7401 | 2       | rms=0.756, spectral-centroid=0.724  |
+| 8  | weapon-laser-zap_seed-00046        | 0.7189 | 3       | rms=0.734, spectral-centroid=0.704  |
+| 9  | weapon-laser-zap_seed-00011        | 0.6950 | 3       | rms=0.710, spectral-centroid=0.680  |
+| 10 | weapon-laser-zap_seed-00029        | 0.6723 | 3       | rms=0.688, spectral-centroid=0.657  |
+
+Cluster summaries:
+  Cluster 0: 2 members, centroid: rms=0.901, spectral-centroid=0.827
+  Cluster 1: 3 members, centroid: rms=0.826, spectral-centroid=0.775
+  Cluster 2: 2 members, centroid: rms=0.767, spectral-centroid=0.738
+  Cluster 3: 3 members, centroid: rms=0.711, spectral-centroid=0.680
+```
+
+Clusters 0 and 1 sit close together -- bright, punchy lasers with high
+spectral centroid. Listen to five candidates drawn from those two
+clusters to compare them by ear:
 
 ```bash
-toneforge explore promote --latest --id creature-vocal_seed-00010
+toneforge play .exploration/runs/<run-id>/weapon-laser-zap_seed-00042.wav
+toneforge play .exploration/runs/<run-id>/weapon-laser-zap_seed-00017.wav
+toneforge play .exploration/runs/<run-id>/weapon-laser-zap_seed-00031.wav
+toneforge play .exploration/runs/<run-id>/weapon-laser-zap_seed-00009.wav
+toneforge play .exploration/runs/<run-id>/weapon-laser-zap_seed-00025.wav
+```
+
+Seeds 42 and 17 (cluster 0) are the sharpest and loudest. Seeds 31, 9,
+and 25 (cluster 1) are slightly softer with a rounder attack -- good
+variety within the same family. Pick one from cluster 0 and two from
+cluster 1 to build a three-sound palette with shared character but
+enough variation to avoid monotony:
+
+```bash
+toneforge explore promote --latest --id weapon-laser-zap_seed-00042
 ```
 
 ```
-Promoted 'creature-vocal_seed-00010' to library as 'lib-creature-vocal_seed-00010'
-  Library ID: lib-creature-vocal_seed-00010
+Promoted 'weapon-laser-zap_seed-00042' to library as 'lib-weapon-laser-zap_seed-00042'
+  Library ID: lib-weapon-laser-zap_seed-00042
   Category: uncategorized
 ```
 
-Now sweep weapon laser zaps and promote a candidate:
-
 ```bash
-toneforge explore sweep --recipe weapon-laser-zap --seed-range 0:29 --keep-top 5 --rank-by rms,spectral-centroid --clusters 3
-```
-
-```bash
-toneforge explore promote --latest --id weapon-laser-zap_seed-00000
+toneforge explore promote --latest --id weapon-laser-zap_seed-00031
 ```
 
 ```
-Promoted 'weapon-laser-zap_seed-00000' to library as 'lib-weapon-laser-zap_seed-00000'
-  Library ID: lib-weapon-laser-zap_seed-00000
+Promoted 'weapon-laser-zap_seed-00031' to library as 'lib-weapon-laser-zap_seed-00031'
+  Library ID: lib-weapon-laser-zap_seed-00031
   Category: uncategorized
 ```
 
-Promote a second creature vocal for variety:
-
 ```bash
-toneforge explore sweep --recipe creature-vocal --seed-range 0:19 --keep-top 5 --rank-by rms --clusters 3
+toneforge explore promote --latest --id weapon-laser-zap_seed-00009
 ```
 
-```bash
-toneforge explore promote --latest --id creature-vocal_seed-00012
+```
+Promoted 'weapon-laser-zap_seed-00009' to library as 'lib-weapon-laser-zap_seed-00009'
+  Library ID: lib-weapon-laser-zap_seed-00009
+  Category: uncategorized
 ```
 
 > [!commentary]
-> Each promoted candidate is written directly into the Library at
-> `.toneforge-library/`. The Library stores the WAV audio, a metadata
-> JSON file, and updates a central index. The entry ID follows the
-> format `lib-<candidateId>`. When classification data is available
-> on the candidate (from a prior `toneforge classify` step), the
-> category is derived automatically. Without classification, entries
-> default to `uncategorized`. You can override the category with
-> `--category` on the promote command. Promotion is idempotent:
-> promoting the same candidate twice returns the existing entry
-> without creating a duplicate.
+> One sweep, four clusters, five auditions, three promotions. The sound
+> designer chose candidates from two adjacent clusters -- close enough
+> to share a bright, punchy character, different enough to avoid
+> sounding identical when played in quick succession. Each promoted
+> candidate is written directly into the Library at `.toneforge-library/`.
+> The Library stores the WAV audio, a metadata JSON file, and updates a
+> central index. The entry ID follows the format `lib-<candidateId>`.
+> When classification data is available on the candidate (from a prior
+> `toneforge classify` step), the category is derived automatically.
+> Without classification, entries default to `uncategorized`. You can
+> override the category with `--category` on the promote command.
+> Promotion is idempotent: promoting the same candidate twice returns
+> the existing entry without creating a duplicate.
 
 ## Act 2 -- List Library entries
 
-> You have promoted several sounds. How do you see what is in the Library?
+> You promoted three laser sounds. What does the Library look like now?
 
 List all Library entries:
 
@@ -106,9 +146,9 @@ toneforge library list
 ```
 | ID                                 | Recipe           | Category      | Duration | Tags |
 | ---------------------------------- | ---------------- | ------------- | -------- | ---- |
-| lib-creature-vocal_seed-00010      | creature-vocal   | uncategorized | 0.26s    | —    |
-| lib-creature-vocal_seed-00012      | creature-vocal   | uncategorized | 0.26s    | —    |
-| lib-weapon-laser-zap_seed-00000    | weapon-laser-zap | uncategorized | 0.22s    | —    |
+| lib-weapon-laser-zap_seed-00009    | weapon-laser-zap | uncategorized | 0.22s    | —    |
+| lib-weapon-laser-zap_seed-00031    | weapon-laser-zap | uncategorized | 0.22s    | —    |
+| lib-weapon-laser-zap_seed-00042    | weapon-laser-zap | uncategorized | 0.22s    | —    |
 
 3 entries listed
 ```
@@ -117,21 +157,6 @@ Filter by category:
 
 ```bash
 toneforge library list --category uncategorized
-```
-
-```
-| ID                                 | Recipe           | Category      | Duration | Tags |
-| ---------------------------------- | ---------------- | ------------- | -------- | ---- |
-| lib-creature-vocal_seed-00010      | creature-vocal   | uncategorized | 0.26s    | —    |
-| lib-creature-vocal_seed-00012      | creature-vocal   | uncategorized | 0.26s    | —    |
-
-2 entries listed
-```
-
-For machine-readable output, add `--json`:
-
-```bash
-toneforge library list --json
 ```
 
 > [!commentary]
@@ -187,11 +212,11 @@ toneforge library search --intensity high --tags organic --json
 
 ## Act 4 -- Discover similar sounds
 
-> You like `lib-creature-vocal_seed-00010` and want to find other entries
-> with a similar character.
+> You like `lib-weapon-laser-zap_seed-00042` -- the sharpest of the
+> three -- and want to see which other entries are closest to it.
 
 ```bash
-toneforge library similar --id lib-creature-vocal_seed-00010 --limit 3
+toneforge library similar --id lib-weapon-laser-zap_seed-00042 --limit 3
 ```
 
 The output shows other entries ranked by distance (lower = more similar):
@@ -199,8 +224,8 @@ The output shows other entries ranked by distance (lower = more similar):
 ```
 | ID                                 | Recipe           | Category      | Distance | Tag Sim |
 | ---------------------------------- | ---------------- | ------------- | -------- | ------- |
-| lib-creature-vocal_seed-00012      | creature-vocal   | uncategorized | 0.1234   | 0.00    |
-| lib-weapon-laser-zap_seed-00000    | weapon-laser-zap | uncategorized | 1.7321   | 0.00    |
+| lib-weapon-laser-zap_seed-00031    | weapon-laser-zap | uncategorized | 0.0823   | 0.00    |
+| lib-weapon-laser-zap_seed-00009    | weapon-laser-zap | uncategorized | 0.1456   | 0.00    |
 
 2 similar entries found
 ```
@@ -208,31 +233,32 @@ The output shows other entries ranked by distance (lower = more similar):
 For JSON output with full distance breakdowns:
 
 ```bash
-toneforge library similar --id lib-creature-vocal_seed-00010 --json
+toneforge library similar --id lib-weapon-laser-zap_seed-00042 --json
 ```
 
 > [!commentary]
 > Similarity uses a hybrid approach. The primary signal is the distance
 > between analysis metrics -- normalized RMS, spectral centroid, and
 > duration. Tag overlap (Jaccard similarity) acts as a tiebreaker.
-> Lower distance means more similar. The creature vocal entries are
-> close neighbours because they share the same recipe and similar metric
-> profiles. The weapon sound is distant with a very different spectral
-> profile. Tag similarity shows 0.00 here because the candidates were
-> promoted without classification data (no tags). With classified
-> entries, tag similarity provides additional ranking signal. The
-> `--limit` flag controls how many results to return (default 10). This
-> hybrid approach works well for moderate-sized libraries; a future
-> enhancement will add embedding-based similarity for richer perceptual
-> matching.
+> Lower distance means more similar. All three entries are close
+> neighbours because they share the same recipe and were deliberately
+> chosen from adjacent clusters. Seed 31 (cluster 1) is closer to
+> seed 42 (cluster 0) than seed 9 is, reflecting the metric gradient
+> visible in the sweep table. Tag similarity shows 0.00 here because
+> the candidates were promoted without classification data (no tags).
+> With classified entries, tag similarity provides additional ranking
+> signal. The `--limit` flag controls how many results to return
+> (default 10). This hybrid approach works well for moderate-sized
+> libraries; a future enhancement will add embedding-based similarity
+> for richer perceptual matching.
 
 ## Act 5 -- Export WAV files
 
-> You are ready to deliver weapon sounds to your game engine. You need
-> them as WAV files organized by category.
+> Your laser palette is ready. Time to deliver the three WAV files to
+> the game engine's asset directory.
 
 ```bash
-toneforge library export --output ./export --category uncategorized --format wav
+toneforge library export --output ./export --format wav
 ```
 
 ```
@@ -272,30 +298,29 @@ toneforge library export --output ./export --format wav --json
 
 ## Act 6 -- Regenerate from a stored preset
 
-> You updated ToneForge with improved creature vocal synthesis. You want
-> to re-render your Library entries with the new code to hear the
-> difference.
+> You updated ToneForge with improved laser synthesis. You want to
+> re-render a Library entry with the new code to hear the difference.
 
 ```bash
-toneforge library regenerate --id lib-creature-vocal_seed-00010
+toneforge library regenerate --id lib-weapon-laser-zap_seed-00042
 ```
 
 ```
-Regenerated 'lib-creature-vocal_seed-00010' successfully
-  WAV: .toneforge-library/uncategorized/lib-creature-vocal_seed-00010.wav
+Regenerated 'lib-weapon-laser-zap_seed-00042' successfully
+  WAV: .toneforge-library/uncategorized/lib-weapon-laser-zap_seed-00042.wav
   Regenerated at: 2026-02-24T12:34:56.789Z
 ```
 
 Play the regenerated sound to compare with the original:
 
 ```bash
-toneforge generate --recipe creature-vocal --seed 10
+toneforge generate --recipe weapon-laser-zap --seed 42
 ```
 
 For JSON output:
 
 ```bash
-toneforge library regenerate --id lib-creature-vocal_seed-00010 --json
+toneforge library regenerate --id lib-weapon-laser-zap_seed-00042 --json
 ```
 
 > [!commentary]
@@ -311,7 +336,7 @@ toneforge library regenerate --id lib-creature-vocal_seed-00010 --json
 ## Act 7 -- The complete workflow
 
 > You want to see the full flow from exploration to production delivery
-> in one sequence.
+> in one sequence -- this time with impact cracks.
 
 ```bash
 # 1. Explore: sweep a seed range
@@ -347,15 +372,16 @@ toneforge library regenerate --id lib-impact-crack_seed-00023
 
 ## Recap -- What you just learned
 
-1. **Promotion** -- `explore promote` writes directly to the Library with full metadata
-2. **Listing** -- `library list [--category <c>]` browses entries with optional filtering
-3. **Search** -- `library search --intensity/--texture/--tags/--category` finds entries by attributes (AND logic)
-4. **Similarity** -- `library similar --id <id>` discovers perceptually related entries using hybrid metric+tag distance
-5. **Export** -- `library export --output <dir> --format wav` delivers WAV files organized by category
-6. **Regeneration** -- `library regenerate --id <id>` re-renders from stored presets, proving determinism
-7. **JSON output** -- `--json` on all Library commands for scripting and CI integration
-8. **Idempotent promotion** -- promoting the same candidate twice is a no-op
-9. **Automatic categorization** -- categories derived from classification data
+1. **Sweep and audition** -- one sweep produces clustered candidates; play sounds from adjacent clusters to compare character
+2. **Selective promotion** -- pick complementary candidates across clusters to build a varied but cohesive palette
+3. **Listing** -- `library list [--category <c>]` browses entries with optional filtering
+4. **Search** -- `library search --intensity/--texture/--tags/--category` finds entries by attributes (AND logic)
+5. **Similarity** -- `library similar --id <id>` discovers perceptually related entries using hybrid metric+tag distance
+6. **Export** -- `library export --output <dir> --format wav` delivers WAV files organized by category
+7. **Regeneration** -- `library regenerate --id <id>` re-renders from stored presets, proving determinism
+8. **JSON output** -- `--json` on all Library commands for scripting and CI integration
+9. **Idempotent promotion** -- promoting the same candidate twice is a no-op
+10. **Automatic categorization** -- categories derived from classification data
 
 The Library bridges exploration and production. Promoted sounds become
 persistent, searchable assets with deterministic regeneration -- every
