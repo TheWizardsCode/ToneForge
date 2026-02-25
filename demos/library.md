@@ -87,36 +87,40 @@ Seeds 42 and 17 (cluster 0) are the sharpest and loudest. Seeds 31, 9,
 and 25 (cluster 1) are slightly softer with a rounder attack -- good
 variety within the same family. Pick one from cluster 0 and two from
 cluster 1 to build a three-sound palette with shared character but
-enough variation to avoid monotony:
+enough variation to avoid monotony.
+
+Use `--category` on promote to organize entries from the start.
+Seed 42 is the lead shot -- file it under `weapon`. Seeds 31 and 9 are
+softer alternatives -- file them under `weapon-alt`:
 
 ```bash
-toneforge explore promote --latest --id weapon-laser-zap_seed-00042
+toneforge explore promote --latest --id weapon-laser-zap_seed-00042 --category weapon
 ```
 
 ```
 Promoted 'weapon-laser-zap_seed-00042' to library as 'lib-weapon-laser-zap_seed-00042'
-  Library ID: lib-weapon-laser-zap_seed-00042
-  Category: uncategorized
+  WAV: weapon/lib-weapon-laser-zap_seed-00042.wav
+  Metadata: weapon/lib-weapon-laser-zap_seed-00042.json
 ```
 
 ```bash
-toneforge explore promote --latest --id weapon-laser-zap_seed-00031
+toneforge explore promote --latest --id weapon-laser-zap_seed-00031 --category weapon-alt
 ```
 
 ```
 Promoted 'weapon-laser-zap_seed-00031' to library as 'lib-weapon-laser-zap_seed-00031'
-  Library ID: lib-weapon-laser-zap_seed-00031
-  Category: uncategorized
+  WAV: weapon-alt/lib-weapon-laser-zap_seed-00031.wav
+  Metadata: weapon-alt/lib-weapon-laser-zap_seed-00031.json
 ```
 
 ```bash
-toneforge explore promote --latest --id weapon-laser-zap_seed-00009
+toneforge explore promote --latest --id weapon-laser-zap_seed-00009 --category weapon-alt
 ```
 
 ```
 Promoted 'weapon-laser-zap_seed-00009' to library as 'lib-weapon-laser-zap_seed-00009'
-  Library ID: lib-weapon-laser-zap_seed-00009
-  Category: uncategorized
+  WAV: weapon-alt/lib-weapon-laser-zap_seed-00009.wav
+  Metadata: weapon-alt/lib-weapon-laser-zap_seed-00009.json
 ```
 
 > [!commentary]
@@ -127,16 +131,20 @@ Promoted 'weapon-laser-zap_seed-00009' to library as 'lib-weapon-laser-zap_seed-
 > candidate is written directly into the Library at `.toneforge-library/`.
 > The Library stores the WAV audio, a metadata JSON file, and updates a
 > central index. The entry ID follows the format `lib-<candidateId>`.
-> When classification data is available on the candidate (from a prior
-> `toneforge classify` step), the category is derived automatically.
-> Without classification, entries default to `uncategorized`. You can
-> override the category with `--category` on the promote command.
-> Promotion is idempotent: promoting the same candidate twice returns
-> the existing entry without creating a duplicate.
+> The `--category` flag assigns a category at promote time. Without it,
+> entries default to `uncategorized`. When classification data is
+> available on the candidate (from a prior `toneforge classify` step),
+> the category can also be derived automatically. Here the designer
+> chose explicit categories: `weapon` for the lead shot and `weapon-alt`
+> for the softer alternatives. This separation pays off immediately
+> when listing and searching the Library. Promotion is idempotent:
+> promoting the same candidate twice returns the existing entry without
+> creating a duplicate.
 
 ## Act 2 -- List Library entries
 
-> You promoted three laser sounds. What does the Library look like now?
+> You promoted three laser sounds into two categories. What does the
+> Library look like now?
 
 List all Library entries:
 
@@ -145,71 +153,87 @@ toneforge library list
 ```
 
 ```
-| ID                                 | Recipe           | Category      | Duration | Tags |
-| ---------------------------------- | ---------------- | ------------- | -------- | ---- |
-| lib-weapon-laser-zap_seed-00009    | weapon-laser-zap | uncategorized | 0.22s    | —    |
-| lib-weapon-laser-zap_seed-00031    | weapon-laser-zap | uncategorized | 0.22s    | —    |
-| lib-weapon-laser-zap_seed-00042    | weapon-laser-zap | uncategorized | 0.22s    | —    |
+| ID                                 | Recipe           | Category   | Duration | Tags |
+| ---------------------------------- | ---------------- | ---------- | -------- | ---- |
+| lib-weapon-laser-zap_seed-00009    | weapon-laser-zap | weapon-alt | 0.22s    | —    |
+| lib-weapon-laser-zap_seed-00031    | weapon-laser-zap | weapon-alt | 0.22s    | —    |
+| lib-weapon-laser-zap_seed-00042    | weapon-laser-zap | weapon     | 0.22s    | —    |
 
 3 entries listed
 ```
 
-Filter by category:
+Filter by category to see only the lead shot:
 
 ```bash
-toneforge library list --category uncategorized
+toneforge library list --category weapon
+```
+
+```
+| ID                                 | Recipe           | Category   | Duration | Tags |
+| ---------------------------------- | ---------------- | ---------- | -------- | ---- |
+| lib-weapon-laser-zap_seed-00042    | weapon-laser-zap | weapon     | 0.22s    | —    |
+
+1 entry listed
 ```
 
 > [!commentary]
 > The Library index is a single JSON file at `.toneforge-library/index.json`
 > loaded into memory. Listing is instant even with hundreds of entries.
 > Each entry shows its ID, recipe, category, duration, and tags.
-> The `--category` flag filters to a single category. All Library
+> The `--category` flag filters to a single category -- here it narrows
+> three entries down to the one filed under `weapon`. All Library
 > commands support `--json` for scripting and CI integration --
 > consistent with every other ToneForge command.
 
 ## Act 3 -- Search by attributes
 
-> You need to find sounds by specific attributes. Search works on
-> classification data stored in Library entries.
+> You need to find the softer alternative shots quickly. Search narrows
+> entries by category, intensity, texture, or tags.
 
-When candidates have classification data (from running `toneforge classify`
-before promotion), you can search by intensity, texture, tags, or category.
-
-Search by category (always available since every entry has a category):
+Search by category to find just the alternative shots:
 
 ```bash
-toneforge library search --category uncategorized
+toneforge library search --category weapon-alt
 ```
 
-Search by intensity (requires classification data on entries):
+```
+| ID                                 | Recipe           | Category   | Intensity | Tags |
+| ---------------------------------- | ---------------- | ---------- | --------- | ---- |
+| lib-weapon-laser-zap_seed-00009    | weapon-laser-zap | weapon-alt | —         | —    |
+| lib-weapon-laser-zap_seed-00031    | weapon-laser-zap | weapon-alt | —         | —    |
 
-```bash
-toneforge library search --intensity high
+Found 2 matches
 ```
 
-Search by tags:
+Search the lead category:
 
 ```bash
-toneforge library search --tags organic
+toneforge library search --category weapon
 ```
 
-Combine multiple filters (AND logic):
+```
+| ID                                 | Recipe           | Category   | Intensity | Tags |
+| ---------------------------------- | ---------------- | ---------- | --------- | ---- |
+| lib-weapon-laser-zap_seed-00042    | weapon-laser-zap | weapon     | —         | —    |
 
-```bash
-toneforge library search --intensity high --tags organic --json
+Found 1 match
 ```
 
 > [!commentary]
 > Search supports four attribute filters: `--category`, `--intensity`,
 > `--texture`, and `--tags`. When multiple filters are provided, they
 > combine with AND logic -- a sound must match all specified criteria.
-> At least one filter is required. The `--category` filter always works
-> since every entry has a category. The `--intensity`, `--texture`, and
-> `--tags` filters require that candidates had classification data when
-> promoted. To get richer search results, run `toneforge classify` on
-> your candidates before promoting them. Search operates on the
-> in-memory index, so results are immediate.
+> At least one filter is required.
+>
+> The Intensity and Tags columns show `—` because these entries were
+> promoted without classification data. The `explore sweep` command
+> does not classify candidates automatically. To populate intensity,
+> texture, and tags on Library entries, run `toneforge classify` on
+> candidates before promoting them -- or integrate classification into
+> your pipeline. The `--category` filter always works because every
+> entry receives a category at promote time (either via `--category` or
+> derived from classification data, defaulting to `uncategorized`).
+> Search operates on the in-memory index, so results are immediate.
 
 ## Act 4 -- Discover similar sounds
 
@@ -223,10 +247,10 @@ toneforge library similar --id lib-weapon-laser-zap_seed-00042 --limit 3
 The output shows other entries ranked by distance (lower = more similar):
 
 ```
-| ID                                 | Recipe           | Category      | Distance | Tag Sim |
-| ---------------------------------- | ---------------- | ------------- | -------- | ------- |
-| lib-weapon-laser-zap_seed-00031    | weapon-laser-zap | uncategorized | 0.0823   | 0.00    |
-| lib-weapon-laser-zap_seed-00009    | weapon-laser-zap | uncategorized | 0.1456   | 0.00    |
+| ID                                 | Recipe           | Category   | Distance | Tag Sim |
+| ---------------------------------- | ---------------- | ---------- | -------- | ------- |
+| lib-weapon-laser-zap_seed-00031    | weapon-laser-zap | weapon-alt | 0.0823   | 0.00    |
+| lib-weapon-laser-zap_seed-00009    | weapon-laser-zap | weapon-alt | 0.1456   | 0.00    |
 
 2 similar entries found
 ```
@@ -255,8 +279,10 @@ toneforge library similar --id lib-weapon-laser-zap_seed-00042 --json
 
 ## Act 5 -- Export WAV files
 
-> Your laser palette is ready. Time to deliver the three WAV files to
-> the game engine's asset directory.
+> Your laser palette is ready. Time to deliver WAV files to the game
+> engine's asset directory.
+
+Export everything:
 
 ```bash
 toneforge library export --output ./export --format wav
@@ -266,32 +292,28 @@ toneforge library export --output ./export --format wav
 Exported 3 WAV files to ./export
 ```
 
+Export only the lead shots:
+
+```bash
+toneforge library export --output ./export-weapon --format wav --category weapon
+```
+
+```
+Exported 1 WAV file to ./export-weapon
+```
+
 Check the output directory:
 
 ```bash
 ls ./export/
 ```
 
-Export all categories at once (same result when all entries share a category):
-
-```bash
-toneforge library export --output ./export-all --format wav
-```
-
-```
-Exported 3 WAV files to ./export-all
-```
-
-For JSON output with file listings:
-
-```bash
-toneforge library export --output ./export --format wav --json
-```
-
 > [!commentary]
 > Export copies WAV files from the Library to an output directory.
 > The `--category` flag filters to a single category; omitting it
-> exports everything. Only WAV format is supported in this scope.
+> exports everything. With two categories in the Library, the first
+> command exports all three entries while the second exports only the
+> one filed under `weapon`. Only WAV format is supported in this scope.
 > Entries whose WAV files are missing (e.g. after a manual deletion)
 > are skipped with a warning rather than causing a failure. This
 > makes the Library a reliable bridge from exploration to production
@@ -308,7 +330,7 @@ toneforge library regenerate --id lib-weapon-laser-zap_seed-00042
 
 ```
 Regenerated 'lib-weapon-laser-zap_seed-00042' successfully
-  WAV: .toneforge-library/uncategorized/lib-weapon-laser-zap_seed-00042.wav
+  WAV: .toneforge-library/weapon/lib-weapon-laser-zap_seed-00042.wav
   Regenerated at: 2026-02-24T12:34:56.789Z
 ```
 
@@ -343,14 +365,14 @@ toneforge library regenerate --id lib-weapon-laser-zap_seed-00042 --json
 # 1. Explore: sweep a seed range
 toneforge explore sweep --recipe impact-crack --seed-range 0:49 --keep-top 10 --rank-by rms,spectral-centroid --clusters 4
 
-# 2. Promote: save the best to the Library
-toneforge explore promote --latest --id impact-crack_seed-00023
+# 2. Promote: save the best to the Library with a category
+toneforge explore promote --latest --id impact-crack_seed-00023 --category impact
 
 # 3. Browse: list what is in the Library
 toneforge library list
 
 # 4. Search: find entries by category
-toneforge library search --category uncategorized
+toneforge library search --category impact
 
 # 5. Discover: find similar sounds
 toneforge library similar --id lib-impact-crack_seed-00023
@@ -373,16 +395,16 @@ toneforge library regenerate --id lib-impact-crack_seed-00023
 
 ## Recap -- What you just learned
 
-1. **Sweep and audition** -- one sweep produces clustered candidates; play sounds from adjacent clusters to compare character
-2. **Selective promotion** -- pick complementary candidates across clusters to build a varied but cohesive palette
-3. **Listing** -- `library list [--category <c>]` browses entries with optional filtering
-4. **Search** -- `library search --intensity/--texture/--tags/--category` finds entries by attributes (AND logic)
+1. **Sweep and audition** -- one sweep produces clustered candidates; `generate --recipe --seed` renders and plays a seed for auditioning
+2. **Selective promotion** -- pick complementary candidates across clusters to build a varied but cohesive palette; `--category` organizes entries from the start
+3. **Listing** -- `library list [--category <c>]` browses entries with optional category filtering
+4. **Search** -- `library search --category` finds entries by category; `--intensity`, `--texture`, and `--tags` require classification data on entries
 5. **Similarity** -- `library similar --id <id>` discovers perceptually related entries using hybrid metric+tag distance
-6. **Export** -- `library export --output <dir> --format wav` delivers WAV files organized by category
+6. **Export** -- `library export --output <dir> --format wav [--category <c>]` delivers WAV files, optionally filtered by category
 7. **Regeneration** -- `library regenerate --id <id>` re-renders from stored presets, proving determinism
 8. **JSON output** -- `--json` on all Library commands for scripting and CI integration
 9. **Idempotent promotion** -- promoting the same candidate twice is a no-op
-10. **Automatic categorization** -- categories derived from classification data
+10. **Categorization** -- categories set via `--category` at promote time, or derived from classification data, defaulting to `uncategorized`
 
 The Library bridges exploration and production. Promoted sounds become
 persistent, searchable assets with deterministic regeneration -- every
