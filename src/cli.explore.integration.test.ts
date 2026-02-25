@@ -12,6 +12,7 @@ import { existsSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { main } from "./cli.js";
+import { clearIndexCache } from "./library/index-store.js";
 
 // Mock the playAudio function for CLI tests
 import { vi } from "vitest";
@@ -606,8 +607,14 @@ describe("CLI explore show --latest — e2e", () => {
 // ── End-to-end promote --latest ───────────────────────────────────
 
 describe("CLI explore promote --latest — e2e", () => {
+  beforeEach(() => {
+    clearIndexCache();
+  });
+
   afterEach(() => {
+    clearIndexCache();
     try { rmSync(".exploration", { recursive: true, force: true }); } catch { /* ignore */ }
+    try { rmSync(".toneforge-library", { recursive: true, force: true }); } catch { /* ignore */ }
   });
 
   it("promotes a candidate from the latest run with --latest", async () => {

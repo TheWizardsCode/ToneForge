@@ -599,7 +599,7 @@ toneforge explore promote --latest --id <candidate-id> [options]
 - \`--run <run-id>\` — Exploration run ID *(required unless --latest)*
 - \`--latest\` — Use the most recent exploration run *(required unless --run)*
 - \`--id <candidate-id>\` — Candidate ID to promote *(required)*
-- \`--export <dir>\` — Export promoted WAV + metadata to directory
+- \`--category <category>\` — Override the classification-derived category
 - \`--json\` — Output results in JSON format
 - \`--help\`, \`-h\` — Show this help message
 
@@ -608,7 +608,7 @@ toneforge explore promote --latest --id <candidate-id> [options]
 \`\`\`
 toneforge explore promote --run run-abc123 --id creature-vocal_seed-04821
 toneforge explore promote --latest --id creature-vocal_seed-04821
-toneforge explore promote --latest --id creature-vocal_seed-04821 --export ./promoted/ --json
+toneforge explore promote --latest --id creature-vocal_seed-04821 --category weapon --json
 \`\`\``;
   await outputMarkdown(md);
 }
@@ -2575,7 +2575,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       const runFlag = typeof flags["run"] === "string" ? flags["run"] : undefined;
       const latestFlag = flags["latest"] === true;
       const candidateId = typeof flags["id"] === "string" ? flags["id"] : undefined;
-      const exportDir = typeof flags["export"] === "string" ? flags["export"] : undefined;
+      const categoryFlag = typeof flags["category"] === "string" ? flags["category"] : undefined;
 
       if (runFlag !== undefined && latestFlag) {
         const msg = "--run and --latest are mutually exclusive. Use one or the other.";
@@ -2606,7 +2606,9 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       }
 
       try {
-        const result = await promoteCandidate(runId, candidateId, ".exploration", exportDir);
+        const result = await promoteCandidate(runId, candidateId, ".exploration", {
+          category: categoryFlag,
+        });
 
         if (jsonMode) {
           jsonOut({

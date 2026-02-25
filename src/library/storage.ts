@@ -80,13 +80,27 @@ function buildFilePaths(category: string, id: string): LibraryFiles {
 }
 
 /**
+ * Options for building a library entry.
+ */
+export interface BuildEntryOptions {
+  /** Override the derived category. */
+  categoryOverride?: string;
+}
+
+/**
  * Build a LibraryEntry from an ExploreCandidate.
  *
  * Does not write any files -- this is a pure data transformation.
+ *
+ * @param candidate - The exploration candidate.
+ * @param options - Optional build options (category override).
  */
-export function buildEntry(candidate: ExploreCandidate): LibraryEntry {
+export function buildEntry(
+  candidate: ExploreCandidate,
+  options?: BuildEntryOptions,
+): LibraryEntry {
   const id = entryId(candidate.id);
-  const category = deriveCategory(candidate);
+  const category = options?.categoryOverride ?? deriveCategory(candidate);
   const tags = deriveTags(candidate);
   const files = buildFilePaths(category, id);
 
@@ -115,6 +129,14 @@ export function buildEntry(candidate: ExploreCandidate): LibraryEntry {
 }
 
 /**
+ * Options for adding an entry to the library.
+ */
+export interface AddEntryOptions {
+  /** Override the derived category. */
+  categoryOverride?: string;
+}
+
+/**
  * Add a candidate to the library.
  *
  * 1. Builds the LibraryEntry from the candidate
@@ -128,12 +150,14 @@ export function buildEntry(candidate: ExploreCandidate): LibraryEntry {
  * @param candidate - The exploration candidate to add.
  * @param wavData - The WAV file contents as a Buffer.
  * @param baseDir - Base directory for library storage.
+ * @param options - Optional add options (category override).
  * @returns The created or existing library entry.
  */
 export async function addEntry(
   candidate: ExploreCandidate,
   wavData: Buffer,
   baseDir: string = DEFAULT_LIBRARY_DIR,
+  options?: AddEntryOptions,
 ): Promise<LibraryEntry> {
   const id = entryId(candidate.id);
 
@@ -141,7 +165,9 @@ export async function addEntry(
   const existing = await getFromIndex(id, baseDir);
   if (existing) return existing;
 
-  const entry = buildEntry(candidate);
+  const entry = buildEntry(candidate, {
+    categoryOverride: options?.categoryOverride,
+  });
 
   // Create the category directory
   const categoryDir = resolve(baseDir, entry.category);
