@@ -66,7 +66,7 @@ echo ""
 
 # ---------------------------------------------------------------------------
 # Step 2: Pick 3 candidates from the top of the sweep and promote them
-#         (1 from the top cluster, 2 from the next cluster down)
+#         (1 from the top cluster as 'weapon', 2 from the next cluster as 'weapon-alt')
 # ---------------------------------------------------------------------------
 echo "--- Step 2: Promote 3 candidates to build a laser palette ---"
 
@@ -79,15 +79,26 @@ CANDIDATES=$($TONEFORGE explore show --latest --json | \
     picks.forEach(c => console.log(c.id));
   ")
 
-# Promote each candidate
+# Promote each candidate with a category
+FIRST_CID=""
+INDEX=0
 for CID in $CANDIDATES; do
-  echo "Promoting candidate: $CID"
-  $TONEFORGE explore promote --latest --id "$CID" $JSON_FLAG
+  if [ -z "$FIRST_CID" ]; then
+    FIRST_CID="$CID"
+  fi
+  if [ "$INDEX" -eq 0 ]; then
+    CATEGORY="weapon"
+  else
+    CATEGORY="weapon-alt"
+  fi
+  echo "Promoting candidate: $CID (category: $CATEGORY)"
+  $TONEFORGE explore promote --latest --id "$CID" --category "$CATEGORY" $JSON_FLAG
   echo ""
+  INDEX=$((INDEX + 1))
 done
 
 # Capture the first promoted ID for later steps
-FIRST_LIB_ID="lib-$(echo "$CANDIDATES" | head -1)"
+FIRST_LIB_ID="lib-$FIRST_CID"
 
 # ---------------------------------------------------------------------------
 # Step 3: List Library entries
@@ -98,7 +109,7 @@ $TONEFORGE library list $JSON_FLAG
 echo ""
 
 echo "--- Step 3b: Filter by category ---"
-$TONEFORGE library list --category uncategorized $JSON_FLAG
+$TONEFORGE library list --category weapon $JSON_FLAG
 
 echo ""
 
@@ -106,7 +117,7 @@ echo ""
 # Step 4: Search by attributes
 # ---------------------------------------------------------------------------
 echo "--- Step 4: Search by category ---"
-$TONEFORGE library search --category uncategorized $JSON_FLAG
+$TONEFORGE library search --category weapon-alt $JSON_FLAG
 
 echo ""
 
@@ -143,7 +154,6 @@ echo ""
 # Step 8: Verify idempotent promotion
 # ---------------------------------------------------------------------------
 echo "--- Step 8: Verify idempotent promotion (same candidate again) ---"
-FIRST_CID=$(echo "$CANDIDATES" | head -1)
 # Re-run the sweep to get the same run
 $TONEFORGE explore sweep \
   --recipe weapon-laser-zap \
@@ -153,7 +163,7 @@ $TONEFORGE explore sweep \
   --clusters 4 \
   --json > /dev/null
 
-$TONEFORGE explore promote --latest --id "$FIRST_CID" $JSON_FLAG
+$TONEFORGE explore promote --latest --id "$FIRST_CID" --category weapon $JSON_FLAG
 
 echo ""
 
