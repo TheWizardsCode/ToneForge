@@ -297,7 +297,7 @@ Run: run-mm0gf3o9-8226ff52
 > deterministic -- re-running the same sweep with the same parameters
 > produces the same results.
 
-## Act 6 -- Promote a candidate to the library
+## Act 6 -- Promote a candidate to the Library
 
 > You have found the best creature vocal (seed 10) and want to save it
 > permanently with its analysis metadata for future use.
@@ -315,29 +315,30 @@ toneforge explore promote --latest --id creature-vocal_seed-00010
 ```
 
 ```
-Promoted 'creature-vocal_seed-00010' to library as 'lib-creature-vocal-10'
-  WAV: .exploration/promoted/creature-vocal_seed-00010.wav
-  Metadata: .exploration/promoted/creature-vocal_seed-00010.json
+Promoted 'creature-vocal_seed-00010' to library as 'lib-creature-vocal_seed-00010'
+  Library ID: lib-creature-vocal_seed-00010
+  Category: creature
 ```
 
-Play the promoted WAV to confirm it matches what you heard earlier:
+Verify the entry is in the Library:
 
 ```bash
-toneforge play .exploration/promoted/creature-vocal_seed-00010.wav
+toneforge library list
 ```
 
 > [!commentary]
 > We re-ran the creature-vocal sweep so it became the most recent run,
 > then used `--latest` to promote from it without needing to copy a run
-> ID. Promotion renders the candidate to a WAV file and writes a metadata
-> JSON alongside it containing the recipe name, seed, full analysis
-> metrics, and ranking information. The promoted files are stored in
-> `.exploration/promoted/` as a staging area. Promotion is idempotent --
-> promoting the same candidate twice is a no-op. The `show` command will
+> ID. Promotion writes directly to the Library at `.toneforge-library/`,
+> storing a WAV file, a metadata JSON, and updating the central index.
+> The entry is immediately searchable via `library list` and `library
+> search`. The category is derived from classification data. Promotion
+> is idempotent -- promoting the same candidate twice returns the
+> existing entry without creating a duplicate. The `show` command will
 > now display "yes" in the Promoted column for this candidate. You can
-> also use `--run <id>` to promote from any specific past run. When the
-> persistent Library module is available, promote will write directly
-> into the library instead of the staging directory.
+> also use `--run <id>` to promote from any specific past run. See the
+> [Library walkthrough](library.md) for the full Library workflow --
+> listing, searching, similarity, export, and regeneration.
 
 ## Act 7 -- Scaling up
 
@@ -366,7 +367,7 @@ toneforge explore sweep --recipe footstep-gravel --seed-range 0:999 --keep-top 2
 4. **Filtering** -- `--keep-top <N>` retains only the highest-scoring candidates
 5. **Mutation** -- `explore mutate --seed <N> --jitter <0-1>` generates variations around a promising seed
 6. **Persistence** -- every run is saved automatically; `explore runs` and `explore show` recall past results
-7. **Promotion** -- `explore promote --run <id> --id <candidate>` saves a WAV + metadata to the staging library
+7. **Promotion** -- `explore promote --run <id> --id <candidate>` saves a WAV + metadata directly to the Library
 8. **JSON output** -- `--json` on all subcommands for scripting and CI integration
 9. **Determinism** -- same parameters, same results, every time, on any machine
 
@@ -374,3 +375,5 @@ Exploration turns the vast procedural seed space from a haystack into a
 curated shortlist. Instead of listening to thousands of sounds, you let
 metrics do the filtering and focus your ears on the candidates that
 matter -- the foundation for building a curated sound library at scale.
+See the [Library walkthrough](library.md) for managing, searching, and
+exporting your promoted sounds.
