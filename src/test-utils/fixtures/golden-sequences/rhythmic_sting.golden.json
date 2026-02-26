@@ -1,0 +1,99 @@
+{
+  "name": "rhythmic_sting",
+  "seed": 42,
+  "sampleRate": 44100,
+  "totalDuration": 2.5,
+  "totalDuration_ms": 2500,
+  "events": [
+    {
+      "time_ms": 0,
+      "sampleOffset": 0,
+      "event": "slam-transient",
+      "seedOffset": 0,
+      "eventSeed": 42,
+      "gain": 1,
+      "repetition": 0
+    },
+    {
+      "time_ms": 250,
+      "sampleOffset": 11025,
+      "event": "resonance-body",
+      "seedOffset": 1,
+      "eventSeed": 43,
+      "gain": 0.6,
+      "repetition": 0
+    },
+    {
+      "time_ms": 500,
+      "sampleOffset": 22050,
+      "event": "slam-transient",
+      "seedOffset": 2,
+      "eventSeed": 44,
+      "gain": 0.9,
+      "repetition": 0
+    },
+    {
+      "time_ms": 1000,
+      "sampleOffset": 44100,
+      "event": "slam-transient",
+      "seedOffset": 0,
+      "eventSeed": 42,
+      "gain": 1,
+      "repetition": 1
+    },
+    {
+      "time_ms": 1250,
+      "sampleOffset": 55125,
+      "event": "resonance-body",
+      "seedOffset": 1,
+      "eventSeed": 43,
+      "gain": 0.6,
+      "repetition": 1
+    },
+    {
+      "time_ms": 1500,
+      "sampleOffset": 66150,
+      "event": "slam-transient",
+      "seedOffset": 2,
+      "eventSeed": 44,
+      "gain": 0.9,
+      "repetition": 1
+    },
+    {
+      "time_ms": 1750,
+      "sampleOffset": 77175,
+      "event": "rattle-decay",
+      "seedOffset": 3,
+      "eventSeed": 45,
+      "gain": 0.5,
+      "repetition": 1
+    },
+    {
+      "time_ms": 2000,
+      "sampleOffset": 88200,
+      "event": "slam-transient",
+      "seedOffset": 0,
+      "eventSeed": 42,
+      "gain": 1,
+      "repetition": 2
+    },
+    {
+      "time_ms": 2250,
+      "sampleOffset": 99225,
+      "event": "resonance-body",
+      "seedOffset": 1,
+      "eventSeed": 43,
+      "gain": 0.6,
+      "repetition": 2
+    },
+    {
+      "time_ms": 2500,
+      "sampleOffset": 110250,
+      "event": "slam-transient",
+      "seedOffset": 2,
+      "eventSeed": 44,
+      "gain": 0.9,
+      "repetition": 2
+    }
+  ]
+}
