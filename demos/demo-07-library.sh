@@ -116,8 +116,18 @@ echo ""
 # ---------------------------------------------------------------------------
 # Step 4: Search by attributes
 # ---------------------------------------------------------------------------
-echo "--- Step 4: Search by category ---"
+echo "--- Step 4a: Search by category ---"
 $TONEFORGE library search --category weapon-alt $JSON_FLAG
+
+echo ""
+
+echo "--- Step 4b: Search by texture ---"
+$TONEFORGE library search --texture warm $JSON_FLAG
+
+echo ""
+
+echo "--- Step 4c: Search with combined AND filters ---"
+$TONEFORGE library search --tags sharp --category weapon $JSON_FLAG
 
 echo ""
 
