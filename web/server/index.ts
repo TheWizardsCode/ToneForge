@@ -122,11 +122,46 @@ wss.on("connection", (ws: WebSocket) => {
   // Partial match: detects if we might be in the middle of receiving an OSC sequence
   const OSC_PARTIAL_RE = /\x1b(?:\](?:1(?:3(?:3(?:;(?:D(?:;(?:\d+)?)?)?)?)?)?)?)?$/;
 
+  // The sentinel suffix appended to exec commands for exit-code capture.
+  // When bash echoes the command line, this suffix text is visible to the user.
+  // We strip it from the PTY output so only the user-facing command is shown.
+  const SENTINEL_SUFFIX = "; __TF_EC=$?; printf '\\033]133;D;%d\\007' $__TF_EC";
+  // Regex to match the echoed sentinel suffix in PTY output.
+  // Matches the literal text that bash echoes back.
+  const SENTINEL_ECHO_RE = /; __TF_EC=\$\?; printf '\\033\]133;D;%d\\007' \$__TF_EC/g;
+
+  /**
+   * Check if the buffer ends with a partial (incomplete) sentinel echo.
+   * Returns the index where the partial match starts, or -1 if no partial match.
+   * This handles the case where a PTY output chunk is split in the middle of
+   * the sentinel text (e.g. we receive "; __TF_EC=$" and the rest comes later).
+   */
+  function findPartialSentinel(buf: string): number {
+    // The sentinel starts with "; " — only check if the buffer could end with
+    // a prefix of the sentinel string. We check progressively longer suffixes
+    // of the buffer against prefixes of the sentinel.
+    const sentinel = SENTINEL_SUFFIX;
+    const maxCheck = Math.min(buf.length, sentinel.length - 1);
+    for (let len = maxCheck; len >= 2; len--) {
+      const bufSuffix = buf.slice(-len);
+      const sentinelPrefix = sentinel.slice(0, len);
+      if (bufSuffix === sentinelPrefix) {
+        return buf.length - len;
+      }
+    }
+    return -1;
+  }
+
   // PTY output -> WebSocket
   ptyProcess.onData((data: string) => {
     if (ws.readyState !== WebSocket.OPEN) return;
 
     outputBuffer += data;
+
+    // Strip the sentinel echo text from the output buffer before processing.
+    // This removes the "; __TF_EC=$?; printf '...' $__TF_EC" portion that bash
+    // echoes when the command line is entered, leaving only the user's command.
+    outputBuffer = outputBuffer.replace(SENTINEL_ECHO_RE, "");
 
     // Process all complete OSC sequences in the buffer
     let match: RegExpExecArray | null;
@@ -141,6 +176,28 @@ wss.on("connection", (ws: WebSocket) => {
       ws.send(JSON.stringify({ type: "commandDone", exitCode }));
       // Continue processing after the OSC sequence
       outputBuffer = outputBuffer.slice(match.index + match[0].length);
+    }
+
+    // Check if the buffer ends with a partial sentinel echo
+    const sentinelPartialIdx = findPartialSentinel(outputBuffer);
+    if (sentinelPartialIdx >= 0) {
+      // Send everything before the partial sentinel, keep the rest buffered
+      const safe = outputBuffer.slice(0, sentinelPartialIdx);
+      if (safe) {
+        // Check for partial OSC within the safe portion
+        const oscPartial = OSC_PARTIAL_RE.exec(safe);
+        if (oscPartial) {
+          const preSafe = safe.slice(0, oscPartial.index);
+          if (preSafe) ws.send(preSafe);
+          outputBuffer = safe.slice(oscPartial.index) + outputBuffer.slice(sentinelPartialIdx);
+        } else {
+          ws.send(safe);
+          outputBuffer = outputBuffer.slice(sentinelPartialIdx);
+        }
+      } else {
+        outputBuffer = outputBuffer.slice(sentinelPartialIdx);
+      }
+      return;
     }
 
     // Check if the buffer ends with a partial OSC sequence
@@ -178,12 +235,12 @@ wss.on("connection", (ws: WebSocket) => {
       } else if (msg.type === "exec" && typeof msg.data === "string") {
         // Execute a command with exit-code capture.
         // Write the command followed by a shell snippet that emits an OSC 133;D
-        // sequence containing the exit code. This sequence is invisible to the
-        // terminal and will be intercepted by the output handler above.
+        // sequence containing the exit code. The OSC sequence is intercepted by
+        // the output handler above. The sentinel suffix text that bash echoes
+        // back is stripped from the output so only the user-facing command is
+        // visible in the terminal.
         const cmd = msg.data.replace(/\n$/, "");
-        ptyProcess.write(
-          `${cmd}; __TF_EC=$?; printf '\\033]133;D;%d\\007' $__TF_EC\n`,
-        );
+        ptyProcess.write(`${cmd}${SENTINEL_SUFFIX}\n`);
       } else if (
         msg.type === "resize" &&
         typeof msg.cols === "number" &&

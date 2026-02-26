@@ -188,3 +188,172 @@ describe("WebSocket terminal", () => {
     await new Promise((r) => setTimeout(r, 200));
   });
 });
+
+// ── Exec message handling and sentinel stripping ───────────────────
+
+describe("exec message handling", () => {
+  /**
+   * Helper: open a WebSocket, wait for connection, and wait for the shell
+   * prompt to appear (indicating the PTY is ready for commands).
+   */
+  async function openTerminal(): Promise<WebSocket> {
+    const ws = new WebSocket(`ws://localhost:${port}/ws/terminal`);
+
+    await new Promise<void>((resolve, reject) => {
+      ws.on("open", () => resolve());
+      ws.on("error", (err) => reject(err));
+    });
+
+    // Wait for initial shell output (prompt) before sending commands
+    await new Promise<void>((resolve) => {
+      const onMessage = (): void => {
+        ws.off("message", onMessage);
+        resolve();
+      };
+      ws.on("message", onMessage);
+      // Safety timeout — resolve even if no output (shell may not send prompt immediately)
+      setTimeout(resolve, 1000);
+    });
+
+    return ws;
+  }
+
+  /**
+   * Helper: collect all messages from the WebSocket until a commandDone
+   * message is received or a timeout expires. Returns the collected raw
+   * output and the commandDone exit code.
+   */
+  async function collectUntilDone(
+    ws: WebSocket,
+    timeoutMs = 10_000,
+  ): Promise<{ rawOutput: string; exitCode: number }> {
+    return new Promise((resolve, reject) => {
+      let rawOutput = "";
+      let exitCode = -1;
+
+      const onMessage = (msg: Buffer | string): void => {
+        const str = msg.toString();
+
+        // Check if this is a commandDone JSON message
+        if (str.startsWith("{")) {
+          try {
+            const parsed = JSON.parse(str);
+            if (parsed.type === "commandDone" && typeof parsed.exitCode === "number") {
+              exitCode = parsed.exitCode;
+              ws.off("message", onMessage);
+              resolve({ rawOutput, exitCode });
+              return;
+            }
+          } catch {
+            // Not JSON — treat as raw output
+          }
+        }
+
+        rawOutput += str;
+      };
+
+      ws.on("message", onMessage);
+
+      setTimeout(() => {
+        ws.off("message", onMessage);
+        reject(
+          new Error(
+            `Timed out after ${timeoutMs}ms waiting for commandDone. ` +
+              `Raw output so far: ${JSON.stringify(rawOutput)}`,
+          ),
+        );
+      }, timeoutMs);
+    });
+  }
+
+  it("sends a commandDone message with exit code 0 for a successful command", async () => {
+    const ws = await openTerminal();
+
+    // Send an exec message
+    ws.send(JSON.stringify({ type: "exec", data: "echo EXEC_TEST_OK\n" }));
+
+    const { rawOutput, exitCode } = await collectUntilDone(ws);
+
+    expect(exitCode).toBe(0);
+    // The command's output should be present
+    expect(rawOutput).toContain("EXEC_TEST_OK");
+
+    ws.close();
+    await new Promise((r) => setTimeout(r, 200));
+  });
+
+  it("sends a commandDone message with non-zero exit code for a failing command", async () => {
+    const ws = await openTerminal();
+
+    // Use a subshell exit so the parent bash session stays alive and the
+    // sentinel can still emit the OSC sequence with the captured exit code.
+    ws.send(JSON.stringify({ type: "exec", data: "(exit 42)\n" }));
+
+    const { exitCode } = await collectUntilDone(ws);
+
+    expect(exitCode).toBe(42);
+
+    ws.close();
+    await new Promise((r) => setTimeout(r, 200));
+  });
+
+  it("strips the sentinel echo text from PTY output", async () => {
+    const ws = await openTerminal();
+
+    // Send an exec message and collect all raw output until commandDone
+    ws.send(JSON.stringify({ type: "exec", data: "echo SENTINEL_STRIP_TEST\n" }));
+
+    const { rawOutput, exitCode } = await collectUntilDone(ws);
+
+    expect(exitCode).toBe(0);
+
+    // The sentinel suffix should NOT appear in the raw output forwarded to the client.
+    // The sentinel text is: ; __TF_EC=$?; printf '\033]133;D;%d\007' $__TF_EC
+    expect(rawOutput).not.toContain("__TF_EC");
+    expect(rawOutput).not.toContain("printf");
+    expect(rawOutput).not.toContain("133;D");
+
+    // But the command echo and output should still be present
+    expect(rawOutput).toContain("SENTINEL_STRIP_TEST");
+
+    ws.close();
+    await new Promise((r) => setTimeout(r, 200));
+  });
+
+  it("does not forward the raw OSC 133;D sequence to the client", async () => {
+    const ws = await openTerminal();
+
+    ws.send(JSON.stringify({ type: "exec", data: "echo OSC_INTERCEPT_TEST\n" }));
+
+    const { rawOutput, exitCode } = await collectUntilDone(ws);
+
+    expect(exitCode).toBe(0);
+
+    // The OSC escape sequence \x1b]133;D;0\x07 should be intercepted and
+    // never forwarded as raw output
+    expect(rawOutput).not.toContain("\x1b]133;D");
+    expect(rawOutput).not.toContain("\x07");
+
+    ws.close();
+    await new Promise((r) => setTimeout(r, 200));
+  });
+
+  it("preserves the user command echo in the output", async () => {
+    const ws = await openTerminal();
+
+    const MARKER = "USER_CMD_ECHO_TEST_12345";
+    ws.send(JSON.stringify({ type: "exec", data: `echo ${MARKER}\n` }));
+
+    const { rawOutput, exitCode } = await collectUntilDone(ws);
+
+    expect(exitCode).toBe(0);
+
+    // The terminal should echo the user's command (the "echo ..." part)
+    // and also show the command's output
+    expect(rawOutput).toContain(`echo ${MARKER}`);
+    expect(rawOutput).toContain(MARKER);
+
+    ws.close();
+    await new Promise((r) => setTimeout(r, 200));
+  });
+});
