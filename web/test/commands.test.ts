@@ -122,7 +122,7 @@ describe("Non-generate commands (all demos)", () => {
         // Non-generate commands should be valid shell invocations (npx, node, etc.)
         expect(command.trim().length).toBeGreaterThan(0);
         // Should start with a recognizable command
-        expect(command).toMatch(/^(npx|node|npm|toneforge|for|\.\/)/);
+        expect(command).toMatch(/^(npx|node|npm|toneforge|for|ls|cat|grep|\.\/)/);
       },
     );
   }
