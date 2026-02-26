@@ -19,6 +19,9 @@ Worklog Specific Ignores
 # Generated audio output
 ##################################
 output/
+delivery/
+export/
+export-weapon/
 gravel-steps/
 creatures/
 analysis/
