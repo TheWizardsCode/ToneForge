@@ -8,13 +8,31 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { existsSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, rmSync, mkdirSync, writeFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 // ---------------------------------------------------------------------------
+// Isolated library directory — avoids race conditions with other test files
+// that also touch .toneforge-library when running in parallel.
+// ---------------------------------------------------------------------------
+const LIBRARY_DIR = join(tmpdir(), "tf-lib-integration-test");
+
+// ---------------------------------------------------------------------------
 // Mocks — must be set up before importing modules that transitively use them
 // ---------------------------------------------------------------------------
+
+// Override DEFAULT_LIBRARY_DIR so all library functions called via main()
+// use our isolated temp directory instead of the CWD-relative default.
+vi.mock("./library/types.js", async (importOriginal) => {
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const original = await importOriginal<typeof import("./library/types.js")>();
+  return {
+    ...original,
+    DEFAULT_LIBRARY_DIR: path.join(os.tmpdir(), "tf-lib-integration-test"),
+  };
+});
 
 // Mock playAudio to avoid actual audio playback
 vi.mock("./audio/player.js", () => ({
@@ -214,8 +232,7 @@ async function populateLibrary(baseDir: string): Promise<void> {
 // Tests
 // ---------------------------------------------------------------------------
 
-// Use the CWD-based default library dir that the CLI uses
-const LIBRARY_DIR = ".toneforge-library";
+// LIBRARY_DIR is defined at the top of the file (unique temp directory).
 
 describe("CLI library — help", () => {
   it("library --help returns 0 and shows subcommands", async () => {
@@ -654,6 +671,7 @@ describe("CLI library regenerate", () => {
     clearIndexCache();
     mockRenderRecipe.mockClear();
     mockEncodeWav.mockClear();
+    try { rmSync(LIBRARY_DIR, { recursive: true, force: true }); } catch { /* ignore */ }
   });
 
   afterEach(() => {
