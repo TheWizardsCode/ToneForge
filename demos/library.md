@@ -270,25 +270,24 @@ Found 1 match
 > closest to it.
 
 ```bash
-toneforge library similar --id lib-weapon-laser-zap_seed-00004 --limit 3
+toneforge library similar --id lib-weapon-laser-zap_seed-00004 --limit 1
 ```
 
-The output shows other entries ranked by distance (lower = more similar):
+The output shows the single closest entry ranked by distance (lower = more similar):
 
 ```
 | ID                                       | Recipe               | Category         | Distance     | Tag Sim    |
 | ---------------------------------------- | -------------------- | ---------------- | ------------ | ---------- |
 | lib-weapon-laser-zap_seed-00030          | weapon-laser-zap     | weapon-alt       | 0.2229       | 1.00       |
-| ---------------------------------------- | -------------------- | ---------------- | ------------ | ---------- |
-| lib-weapon-laser-zap_seed-00000          | weapon-laser-zap     | weapon           | 1.5950       | 0.57       |
-2 similar entries found
+1 similar entry found
 ```
 
-Now play the similar sounds to compare them by ear with the original:
+Now play the original and its nearest neighbour back-to-back to compare
+by ear:
 
 ```bash
+toneforge generate --recipe weapon-laser-zap --seed 4
 toneforge generate --recipe weapon-laser-zap --seed 30
-toneforge generate --recipe weapon-laser-zap --seed 0
 ```
 
 > [!commentary]
@@ -298,18 +297,16 @@ toneforge generate --recipe weapon-laser-zap --seed 0
 > as a tiebreaker: a higher tag similarity slightly reduces the combined
 > distance. Lower distance means more similar.
 >
-> The contrast here is dramatic. Seeds 4 and 30 are both from cluster 1 --
-> they share nearly identical metrics (rms ~0.40, spectral centroid ~600,
-> duration ~0.12s) and identical classification tags. The result: distance
-> 0.2229 with a perfect tag similarity of 1.00. Seed 0 (cluster 0) is the
-> outlier -- bright where the cluster-1 sounds are dark, with different
-> texture descriptors -- so it lands at distance 1.5950 with tag similarity
-> 0.57. This seven-fold distance gap (0.22 vs 1.60) shows that the
-> similarity engine reliably surfaces same-cluster sounds as nearest
-> neighbours. The `--limit` flag controls how many results to return
-> (default 10). Playing the similar sounds with `generate --recipe --seed`
-> lets you compare by ear -- the same workflow used in Act 1 for
-> auditioning candidates.
+> Seeds 4 and 30 are both from cluster 1 -- they share nearly identical
+> metrics (rms ~0.40, spectral centroid ~600, duration ~0.12s) and
+> identical classification tags. The result: distance 0.2229 with a
+> perfect tag similarity of 1.00. With `--limit 1` the engine returns
+> only the single closest match, which is exactly what you need when
+> looking for the best stand-in for a specific sound. Playing both the
+> original (seed 4) and its nearest neighbour (seed 30) back-to-back
+> confirms they are audibly close -- the same workflow used in Act 1 for
+> auditioning candidates. The `--limit` flag controls how many results
+> to return (default 10).
 
 ## Act 5 -- Export WAV files
 

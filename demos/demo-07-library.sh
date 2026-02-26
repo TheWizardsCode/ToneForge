@@ -139,7 +139,7 @@ echo ""
 # Step 5: Find similar sounds
 # ---------------------------------------------------------------------------
 echo "--- Step 5: Find sounds similar to $SECOND_LIB_ID ---"
-$TONEFORGE library similar --id "$SECOND_LIB_ID" --limit 5 $JSON_FLAG
+$TONEFORGE library similar --id "$SECOND_LIB_ID" --limit 1 $JSON_FLAG
 
 echo ""
 
