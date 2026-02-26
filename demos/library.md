@@ -50,96 +50,102 @@ toneforge explore sweep --recipe weapon-laser-zap --seed-range 0:49 --keep-top 1
 ```
 
 ```
-| #  | Candidate                          | Score  | Cluster | Metrics                             |
-| -- | ---------------------------------- | ------ | ------- | ----------------------------------- |
-| 1  | weapon-laser-zap_seed-00042        | 0.8731 | 0       | rms=0.912, spectral-centroid=0.834  |
-| 2  | weapon-laser-zap_seed-00017        | 0.8544 | 0       | rms=0.889, spectral-centroid=0.820  |
-| 3  | weapon-laser-zap_seed-00031        | 0.8210 | 1       | rms=0.845, spectral-centroid=0.797  |
-| 4  | weapon-laser-zap_seed-00009        | 0.7998 | 1       | rms=0.831, spectral-centroid=0.769  |
-| 5  | weapon-laser-zap_seed-00025        | 0.7812 | 1       | rms=0.802, spectral-centroid=0.760  |
-| 6  | weapon-laser-zap_seed-00003        | 0.7650 | 2       | rms=0.778, spectral-centroid=0.752  |
-| 7  | weapon-laser-zap_seed-00038        | 0.7401 | 2       | rms=0.756, spectral-centroid=0.724  |
-| 8  | weapon-laser-zap_seed-00046        | 0.7189 | 3       | rms=0.734, spectral-centroid=0.704  |
-| 9  | weapon-laser-zap_seed-00011        | 0.6950 | 3       | rms=0.710, spectral-centroid=0.680  |
-| 10 | weapon-laser-zap_seed-00029        | 0.6723 | 3       | rms=0.688, spectral-centroid=0.657  |
+| #   | Candidate                           | Score    | Cluster | Metrics                                  |
+| --- | ----------------------------------- | -------- | ------- | ---------------------------------------- |
+| 1   | weapon-laser-zap_seed-00000         | 0.9767   | 0       | rms=0.975, spectral-centroid=0.978       |
+| 2   | weapon-laser-zap_seed-00049         | 0.5636   | 2       | rms=0.127, spectral-centroid=1.000       |
+| 3   | weapon-laser-zap_seed-00004         | 0.5101   | 1       | rms=0.951, spectral-centroid=0.069       |
+| 4   | weapon-laser-zap_seed-00040         | 0.5034   | 3       | rms=0.727, spectral-centroid=0.280       |
+| 5   | weapon-laser-zap_seed-00002         | 0.5014   | 1       | rms=1.000, spectral-centroid=0.003       |
+| 6   | weapon-laser-zap_seed-00030         | 0.5001   | 1       | rms=0.943, spectral-centroid=0.057       |
+| 7   | weapon-laser-zap_seed-00042         | 0.4941   | 3       | rms=0.795, spectral-centroid=0.193       |
+| 8   | weapon-laser-zap_seed-00045         | 0.4931   | 2       | rms=0.017, spectral-centroid=0.969       |
+| 9   | weapon-laser-zap_seed-00009         | 0.4924   | 1       | rms=0.927, spectral-centroid=0.058       |
+| 10  | weapon-laser-zap_seed-00033         | 0.4835   | 1       | rms=0.930, spectral-centroid=0.036       |
 
 Cluster summaries:
-  Cluster 0: 2 members, centroid: rms=0.901, spectral-centroid=0.827
-  Cluster 1: 3 members, centroid: rms=0.826, spectral-centroid=0.775
-  Cluster 2: 2 members, centroid: rms=0.767, spectral-centroid=0.738
-  Cluster 3: 3 members, centroid: rms=0.711, spectral-centroid=0.680
+  Cluster 0: 1 members, centroid: rms=0.975, spectral-centroid=0.978
+    Exemplars: weapon-laser-zap_seed-00000
+  Cluster 1: 5 members, centroid: rms=0.950, spectral-centroid=0.045
+    Exemplars: weapon-laser-zap_seed-00004, weapon-laser-zap_seed-00002, weapon-laser-zap_seed-00030
+  Cluster 2: 2 members, centroid: rms=0.072, spectral-centroid=0.985
+    Exemplars: weapon-laser-zap_seed-00049, weapon-laser-zap_seed-00045
+  Cluster 3: 2 members, centroid: rms=0.761, spectral-centroid=0.236
+    Exemplars: weapon-laser-zap_seed-00040, weapon-laser-zap_seed-00042
 ```
 
-Clusters 0 and 1 sit close together -- bright, punchy lasers with high
-spectral centroid. Audition five candidates drawn from those two
-clusters to compare them by ear. The `generate` command renders a seed
-and plays it back immediately when `--output` is omitted:
+Seed 0 (cluster 0) is the clear leader -- both loud and bright. Cluster 1
+groups five punchy lasers with high rms but low spectral centroid -- heavy
+and direct. Cluster 3 sits between them with moderate rms and centroid.
+Audition five candidates from clusters 0, 1, and 3 to compare them by
+ear. The `generate` command renders a seed and plays it back immediately
+when `--output` is omitted:
 
 ```bash
+toneforge generate --recipe weapon-laser-zap --seed 0
+toneforge generate --recipe weapon-laser-zap --seed 4
+toneforge generate --recipe weapon-laser-zap --seed 2
+toneforge generate --recipe weapon-laser-zap --seed 40
 toneforge generate --recipe weapon-laser-zap --seed 42
-toneforge generate --recipe weapon-laser-zap --seed 17
-toneforge generate --recipe weapon-laser-zap --seed 31
-toneforge generate --recipe weapon-laser-zap --seed 9
-toneforge generate --recipe weapon-laser-zap --seed 25
 ```
 
-Seeds 42 and 17 (cluster 0) are the sharpest and loudest. Seeds 31, 9,
-and 25 (cluster 1) are slightly softer with a rounder attack -- good
-variety within the same family. Pick one from cluster 0 and two from
-cluster 1 to build a three-sound palette with shared character but
-enough variation to avoid monotony.
+Seed 0 (cluster 0) is the sharpest and brightest. Seeds 4 and 2
+(cluster 1) are heavier and more direct -- high energy with a dark
+timbre. Seeds 40 and 42 (cluster 3) sit in between -- punchy with a
+hint of brightness. Pick one from each cluster to build a three-sound
+palette with shared character but enough variation to avoid monotony.
 
 Use `--category` on promote to organize entries from the start.
-Seed 42 is the lead shot -- file it under `weapon`. Seeds 31 and 9 are
-softer alternatives -- file them under `weapon-alt`:
+Seed 0 is the lead shot -- file it under `weapon`. Seeds 4 and 40 are
+complementary alternatives -- file them under `weapon-alt`:
 
 ```bash
-toneforge explore promote --latest --id weapon-laser-zap_seed-00042 --category weapon
+toneforge explore promote --latest --id weapon-laser-zap_seed-00000 --category weapon
 ```
 
 ```
-Promoted 'weapon-laser-zap_seed-00042' to library as 'lib-weapon-laser-zap_seed-00042'
-  WAV: weapon/lib-weapon-laser-zap_seed-00042.wav
-  Metadata: weapon/lib-weapon-laser-zap_seed-00042.json
-```
-
-```bash
-toneforge explore promote --latest --id weapon-laser-zap_seed-00031 --category weapon-alt
-```
-
-```
-Promoted 'weapon-laser-zap_seed-00031' to library as 'lib-weapon-laser-zap_seed-00031'
-  WAV: weapon-alt/lib-weapon-laser-zap_seed-00031.wav
-  Metadata: weapon-alt/lib-weapon-laser-zap_seed-00031.json
+Promoted 'weapon-laser-zap_seed-00000' to library as 'lib-weapon-laser-zap_seed-00000'
+  WAV: weapon/lib-weapon-laser-zap_seed-00000.wav
+  Metadata: weapon/lib-weapon-laser-zap_seed-00000.json
 ```
 
 ```bash
-toneforge explore promote --latest --id weapon-laser-zap_seed-00009 --category weapon-alt
+toneforge explore promote --latest --id weapon-laser-zap_seed-00004 --category weapon-alt
 ```
 
 ```
-Promoted 'weapon-laser-zap_seed-00009' to library as 'lib-weapon-laser-zap_seed-00009'
-  WAV: weapon-alt/lib-weapon-laser-zap_seed-00009.wav
-  Metadata: weapon-alt/lib-weapon-laser-zap_seed-00009.json
+Promoted 'weapon-laser-zap_seed-00004' to library as 'lib-weapon-laser-zap_seed-00004'
+  WAV: weapon-alt/lib-weapon-laser-zap_seed-00004.wav
+  Metadata: weapon-alt/lib-weapon-laser-zap_seed-00004.json
+```
+
+```bash
+toneforge explore promote --latest --id weapon-laser-zap_seed-00040 --category weapon-alt
+```
+
+```
+Promoted 'weapon-laser-zap_seed-00040' to library as 'lib-weapon-laser-zap_seed-00040'
+  WAV: weapon-alt/lib-weapon-laser-zap_seed-00040.wav
+  Metadata: weapon-alt/lib-weapon-laser-zap_seed-00040.json
 ```
 
 > [!commentary]
 > One sweep, four clusters, five auditions, three promotions. The sound
-> designer chose candidates from two adjacent clusters -- close enough
-> to share a bright, punchy character, different enough to avoid
-> sounding identical when played in quick succession. Each promoted
-> candidate is written directly into the Library at `.toneforge-library/`.
-> The Library stores the WAV audio, a metadata JSON file, and updates a
-> central index. The entry ID follows the format `lib-<candidateId>`.
-> The `--category` flag assigns a category at promote time. Without it,
+> designer chose candidates from three distinct clusters -- close enough
+> to share a laser character, different enough to avoid sounding
+> identical when played in quick succession. Each promoted candidate is
+> written directly into the Library at `.toneforge-library/`. The Library
+> stores the WAV audio, a metadata JSON file, and updates a central
+> index. The entry ID follows the format `lib-<candidateId>`. The
+> `--category` flag assigns a category at promote time. Without it,
 > entries default to `uncategorized`. When classification data is
 > available on the candidate (from a prior `toneforge classify` step),
 > the category can also be derived automatically. Here the designer
 > chose explicit categories: `weapon` for the lead shot and `weapon-alt`
-> for the softer alternatives. This separation pays off immediately
-> when listing and searching the Library. Promotion is idempotent:
-> promoting the same candidate twice returns the existing entry without
-> creating a duplicate.
+> for the complementary alternatives. This separation pays off
+> immediately when listing and searching the Library. Promotion is
+> idempotent: promoting the same candidate twice returns the existing
+> entry without creating a duplicate.
 
 ## Act 2 -- List Library entries
 
@@ -155,9 +161,9 @@ toneforge library list
 ```
 | ID                                 | Recipe           | Category   | Duration | Tags |
 | ---------------------------------- | ---------------- | ---------- | -------- | ---- |
-| lib-weapon-laser-zap_seed-00009    | weapon-laser-zap | weapon-alt | 0.22s    | —    |
-| lib-weapon-laser-zap_seed-00031    | weapon-laser-zap | weapon-alt | 0.22s    | —    |
-| lib-weapon-laser-zap_seed-00042    | weapon-laser-zap | weapon     | 0.22s    | —    |
+| lib-weapon-laser-zap_seed-00000    | weapon-laser-zap | weapon     | 0.22s    | —    |
+| lib-weapon-laser-zap_seed-00004    | weapon-laser-zap | weapon-alt | 0.22s    | —    |
+| lib-weapon-laser-zap_seed-00040    | weapon-laser-zap | weapon-alt | 0.22s    | —    |
 
 3 entries listed
 ```
@@ -171,7 +177,7 @@ toneforge library list --category weapon
 ```
 | ID                                 | Recipe           | Category   | Duration | Tags |
 | ---------------------------------- | ---------------- | ---------- | -------- | ---- |
-| lib-weapon-laser-zap_seed-00042    | weapon-laser-zap | weapon     | 0.22s    | —    |
+| lib-weapon-laser-zap_seed-00000    | weapon-laser-zap | weapon     | 0.22s    | —    |
 
 1 entry listed
 ```
@@ -199,8 +205,8 @@ toneforge library search --category weapon-alt
 ```
 | ID                                 | Recipe           | Category   | Intensity | Tags |
 | ---------------------------------- | ---------------- | ---------- | --------- | ---- |
-| lib-weapon-laser-zap_seed-00009    | weapon-laser-zap | weapon-alt | —         | —    |
-| lib-weapon-laser-zap_seed-00031    | weapon-laser-zap | weapon-alt | —         | —    |
+| lib-weapon-laser-zap_seed-00004    | weapon-laser-zap | weapon-alt | —         | —    |
+| lib-weapon-laser-zap_seed-00040    | weapon-laser-zap | weapon-alt | —         | —    |
 
 Found 2 matches
 ```
@@ -214,7 +220,7 @@ toneforge library search --category weapon
 ```
 | ID                                 | Recipe           | Category   | Intensity | Tags |
 | ---------------------------------- | ---------------- | ---------- | --------- | ---- |
-| lib-weapon-laser-zap_seed-00042    | weapon-laser-zap | weapon     | —         | —    |
+| lib-weapon-laser-zap_seed-00000    | weapon-laser-zap | weapon     | —         | —    |
 
 Found 1 match
 ```
@@ -237,11 +243,11 @@ Found 1 match
 
 ## Act 4 -- Discover similar sounds
 
-> You like `lib-weapon-laser-zap_seed-00042` -- the sharpest of the
+> You like `lib-weapon-laser-zap_seed-00000` -- the brightest of the
 > three -- and want to see which other entries are closest to it.
 
 ```bash
-toneforge library similar --id lib-weapon-laser-zap_seed-00042 --limit 3
+toneforge library similar --id lib-weapon-laser-zap_seed-00000 --limit 3
 ```
 
 The output shows other entries ranked by distance (lower = more similar):
@@ -249,8 +255,8 @@ The output shows other entries ranked by distance (lower = more similar):
 ```
 | ID                                 | Recipe           | Category   | Distance | Tag Sim |
 | ---------------------------------- | ---------------- | ---------- | -------- | ------- |
-| lib-weapon-laser-zap_seed-00031    | weapon-laser-zap | weapon-alt | 0.0823   | 0.00    |
-| lib-weapon-laser-zap_seed-00009    | weapon-laser-zap | weapon-alt | 0.1456   | 0.00    |
+| lib-weapon-laser-zap_seed-00040    | weapon-laser-zap | weapon-alt | 0.0823   | 0.00    |
+| lib-weapon-laser-zap_seed-00004    | weapon-laser-zap | weapon-alt | 0.1456   | 0.00    |
 
 2 similar entries found
 ```
@@ -258,7 +264,7 @@ The output shows other entries ranked by distance (lower = more similar):
 For JSON output with full distance breakdowns:
 
 ```bash
-toneforge library similar --id lib-weapon-laser-zap_seed-00042 --json
+toneforge library similar --id lib-weapon-laser-zap_seed-00000 --json
 ```
 
 > [!commentary]
@@ -267,8 +273,8 @@ toneforge library similar --id lib-weapon-laser-zap_seed-00042 --json
 > duration. Tag overlap (Jaccard similarity) acts as a tiebreaker.
 > Lower distance means more similar. All three entries are close
 > neighbours because they share the same recipe and were deliberately
-> chosen from adjacent clusters. Seed 31 (cluster 1) is closer to
-> seed 42 (cluster 0) than seed 9 is, reflecting the metric gradient
+> chosen from complementary clusters. Seed 40 (cluster 3) is closer to
+> seed 0 (cluster 0) than seed 4 is, reflecting the metric gradient
 > visible in the sweep table. Tag similarity shows 0.00 here because
 > the candidates were promoted without classification data (no tags).
 > With classified entries, tag similarity provides additional ranking
@@ -325,25 +331,25 @@ ls ./export/
 > re-render a Library entry with the new code to hear the difference.
 
 ```bash
-toneforge library regenerate --id lib-weapon-laser-zap_seed-00042
+toneforge library regenerate --id lib-weapon-laser-zap_seed-00000
 ```
 
 ```
-Regenerated 'lib-weapon-laser-zap_seed-00042' successfully
-  WAV: .toneforge-library/weapon/lib-weapon-laser-zap_seed-00042.wav
+Regenerated 'lib-weapon-laser-zap_seed-00000' successfully
+  WAV: .toneforge-library/weapon/lib-weapon-laser-zap_seed-00000.wav
   Regenerated at: 2026-02-24T12:34:56.789Z
 ```
 
 Play the regenerated sound to compare with the original:
 
 ```bash
-toneforge generate --recipe weapon-laser-zap --seed 42
+toneforge generate --recipe weapon-laser-zap --seed 0
 ```
 
 For JSON output:
 
 ```bash
-toneforge library regenerate --id lib-weapon-laser-zap_seed-00042 --json
+toneforge library regenerate --id lib-weapon-laser-zap_seed-00000 --json
 ```
 
 > [!commentary]
