@@ -74,17 +74,20 @@ echo "--- Step 2: Promote 3 candidates to build a laser palette ---"
 CANDIDATES=$($TONEFORGE explore show --latest --json | \
   node -e "
     const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
-    // Take 1st candidate (top cluster) and 3rd + 4th (next cluster down)
-    const picks = [d.candidates[0], d.candidates[2], d.candidates[3]];
+    // Take 1st candidate (top cluster) and 3rd + 6th (cluster 1 pair)
+    const picks = [d.candidates[0], d.candidates[2], d.candidates[5]];
     picks.forEach(c => console.log(c.id));
   ")
 
 # Promote each candidate with a category
 FIRST_CID=""
+SECOND_CID=""
 INDEX=0
 for CID in $CANDIDATES; do
   if [ -z "$FIRST_CID" ]; then
     FIRST_CID="$CID"
+  elif [ -z "$SECOND_CID" ]; then
+    SECOND_CID="$CID"
   fi
   if [ "$INDEX" -eq 0 ]; then
     CATEGORY="weapon"
@@ -97,8 +100,9 @@ for CID in $CANDIDATES; do
   INDEX=$((INDEX + 1))
 done
 
-# Capture the first promoted ID for later steps
+# Capture promoted IDs for later steps
 FIRST_LIB_ID="lib-$FIRST_CID"
+SECOND_LIB_ID="lib-$SECOND_CID"
 
 # ---------------------------------------------------------------------------
 # Step 3: List Library entries
@@ -134,8 +138,8 @@ echo ""
 # ---------------------------------------------------------------------------
 # Step 5: Find similar sounds
 # ---------------------------------------------------------------------------
-echo "--- Step 5: Find sounds similar to $FIRST_LIB_ID ---"
-$TONEFORGE library similar --id "$FIRST_LIB_ID" --limit 5 $JSON_FLAG
+echo "--- Step 5: Find sounds similar to $SECOND_LIB_ID ---"
+$TONEFORGE library similar --id "$SECOND_LIB_ID" --limit 5 $JSON_FLAG
 
 echo ""
 
