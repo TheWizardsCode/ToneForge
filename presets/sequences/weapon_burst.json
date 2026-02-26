@@ -1,0 +1,25 @@
+{
+  "version": "1.0",
+  "name": "weapon_burst",
+  "description": "Three-round burst of laser weapon fire with slight timing variation per shot.",
+  "events": [
+    {
+      "time": 0,
+      "event": "weapon-laser-zap",
+      "seedOffset": 0,
+      "gain": 1.0
+    },
+    {
+      "time": 0.12,
+      "event": "weapon-laser-zap",
+      "seedOffset": 1,
+      "gain": 0.9
+    },
+    {
+      "time": 0.24,
+      "event": "weapon-laser-zap",
+      "seedOffset": 2,
+      "gain": 0.85
+    }
+  ]
+}

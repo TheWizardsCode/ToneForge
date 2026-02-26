@@ -1,0 +1,36 @@
+{
+  "version": "1.0",
+  "name": "gameover_melody",
+  "description": "Descending four-note melody for game-over screen using UI chimes.",
+  "tempo": 100,
+  "events": [
+    {
+      "time": 0,
+      "event": "ui-notification-chime",
+      "seedOffset": 0,
+      "gain": 1.0,
+      "duration": 0.4
+    },
+    {
+      "time": 0.3,
+      "event": "ui-notification-chime",
+      "seedOffset": 1,
+      "gain": 0.9,
+      "duration": 0.4
+    },
+    {
+      "time": 0.6,
+      "event": "ui-notification-chime",
+      "seedOffset": 2,
+      "gain": 0.8,
+      "duration": 0.4
+    },
+    {
+      "time": 1.0,
+      "event": "ui-scifi-confirm",
+      "seedOffset": 3,
+      "gain": 0.7,
+      "duration": 0.6
+    }
+  ]
+}

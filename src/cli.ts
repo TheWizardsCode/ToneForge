@@ -75,6 +75,9 @@ import type { SearchQuery } from "./library/search.js";
 import { findSimilar } from "./library/similarity.js";
 import { exportEntries } from "./library/export.js";
 import { regenerateEntry } from "./library/regenerate.js";
+import { loadSequencePreset, validateSequencePresetFile } from "./sequence/preset-loader.js";
+import { simulate, formatTimeline } from "./sequence/simulator.js";
+import { renderSequence } from "./sequence/renderer.js";
 
 /** Parse command-line arguments into a structured map. */
 function parseArgs(argv: string[]): {
@@ -145,6 +148,7 @@ async function printHelp(): Promise<void> {
 | **classify** | Assign semantic labels to analyzed sounds |
 | **explore** | Discover, rank, and curate sounds across seed spaces |
 | **library** | Manage the curated sound library (list, search, export) |
+| **sequence** | Schedule and render temporal event patterns from presets |
 | **stack** | Compose layered sound events from multiple recipes |
 | **show** | Display recipe metadata and parameters |
 | **play** | Play a WAV file through the system audio player |
@@ -457,6 +461,116 @@ async function printStackInspectHelp(): Promise<void> {
 
 \`\`\`
 toneforge stack inspect --preset presets/explosion_heavy.json
+\`\`\``;
+  await outputMarkdown(md);
+}
+
+/** Print help text for the sequence command. */
+async function printSequenceHelp(): Promise<void> {
+  const md = `# ToneForge sequence
+
+**Schedule and render temporal event patterns from presets**
+
+## Usage
+
+\`toneforge sequence <subcommand> [options]\`
+
+## Subcommands
+
+| Subcommand | Description |
+|------------|-------------|
+| **generate** | Render a sequence preset to a WAV file or play it directly |
+| **simulate** | Produce a deterministic JSON timeline from a preset |
+| **inspect** | Display sequence structure and validate a preset |
+
+Run \`toneforge sequence <subcommand> --help\` for subcommand-specific help.`;
+  await outputMarkdown(md);
+}
+
+/** Print help text for the sequence generate subcommand. */
+async function printSequenceGenerateHelp(): Promise<void> {
+  const md = `# ToneForge sequence generate
+
+**Render a sequence preset to a WAV file or play it directly**
+
+## Usage
+
+\`\`\`
+toneforge sequence generate --preset <file> --seed <number> [--output <path.wav>]
+\`\`\`
+
+## Options
+
+- \`--preset <file>\` — Path to a JSON sequence preset file *(required)*
+- \`--seed <number>\` — Integer seed for deterministic generation *(required)*
+- \`--duration <seconds>\` — Maximum duration in seconds (default: determined by preset)
+- \`--output <path.wav>\` — Output WAV file path. When omitted, audio is played directly
+- \`--json\` — Output results in JSON format
+- \`--help\`, \`-h\` — Show this help message
+
+## Examples
+
+\`\`\`
+toneforge sequence generate --preset presets/sequences/weapon_burst.json --seed 42
+toneforge sequence generate --preset presets/sequences/gameover_melody.json --seed 42 --output melody.wav
+toneforge sequence generate --preset presets/sequences/rhythmic_sting.json --seed 42 --duration 5
+\`\`\``;
+  await outputMarkdown(md);
+}
+
+/** Print help text for the sequence simulate subcommand. */
+async function printSequenceSimulateHelp(): Promise<void> {
+  const md = `# ToneForge sequence simulate
+
+**Produce a deterministic JSON timeline from a sequence preset**
+
+## Usage
+
+\`\`\`
+toneforge sequence simulate --preset <file> [--seed <number>] [--duration <seconds>]
+\`\`\`
+
+## Options
+
+- \`--preset <file>\` — Path to a JSON sequence preset file *(required)*
+- \`--seed <number>\` — Integer seed for deterministic simulation (default: 42)
+- \`--duration <seconds>\` — Maximum duration in seconds
+- \`--json\` — Output results in JSON format
+- \`--help\`, \`-h\` — Show this help message
+
+## Examples
+
+\`\`\`
+toneforge sequence simulate --preset presets/sequences/weapon_burst.json --seed 42
+toneforge sequence simulate --preset presets/sequences/weapon_burst.json --seed 42 --json
+\`\`\``;
+  await outputMarkdown(md);
+}
+
+/** Print help text for the sequence inspect subcommand. */
+async function printSequenceInspectHelp(): Promise<void> {
+  const md = `# ToneForge sequence inspect
+
+**Display sequence structure and validate a preset**
+
+## Usage
+
+\`\`\`
+toneforge sequence inspect --preset <file> [--validate]
+\`\`\`
+
+## Options
+
+- \`--preset <file>\` — Path to a JSON sequence preset file *(required)*
+- \`--validate\` — Show detailed validation errors with field-level info
+- \`--json\` — Output results in JSON format
+- \`--help\`, \`-h\` — Show this help message
+
+## Examples
+
+\`\`\`
+toneforge sequence inspect --preset presets/sequences/weapon_burst.json
+toneforge sequence inspect --preset presets/sequences/weapon_burst.json --validate
 \`\`\``;
   await outputMarkdown(md);
 }
@@ -1065,6 +1179,16 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       }
     } else if (command === "library") {
       await printLibraryHelp();
+    } else if (command === "sequence") {
+      if (subcommand === "generate") {
+        await printSequenceGenerateHelp();
+      } else if (subcommand === "simulate") {
+        await printSequenceSimulateHelp();
+      } else if (subcommand === "inspect") {
+        await printSequenceInspectHelp();
+      } else {
+        await printSequenceHelp();
+      }
     } else {
       await printHelp();
     }
@@ -3169,6 +3293,337 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     }
 
     await printLibraryHelp();
+    return 0;
+  }
+
+  // ── Sequence Command ─────────────────────────────────────────────
+  if (command === "sequence") {
+    // Sequence subcommand help
+    if (flags["help"] && subcommand === undefined) {
+      await printSequenceHelp();
+      return 0;
+    }
+
+    if (subcommand === "generate") {
+      if (flags["help"]) {
+        await printSequenceGenerateHelp();
+        return 0;
+      }
+
+      // Require --preset
+      const presetPath = typeof flags["preset"] === "string" ? flags["preset"] : undefined;
+      if (presetPath === undefined) {
+        const msg = "--preset is required for sequence generate. Run 'toneforge sequence generate --help' for usage.";
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      // Require --seed
+      const seedRaw = flags["seed"];
+      if (seedRaw === undefined || seedRaw === true) {
+        const msg = "--seed is required for sequence generate. Run 'toneforge sequence generate --help' for usage.";
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+      const seed = parseInt(seedRaw as string, 10);
+      if (Number.isNaN(seed)) {
+        const msg = `--seed must be an integer, got '${seedRaw}'.`;
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      // Optional --duration
+      const durationRaw = flags["duration"];
+      let maxDuration: number | undefined;
+      if (durationRaw !== undefined && durationRaw !== true) {
+        maxDuration = parseFloat(durationRaw as string);
+        if (Number.isNaN(maxDuration) || maxDuration <= 0) {
+          const msg = `--duration must be a positive number, got '${durationRaw}'.`;
+          if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+          return 1;
+        }
+      }
+
+      // Optional --output
+      const outputPath = typeof flags["output"] === "string" ? flags["output"] : undefined;
+
+      try {
+        const definition = await loadSequencePreset(presetPath);
+
+        if (!jsonMode) {
+          outputInfo(
+            `Rendering sequence '${definition.name}' (${definition.events.length} events) with seed ${seed}...`,
+          );
+        }
+
+        const startMs = performance.now();
+        const simResult = simulate(definition, seed, {
+          maxDuration,
+        });
+        const result = await renderSequence(simResult, {
+          totalDuration: maxDuration,
+        });
+        const renderMs = (performance.now() - startMs).toFixed(0);
+
+        if (!jsonMode) {
+          outputInfo(
+            `Rendered ${result.duration.toFixed(3)}s of audio ` +
+            `(${result.sampleRate} Hz, ${result.samples.length} samples) ` +
+            `in ${renderMs}ms`,
+          );
+        }
+
+        if (outputPath !== undefined) {
+          await mkdir(dirname(resolve(outputPath)), { recursive: true });
+          const wavBuffer = encodeWav(result.samples, { sampleRate: result.sampleRate });
+          await writeFile(resolve(outputPath), wavBuffer);
+
+          if (jsonMode) {
+            jsonOut({
+              command: "sequence generate",
+              preset: presetPath,
+              name: definition.name,
+              events: simResult.events.length,
+              seed,
+              output: outputPath,
+              duration: result.duration,
+              sampleRate: result.sampleRate,
+              samples: result.samples.length,
+            });
+          } else {
+            outputSuccess(`Wrote ${outputPath}`);
+          }
+        } else {
+          if (!jsonMode) {
+            outputInfo("Playing...");
+          }
+          await playAudio(result.samples, { sampleRate: result.sampleRate });
+          if (jsonMode) {
+            jsonOut({
+              command: "sequence generate",
+              preset: presetPath,
+              name: definition.name,
+              events: simResult.events.length,
+              seed,
+              duration: result.duration,
+              sampleRate: result.sampleRate,
+              samples: result.samples.length,
+              played: true,
+            });
+          } else {
+            outputSuccess("Done.");
+          }
+        }
+
+        return 0;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(message); } else { outputError(`Error: ${message}`); }
+        return 1;
+      }
+    }
+
+    if (subcommand === "simulate") {
+      if (flags["help"]) {
+        await printSequenceSimulateHelp();
+        return 0;
+      }
+
+      // Require --preset
+      const presetPath = typeof flags["preset"] === "string" ? flags["preset"] : undefined;
+      if (presetPath === undefined) {
+        const msg = "--preset is required for sequence simulate. Run 'toneforge sequence simulate --help' for usage.";
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      // Optional --seed (default: 42)
+      const seedRaw = flags["seed"];
+      let seed = 42;
+      if (seedRaw !== undefined && seedRaw !== true) {
+        seed = parseInt(seedRaw as string, 10);
+        if (Number.isNaN(seed)) {
+          const msg = `--seed must be an integer, got '${seedRaw}'.`;
+          if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+          return 1;
+        }
+      }
+
+      // Optional --duration
+      const durationRaw = flags["duration"];
+      let maxDuration: number | undefined;
+      if (durationRaw !== undefined && durationRaw !== true) {
+        maxDuration = parseFloat(durationRaw as string);
+        if (Number.isNaN(maxDuration) || maxDuration <= 0) {
+          const msg = `--duration must be a positive number, got '${durationRaw}'.`;
+          if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+          return 1;
+        }
+      }
+
+      try {
+        const definition = await loadSequencePreset(presetPath);
+        const simResult = simulate(definition, seed, {
+          maxDuration,
+        });
+
+        const timeline = formatTimeline(simResult);
+
+        if (jsonMode) {
+          jsonOut(timeline as Record<string, unknown>);
+        } else {
+          outputInfo(`Sequence: ${definition.name}`);
+          outputInfo(`Seed: ${seed}`);
+          outputInfo(`Events: ${simResult.events.length}`);
+          outputInfo(`Duration: ${simResult.totalDuration.toFixed(3)}s`);
+          outputInfo("");
+
+          // Table of events
+          const columns = [
+            { header: "#", width: 4 },
+            { header: "Time (ms)", width: 10 },
+            { header: "Sample", width: 8 },
+            { header: "Event", width: 24 },
+            { header: "Seed+", width: 6 },
+            { header: "ESeed", width: 8 },
+            { header: "Gain", width: 6 },
+            { header: "Rep", width: 4 },
+          ];
+          const rows = simResult.events.map((e, i) => [
+            String(i),
+            e.time_ms.toFixed(1),
+            String(e.sampleOffset),
+            e.event,
+            String(e.seedOffset),
+            String(e.eventSeed),
+            e.gain.toFixed(2),
+            String(e.repetition),
+          ]);
+          outputTable(columns, rows);
+        }
+
+        return 0;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(message); } else { outputError(`Error: ${message}`); }
+        return 1;
+      }
+    }
+
+    if (subcommand === "inspect") {
+      if (flags["help"]) {
+        await printSequenceInspectHelp();
+        return 0;
+      }
+
+      // Require --preset
+      const presetPath = typeof flags["preset"] === "string" ? flags["preset"] : undefined;
+      if (presetPath === undefined) {
+        const msg = "--preset is required for sequence inspect. Run 'toneforge sequence inspect --help' for usage.";
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      const validateMode = flags["validate"] === true;
+
+      try {
+        if (validateMode) {
+          // Full validation with detailed errors
+          const { errors, definition, raw } = await validateSequencePresetFile(presetPath);
+
+          if (jsonMode) {
+            jsonOut({
+              command: "sequence inspect",
+              preset: presetPath,
+              valid: errors.length === 0,
+              errors: errors.map((e) => ({ field: e.field, message: e.message })),
+              ...(definition ? { name: definition.name, events: definition.events.length } : {}),
+            });
+          } else {
+            if (errors.length > 0) {
+              outputError(`Validation failed for '${presetPath}':`);
+              for (const err of errors) {
+                outputError(`  ${err.field}: ${err.message}`);
+              }
+            } else {
+              outputSuccess(`Preset '${presetPath}' is valid.`);
+              if (definition) {
+                outputInfo(`  Name: ${definition.name}`);
+                outputInfo(`  Events: ${definition.events.length}`);
+                if (definition.repeat) {
+                  outputInfo(`  Repeat: ${definition.repeat.count} times at ${definition.repeat.interval}s intervals`);
+                }
+              }
+            }
+          }
+        } else {
+          // Standard inspect: show structure
+          const definition = await loadSequencePreset(presetPath);
+
+          if (jsonMode) {
+            jsonOut({
+              command: "sequence inspect",
+              preset: presetPath,
+              name: definition.name,
+              description: definition.description || null,
+              tempo: definition.tempo || null,
+              events: definition.events.map((e, i) => ({
+                index: i,
+                time: e.time,
+                time_ms: e.time_ms,
+                event: e.event,
+                seedOffset: e.seedOffset,
+                probability: e.probability,
+                gain: e.gain,
+                duration: e.duration ?? null,
+              })),
+              repeat: definition.repeat || null,
+            });
+          } else {
+            const name = definition.name;
+            const eventCount = definition.events.length;
+            outputInfo(`Sequence: ${name} (${eventCount} event${eventCount !== 1 ? "s" : ""})`);
+            if (definition.description) {
+              outputInfo(`  ${definition.description}`);
+            }
+            if (definition.tempo) {
+              outputInfo(`  Tempo: ${definition.tempo} BPM`);
+            }
+            outputInfo("");
+
+            for (let i = 0; i < definition.events.length; i++) {
+              const e = definition.events[i]!;
+              const timeMs = Math.round(e.time * 1000);
+              const gain = e.gain.toFixed(2);
+              const eventPadded = e.event.padEnd(24);
+              const prob = e.probability < 1 ? ` prob:${e.probability.toFixed(2)}` : "";
+              const dur = e.duration !== undefined ? ` dur:${e.duration.toFixed(3)}s` : "";
+              outputInfo(`  [${i}] ${eventPadded} time: ${timeMs}ms\tgain: ${gain}\tseed+${e.seedOffset}${prob}${dur}`);
+            }
+
+            if (definition.repeat) {
+              outputInfo("");
+              outputInfo(`  Repeat: ${definition.repeat.count}x at ${definition.repeat.interval}s intervals`);
+            }
+          }
+        }
+
+        return 0;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(message); } else { outputError(`Error: ${message}`); }
+        return 1;
+      }
+    }
+
+    // Unknown subcommand
+    if (subcommand !== undefined) {
+      const msg = `Unknown sequence subcommand '${subcommand}'. Run 'toneforge sequence --help' for usage.`;
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+
+    await printSequenceHelp();
     return 0;
   }
 

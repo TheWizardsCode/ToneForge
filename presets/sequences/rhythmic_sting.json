@@ -1,0 +1,38 @@
+{
+  "version": "1.0",
+  "name": "rhythmic_sting",
+  "description": "Repeating rhythmic pattern of impact and rumble hits for dramatic stings.",
+  "tempo": 120,
+  "events": [
+    {
+      "time": 0,
+      "event": "slam-transient",
+      "seedOffset": 0,
+      "gain": 1.0
+    },
+    {
+      "time": 0.25,
+      "event": "resonance-body",
+      "seedOffset": 1,
+      "gain": 0.6,
+      "probability": 0.8
+    },
+    {
+      "time": 0.5,
+      "event": "slam-transient",
+      "seedOffset": 2,
+      "gain": 0.9
+    },
+    {
+      "time": 0.75,
+      "event": "rattle-decay",
+      "seedOffset": 3,
+      "gain": 0.5,
+      "probability": 0.7
+    }
+  ],
+  "repeat": {
+    "count": 2,
+    "interval": 1.0
+  }
+}
