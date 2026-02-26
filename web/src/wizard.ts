@@ -281,7 +281,11 @@ export function createWizard(
 
       try {
         for (const cmd of commands) {
-          handleCommandAudio(cmd);
+          // Fire browser-side audio rendering (non-blocking).
+          // Errors are logged but must not abort the CLI command sequence.
+          handleCommandAudio(cmd).catch((err) => {
+            console.error("Browser audio playback error:", err);
+          });
           const result = await terminal.executeCommand(cmd);
           if (result.exitCode !== 0) {
             failed = true;
