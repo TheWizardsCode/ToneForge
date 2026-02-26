@@ -371,12 +371,6 @@ Play the regenerated sound to compare with the original:
 toneforge generate --recipe weapon-laser-zap --seed 0
 ```
 
-For JSON output:
-
-```bash
-toneforge library regenerate --id lib-weapon-laser-zap_seed-00000 --json
-```
-
 > [!commentary]
 > Every Library entry stores a preset: the recipe name, seed, and
 > parameter overrides used to generate it. Regeneration re-renders
