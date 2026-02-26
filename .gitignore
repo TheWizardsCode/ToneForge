@@ -30,6 +30,11 @@ classification/
 .exploration/
 
 ##################################
+# Build output binaries
+##################################
+bin/
+
+##################################
 # Node / TypeScript
 ##################################
 node_modules/
