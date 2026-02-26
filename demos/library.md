@@ -133,19 +133,20 @@ Promoted 'weapon-laser-zap_seed-00040' to library as 'lib-weapon-laser-zap_seed-
 > One sweep, four clusters, five auditions, three promotions. The sound
 > designer chose candidates from three distinct clusters -- close enough
 > to share a laser character, different enough to avoid sounding
-> identical when played in quick succession. Each promoted candidate is
-> written directly into the Library at `.toneforge-library/`. The Library
+> identical when played in quick succession. The sweep command renders,
+> analyzes, and classifies each candidate automatically -- intensity,
+> texture, and tags are assigned during the sweep, not as a separate
+> step. Each promoted candidate is written directly into the Library at
+> `.toneforge-library/` with its classification data intact. The Library
 > stores the WAV audio, a metadata JSON file, and updates a central
 > index. The entry ID follows the format `lib-<candidateId>`. The
 > `--category` flag assigns a category at promote time. Without it,
-> entries default to `uncategorized`. When classification data is
-> available on the candidate (from a prior `toneforge classify` step),
-> the category can also be derived automatically. Here the designer
-> chose explicit categories: `weapon` for the lead shot and `weapon-alt`
-> for the complementary alternatives. This separation pays off
-> immediately when listing and searching the Library. Promotion is
-> idempotent: promoting the same candidate twice returns the existing
-> entry without creating a duplicate.
+> entries default to `uncategorized`. Here the designer chose explicit
+> categories: `weapon` for the lead shot and `weapon-alt` for the
+> complementary alternatives. This separation pays off immediately when
+> listing and searching the Library. Promotion is idempotent: promoting
+> the same candidate twice returns the existing entry without creating
+> a duplicate.
 
 ## Act 2 -- List Library entries
 
@@ -159,12 +160,16 @@ toneforge library list
 ```
 
 ```
-| ID                                 | Recipe           | Category   | Duration | Tags |
-| ---------------------------------- | ---------------- | ---------- | -------- | ---- |
-| lib-weapon-laser-zap_seed-00000    | weapon-laser-zap | weapon     | 0.22s    | —    |
-| lib-weapon-laser-zap_seed-00004    | weapon-laser-zap | weapon-alt | 0.22s    | —    |
-| lib-weapon-laser-zap_seed-00040    | weapon-laser-zap | weapon-alt | 0.22s    | —    |
-
+| ID                                       | Recipe               | Category         | Duration   | Tags                           |
+| ---------------------------------------- | -------------------- | ---------------- | ---------- | ------------------------------ |
+| lib-weapon-laser-zap_seed-00000          | weapon-laser-zap     | weapon           | 0.22s      | laser, sci-fi, zap, crunchy,   |
+|                                          |                      |                  |            | harsh, sharp                   |
+| ---------------------------------------- | -------------------- | ---------------- | ---------- | ------------------------------ |
+| lib-weapon-laser-zap_seed-00004          | weapon-laser-zap     | weapon-alt       | 0.12s      | laser, sci-fi, zap, sharp,     |
+|                                          |                      |                  |            | warm                           |
+| ---------------------------------------- | -------------------- | ---------------- | ---------- | ------------------------------ |
+| lib-weapon-laser-zap_seed-00040          | weapon-laser-zap     | weapon-alt       | 0.12s      | laser, sci-fi, zap, crunchy,   |
+|                                          |                      |                  |            | sharp, warm                    |
 3 entries listed
 ```
 
@@ -175,21 +180,24 @@ toneforge library list --category weapon
 ```
 
 ```
-| ID                                 | Recipe           | Category   | Duration | Tags |
-| ---------------------------------- | ---------------- | ---------- | -------- | ---- |
-| lib-weapon-laser-zap_seed-00000    | weapon-laser-zap | weapon     | 0.22s    | —    |
-
+| ID                                       | Recipe               | Category         | Duration   | Tags                           |
+| ---------------------------------------- | -------------------- | ---------------- | ---------- | ------------------------------ |
+| lib-weapon-laser-zap_seed-00000          | weapon-laser-zap     | weapon           | 0.22s      | laser, sci-fi, zap, crunchy,   |
+|                                          |                      |                  |            | harsh, sharp                   |
 1 entry listed
 ```
 
 > [!commentary]
 > The Library index is a single JSON file at `.toneforge-library/index.json`
 > loaded into memory. Listing is instant even with hundreds of entries.
-> Each entry shows its ID, recipe, category, duration, and tags.
-> The `--category` flag filters to a single category -- here it narrows
-> three entries down to the one filed under `weapon`. All Library
-> commands support `--json` for scripting and CI integration --
-> consistent with every other ToneForge command.
+> Each entry shows its ID, recipe, category, duration, and tags. The
+> Tags column shows classification data assigned during the sweep --
+> recipe-level tags like `laser`, `sci-fi`, `zap` plus texture
+> descriptors like `crunchy`, `harsh`, `sharp`, and `warm` derived
+> from the analysis metrics. The `--category` flag filters to a single
+> category -- here it narrows three entries down to the one filed under
+> `weapon`. All Library commands support `--json` for scripting and CI
+> integration -- consistent with every other ToneForge command.
 
 ## Act 3 -- Search by attributes
 
@@ -203,25 +211,44 @@ toneforge library search --category weapon-alt
 ```
 
 ```
-| ID                                 | Recipe           | Category   | Intensity | Tags |
-| ---------------------------------- | ---------------- | ---------- | --------- | ---- |
-| lib-weapon-laser-zap_seed-00004    | weapon-laser-zap | weapon-alt | —         | —    |
-| lib-weapon-laser-zap_seed-00040    | weapon-laser-zap | weapon-alt | —         | —    |
-
+| ID                                       | Recipe               | Category         | Intensity    | Tags                           |
+| ---------------------------------------- | -------------------- | ---------------- | ------------ | ------------------------------ |
+| lib-weapon-laser-zap_seed-00004          | weapon-laser-zap     | weapon-alt       | aggressive   | laser, sci-fi, zap, sharp,     |
+|                                          |                      |                  |              | warm                           |
+| ---------------------------------------- | -------------------- | ---------------- | ------------ | ------------------------------ |
+| lib-weapon-laser-zap_seed-00040          | weapon-laser-zap     | weapon-alt       | aggressive   | laser, sci-fi, zap, crunchy,   |
+|                                          |                      |                  |              | sharp, warm                    |
 Found 2 matches
 ```
 
-Search the lead category:
+Search by texture to find the warm-sounding entries:
 
 ```bash
-toneforge library search --category weapon
+toneforge library search --texture warm
 ```
 
 ```
-| ID                                 | Recipe           | Category   | Intensity | Tags |
-| ---------------------------------- | ---------------- | ---------- | --------- | ---- |
-| lib-weapon-laser-zap_seed-00000    | weapon-laser-zap | weapon     | —         | —    |
+| ID                                       | Recipe               | Category         | Intensity    | Tags                           |
+| ---------------------------------------- | -------------------- | ---------------- | ------------ | ------------------------------ |
+| lib-weapon-laser-zap_seed-00004          | weapon-laser-zap     | weapon-alt       | aggressive   | laser, sci-fi, zap, sharp,     |
+|                                          |                      |                  |              | warm                           |
+| ---------------------------------------- | -------------------- | ---------------- | ------------ | ------------------------------ |
+| lib-weapon-laser-zap_seed-00040          | weapon-laser-zap     | weapon-alt       | aggressive   | laser, sci-fi, zap, crunchy,   |
+|                                          |                      |                  |              | sharp, warm                    |
+Found 2 matches
+```
 
+Combine filters with AND logic -- find sharp sounds in the lead category:
+
+```bash
+toneforge library search --tags sharp --category weapon
+```
+
+```
+| ID                                       | Recipe               | Category         | Intensity    | Tags                           |
+| ---------------------------------------- | -------------------- | ---------------- | ------------ | ------------------------------ |
+| lib-weapon-laser-zap_seed-00000          | weapon-laser-zap     | weapon           | aggressive   | laser, sci-fi, zap, crunchy,   |
+|                                          |                      |                  |              | harsh, sharp                   |
 Found 1 match
 ```
 
@@ -231,15 +258,12 @@ Found 1 match
 > combine with AND logic -- a sound must match all specified criteria.
 > At least one filter is required.
 >
-> The Intensity and Tags columns show `—` because these entries were
-> promoted without classification data. The `explore sweep` command
-> does not classify candidates automatically. To populate intensity,
-> texture, and tags on Library entries, run `toneforge classify` on
-> candidates before promoting them -- or integrate classification into
-> your pipeline. The `--category` filter always works because every
-> entry receives a category at promote time (either via `--category` or
-> derived from classification data, defaulting to `uncategorized`).
-> Search operates on the in-memory index, so results are immediate.
+> Classification data (intensity, texture, tags) is assigned
+> automatically during the sweep. The `explore sweep` command renders,
+> analyzes, and classifies each candidate, so promoted entries arrive
+> in the Library with full classification metadata. Category is set
+> explicitly via `--category` at promote time. Search operates on the
+> in-memory index, so results are immediate.
 
 ## Act 4 -- Discover similar sounds
 
@@ -253,33 +277,36 @@ toneforge library similar --id lib-weapon-laser-zap_seed-00000 --limit 3
 The output shows other entries ranked by distance (lower = more similar):
 
 ```
-| ID                                 | Recipe           | Category   | Distance | Tag Sim |
-| ---------------------------------- | ---------------- | ---------- | -------- | ------- |
-| lib-weapon-laser-zap_seed-00040    | weapon-laser-zap | weapon-alt | 0.0823   | 0.00    |
-| lib-weapon-laser-zap_seed-00004    | weapon-laser-zap | weapon-alt | 0.1456   | 0.00    |
-
+| ID                                       | Recipe               | Category         | Distance     | Tag Sim    |
+| ---------------------------------------- | -------------------- | ---------------- | ------------ | ---------- |
+| lib-weapon-laser-zap_seed-00004          | weapon-laser-zap     | weapon-alt       | 1.4118       | 0.57       |
+| ---------------------------------------- | -------------------- | ---------------- | ------------ | ---------- |
+| lib-weapon-laser-zap_seed-00040          | weapon-laser-zap     | weapon-alt       | 1.6023       | 0.71       |
 2 similar entries found
 ```
 
-For JSON output with full distance breakdowns:
+Now play the similar sounds to compare them by ear with the original:
 
 ```bash
-toneforge library similar --id lib-weapon-laser-zap_seed-00000 --json
+toneforge generate --recipe weapon-laser-zap --seed 4
+toneforge generate --recipe weapon-laser-zap --seed 40
 ```
 
 > [!commentary]
-> Similarity uses a hybrid approach. The primary signal is the distance
-> between analysis metrics -- normalized RMS, spectral centroid, and
-> duration. Tag overlap (Jaccard similarity) acts as a tiebreaker.
-> Lower distance means more similar. All three entries are close
-> neighbours because they share the same recipe and were deliberately
-> chosen from complementary clusters. Seed 40 (cluster 3) is closer to
-> seed 0 (cluster 0) than seed 4 is, reflecting the metric gradient
-> visible in the sweep table. Tag similarity shows 0.00 here because
-> the candidates were promoted without classification data (no tags).
-> With classified entries, tag similarity provides additional ranking
-> signal. The `--limit` flag controls how many results to return
-> (default 10). This hybrid approach works well for moderate-sized
+> Similarity uses a hybrid approach. The primary signal is the Euclidean
+> distance between normalized analysis metrics -- RMS, spectral centroid,
+> duration, and zero-crossing rate. Tag overlap (Jaccard similarity) acts
+> as a tiebreaker: a higher tag similarity slightly reduces the combined
+> distance. Lower distance means more similar. Seed 4 ranks closer to
+> seed 0 than seed 40 does, reflecting the metric gradient visible in the
+> sweep table. Both show non-zero tag similarity because classification
+> data is assigned during the sweep -- seed 0 shares 4 of 7 tags with
+> seed 4 (0.57) and 5 of 7 with seed 40 (0.71). Seed 40 has higher tag
+> overlap but greater metric distance, so it still ranks second. The
+> `--limit` flag controls how many results to return (default 10).
+> Playing the similar sounds with `generate --recipe --seed` lets you
+> compare by ear -- the same workflow used in Act 1 for auditioning
+> candidates. This hybrid approach works well for moderate-sized
 > libraries; a future enhancement will add embedding-based similarity
 > for richer perceptual matching.
 
@@ -401,11 +428,11 @@ toneforge library regenerate --id lib-impact-crack_seed-00023
 
 ## Recap -- What you just learned
 
-1. **Sweep and audition** -- one sweep produces clustered candidates; `generate --recipe --seed` renders and plays a seed for auditioning
+1. **Sweep and audition** -- one sweep renders, analyzes, and classifies candidates; `generate --recipe --seed` plays a seed for auditioning
 2. **Selective promotion** -- pick complementary candidates across clusters to build a varied but cohesive palette; `--category` organizes entries from the start
 3. **Listing** -- `library list [--category <c>]` browses entries with optional category filtering
-4. **Search** -- `library search --category` finds entries by category; `--intensity`, `--texture`, and `--tags` require classification data on entries
-5. **Similarity** -- `library similar --id <id>` discovers perceptually related entries using hybrid metric+tag distance
+4. **Search** -- `library search` finds entries by `--category`, `--intensity`, `--texture`, and `--tags`; multiple filters combine with AND logic
+5. **Similarity** -- `library similar --id <id>` discovers perceptually related entries using hybrid metric distance + tag overlap; `generate --recipe --seed` plays the results for comparison
 6. **Export** -- `library export --output <dir> --format wav [--category <c>]` delivers WAV files, optionally filtered by category
 7. **Regeneration** -- `library regenerate --id <id>` re-renders from stored presets, proving determinism
 8. **JSON output** -- `--json` on all Library commands for scripting and CI integration

@@ -20,6 +20,11 @@ import {
   registerBuiltinExtractors,
 } from "../analyze/index.js";
 import type { AnalysisResult } from "../analyze/types.js";
+import {
+  createClassificationEngine,
+  registerBuiltinClassifiers,
+} from "../classify/index.js";
+import type { RecipeContext } from "../classify/types.js";
 import type {
   ExploreCandidate,
   SweepConfig,
@@ -53,15 +58,32 @@ export async function renderAndAnalyze(
 
   const renderResult = await renderRecipe(recipe, seed);
 
-  const engine = createAnalysisEngine();
-  registerBuiltinExtractors(engine);
-  const analysis = engine.analyze(renderResult.samples, renderResult.sampleRate);
+  const analysisEngine = createAnalysisEngine();
+  registerBuiltinExtractors(analysisEngine);
+  const analysis = analysisEngine.analyze(renderResult.samples, renderResult.sampleRate);
 
   // Extract rendered parameters for regeneration metadata
   const paramRng = createRng(seed);
   const params = reg.getParams(paramRng);
 
   const id = `${recipe}_seed-${String(seed).padStart(5, "0")}`;
+
+  // Classify the candidate using the analysis result and recipe context
+  const classifyEngine = createClassificationEngine();
+  registerBuiltinClassifiers(classifyEngine);
+
+  const recipeContext: RecipeContext = {
+    name: recipe,
+    category: reg.category,
+    tags: reg.tags,
+  };
+
+  const classification = classifyEngine.classify(
+    analysis,
+    id,
+    `(recipe: ${recipe}, seed: ${seed})`,
+    recipeContext,
+  );
 
   return {
     id,
@@ -71,6 +93,7 @@ export async function renderAndAnalyze(
     sampleRate: renderResult.sampleRate,
     sampleCount: renderResult.samples.length,
     analysis,
+    classification,
     score: 0,
     metricScores: {},
     cluster: -1,
