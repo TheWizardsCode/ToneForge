@@ -38,12 +38,35 @@ export function extractRecipeName(command: string): string | null {
 }
 
 /**
- * Check if a command is a generate command with a recipe and seed.
+ * Check if a command is an audio-producing command with a recipe and seed.
+ * Matches both `generate --recipe` and `sequence generate --recipe` patterns.
  */
 export function isGenerateCommand(command: string): boolean {
   return (
     command.includes("generate") &&
     extractRecipeName(command) !== null &&
+    extractSeed(command) !== null
+  );
+}
+
+/**
+ * Extract preset name from a stack render command string.
+ * Matches patterns like `stack render --preset explosion-basic`.
+ */
+export function extractPresetName(command: string): string | null {
+  const match = command.match(/--preset\s+(\S+)/);
+  return match ? match[1] : null;
+}
+
+/**
+ * Check if a command is a stack render command.
+ * Stack render uses --preset and --seed but not --recipe.
+ */
+export function isStackRenderCommand(command: string): boolean {
+  return (
+    command.includes("stack") &&
+    command.includes("render") &&
+    extractPresetName(command) !== null &&
     extractSeed(command) !== null
   );
 }
@@ -64,6 +87,20 @@ async function loadAudioDeps(): Promise<void> {
     footstepStoneModule,
     uiNotificationChimeModule,
     ambientWindGustModule,
+    footstepGravelModule,
+    creatureVocalModule,
+    vehicleEngineModule,
+    characterJumpStep1Module,
+    characterJumpStep2Module,
+    characterJumpStep3Module,
+    characterJumpStep4Module,
+    characterJumpModule,
+    impactCrackModule,
+    rumbleBodyModule,
+    debrisTailModule,
+    slamTransientModule,
+    resonanceBodyModule,
+    rattleDecayModule,
   ] = await Promise.all([
     import("tone"),
     import("@toneforge/core/rng"),
@@ -72,6 +109,20 @@ async function loadAudioDeps(): Promise<void> {
     import("@toneforge/recipes/footstep-stone"),
     import("@toneforge/recipes/ui-notification-chime"),
     import("@toneforge/recipes/ambient-wind-gust"),
+    import("@toneforge/recipes/footstep-gravel"),
+    import("@toneforge/recipes/creature-vocal"),
+    import("@toneforge/recipes/vehicle-engine"),
+    import("@toneforge/recipes/character-jump-step1"),
+    import("@toneforge/recipes/character-jump-step2"),
+    import("@toneforge/recipes/character-jump-step3"),
+    import("@toneforge/recipes/character-jump-step4"),
+    import("@toneforge/recipes/character-jump"),
+    import("@toneforge/recipes/impact-crack"),
+    import("@toneforge/recipes/rumble-body"),
+    import("@toneforge/recipes/debris-tail"),
+    import("@toneforge/recipes/slam-transient"),
+    import("@toneforge/recipes/resonance-body"),
+    import("@toneforge/recipes/rattle-decay"),
   ]);
 
   Tone = toneModule;
@@ -82,6 +133,20 @@ async function loadAudioDeps(): Promise<void> {
     "footstep-stone": footstepStoneModule.createFootstepStone,
     "ui-notification-chime": uiNotificationChimeModule.createUiNotificationChime,
     "ambient-wind-gust": ambientWindGustModule.createAmbientWindGust,
+    "footstep-gravel": footstepGravelModule.createFootstepGravel,
+    "creature-vocal": creatureVocalModule.createCreatureVocal,
+    "vehicle-engine": vehicleEngineModule.createVehicleEngine,
+    "character-jump-step1": characterJumpStep1Module.createCharacterJumpStep1,
+    "character-jump-step2": characterJumpStep2Module.createCharacterJumpStep2,
+    "character-jump-step3": characterJumpStep3Module.createCharacterJumpStep3,
+    "character-jump-step4": characterJumpStep4Module.createCharacterJumpStep4,
+    "character-jump": characterJumpModule.createCharacterJump,
+    "impact-crack": impactCrackModule.createImpactCrack,
+    "rumble-body": rumbleBodyModule.createRumbleBody,
+    "debris-tail": debrisTailModule.createDebrisTail,
+    "slam-transient": slamTransientModule.createSlamTransient,
+    "resonance-body": resonanceBodyModule.createResonanceBody,
+    "rattle-decay": rattleDecayModule.createRattleDecay,
   };
 }
 
@@ -116,8 +181,10 @@ export async function renderAndPlay(recipeName: string, seed: number): Promise<v
   const recipe = factory(rng);
   const duration = recipe.duration;
 
-  // Render offline using Tone.Offline
-  const buffer = await Tone!.Offline(({ destination }) => {
+  // Render offline using Tone.Offline.
+  // Tone.js sets the offline context as the global context during the callback,
+  // so recipe.toDestination() correctly routes to the offline destination.
+  const buffer = await Tone!.Offline(() => {
     recipe.toDestination();
     recipe.start(0);
     recipe.stop(duration);
@@ -130,9 +197,21 @@ export async function renderAndPlay(recipeName: string, seed: number): Promise<v
 
 /**
  * Handle a command: if it's a generate command, render and play in the browser.
+ * Stack render commands are detected but gracefully skipped (browser-side
+ * multi-layer rendering from preset files is not yet supported).
  * Returns true if audio was played, false otherwise.
  */
 export async function handleCommandAudio(command: string): Promise<boolean> {
+  // Stack render commands: detected but not yet supported in the browser.
+  // Log a visible notice so the user understands why there's no audio.
+  if (isStackRenderCommand(command)) {
+    console.info(
+      "Stack render detected — browser audio playback for stacked presets is not yet supported. " +
+      "Audio will play from the CLI output only.",
+    );
+    return false;
+  }
+
   if (!isGenerateCommand(command)) {
     return false;
   }

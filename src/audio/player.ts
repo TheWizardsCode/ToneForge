@@ -309,6 +309,28 @@ export async function playAudio(
 ): Promise<void> {
   const { sampleRate = 44100 } = options;
 
+  // Validate samples contain non-silent audio
+  if (samples.length === 0) {
+    throw new Error("Cannot play empty audio buffer (0 samples).");
+  }
+
+  let peak = 0;
+  for (let i = 0; i < samples.length; i++) {
+    const abs = Math.abs(samples[i]);
+    if (abs > peak) peak = abs;
+  }
+  if (peak === 0) {
+    console.warn(
+      "Audio buffer is completely silent (all zeros). " +
+      "The recipe may have failed to produce output.",
+    );
+  } else if (peak < 0.001) {
+    console.warn(
+      `Audio buffer peak amplitude is very low (${peak.toFixed(6)}). ` +
+      "Playback may be inaudible.",
+    );
+  }
+
   // Encode to WAV
   const wavBuffer = encodeWav(samples, { sampleRate });
   profiler.mark("wav_encode");

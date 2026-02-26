@@ -9,7 +9,13 @@
  * any AudioContext creation.
  */
 import { describe, it, expect } from "vitest";
-import { extractSeed, extractRecipeName, isGenerateCommand } from "../src/audio.js";
+import {
+  extractSeed,
+  extractRecipeName,
+  extractPresetName,
+  isGenerateCommand,
+  isStackRenderCommand,
+} from "../src/audio.js";
 
 describe("extractSeed", () => {
   it("extracts seed from --seed 42 format", () => {
@@ -98,6 +104,10 @@ describe("isGenerateCommand", () => {
     expect(isGenerateCommand("generate --recipe ambient-wind-gust --seed 55")).toBe(true);
   });
 
+  it("returns true for a sequence generate command", () => {
+    expect(isGenerateCommand("toneforge sequence generate --recipe ui-scifi-confirm --seed 42")).toBe(true);
+  });
+
   it("returns false when missing --seed", () => {
     expect(isGenerateCommand("tf generate --recipe ui-scifi-confirm")).toBe(false);
   });
@@ -112,5 +122,43 @@ describe("isGenerateCommand", () => {
 
   it("returns false for empty string", () => {
     expect(isGenerateCommand("")).toBe(false);
+  });
+});
+
+describe("extractPresetName", () => {
+  it("extracts preset name from --preset explosion-basic", () => {
+    expect(
+      extractPresetName("toneforge stack render --preset explosion-basic --seed 42"),
+    ).toBe("explosion-basic");
+  });
+
+  it("returns null when no --preset is present", () => {
+    expect(extractPresetName("toneforge stack render --seed 42")).toBeNull();
+  });
+
+  it("returns null for empty string", () => {
+    expect(extractPresetName("")).toBeNull();
+  });
+});
+
+describe("isStackRenderCommand", () => {
+  it("returns true for a valid stack render command", () => {
+    expect(isStackRenderCommand("toneforge stack render --preset explosion-basic --seed 42")).toBe(true);
+  });
+
+  it("returns false when missing --preset", () => {
+    expect(isStackRenderCommand("toneforge stack render --seed 42")).toBe(false);
+  });
+
+  it("returns false when missing --seed", () => {
+    expect(isStackRenderCommand("toneforge stack render --preset explosion-basic")).toBe(false);
+  });
+
+  it("returns false for a generate command (not stack render)", () => {
+    expect(isStackRenderCommand("tf generate --recipe ui-scifi-confirm --seed 42")).toBe(false);
+  });
+
+  it("returns false for empty string", () => {
+    expect(isStackRenderCommand("")).toBe(false);
   });
 });
