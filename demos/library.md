@@ -85,13 +85,16 @@ toneforge generate --recipe weapon-laser-zap --seed 0
 toneforge generate --recipe weapon-laser-zap --seed 4
 toneforge generate --recipe weapon-laser-zap --seed 30
 toneforge generate --recipe weapon-laser-zap --seed 2
+toneforge generate --recipe weapon-laser-zap --seed 9
 ```
 
 Seed 0 (cluster 0) is the sharpest and brightest. Seeds 4 and 30
 (cluster 1) are heavy and direct -- high energy with a dark timbre, and
 nearly identical metrics. Seed 2 (also cluster 1) pushes harder but is
-shorter. Pick seed 0 as the lead and two cluster-1 neighbours to build
-a palette where the alternatives are close enough to swap freely.
+shorter. Seed 9 rounds out the audition -- similar to 4 and 30 but
+slightly softer. Pick seed 0 as the lead and two cluster-1 neighbours
+(4 and 30) to build a palette where the alternatives are close enough
+to swap freely.
 
 Use `--category` on promote to organize entries from the start.
 Seed 0 is the lead shot -- file it under `weapon`. Seeds 4 and 30 are
