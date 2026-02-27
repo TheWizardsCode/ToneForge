@@ -586,33 +586,20 @@ toneforge sequence inspect --preset presets/sequences/weapon_burst.json --valida
 async function printRuntimeHelp(): Promise<void> {
   const md = `# ToneForge runtime
 
-**Run a scripted real-time demo of state-driven behavioral sound**
+**Run a scripted real-time session of state-driven behavioral sound**
 
 ## Usage
 
 \`\`\`
-toneforge runtime [--seed <number>] [--script <file>]
+toneforge runtime --script <file> [--seed <number>] [--json]
 \`\`\`
 
 ## Options
 
+- \`--script <file>\` — **(required)** Path to a JSON script file with commands
 - \`--seed <number>\` — Base seed for deterministic runtime session (default: 42)
-- \`--script <file>\` — Path to a JSON script file with commands (default: built-in demo)
 - \`--json\` — Output all runtime events as JSONL to stdout
 - \`--help\`, \`-h\` — Show this help message
-
-## Built-in Demo
-
-Without \`--script\`, runs a built-in demo showing:
-
-1. Runtime start
-2. Context: set surface to stone
-3. State: walk (footstep sequence triggers)
-4. State: run (transition, new cadence)
-5. Context: switch surface to gravel (recipe re-maps)
-6. State: sprint (faster cadence)
-7. Inspect runtime state, transitions, and active sequences
-8. Runtime stop
 
 ## Script File Format
 
@@ -630,12 +617,15 @@ A JSON array of command objects:
 ]
 \`\`\`
 
+Available commands: \`start\`, \`stop\`, \`context.set\`, \`state.set\`, \`inspect\`, \`log\`.
+
+A walkthrough script is provided at \`demos/scripts/runtime-walkthrough.json\`.
+
 ## Examples
 
 \`\`\`
-toneforge runtime
-toneforge runtime --seed 42
-toneforge runtime --seed 42 --json
+toneforge runtime --script demos/scripts/runtime-walkthrough.json --seed 42
+toneforge runtime --script demos/scripts/runtime-walkthrough.json --seed 42 --json
 toneforge runtime --script my-script.json --seed 100
 \`\`\``;
   await outputMarkdown(md);
@@ -3723,38 +3713,27 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       args?: Record<string, unknown>;
     }
 
-    // ── Built-in demo script ─────────────────────────────────────
-    const builtInScript: RuntimeCmd[] = [
-      { cmd: "start" },
-      { cmd: "context.set", args: { surface: "stone" } },
-      { cmd: "state.set", args: { state: "walk" } },
-      { cmd: "state.set", args: { state: "run" } },
-      { cmd: "context.set", args: { surface: "gravel" } },
-      { cmd: "state.set", args: { state: "sprint" } },
-      { cmd: "inspect" },
-      { cmd: "log" },
-      { cmd: "stop" },
-    ];
-
     // ── Load script ──────────────────────────────────────────────
+    if (!scriptPath) {
+      const msg = `The --script flag is required. Provide a path to a JSON script file.\nExample: toneforge runtime --script demos/scripts/runtime-walkthrough.json --seed 42`;
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+
     let script: RuntimeCmd[];
-    if (scriptPath) {
-      try {
-        const raw = await readFile(resolve(scriptPath), "utf-8");
-        script = JSON.parse(raw) as RuntimeCmd[];
-        if (!Array.isArray(script)) {
-          const msg = `Script file must contain a JSON array of commands.`;
-          if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
-          return 1;
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        const msg = `Failed to load script '${scriptPath}': ${message}`;
+    try {
+      const raw = await readFile(resolve(scriptPath), "utf-8");
+      script = JSON.parse(raw) as RuntimeCmd[];
+      if (!Array.isArray(script)) {
+        const msg = `Script file must contain a JSON array of commands.`;
         if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
         return 1;
       }
-    } else {
-      script = builtInScript;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const msg = `Failed to load script '${scriptPath}': ${message}`;
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
     }
 
     // ── Build movement state machine ─────────────────────────────

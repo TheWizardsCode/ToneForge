@@ -22,16 +22,16 @@ ToneForge's **runtime** ties together three new modules:
 
 This demo runs a scripted session showing all three working together.
 
-## Act 1 -- Run the built-in demo
+## Act 1 -- Run the walkthrough script
 
 > You want to see state-driven sound behavior in action without writing
-> any code. The `runtime` command runs a built-in scripted demo.
+> any code. The `runtime` command runs a scripted session from a JSON file.
 
 ```bash
-toneforge runtime --seed 42
+toneforge runtime --script demos/scripts/runtime-walkthrough.json --seed 42
 ```
 
-The demo walks through a complete session: start the runtime, set the
+The script walks through a complete session: start the runtime, set the
 surface to stone, transition through walk, run, and sprint states,
 switch the surface to gravel mid-session, inspect the full state, view
 the event log, and stop.
@@ -52,11 +52,11 @@ the event log, and stop.
 Run the demo twice with JSON output and compare:
 
 ```bash
-toneforge runtime --seed 42 --json > /tmp/run_a.jsonl
+toneforge runtime --script demos/scripts/runtime-walkthrough.json --seed 42 --json > /tmp/run_a.jsonl
 ```
 
 ```bash
-toneforge runtime --seed 42 --json > /tmp/run_b.jsonl
+toneforge runtime --script demos/scripts/runtime-walkthrough.json --seed 42 --json > /tmp/run_b.jsonl
 ```
 
 The two JSONL files are byte-identical. Every event ID, timestamp, seed,
@@ -74,11 +74,11 @@ and state transition matches exactly.
 > You're debugging a footstep bug and need to see the full state
 > machine history, active sequences, and context snapshot.
 
-The built-in demo includes an `inspect` command. To see just the
+The walkthrough script includes an `inspect` command. To see just the
 inspection output in machine-readable form:
 
 ```bash
-toneforge runtime --seed 42 --json
+toneforge runtime --script demos/scripts/runtime-walkthrough.json --seed 42 --json
 ```
 
 Look for the line with `"cmd":"inspect"` in the JSONL output. It
@@ -137,7 +137,7 @@ Available commands: `start`, `stop`, `context.set`, `state.set`,
 > behavior programmatically.
 
 ```bash
-toneforge runtime --seed 42 --json
+toneforge runtime --script demos/scripts/runtime-walkthrough.json --seed 42 --json
 ```
 
 Every line of JSONL output is a structured event. Command results
