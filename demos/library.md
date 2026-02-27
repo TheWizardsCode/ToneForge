@@ -239,6 +239,26 @@ toneforge library search --texture warm
 Found 2 matches
 ```
 
+Search by intensity to confirm all laser entries are high-energy:
+
+```bash
+toneforge library search --intensity aggressive
+```
+
+```
+| ID                                       | Recipe               | Category         | Intensity    | Tags                           |
+| ---------------------------------------- | -------------------- | ---------------- | ------------ | ------------------------------ |
+| lib-weapon-laser-zap_seed-00000          | weapon-laser-zap     | weapon           | aggressive   | laser, sci-fi, zap, crunchy,   |
+|                                          |                      |                  |              | harsh, sharp                   |
+| ---------------------------------------- | -------------------- | ---------------- | ------------ | ------------------------------ |
+| lib-weapon-laser-zap_seed-00004          | weapon-laser-zap     | weapon-alt       | aggressive   | laser, sci-fi, zap, sharp,     |
+|                                          |                      |                  |              | warm                           |
+| ---------------------------------------- | -------------------- | ---------------- | ------------ | ------------------------------ |
+| lib-weapon-laser-zap_seed-00030          | weapon-laser-zap     | weapon-alt       | aggressive   | laser, sci-fi, zap, sharp,     |
+|                                          |                      |                  |              | warm                           |
+Found 3 matches
+```
+
 Combine filters with AND logic -- find sharp sounds in the lead category:
 
 ```bash

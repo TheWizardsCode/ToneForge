@@ -130,7 +130,12 @@ $TONEFORGE library search --texture warm $JSON_FLAG
 
 echo ""
 
-echo "--- Step 4c: Search with combined AND filters ---"
+echo "--- Step 4c: Search by intensity ---"
+$TONEFORGE library search --intensity aggressive $JSON_FLAG
+
+echo ""
+
+echo "--- Step 4d: Search with combined AND filters ---"
 $TONEFORGE library search --tags sharp --category weapon $JSON_FLAG
 
 echo ""

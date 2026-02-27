@@ -1,0 +1,15 @@
+{
+  "version": "1.0",
+  "name": "footsteps_sprint",
+  "description": "Sprinting footstep pattern. Fast cadence (~0.25s per step) with high intensity. Default surface: stone. Runtime recipe resolver swaps based on context.",
+  "events": [
+    { "time": 0,    "event": "footstep-stone", "seedOffset": 0, "gain": 1.0 },
+    { "time": 0.25, "event": "footstep-stone", "seedOffset": 1, "gain": 0.95 },
+    { "time": 0.5,  "event": "footstep-stone", "seedOffset": 2, "gain": 1.0 },
+    { "time": 0.75, "event": "footstep-stone", "seedOffset": 3, "gain": 0.97 }
+  ],
+  "repeat": {
+    "count": 5,
+    "interval": 1.0
+  }
+}

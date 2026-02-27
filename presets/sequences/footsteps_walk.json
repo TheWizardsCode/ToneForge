@@ -1,0 +1,15 @@
+{
+  "version": "1.0",
+  "name": "footsteps_walk",
+  "description": "Walking footstep pattern. Relaxed cadence (~0.6s per step) with slight gain variation. Default surface: stone. Runtime recipe resolver swaps based on context.",
+  "events": [
+    { "time": 0,    "event": "footstep-stone", "seedOffset": 0, "gain": 0.7 },
+    { "time": 0.6,  "event": "footstep-stone", "seedOffset": 1, "gain": 0.65 },
+    { "time": 1.2,  "event": "footstep-stone", "seedOffset": 2, "gain": 0.7 },
+    { "time": 1.8,  "event": "footstep-stone", "seedOffset": 3, "gain": 0.68 }
+  ],
+  "repeat": {
+    "count": 3,
+    "interval": 2.4
+  }
+}

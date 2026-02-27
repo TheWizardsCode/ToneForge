@@ -20,7 +20,7 @@
  * Reference: docs/prd/CLI_PRD.md Section 4.1, 5.1
  */
 
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync, realpathSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { execFile } from "node:child_process";
@@ -78,6 +78,12 @@ import { regenerateEntry } from "./library/regenerate.js";
 import { loadSequencePreset, validateSequencePresetFile } from "./sequence/preset-loader.js";
 import { simulate, formatTimeline } from "./sequence/simulator.js";
 import { renderSequence } from "./sequence/renderer.js";
+import { createRuntime } from "./runtime/index.js";
+import type { RuntimeLogEntry, RuntimeInspection, SequenceMap, RecipeResolver } from "./runtime/runtime.js";
+import { createStateMachine } from "./state/index.js";
+import type { StateMachineDefinition } from "./state/state.js";
+import { createContext } from "./context/index.js";
+import type { SequenceDefinition } from "./sequence/schema.js";
 
 /** Parse command-line arguments into a structured map. */
 function parseArgs(argv: string[]): {
@@ -148,6 +154,7 @@ async function printHelp(): Promise<void> {
 | **classify** | Assign semantic labels to analyzed sounds |
 | **explore** | Discover, rank, and curate sounds across seed spaces |
 | **library** | Manage the curated sound library (list, search, export) |
+| **runtime** | Run a scripted real-time demo of state-driven behavioral sound |
 | **sequence** | Schedule and render temporal event patterns from presets |
 | **stack** | Compose layered sound events from multiple recipes |
 | **show** | Display recipe metadata and parameters |
@@ -571,6 +578,65 @@ toneforge sequence inspect --preset <file> [--validate]
 \`\`\`
 toneforge sequence inspect --preset presets/sequences/weapon_burst.json
 toneforge sequence inspect --preset presets/sequences/weapon_burst.json --validate
+\`\`\``;
+  await outputMarkdown(md);
+}
+
+/** Print help text for the runtime command. */
+async function printRuntimeHelp(): Promise<void> {
+  const md = `# ToneForge runtime
+
+**Run a scripted real-time demo of state-driven behavioral sound**
+
+## Usage
+
+\`\`\`
+toneforge runtime [--seed <number>] [--script <file>]
+\`\`\`
+
+## Options
+
+- \`--seed <number>\` — Base seed for deterministic runtime session (default: 42)
+- \`--script <file>\` — Path to a JSON script file with commands (default: built-in demo)
+- \`--json\` — Output all runtime events as JSONL to stdout
+- \`--help\`, \`-h\` — Show this help message
+
+## Built-in Demo
+
+Without \`--script\`, runs a built-in demo showing:
+
+1. Runtime start
+2. Context: set surface to stone
+3. State: walk (footstep sequence triggers)
+4. State: run (transition, new cadence)
+5. Context: switch surface to gravel (recipe re-maps)
+6. State: sprint (faster cadence)
+7. Inspect runtime state, transitions, and active sequences
+8. Runtime stop
+
+## Script File Format
+
+A JSON array of command objects:
+
+\`\`\`json
+[
+  { "cmd": "start" },
+  { "cmd": "context.set", "args": { "surface": "stone" } },
+  { "cmd": "state.set", "args": { "state": "walk" } },
+  { "cmd": "state.set", "args": { "state": "run" } },
+  { "cmd": "context.set", "args": { "surface": "gravel" } },
+  { "cmd": "inspect" },
+  { "cmd": "stop" }
+]
+\`\`\`
+
+## Examples
+
+\`\`\`
+toneforge runtime
+toneforge runtime --seed 42
+toneforge runtime --seed 42 --json
+toneforge runtime --script my-script.json --seed 100
 \`\`\``;
   await outputMarkdown(md);
 }
@@ -1189,6 +1255,8 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       } else {
         await printSequenceHelp();
       }
+    } else if (command === "runtime") {
+      await printRuntimeHelp();
     } else {
       await printHelp();
     }
@@ -3624,6 +3692,334 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     }
 
     await printSequenceHelp();
+    return 0;
+  }
+
+  // ── Runtime command ──────────────────────────────────────────────
+  if (command === "runtime") {
+    if (flags["help"]) {
+      await printRuntimeHelp();
+      return 0;
+    }
+
+    // Parse --seed (default 42)
+    const seedRaw = flags["seed"];
+    let seed = 42;
+    if (seedRaw !== undefined && seedRaw !== true) {
+      seed = parseInt(seedRaw as string, 10);
+      if (Number.isNaN(seed)) {
+        const msg = `--seed must be an integer, got '${seedRaw}'.`;
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+    }
+
+    // Parse --script (optional JSON file with commands)
+    const scriptPath = typeof flags["script"] === "string" ? flags["script"] : undefined;
+
+    // ── Command types ────────────────────────────────────────────
+    interface RuntimeCmd {
+      cmd: "start" | "stop" | "context.set" | "state.set" | "inspect" | "log";
+      args?: Record<string, unknown>;
+    }
+
+    // ── Built-in demo script ─────────────────────────────────────
+    const builtInScript: RuntimeCmd[] = [
+      { cmd: "start" },
+      { cmd: "context.set", args: { surface: "stone" } },
+      { cmd: "state.set", args: { state: "walk" } },
+      { cmd: "state.set", args: { state: "run" } },
+      { cmd: "context.set", args: { surface: "gravel" } },
+      { cmd: "state.set", args: { state: "sprint" } },
+      { cmd: "inspect" },
+      { cmd: "log" },
+      { cmd: "stop" },
+    ];
+
+    // ── Load script ──────────────────────────────────────────────
+    let script: RuntimeCmd[];
+    if (scriptPath) {
+      try {
+        const raw = await readFile(resolve(scriptPath), "utf-8");
+        script = JSON.parse(raw) as RuntimeCmd[];
+        if (!Array.isArray(script)) {
+          const msg = `Script file must contain a JSON array of commands.`;
+          if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+          return 1;
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        const msg = `Failed to load script '${scriptPath}': ${message}`;
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+    } else {
+      script = builtInScript;
+    }
+
+    // ── Build movement state machine ─────────────────────────────
+    const movementDef: StateMachineDefinition = {
+      name: "movement",
+      states: [
+        { name: "idle", params: { cadence: 0, intensity: 0 } },
+        { name: "walk", sequencer: "footsteps_walk", params: { cadence: 0.6, intensity: 0.7 } },
+        { name: "run", sequencer: "footsteps_run", params: { cadence: 0.35, intensity: 0.85 } },
+        { name: "sprint", sequencer: "footsteps_sprint", params: { cadence: 0.25, intensity: 1.0 } },
+      ],
+      initial: "idle",
+      transitions: [
+        { from: "idle", to: "walk" },
+        { from: "walk", to: "idle" },
+        { from: "walk", to: "run" },
+        { from: "run", to: "walk" },
+        { from: "run", to: "sprint" },
+        { from: "sprint", to: "run" },
+        { from: "sprint", to: "walk" },
+        { from: "walk", to: "sprint" },
+        { from: "idle", to: "run" },
+        { from: "run", to: "idle" },
+        { from: "idle", to: "sprint" },
+        { from: "sprint", to: "idle" },
+      ],
+    };
+
+    // ── Use a deterministic clock ────────────────────────────────
+    let clockMs = 0;
+    const clock = () => clockMs;
+
+    const stateMachine = createStateMachine(movementDef, { clock });
+    const context = createContext({
+      dimensions: { surface: ["stone", "gravel"] },
+      initial: {},
+      clock,
+    });
+
+    // ── Load footstep sequence presets ────────────────────────────
+    const presetNames = ["footsteps_walk", "footsteps_run", "footsteps_sprint"];
+    const sequences: SequenceMap = {};
+    for (const name of presetNames) {
+      try {
+        const def = await loadSequencePreset(resolve(`presets/sequences/${name}.json`));
+        sequences[name] = def;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        const msg = `Failed to load preset '${name}': ${message}`;
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+    }
+
+    // ── Recipe resolver: swap surface suffix ─────────────────────
+    const recipeResolver: RecipeResolver = (eventName, ctx) => {
+      const surface = ctx["surface"];
+      if (surface && eventName.startsWith("footstep-")) {
+        return `footstep-${surface}`;
+      }
+      return eventName;
+    };
+
+    // ── Create runtime ───────────────────────────────────────────
+    const runtime = createRuntime({
+      stateMachine,
+      context,
+      sequences,
+      seed,
+      clock,
+      recipeResolver,
+    });
+
+    // ── Execute script ───────────────────────────────────────────
+    if (!jsonMode) {
+      outputInfo(`ToneForge Runtime Demo (seed: ${seed})`);
+      outputInfo("─".repeat(50));
+    }
+
+    for (const step of script) {
+      // Advance clock by 100ms between commands (simulated real-time)
+      clockMs += 100;
+
+      try {
+        switch (step.cmd) {
+          case "start": {
+            const sessionId = runtime.start();
+            if (jsonMode) {
+              jsonOut({ cmd: "start", sessionId, seed });
+            } else {
+              outputInfo(`> runtime.start()`);
+              outputSuccess(`  [Runtime started: session=${sessionId}, seed=${seed}]`);
+            }
+            break;
+          }
+
+          case "stop": {
+            runtime.stop();
+            if (jsonMode) {
+              jsonOut({ cmd: "stop", timestamp: clockMs });
+            } else {
+              outputInfo(`> runtime.stop()`);
+              outputSuccess(`  [Runtime stopped at t=${clockMs}ms]`);
+            }
+            break;
+          }
+
+          case "context.set": {
+            const updates = (step.args ?? {}) as Record<string, string>;
+            const changes = runtime.setContext(updates);
+            if (jsonMode) {
+              jsonOut({
+                cmd: "context.set",
+                updates,
+                changes: changes.map((c: { dimension: string; previousValue: string | undefined; newValue: string }) => ({
+                  dimension: c.dimension,
+                  from: c.previousValue ?? null,
+                  to: c.newValue,
+                })),
+              });
+            } else {
+              const updateStr = Object.entries(updates)
+                .map(([k, v]) => `${k}: ${v}`)
+                .join(", ");
+              outputInfo(`> context.set({ ${updateStr} })`);
+              for (const c of changes) {
+                const fromStr = c.previousValue ?? "(unset)";
+                outputSuccess(
+                  `  [Context changed: ${c.dimension} ${fromStr} -> ${c.newValue}]`,
+                );
+              }
+            }
+            break;
+          }
+
+          case "state.set": {
+            const stateName = (step.args as Record<string, string>)?.["state"];
+            if (!stateName) {
+              const msg = `state.set requires args.state`;
+              if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+              return 1;
+            }
+            const prev = stateMachine.current();
+            const transition = runtime.setState(stateName);
+
+            // Simulate the active sequence to show timeline preview
+            const sim = runtime.simulateActive();
+
+            if (jsonMode) {
+              jsonOut({
+                cmd: "state.set",
+                from: transition.from,
+                to: transition.to,
+                seq: transition.seq,
+                durationInPreviousMs: transition.durationInPreviousMs,
+                activeSequence: sim
+                  ? { name: sim.name, events: sim.events.length, duration: sim.totalDuration }
+                  : null,
+              });
+            } else {
+              outputInfo(`> state.set("movement", "${stateName}")`);
+              if (transition.from !== transition.to) {
+                outputSuccess(
+                  `  [Transition: ${transition.from} -> ${transition.to}]`,
+                );
+              }
+              if (sim) {
+                // Show a few upcoming events from the simulated sequence
+                const surface = context.getDimension("surface") ?? "stone";
+                const previewCount = Math.min(3, sim.events.length);
+                const cadence = sim.events.length > 1
+                  ? ((sim.events[1]!.time_ms - sim.events[0]!.time_ms) / 1000).toFixed(2)
+                  : "n/a";
+                outputSuccess(
+                  `  [Playing: ${sim.name} on ${surface}, cadence=${cadence}s, ` +
+                  `${sim.events.length} events, duration=${sim.totalDuration.toFixed(2)}s]`,
+                );
+                for (let i = 0; i < previewCount; i++) {
+                  const ev = sim.events[i]!;
+                  const resolvedRecipe = recipeResolver(ev.event, context.get());
+                  outputInfo(
+                    `    t=${ev.time_ms.toFixed(0)}ms  ${resolvedRecipe}  seed=${ev.eventSeed}  gain=${ev.gain.toFixed(2)}`,
+                  );
+                }
+                if (sim.events.length > previewCount) {
+                  outputInfo(`    ... and ${sim.events.length - previewCount} more events`);
+                }
+              }
+            }
+            break;
+          }
+
+          case "inspect": {
+            const inspection = runtime.inspect();
+            if (jsonMode) {
+              jsonOut({ cmd: "inspect", ...(inspection as unknown as Record<string, unknown>) });
+            } else {
+              outputInfo(`> state.inspect()`);
+              if (inspection.state) {
+                outputInfo(`  machine: ${inspection.state.machineName}`);
+                outputInfo(`  movement: ${inspection.state.currentState} (in state for ${inspection.state.timeInCurrentMs}ms)`);
+                if (inspection.state.transitions.length > 0) {
+                  outputInfo(`  transitions (last ${inspection.state.transitions.length}):`);
+                  for (const t of inspection.state.transitions) {
+                    outputInfo(`    #${t.seq}: ${t.from} -> ${t.to} (after ${t.durationInPreviousMs}ms)`);
+                  }
+                }
+                if (inspection.state.activeSequence) {
+                  outputInfo(`  active sequence: ${inspection.state.activeSequence}`);
+                }
+              }
+              outputInfo(`  context: ${JSON.stringify(inspection.context)}`);
+              outputInfo(`  session: ${inspection.sessionId}`);
+              outputInfo(`  events fired: ${inspection.eventCount}`);
+              outputInfo(`  seed: ${inspection.seed}`);
+            }
+            break;
+          }
+
+          case "log": {
+            const limit = typeof step.args?.["limit"] === "number" ? step.args["limit"] as number : 20;
+            const entries = runtime.log(limit);
+            if (jsonMode) {
+              for (const entry of entries) {
+                jsonOut(entry as unknown as Record<string, unknown>);
+              }
+            } else {
+              outputInfo(`> runtime.log(${limit})`);
+              if (entries.length === 0) {
+                outputInfo(`  (no log entries)`);
+              } else {
+                outputInfo(`  ${entries.length} entries:`);
+                for (const entry of entries) {
+                  const ev = entry.event;
+                  const seedStr = ev.seed !== undefined ? ` seed=${ev.seed}` : "";
+                  const detailStr = Object.keys(ev.detail).length > 0
+                    ? " " + JSON.stringify(ev.detail)
+                    : "";
+                  outputInfo(`    #${ev.id} t=${ev.timestamp}ms ${ev.type}${seedStr}${detailStr}`);
+                }
+              }
+            }
+            break;
+          }
+
+          default: {
+            const msg = `Unknown runtime command '${step.cmd}'. Valid: start, stop, context.set, state.set, inspect, log`;
+            if (jsonMode) { jsonErr(msg); } else { outputWarning(`Warning: ${msg}`); }
+          }
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (jsonMode) {
+          jsonErr(`Command '${step.cmd}' failed: ${message}`);
+        } else {
+          outputError(`  [Error: ${message}]`);
+        }
+      }
+    }
+
+    if (!jsonMode) {
+      outputInfo("─".repeat(50));
+      outputSuccess("Demo complete.");
+    }
+
     return 0;
   }
 
