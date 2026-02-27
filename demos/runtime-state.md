@@ -16,12 +16,9 @@ from stone to gravel -- and the recipe switches instantly.
 
 ToneForge's **runtime** ties together three new modules:
 
-1. **State** -- a state machine that tracks discrete states (idle, walk,
-   run, sprint) with explicit transitions and inspection
-2. **Context** -- environmental dimensions (surface, weather) that drive
-   recipe selection
-3. **Runtime** -- the orchestrator that reacts to state and context
-   changes, fires sequence events, and logs everything deterministically
+1. **State** -- a state machine that tracks discrete states (idle, walk, run, sprint) with explicit transitions and inspection
+2. **Context** -- environmental dimensions (surface, weather) that drive recipe selection
+3. **Runtime** -- the orchestrator that reacts to state and context changes, fires sequence events, and logs everything deterministically
 
 This demo runs a scripted session showing all three working together.
 
