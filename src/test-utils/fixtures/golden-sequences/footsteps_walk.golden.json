@@ -1,0 +1,153 @@
+{
+  "name": "footsteps_walk",
+  "seed": 42,
+  "sampleRate": 44100,
+  "totalDuration": 9,
+  "totalDuration_ms": 9000,
+  "events": [
+    {
+      "time_ms": 0,
+      "sampleOffset": 0,
+      "event": "footstep-stone",
+      "seedOffset": 0,
+      "eventSeed": 42,
+      "gain": 0.7,
+      "repetition": 0
+    },
+    {
+      "time_ms": 600,
+      "sampleOffset": 26460,
+      "event": "footstep-stone",
+      "seedOffset": 1,
+      "eventSeed": 43,
+      "gain": 0.65,
+      "repetition": 0
+    },
+    {
+      "time_ms": 1200,
+      "sampleOffset": 52920,
+      "event": "footstep-stone",
+      "seedOffset": 2,
+      "eventSeed": 44,
+      "gain": 0.7,
+      "repetition": 0
+    },
+    {
+      "time_ms": 1800,
+      "sampleOffset": 79380,
+      "event": "footstep-stone",
+      "seedOffset": 3,
+      "eventSeed": 45,
+      "gain": 0.68,
+      "repetition": 0
+    },
+    {
+      "time_ms": 2400,
+      "sampleOffset": 105840,
+      "event": "footstep-stone",
+      "seedOffset": 0,
+      "eventSeed": 42,
+      "gain": 0.7,
+      "repetition": 1
+    },
+    {
+      "time_ms": 3000,
+      "sampleOffset": 132300,
+      "event": "footstep-stone",
+      "seedOffset": 1,
+      "eventSeed": 43,
+      "gain": 0.65,
+      "repetition": 1
+    },
+    {
+      "time_ms": 3600,
+      "sampleOffset": 158760,
+      "event": "footstep-stone",
+      "seedOffset": 2,
+      "eventSeed": 44,
+      "gain": 0.7,
+      "repetition": 1
+    },
+    {
+      "time_ms": 4200,
+      "sampleOffset": 185220,
+      "event": "footstep-stone",
+      "seedOffset": 3,
+      "eventSeed": 45,
+      "gain": 0.68,
+      "repetition": 1
+    },
+    {
+      "time_ms": 4800,
+      "sampleOffset": 211680,
+      "event": "footstep-stone",
+      "seedOffset": 0,
+      "eventSeed": 42,
+      "gain": 0.7,
+      "repetition": 2
+    },
+    {
+      "time_ms": 5400,
+      "sampleOffset": 238140,
+      "event": "footstep-stone",
+      "seedOffset": 1,
+      "eventSeed": 43,
+      "gain": 0.65,
+      "repetition": 2
+    },
+    {
+      "time_ms": 6000,
+      "sampleOffset": 264600,
+      "event": "footstep-stone",
+      "seedOffset": 2,
+      "eventSeed": 44,
+      "gain": 0.7,
+      "repetition": 2
+    },
+    {
+      "time_ms": 6600,
+      "sampleOffset": 291060,
+      "event": "footstep-stone",
+      "seedOffset": 3,
+      "eventSeed": 45,
+      "gain": 0.68,
+      "repetition": 2
+    },
+    {
+      "time_ms": 7199.999999999999,
+      "sampleOffset": 317520,
+      "event": "footstep-stone",
+      "seedOffset": 0,
+      "eventSeed": 42,
+      "gain": 0.7,
+      "repetition": 3
+    },
+    {
+      "time_ms": 7799.999999999999,
+      "sampleOffset": 343980,
+      "event": "footstep-stone",
+      "seedOffset": 1,
+      "eventSeed": 43,
+      "gain": 0.65,
+      "repetition": 3
+    },
+    {
+      "time_ms": 8400,
+      "sampleOffset": 370440,
+      "event": "footstep-stone",
+      "seedOffset": 2,
+      "eventSeed": 44,
+      "gain": 0.7,
+      "repetition": 3
+    },
+    {
+      "time_ms": 9000,
+      "sampleOffset": 396900,
+      "event": "footstep-stone",
+      "seedOffset": 3,
+      "eventSeed": 45,
+      "gain": 0.68,
+      "repetition": 3
+    }
+  ]
+}

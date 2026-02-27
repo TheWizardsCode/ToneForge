@@ -1,0 +1,189 @@
+{
+  "name": "footsteps_run",
+  "seed": 42,
+  "sampleRate": 44100,
+  "totalDuration": 6.65,
+  "totalDuration_ms": 6650,
+  "events": [
+    {
+      "time_ms": 0,
+      "sampleOffset": 0,
+      "event": "footstep-stone",
+      "seedOffset": 0,
+      "eventSeed": 42,
+      "gain": 0.85,
+      "repetition": 0
+    },
+    {
+      "time_ms": 350,
+      "sampleOffset": 15435,
+      "event": "footstep-stone",
+      "seedOffset": 1,
+      "eventSeed": 43,
+      "gain": 0.8,
+      "repetition": 0
+    },
+    {
+      "time_ms": 700,
+      "sampleOffset": 30870,
+      "event": "footstep-stone",
+      "seedOffset": 2,
+      "eventSeed": 44,
+      "gain": 0.85,
+      "repetition": 0
+    },
+    {
+      "time_ms": 1050,
+      "sampleOffset": 46305,
+      "event": "footstep-stone",
+      "seedOffset": 3,
+      "eventSeed": 45,
+      "gain": 0.82,
+      "repetition": 0
+    },
+    {
+      "time_ms": 1400,
+      "sampleOffset": 61740,
+      "event": "footstep-stone",
+      "seedOffset": 0,
+      "eventSeed": 42,
+      "gain": 0.85,
+      "repetition": 1
+    },
+    {
+      "time_ms": 1750,
+      "sampleOffset": 77175,
+      "event": "footstep-stone",
+      "seedOffset": 1,
+      "eventSeed": 43,
+      "gain": 0.8,
+      "repetition": 1
+    },
+    {
+      "time_ms": 2100,
+      "sampleOffset": 92610,
+      "event": "footstep-stone",
+      "seedOffset": 2,
+      "eventSeed": 44,
+      "gain": 0.85,
+      "repetition": 1
+    },
+    {
+      "time_ms": 2450,
+      "sampleOffset": 108045,
+      "event": "footstep-stone",
+      "seedOffset": 3,
+      "eventSeed": 45,
+      "gain": 0.82,
+      "repetition": 1
+    },
+    {
+      "time_ms": 2800,
+      "sampleOffset": 123480,
+      "event": "footstep-stone",
+      "seedOffset": 0,
+      "eventSeed": 42,
+      "gain": 0.85,
+      "repetition": 2
+    },
+    {
+      "time_ms": 3150,
+      "sampleOffset": 138915,
+      "event": "footstep-stone",
+      "seedOffset": 1,
+      "eventSeed": 43,
+      "gain": 0.8,
+      "repetition": 2
+    },
+    {
+      "time_ms": 3500,
+      "sampleOffset": 154350,
+      "event": "footstep-stone",
+      "seedOffset": 2,
+      "eventSeed": 44,
+      "gain": 0.85,
+      "repetition": 2
+    },
+    {
+      "time_ms": 3850,
+      "sampleOffset": 169785,
+      "event": "footstep-stone",
+      "seedOffset": 3,
+      "eventSeed": 45,
+      "gain": 0.82,
+      "repetition": 2
+    },
+    {
+      "time_ms": 4199.999999999999,
+      "sampleOffset": 185220,
+      "event": "footstep-stone",
+      "seedOffset": 0,
+      "eventSeed": 42,
+      "gain": 0.85,
+      "repetition": 3
+    },
+    {
+      "time_ms": 4549.999999999999,
+      "sampleOffset": 200655,
+      "event": "footstep-stone",
+      "seedOffset": 1,
+      "eventSeed": 43,
+      "gain": 0.8,
+      "repetition": 3
+    },
+    {
+      "time_ms": 4899.999999999999,
+      "sampleOffset": 216090,
+      "event": "footstep-stone",
+      "seedOffset": 2,
+      "eventSeed": 44,
+      "gain": 0.85,
+      "repetition": 3
+    },
+    {
+      "time_ms": 5249.999999999999,
+      "sampleOffset": 231525,
+      "event": "footstep-stone",
+      "seedOffset": 3,
+      "eventSeed": 45,
+      "gain": 0.82,
+      "repetition": 3
+    },
+    {
+      "time_ms": 5600,
+      "sampleOffset": 246960,
+      "event": "footstep-stone",
+      "seedOffset": 0,
+      "eventSeed": 42,
+      "gain": 0.85,
+      "repetition": 4
+    },
+    {
+      "time_ms": 5950,
+      "sampleOffset": 262395,
+      "event": "footstep-stone",
+      "seedOffset": 1,
+      "eventSeed": 43,
+      "gain": 0.8,
+      "repetition": 4
+    },
+    {
+      "time_ms": 6300,
+      "sampleOffset": 277830,
+      "event": "footstep-stone",
+      "seedOffset": 2,
+      "eventSeed": 44,
+      "gain": 0.85,
+      "repetition": 4
+    },
+    {
+      "time_ms": 6650,
+      "sampleOffset": 293265,
+      "event": "footstep-stone",
+      "seedOffset": 3,
+      "eventSeed": 45,
+      "gain": 0.82,
+      "repetition": 4
+    }
+  ]
+}

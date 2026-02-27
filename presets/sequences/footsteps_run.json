@@ -1,0 +1,15 @@
+{
+  "version": "1.0",
+  "name": "footsteps_run",
+  "description": "Running footstep pattern. Medium cadence (~0.35s per step) with stronger intensity. Default surface: stone. Runtime recipe resolver swaps based on context.",
+  "events": [
+    { "time": 0,    "event": "footstep-stone", "seedOffset": 0, "gain": 0.85 },
+    { "time": 0.35, "event": "footstep-stone", "seedOffset": 1, "gain": 0.8 },
+    { "time": 0.7,  "event": "footstep-stone", "seedOffset": 2, "gain": 0.85 },
+    { "time": 1.05, "event": "footstep-stone", "seedOffset": 3, "gain": 0.82 }
+  ],
+  "repeat": {
+    "count": 4,
+    "interval": 1.4
+  }
+}
