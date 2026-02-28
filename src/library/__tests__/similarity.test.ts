@@ -6,13 +6,11 @@ import { findSimilar } from "../similarity.js";
 import { addToIndex, clearIndexCache } from "../index-store.js";
 import type { LibraryEntry } from "../types.js";
 
-/** Helper: create a minimal LibraryEntry with configurable metrics. */
+/** Helper: create a minimal LibraryEntry with configurable embedding. */
 function makeEntry(overrides: Partial<LibraryEntry> & {
-  rms?: number;
-  spectralCentroid?: number;
-  zeroCrossingRate?: number;
+  embedding?: number[];
 } = {}): LibraryEntry {
-  const { rms, spectralCentroid, zeroCrossingRate, ...rest } = overrides;
+  const { embedding, ...rest } = overrides;
   return {
     id: rest.id ?? "lib-test_seed-00001",
     recipe: "test",
@@ -25,13 +23,8 @@ function makeEntry(overrides: Partial<LibraryEntry> & {
       sampleRate: 44100,
       sampleCount: 22050,
       metrics: {
-        time: {
-          rms: rms ?? 0.5,
-          ...(zeroCrossingRate !== undefined ? { zeroCrossingRate } : {}),
-        },
-        spectral: {
-          spectralCentroid: spectralCentroid ?? 2000,
-        },
+        time: { rms: 0.5 },
+        spectral: { spectralCentroid: 2000 },
       },
     },
     classification: rest.classification ?? {
@@ -41,7 +34,7 @@ function makeEntry(overrides: Partial<LibraryEntry> & {
       texture: [],
       material: null,
       tags: ["sharp"],
-      embedding: [],
+      embedding: embedding ?? [0.5, 0.5, 0.25, 0.1, 0.017, 0, 0],
       analysisRef: "",
     },
     preset: rest.preset ?? { recipe: "test", seed: 1, params: {} },
@@ -79,19 +72,19 @@ describe("similarity", () => {
     });
 
     it("returns results sorted by distance (most similar first)", async () => {
-      // Query: rms=0.5, centroid=2000, duration=0.5
+      // Query: embedding at [0.5, 0.5, 0.25, 0.1, 0.017, 0, 0]
       await addToIndex(
-        makeEntry({ id: "lib-query", rms: 0.5, spectralCentroid: 2000, duration: 0.5 }),
+        makeEntry({ id: "lib-query", embedding: [0.5, 0.5, 0.25, 0.1, 0.017, 0, 0] }),
         tempDir,
       );
-      // Very similar: rms=0.51, centroid=2010, duration=0.5
+      // Very similar: small perturbation
       await addToIndex(
-        makeEntry({ id: "lib-close", rms: 0.51, spectralCentroid: 2010, duration: 0.5 }),
+        makeEntry({ id: "lib-close", embedding: [0.51, 0.5, 0.25, 0.1, 0.017, 0, 0] }),
         tempDir,
       );
-      // Quite different: rms=0.9, centroid=5000, duration=2.0
+      // Quite different: large perturbation
       await addToIndex(
-        makeEntry({ id: "lib-far", rms: 0.9, spectralCentroid: 5000, duration: 2.0 }),
+        makeEntry({ id: "lib-far", embedding: [0.9, 0.8, 0.5, 0.5, 0.067, 0.3, 0.2] }),
         tempDir,
       );
 
@@ -113,10 +106,10 @@ describe("similarity", () => {
     });
 
     it("respects the limit option", async () => {
-      await addToIndex(makeEntry({ id: "lib-query", rms: 0.5 }), tempDir);
-      await addToIndex(makeEntry({ id: "lib-a", rms: 0.51 }), tempDir);
-      await addToIndex(makeEntry({ id: "lib-b", rms: 0.52 }), tempDir);
-      await addToIndex(makeEntry({ id: "lib-c", rms: 0.53 }), tempDir);
+      await addToIndex(makeEntry({ id: "lib-query", embedding: [0.5, 0.5, 0.25, 0.1, 0.017, 0, 0] }), tempDir);
+      await addToIndex(makeEntry({ id: "lib-a", embedding: [0.51, 0.5, 0.25, 0.1, 0.017, 0, 0] }), tempDir);
+      await addToIndex(makeEntry({ id: "lib-b", embedding: [0.52, 0.5, 0.25, 0.1, 0.017, 0, 0] }), tempDir);
+      await addToIndex(makeEntry({ id: "lib-c", embedding: [0.53, 0.5, 0.25, 0.1, 0.017, 0, 0] }), tempDir);
 
       const results = await findSimilar("lib-query", { limit: 2 }, tempDir);
 
@@ -124,17 +117,18 @@ describe("similarity", () => {
     });
 
     it("uses tag Jaccard similarity as tiebreaker", async () => {
-      // Query and both entries have identical metrics
+      // Query and both entries have identical embeddings
+      const sameEmb: number[] = [0.5, 0.5, 0.25, 0.1, 0.017, 0, 0];
       await addToIndex(
-        makeEntry({ id: "lib-query", rms: 0.5, spectralCentroid: 2000, duration: 0.5, tags: ["laser", "sci-fi"] }),
+        makeEntry({ id: "lib-query", embedding: sameEmb, tags: ["laser", "sci-fi"] }),
         tempDir,
       );
       await addToIndex(
-        makeEntry({ id: "lib-same-tags", rms: 0.5, spectralCentroid: 2000, duration: 0.5, tags: ["laser", "sci-fi"] }),
+        makeEntry({ id: "lib-same-tags", embedding: sameEmb, tags: ["laser", "sci-fi"] }),
         tempDir,
       );
       await addToIndex(
-        makeEntry({ id: "lib-diff-tags", rms: 0.5, spectralCentroid: 2000, duration: 0.5, tags: ["sword", "fantasy"] }),
+        makeEntry({ id: "lib-diff-tags", embedding: sameEmb, tags: ["sword", "fantasy"] }),
         tempDir,
       );
 
@@ -147,8 +141,8 @@ describe("similarity", () => {
     });
 
     it("includes distance metrics in results", async () => {
-      await addToIndex(makeEntry({ id: "lib-a", rms: 0.5 }), tempDir);
-      await addToIndex(makeEntry({ id: "lib-b", rms: 0.7 }), tempDir);
+      await addToIndex(makeEntry({ id: "lib-a", embedding: [0.5, 0.5, 0.25, 0.1, 0.017, 0, 0] }), tempDir);
+      await addToIndex(makeEntry({ id: "lib-b", embedding: [0.7, 0.5, 0.25, 0.1, 0.017, 0, 0] }), tempDir);
 
       const results = await findSimilar("lib-a", {}, tempDir);
 
@@ -159,33 +153,50 @@ describe("similarity", () => {
       expect(typeof results[0]!.distance).toBe("number");
     });
 
-    it("handles entries with missing analysis data gracefully", async () => {
-      await addToIndex(makeEntry({ id: "lib-query", rms: 0.5 }), tempDir);
+    it("excludes entries with empty embeddings", async () => {
       await addToIndex(
-        makeEntry({
-          id: "lib-no-analysis",
-          analysis: {
-            analysisVersion: "1.0",
-            sampleRate: 44100,
-            sampleCount: 0,
-            metrics: {},
-          },
-        }),
+        makeEntry({ id: "lib-query", embedding: [0.5, 0.5, 0.25, 0.1, 0.017, 0, 0] }),
         tempDir,
       );
-      await addToIndex(makeEntry({ id: "lib-normal", rms: 0.6 }), tempDir);
+      // Entry with empty embedding should be excluded
+      await addToIndex(
+        makeEntry({ id: "lib-no-embedding", embedding: [] }),
+        tempDir,
+      );
+      await addToIndex(
+        makeEntry({ id: "lib-normal", embedding: [0.6, 0.5, 0.25, 0.1, 0.017, 0, 0] }),
+        tempDir,
+      );
 
       const results = await findSimilar("lib-query", {}, tempDir);
 
-      // lib-no-analysis should be excluded since it has no extractable features
-      // but duration is always extractable, so it may still appear
-      expect(results.length).toBeGreaterThanOrEqual(1);
+      // Only lib-normal should appear; lib-no-embedding excluded
+      expect(results).toHaveLength(1);
+      expect(results[0]!.entry.id).toBe("lib-normal");
+    });
+
+    it("returns empty when query entry has no embedding", async () => {
+      await addToIndex(
+        makeEntry({ id: "lib-query", embedding: [] }),
+        tempDir,
+      );
+      await addToIndex(
+        makeEntry({ id: "lib-other", embedding: [0.5, 0.5, 0.25, 0.1, 0.017, 0, 0] }),
+        tempDir,
+      );
+
+      const results = await findSimilar("lib-query", {}, tempDir);
+
+      expect(results).toEqual([]);
     });
 
     it("defaults limit to 10", async () => {
-      await addToIndex(makeEntry({ id: "lib-query", rms: 0.5 }), tempDir);
+      await addToIndex(makeEntry({ id: "lib-query", embedding: [0.5, 0.5, 0.25, 0.1, 0.017, 0, 0] }), tempDir);
       for (let i = 0; i < 15; i++) {
-        await addToIndex(makeEntry({ id: `lib-${i}`, rms: 0.5 + i * 0.01 }), tempDir);
+        await addToIndex(
+          makeEntry({ id: `lib-${i}`, embedding: [0.5 + i * 0.01, 0.5, 0.25, 0.1, 0.017, 0, 0] }),
+          tempDir,
+        );
       }
 
       const results = await findSimilar("lib-query", undefined, tempDir);

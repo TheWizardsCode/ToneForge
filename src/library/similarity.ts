@@ -1,12 +1,13 @@
 /**
- * Library Similarity -- Hybrid Distance
+ * Library Similarity -- Embedding Distance
  *
- * Ranks Library entries by perceptual similarity using a hybrid
- * approach: normalized analysis-metric Euclidean distance as primary,
+ * Ranks Library entries by perceptual similarity using Euclidean
+ * distance on pre-normalized classification embedding vectors,
  * with tag/label Jaccard overlap as tiebreaker.
  *
- * Metrics used: RMS, spectralCentroid, duration, zeroCrossingRate
- * (when available in analysis data).
+ * Embedding vectors are produced by the active EmbeddingProvider
+ * during classification (7-dim by default). Entries without
+ * embeddings are excluded with a stderr warning.
  *
  * Reference: docs/prd/LIBRARY_PRD.md Section 8.2
  */
@@ -25,7 +26,7 @@ export interface SimilarityResult {
   /** Combined distance score (lower = more similar). */
   distance: number;
 
-  /** Euclidean metric distance component. */
+  /** Euclidean embedding distance component. */
   metricDistance: number;
 
   /** Jaccard tag similarity (0-1, higher = more similar). */
@@ -41,101 +42,27 @@ export interface SimilarityOptions {
 }
 
 /**
- * Metric keys used for similarity feature vectors.
+ * Check whether an entry has a usable embedding vector.
  *
- * Maps to analysis.metrics paths:
- * - rms -> time.rms
- * - spectralCentroid -> spectral.spectralCentroid
- * - duration -> (entry.duration)
- * - zeroCrossingRate -> time.zeroCrossingRate
+ * An embedding is usable when the classification exists and
+ * the embedding array has at least one element.
  */
-const SIMILARITY_METRICS: Array<{
-  name: string;
-  extract: (entry: LibraryEntry) => number | null;
-}> = [
-  {
-    name: "rms",
-    extract: (e) => {
-      const v = e.analysis?.metrics?.["time"]?.["rms"];
-      return typeof v === "number" ? v : null;
-    },
-  },
-  {
-    name: "spectralCentroid",
-    extract: (e) => {
-      const v = e.analysis?.metrics?.["spectral"]?.["spectralCentroid"];
-      return typeof v === "number" ? v : null;
-    },
-  },
-  {
-    name: "duration",
-    extract: (e) => (typeof e.duration === "number" ? e.duration : null),
-  },
-  {
-    name: "zeroCrossingRate",
-    extract: (e) => {
-      const v = e.analysis?.metrics?.["time"]?.["zeroCrossingRate"];
-      return typeof v === "number" ? v : null;
-    },
-  },
-];
-
-/**
- * Extract a raw feature vector from an entry.
- *
- * Returns null if no metrics can be extracted (entry is unusable
- * for similarity comparison).
- */
-function extractFeatures(entry: LibraryEntry): number[] | null {
-  const values: number[] = [];
-  let hasAny = false;
-
-  for (const metric of SIMILARITY_METRICS) {
-    const v = metric.extract(entry);
-    if (v !== null) {
-      values.push(v);
-      hasAny = true;
-    } else {
-      values.push(0); // placeholder for missing
-    }
-  }
-
-  return hasAny ? values : null;
-}
-
-/**
- * Min-max normalize feature vectors in place.
- *
- * Each dimension is scaled to [0, 1] based on the min/max across
- * all entries. Dimensions with zero range are set to 0.5.
- */
-function normalizeFeatures(vectors: number[][]): void {
-  if (vectors.length === 0) return;
-
-  const dims = vectors[0]!.length;
-
-  for (let d = 0; d < dims; d++) {
-    let min = Infinity;
-    let max = -Infinity;
-
-    for (const v of vectors) {
-      if (v[d]! < min) min = v[d]!;
-      if (v[d]! > max) max = v[d]!;
-    }
-
-    const range = max - min;
-    for (const v of vectors) {
-      v[d] = range > 0 ? (v[d]! - min) / range : 0.5;
-    }
-  }
+function hasEmbedding(entry: LibraryEntry): boolean {
+  return (
+    entry.classification !== null &&
+    entry.classification !== undefined &&
+    Array.isArray(entry.classification.embedding) &&
+    entry.classification.embedding.length > 0
+  );
 }
 
 /**
  * Compute Euclidean distance between two vectors.
  */
 function euclidean(a: number[], b: number[]): number {
+  const len = Math.min(a.length, b.length);
   let sum = 0;
-  for (let i = 0; i < a.length; i++) {
+  for (let i = 0; i < len; i++) {
     const d = (a[i] ?? 0) - (b[i] ?? 0);
     sum += d * d;
   }
@@ -167,12 +94,15 @@ function jaccardSimilarity(tagsA: string[], tagsB: string[]): number {
  * Find Library entries most similar to a given entry.
  *
  * Similarity is computed using:
- * 1. Euclidean distance on min-max normalized analysis metrics
- *    (RMS, spectral centroid, duration, zero-crossing rate)
- * 2. Tag Jaccard similarity as tiebreaker
+ * 1. Euclidean distance on pre-normalized embedding vectors
+ *    from ClassificationResult.embedding.
+ * 2. Tag Jaccard similarity as tiebreaker.
  *
- * Combined distance = metricDistance - (tagSimilarity * 0.01)
- * This ensures metric distance dominates while tags break ties.
+ * Combined distance = embeddingDistance - (tagSimilarity * 0.01)
+ * This ensures embedding distance dominates while tags break ties.
+ *
+ * Entries without embeddings (empty or missing) are excluded from
+ * results and a warning is logged to stderr for each.
  *
  * @param id - The query entry ID.
  * @param options - Similarity search options.
@@ -194,41 +124,34 @@ export async function findSimilar(
   // Need at least 2 entries for meaningful comparison
   if (index.entries.length < 2) return [];
 
-  // Extract features for all entries (including query)
-  const usable: Array<{ entry: LibraryEntry; features: number[] }> = [];
+  // Query entry must have an embedding
+  if (!hasEmbedding(queryEntry)) return [];
 
-  for (const entry of index.entries) {
-    const features = extractFeatures(entry);
-    if (features) {
-      usable.push({ entry, features });
-    }
-  }
-
-  // Find query in usable set
-  const queryIdx = usable.findIndex((u) => u.entry.id === id);
-  if (queryIdx === -1) return []; // query entry has no extractable features
-
-  // Normalize features across all usable entries
-  const vectors = usable.map((u) => u.features);
-  normalizeFeatures(vectors);
-
-  const queryVector = vectors[queryIdx]!;
+  const queryEmbedding = queryEntry.classification!.embedding;
   const queryTags = queryEntry.tags;
 
-  // Compute distances
+  // Compute distances for entries with embeddings
   const results: SimilarityResult[] = [];
 
-  for (let i = 0; i < usable.length; i++) {
-    if (i === queryIdx) continue; // skip self
+  for (const entry of index.entries) {
+    if (entry.id === id) continue; // skip self
 
-    const metricDistance = euclidean(queryVector, vectors[i]!);
-    const tagSimilarity = jaccardSimilarity(queryTags, usable[i]!.entry.tags);
+    if (!hasEmbedding(entry)) {
+      process.stderr.write(
+        `Warning: entry ${entry.id} has no embedding vector and is excluded from similarity results.\n`,
+      );
+      continue;
+    }
 
-    // Combined: metric distance dominates, tag similarity breaks ties
+    const entryEmbedding = entry.classification!.embedding;
+    const metricDistance = euclidean(queryEmbedding, entryEmbedding);
+    const tagSimilarity = jaccardSimilarity(queryTags, entry.tags);
+
+    // Combined: embedding distance dominates, tag similarity breaks ties
     const distance = metricDistance - tagSimilarity * 0.01;
 
     results.push({
-      entry: usable[i]!.entry,
+      entry,
       distance,
       metricDistance,
       tagSimilarity,
