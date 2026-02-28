@@ -314,16 +314,17 @@ toneforge generate --recipe weapon-laser-zap --seed 30
 ```
 
 > [!commentary]
-> Similarity uses a hybrid approach. The primary signal is the Euclidean
-> distance between normalized analysis metrics -- RMS, spectral centroid,
-> duration, and zero-crossing rate. Tag overlap (Jaccard similarity) acts
-> as a tiebreaker: a higher tag similarity slightly reduces the combined
-> distance. Lower distance means more similar.
+> Similarity uses classification embedding vectors. During classification
+> each sound is mapped to a 7-dimensional embedding (RMS, peak, crest
+> factor, spectral centroid, duration, zero-crossing rate, attack time).
+> The primary signal is the Euclidean distance between these embeddings.
+> Tag overlap (Jaccard similarity) acts as a tiebreaker: a higher tag
+> similarity slightly reduces the combined distance. Lower distance means
+> more similar.
 >
 > Seeds 4 and 30 are both from cluster 1 -- they share nearly identical
-> metrics (rms ~0.40, spectral centroid ~600, duration ~0.12s) and
-> identical classification tags. The result: distance 0.2229 with a
-> perfect tag similarity of 1.00. With `--limit 1` the engine returns
+> embeddings and identical classification tags, so the embedding distance
+> is very small with a perfect tag similarity of 1.00. With `--limit 1` the engine returns
 > only the single closest match, which is exactly what you need when
 > looking for the best stand-in for a specific sound. Playing both the
 > original (seed 4) and its nearest neighbour (seed 30) back-to-back
@@ -410,7 +411,7 @@ toneforge generate --recipe weapon-laser-zap --seed 0
 2. **Selective promotion** -- pick complementary candidates across clusters to build a varied but cohesive palette; `--category` organizes entries from the start
 3. **Listing** -- `library list [--category <c>]` browses entries with optional category filtering
 4. **Search** -- `library search` finds entries by `--category`, `--intensity`, `--texture`, and `--tags`; multiple filters combine with AND logic
-5. **Similarity** -- `library similar --id <id>` discovers perceptually related entries using hybrid metric distance + tag overlap; `generate --recipe --seed` plays the results for comparison
+5. **Similarity** -- `library similar --id <id>` discovers perceptually related entries using embedding distance + tag overlap; `generate --recipe --seed` plays the results for comparison
 6. **Export** -- `library export --output <dir> --format wav [--category <c>]` delivers WAV files, optionally filtered by category
 7. **Regeneration** -- `library regenerate --id <id>` re-renders from stored presets, proving determinism
 8. **JSON output** -- `--json` on all Library commands for scripting and CI integration
