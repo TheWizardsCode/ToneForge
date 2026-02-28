@@ -72,6 +72,52 @@ export type DimensionResult = Partial<
   Pick<ClassificationResult, "category" | "intensity" | "texture" | "material" | "tags">
 >;
 
+/** Distance function type recommended by an embedding provider. */
+export type DistanceFunction = "cosine" | "euclidean";
+
+/**
+ * Interface for embedding providers.
+ *
+ * An embedding provider converts analysis metrics (and optional partial
+ * classification data) into a fixed-length numeric vector suitable for
+ * similarity search. Providers are pluggable: new implementations (ML-based,
+ * external API) can be added without modifying the classification engine.
+ *
+ * The initial built-in implementation is the deterministic
+ * `AnalysisMetricsProvider` that constructs vectors from expanded analysis
+ * metrics.
+ */
+export interface EmbeddingProvider {
+  /** Human-readable name of this provider (e.g. "analysis-metrics"). */
+  readonly name: string;
+
+  /**
+   * Produce an embedding vector from analysis data.
+   *
+   * @param analysis - Structured analysis result with computed metrics.
+   * @param classification - Optional partial classification result for
+   *   providers that incorporate semantic labels into the embedding.
+   * @returns Fixed-length numeric vector. Length must equal `dimensionality()`.
+   */
+  embed(
+    analysis: AnalysisResult,
+    classification?: Partial<ClassificationResult>,
+  ): number[];
+
+  /**
+   * Return the fixed dimensionality of vectors produced by this provider.
+   *
+   * All vectors returned by `embed()` must have exactly this length.
+   */
+  dimensionality(): number;
+
+  /**
+   * Return the recommended distance function for comparing vectors
+   * produced by this provider.
+   */
+  distanceFunction(): DistanceFunction;
+}
+
 /**
  * Interface for dimension classifiers.
  *
