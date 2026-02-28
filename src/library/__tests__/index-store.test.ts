@@ -37,6 +37,7 @@ function makeEntry(overrides: Partial<LibraryEntry> = {}): LibraryEntry {
       texture: ["sharp"],
       material: null,
       tags: ["sharp", "bright"],
+      embedding: [],
       analysisRef: "test.json",
     },
     preset: {

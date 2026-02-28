@@ -28,6 +28,7 @@ function makeEntry(overrides: Partial<LibraryEntry> = {}): LibraryEntry {
       texture: ["sharp", "metallic"],
       material: null,
       tags: ["sharp", "bright"],
+      embedding: [],
       analysisRef: "test.json",
     },
     preset: { recipe: "test", seed: 1, params: {} },
@@ -76,9 +77,9 @@ describe("search", () => {
       await addToIndex(
         makeEntry({
           id: "lib-a",
-          classification: {
+           classification: {
             source: "a", category: "weapon", intensity: "hard",
-            texture: [], material: null, tags: [], analysisRef: "",
+            texture: [], material: null, tags: [], embedding: [], analysisRef: "",
           },
         }),
         tempDir,
@@ -88,7 +89,7 @@ describe("search", () => {
           id: "lib-b",
           classification: {
             source: "b", category: "weapon", intensity: "soft",
-            texture: [], material: null, tags: [], analysisRef: "",
+            texture: [], material: null, tags: [], embedding: [], analysisRef: "",
           },
         }),
         tempDir,
@@ -117,7 +118,7 @@ describe("search", () => {
           id: "lib-a",
           classification: {
             source: "a", category: "weapon", intensity: "hard",
-            texture: ["sharp", "metallic"], material: null, tags: [], analysisRef: "",
+            texture: ["sharp", "metallic"], material: null, tags: [], embedding: [], analysisRef: "",
           },
         }),
         tempDir,
@@ -127,7 +128,7 @@ describe("search", () => {
           id: "lib-b",
           classification: {
             source: "b", category: "weapon", intensity: "soft",
-            texture: ["warm", "smooth"], material: null, tags: [], analysisRef: "",
+            texture: ["warm", "smooth"], material: null, tags: [], embedding: [], analysisRef: "",
           },
         }),
         tempDir,
@@ -170,7 +171,7 @@ describe("search", () => {
           tags: ["sci-fi"],
           classification: {
             source: "a", category: "weapon", intensity: "hard",
-            texture: ["sharp"], material: null, tags: ["sci-fi"], analysisRef: "",
+            texture: ["sharp"], material: null, tags: ["sci-fi"], embedding: [], analysisRef: "",
           },
         }),
         tempDir,
@@ -182,7 +183,7 @@ describe("search", () => {
           tags: ["fantasy"],
           classification: {
             source: "b", category: "weapon", intensity: "soft",
-            texture: ["warm"], material: null, tags: ["fantasy"], analysisRef: "",
+            texture: ["warm"], material: null, tags: ["fantasy"], embedding: [], analysisRef: "",
           },
         }),
         tempDir,
@@ -194,7 +195,7 @@ describe("search", () => {
           tags: ["sci-fi"],
           classification: {
             source: "c", category: "footstep", intensity: "hard",
-            texture: ["sharp"], material: null, tags: ["sci-fi"], analysisRef: "",
+            texture: ["sharp"], material: null, tags: ["sci-fi"], embedding: [], analysisRef: "",
           },
         }),
         tempDir,

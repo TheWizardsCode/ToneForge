@@ -78,6 +78,7 @@ describe("ClassificationEngine", () => {
     expect(result.texture).toEqual([]);
     expect(result.material).toBeNull();
     expect(result.tags).toEqual([]);
+    expect(result.embedding).toEqual([]);
     expect(result.analysisRef).toBe("./analysis/test.json");
   });
 

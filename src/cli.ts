@@ -40,7 +40,7 @@ import { parseLayers } from "./stack/layer-parser.js";
 import { createAnalysisEngine, registerBuiltinExtractors } from "./analyze/index.js";
 import type { AnalysisResult } from "./analyze/index.js";
 import { decodeWavFile } from "./audio/wav-decoder.js";
-import { createClassificationEngine, registerBuiltinClassifiers, CLASSIFICATION_VERSION } from "./classify/index.js";
+import { createClassificationEngine, registerBuiltinClassifiers, CLASSIFICATION_VERSION, createAnalysisMetricsProvider } from "./classify/index.js";
 import type { ClassificationResult, RecipeContext } from "./classify/index.js";
 import {
   sweep,
@@ -1872,6 +1872,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
               texture: Array.isArray(data["texture"]) ? (data["texture"] as string[]) : [],
               material: typeof data["material"] === "string" ? data["material"] : null,
               tags: Array.isArray(data["tags"]) ? (data["tags"] as string[]) : [],
+              embedding: Array.isArray(data["embedding"]) ? (data["embedding"] as number[]) : [],
               analysisRef: String(data["analysisRef"] ?? ""),
             };
 
@@ -1931,6 +1932,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     // Create classification engine with all built-in classifiers
     const classifyEngine = createClassificationEngine();
     registerBuiltinClassifiers(classifyEngine);
+    classifyEngine.setEmbeddingProvider(createAnalysisMetricsProvider());
 
     // ── Recipe+Seed mode ──────────────────────────────────────
     if (recipeName !== undefined) {

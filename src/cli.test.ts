@@ -2036,7 +2036,7 @@ describe("CLI", () => {
         expect(typeof data.intensity).toBe("string");
         expect(Array.isArray(data.texture)).toBe(true);
         expect(Array.isArray(data.tags)).toBe(true);
-        expect(data.classificationVersion).toBe("1.0");
+        expect(data.classificationVersion).toBe("1.1");
       });
 
       it("produces deterministic output for the same recipe+seed", async () => {
@@ -2072,7 +2072,7 @@ describe("CLI", () => {
 
         const content = JSON.parse(readFileSync(join(outputClassifyDir, "ui-scifi-confirm_seed-042.json"), "utf-8"));
         expect(content.category).toBe("ui");
-        expect(content.classificationVersion).toBe("1.0");
+        expect(content.classificationVersion).toBe("1.1");
       });
 
       it("classifies weapon recipe correctly", async () => {
@@ -2107,7 +2107,7 @@ describe("CLI", () => {
         expect(typeof data.intensity).toBe("string");
         expect(Array.isArray(data.texture)).toBe(true);
         expect(Array.isArray(data.tags)).toBe(true);
-        expect(data.classificationVersion).toBe("1.0");
+        expect(data.classificationVersion).toBe("1.1");
       });
 
       it("produces deterministic output for the same WAV file", async () => {
@@ -2149,7 +2149,7 @@ describe("CLI", () => {
         expect(data.command).toBe("classify");
         expect(data.count).toBe(2);
         expect(data.files).toHaveLength(2);
-        expect(data.files[0].classificationVersion).toBe("1.0");
+        expect(data.files[0].classificationVersion).toBe("1.1");
         expect(typeof data.files[0].category).toBe("string");
       });
 
@@ -2170,7 +2170,7 @@ describe("CLI", () => {
 
         const content = JSON.parse(readFileSync(join(outputClassifyDir, "sound.json"), "utf-8"));
         expect(typeof content.category).toBe("string");
-        expect(content.classificationVersion).toBe("1.0");
+        expect(content.classificationVersion).toBe("1.1");
       });
 
       it("handles empty directory gracefully", async () => {
@@ -2231,7 +2231,7 @@ describe("CLI", () => {
         expect(data.count).toBe(1);
         expect(data.files).toHaveLength(1);
         expect(data.files[0].category).toBe("ui");
-        expect(data.files[0].classificationVersion).toBe("1.0");
+        expect(data.files[0].classificationVersion).toBe("1.1");
       });
 
       it("writes classification JSON files with --output", async () => {

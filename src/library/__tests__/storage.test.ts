@@ -44,6 +44,7 @@ function makeCandidate(
       texture: ["growling", "deep"],
       material: null,
       tags: ["monster", "organic"],
+      embedding: [],
       analysisRef: "creature_seed-00042.json",
     },
     score: 0.82,
@@ -134,6 +135,7 @@ describe("storage", () => {
           texture: ["sharp"], // "sharp" is also in tags
           material: null,
           tags: ["sharp", "metallic"],
+          embedding: [],
           analysisRef: "test.json",
         },
       });
@@ -207,6 +209,7 @@ describe("storage", () => {
           texture: ["sharp"],
           material: "metal",
           tags: ["sword"],
+          embedding: [],
           analysisRef: "weapon.json",
         },
       });
@@ -219,6 +222,7 @@ describe("storage", () => {
           texture: ["crunchy"],
           material: "gravel",
           tags: ["outdoor"],
+          embedding: [],
           analysisRef: "footstep.json",
         },
       });
@@ -264,7 +268,7 @@ describe("storage", () => {
     it("filters entries by category", async () => {
       await addEntry(
         makeCandidate({
-          id: "w1",
+           id: "w1",
           classification: {
             source: "w1",
             category: "weapon",
@@ -272,6 +276,7 @@ describe("storage", () => {
             texture: [],
             material: null,
             tags: [],
+            embedding: [],
             analysisRef: "",
           },
         }),
@@ -280,7 +285,7 @@ describe("storage", () => {
       );
       await addEntry(
         makeCandidate({
-          id: "f1",
+           id: "f1",
           classification: {
             source: "f1",
             category: "footstep",
@@ -288,6 +293,7 @@ describe("storage", () => {
             texture: [],
             material: null,
             tags: [],
+            embedding: [],
             analysisRef: "",
           },
         }),

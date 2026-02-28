@@ -16,6 +16,7 @@ import type {
   ClassificationResult,
   DimensionClassifier,
   DimensionResult,
+  EmbeddingProvider,
   RecipeContext,
 } from "./types.js";
 
@@ -28,6 +29,7 @@ import type {
  */
 export class ClassificationEngine {
   private readonly classifiers: DimensionClassifier[] = [];
+  private embeddingProvider: EmbeddingProvider | null = null;
 
   /**
    * Register a dimension classifier with the engine.
@@ -36,6 +38,17 @@ export class ClassificationEngine {
    */
   register(classifier: DimensionClassifier): void {
     this.classifiers.push(classifier);
+  }
+
+  /**
+   * Set the embedding provider for the engine.
+   *
+   * When set, the provider is invoked after all dimension classifiers
+   * and its output is attached to the ClassificationResult's `embedding`
+   * field. If not set, `embedding` defaults to an empty array.
+   */
+  setEmbeddingProvider(provider: EmbeddingProvider): void {
+    this.embeddingProvider = provider;
   }
 
   /**
@@ -61,6 +74,7 @@ export class ClassificationEngine {
       texture: [],
       material: null,
       tags: [],
+      embedding: [],
       analysisRef,
     };
 
@@ -73,6 +87,18 @@ export class ClassificationEngine {
         const msg = err instanceof Error ? err.message : String(err);
         throw new Error(
           `Classifier '${classifier.name}' failed: ${msg}`,
+        );
+      }
+    }
+
+    // Compute embedding vector if a provider is configured
+    if (this.embeddingProvider) {
+      try {
+        result.embedding = this.embeddingProvider.embed(analysis, result);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        throw new Error(
+          `EmbeddingProvider '${this.embeddingProvider.name}' failed: ${msg}`,
         );
       }
     }
