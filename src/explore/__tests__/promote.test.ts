@@ -58,6 +58,7 @@ function makeCandidate(
       texture: ["sharp"],
       material: null,
       tags: ["hit"],
+      embedding: [],
       analysisRef: `${id}.json`,
     },
     score: 0.8,

@@ -11,7 +11,7 @@
 import type { AnalysisResult } from "../analyze/types.js";
 
 /** Current classification output schema version. */
-export const CLASSIFICATION_VERSION = "1.0";
+export const CLASSIFICATION_VERSION = "1.1";
 
 /**
  * Recipe metadata context passed to dimension classifiers.
@@ -57,6 +57,15 @@ export interface ClassificationResult {
 
   /** Contextual use-case tags (e.g. ["sci-fi", "ranged", "laser"]). */
   tags: string[];
+
+  /**
+   * Numeric embedding vector for similarity search.
+   *
+   * Populated by the active EmbeddingProvider after dimension classifiers
+   * run. Empty array when no provider is configured or embedding could
+   * not be computed.
+   */
+  embedding: number[];
 
   /** Relative path to the source analysis JSON file. */
   analysisRef: string;

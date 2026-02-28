@@ -23,6 +23,7 @@ import type { AnalysisResult } from "../analyze/types.js";
 import {
   createClassificationEngine,
   registerBuiltinClassifiers,
+  createAnalysisMetricsProvider,
 } from "../classify/index.js";
 import type { RecipeContext } from "../classify/types.js";
 import type {
@@ -71,6 +72,7 @@ export async function renderAndAnalyze(
   // Classify the candidate using the analysis result and recipe context
   const classifyEngine = createClassificationEngine();
   registerBuiltinClassifiers(classifyEngine);
+  classifyEngine.setEmbeddingProvider(createAnalysisMetricsProvider());
 
   const recipeContext: RecipeContext = {
     name: recipe,

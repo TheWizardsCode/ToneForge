@@ -41,6 +41,7 @@ function makeEntry(overrides: Partial<LibraryEntry> & {
       texture: [],
       material: null,
       tags: ["sharp"],
+      embedding: [],
       analysisRef: "",
     },
     preset: rest.preset ?? { recipe: "test", seed: 1, params: {} },
