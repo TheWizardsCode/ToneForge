@@ -1264,7 +1264,20 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     const recipes = registry.listDetailed(isFiltered ? filter : undefined);
 
     if (jsonMode) {
-      jsonOut({ command: "list", resource: "recipes", recipes });
+      const output: Record<string, unknown> = {
+        command: "list",
+        resource: "recipes",
+        recipes,
+        total: totalCount,
+      };
+      if (isFiltered) {
+        const filters: Record<string, unknown> = {};
+        if (filter.search !== undefined) filters.search = filter.search;
+        if (filter.category !== undefined) filters.category = filter.category;
+        if (filter.tags !== undefined) filters.tags = filter.tags;
+        output.filters = filters;
+      }
+      jsonOut(output);
     } else {
       if (recipes.length === 0) {
         outputInfo(
