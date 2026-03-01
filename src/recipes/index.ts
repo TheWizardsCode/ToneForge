@@ -62,6 +62,10 @@ import { getCardLockParams } from "./card-lock-params.js";
 import { getCardUnlockParams } from "./card-unlock-params.js";
 import { getCardGlowParams } from "./card-glow-params.js";
 import { getCardTransformParams } from "./card-transform-params.js";
+import { getCardComboHitParams } from "./card-combo-hit-params.js";
+import { getCardComboBreakParams } from "./card-combo-break-params.js";
+import { getCardMultiplierUpParams } from "./card-multiplier-up-params.js";
+import { getCardMatchParams } from "./card-match-params.js";
 
 /** The global recipe registry instance with all built-in recipes registered. */
 export const registry = new RecipeRegistry();
@@ -4250,6 +4254,386 @@ registry.register("card-transform", {
       modDepthStart: p.modDepthStart, modDepthEnd: p.modDepthEnd,
       attack: p.attack, sustain: p.sustain,
       release: p.release, level: p.level,
+    };
+  },
+});
+
+// ── card-combo-hit ────────────────────────────────────────────────
+
+function cardComboHitDuration(rng: Rng): number {
+  const params = getCardComboHitParams(rng);
+  return params.attack + params.decay;
+}
+
+function cardComboHitOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getCardComboHitParams(rng);
+
+  // Fundamental sine transient
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.value = params.freq;
+
+  const gain = ctx.createGain();
+  gain.gain.value = params.level;
+
+  const env = ctx.createGain();
+  env.gain.setValueAtTime(0, 0);
+  env.gain.linearRampToValueAtTime(1, params.attack);
+  env.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+
+  osc.connect(gain);
+  gain.connect(env);
+  env.connect(ctx.destination);
+
+  // Harmonic overtone
+  const harm = ctx.createOscillator();
+  harm.type = "sine";
+  harm.frequency.value = params.freq * params.harmonicRatio;
+
+  const harmGain = ctx.createGain();
+  harmGain.gain.value = params.harmonicLevel;
+
+  const harmEnv = ctx.createGain();
+  harmEnv.gain.setValueAtTime(0, 0);
+  harmEnv.gain.linearRampToValueAtTime(1, params.attack);
+  harmEnv.gain.linearRampToValueAtTime(0, params.attack + params.decay * 0.7);
+
+  harm.connect(harmGain);
+  harmGain.connect(harmEnv);
+  harmEnv.connect(ctx.destination);
+
+  // Highpass noise sparkle
+  const bufferSize = Math.ceil(ctx.sampleRate * duration);
+  const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const noiseData = noiseBuffer.getChannelData(0);
+
+  for (let i = 0; i < noiseData.length; i++) {
+    noiseData[i] = rng() * 2 - 1;
+  }
+
+  const noiseSrc = ctx.createBufferSource();
+  noiseSrc.buffer = noiseBuffer;
+
+  const hpf = ctx.createBiquadFilter();
+  hpf.type = "highpass";
+  hpf.frequency.value = params.brightnessFreq;
+
+  const sparkleGain = ctx.createGain();
+  sparkleGain.gain.value = params.harmonicLevel * 0.5;
+
+  const sparkleEnv = ctx.createGain();
+  sparkleEnv.gain.setValueAtTime(0, 0);
+  sparkleEnv.gain.linearRampToValueAtTime(1, params.attack);
+  sparkleEnv.gain.linearRampToValueAtTime(0, params.attack + params.decay * 0.4);
+
+  noiseSrc.connect(hpf);
+  hpf.connect(sparkleGain);
+  sparkleGain.connect(sparkleEnv);
+  sparkleEnv.connect(ctx.destination);
+
+  // Schedule
+  osc.start(0);
+  osc.stop(duration);
+  harm.start(0);
+  harm.stop(duration);
+  noiseSrc.start(0);
+  noiseSrc.stop(duration);
+}
+
+registry.register("card-combo-hit", {
+  factoryLoader: async () => (await import("./card-combo-hit.js")).createCardComboHit,
+  getDuration: cardComboHitDuration,
+  buildOfflineGraph: cardComboHitOfflineGraph,
+  description: "Bright transient with harmonic reinforcement and highpass sparkle for successful combo hits.",
+  category: "Card Game",
+  tags: ["card", "combo", "hit", "card-game", "chain", "positive", "arcade", "bright"],
+  signalChain: "Sine Fundamental + Sine Harmonic + Highpass Noise Sparkle -> Gain -> Envelope -> Destination",
+  params: [
+    { name: "freq", min: 600, max: 1200, unit: "Hz" },
+    { name: "harmonicRatio", min: 1.5, max: 3, unit: "ratio" },
+    { name: "harmonicLevel", min: 0.3, max: 0.6, unit: "amplitude" },
+    { name: "attack", min: 0.001, max: 0.005, unit: "s" },
+    { name: "decay", min: 0.05, max: 0.15, unit: "s" },
+    { name: "level", min: 0.5, max: 0.9, unit: "amplitude" },
+    { name: "brightnessFreq", min: 3000, max: 7000, unit: "Hz" },
+  ],
+  getParams: (rng) => {
+    const p = getCardComboHitParams(rng);
+    return {
+      freq: p.freq, harmonicRatio: p.harmonicRatio,
+      harmonicLevel: p.harmonicLevel, attack: p.attack,
+      decay: p.decay, level: p.level,
+      brightnessFreq: p.brightnessFreq,
+    };
+  },
+});
+
+// ── card-combo-break ──────────────────────────────────────────────
+
+function cardComboBreakDuration(rng: Rng): number {
+  const params = getCardComboBreakParams(rng);
+  return params.attack + params.decay;
+}
+
+function cardComboBreakOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getCardComboBreakParams(rng);
+
+  // Main descending sawtooth
+  const osc = ctx.createOscillator();
+  osc.type = "sawtooth";
+  osc.frequency.setValueAtTime(params.freqStart, 0);
+  osc.frequency.linearRampToValueAtTime(params.freqEnd, duration);
+
+  const gain = ctx.createGain();
+  gain.gain.value = params.toneLevel;
+
+  const env = ctx.createGain();
+  env.gain.setValueAtTime(0, 0);
+  env.gain.linearRampToValueAtTime(1, params.attack);
+  env.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+
+  osc.connect(gain);
+  gain.connect(env);
+  env.connect(ctx.destination);
+
+  // Dissonant second sawtooth (slightly detuned)
+  const dissonant = ctx.createOscillator();
+  dissonant.type = "sawtooth";
+  dissonant.frequency.setValueAtTime(params.freqStart * params.dissonanceRatio, 0);
+  dissonant.frequency.linearRampToValueAtTime(params.freqEnd * params.dissonanceRatio, duration);
+
+  const disGain = ctx.createGain();
+  disGain.gain.value = params.toneLevel * 0.6;
+
+  const disEnv = ctx.createGain();
+  disEnv.gain.setValueAtTime(0, 0);
+  disEnv.gain.linearRampToValueAtTime(1, params.attack);
+  disEnv.gain.linearRampToValueAtTime(0, params.attack + params.decay * 0.8);
+
+  dissonant.connect(disGain);
+  disGain.connect(disEnv);
+  disEnv.connect(ctx.destination);
+
+  // Noise burst for impact
+  const bufferSize = Math.ceil(ctx.sampleRate * duration);
+  const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const noiseData = noiseBuffer.getChannelData(0);
+
+  for (let i = 0; i < noiseData.length; i++) {
+    noiseData[i] = rng() * 2 - 1;
+  }
+
+  const noiseSrc = ctx.createBufferSource();
+  noiseSrc.buffer = noiseBuffer;
+
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.value = params.noiseLevel;
+
+  const noiseEnv = ctx.createGain();
+  noiseEnv.gain.setValueAtTime(0, 0);
+  noiseEnv.gain.linearRampToValueAtTime(1, params.attack);
+  noiseEnv.gain.linearRampToValueAtTime(0, params.attack + params.decay * 0.3);
+
+  noiseSrc.connect(noiseGain);
+  noiseGain.connect(noiseEnv);
+  noiseEnv.connect(ctx.destination);
+
+  // Schedule
+  osc.start(0);
+  osc.stop(duration);
+  dissonant.start(0);
+  dissonant.stop(duration);
+  noiseSrc.start(0);
+  noiseSrc.stop(duration);
+}
+
+registry.register("card-combo-break", {
+  factoryLoader: async () => (await import("./card-combo-break.js")).createCardComboBreak,
+  getDuration: cardComboBreakDuration,
+  buildOfflineGraph: cardComboBreakOfflineGraph,
+  description: "Descending dissonant tone with noise burst for combo chain interruption feedback.",
+  category: "Card Game",
+  tags: ["card", "combo", "break", "card-game", "chain", "negative", "arcade", "dissonant"],
+  signalChain: "Descending Sawtooth + Dissonant Sawtooth + White Noise Burst -> Gain -> Envelope -> Destination",
+  params: [
+    { name: "freqStart", min: 500, max: 1000, unit: "Hz" },
+    { name: "freqEnd", min: 150, max: 350, unit: "Hz" },
+    { name: "dissonanceRatio", min: 1.05, max: 1.15, unit: "ratio" },
+    { name: "attack", min: 0.001, max: 0.005, unit: "s" },
+    { name: "decay", min: 0.15, max: 0.35, unit: "s" },
+    { name: "toneLevel", min: 0.4, max: 0.8, unit: "amplitude" },
+    { name: "noiseLevel", min: 0.2, max: 0.5, unit: "amplitude" },
+  ],
+  getParams: (rng) => {
+    const p = getCardComboBreakParams(rng);
+    return {
+      freqStart: p.freqStart, freqEnd: p.freqEnd,
+      dissonanceRatio: p.dissonanceRatio, attack: p.attack,
+      decay: p.decay, toneLevel: p.toneLevel,
+      noiseLevel: p.noiseLevel,
+    };
+  },
+});
+
+// ── card-multiplier-up ────────────────────────────────────────────
+
+function cardMultiplierUpDuration(rng: Rng): number {
+  const params = getCardMultiplierUpParams(rng);
+  return params.noteCount * params.noteDuration + params.attack;
+}
+
+function cardMultiplierUpOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getCardMultiplierUpParams(rng);
+
+  // Single oscillator with frequency steps for ascending arpeggio
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.value = params.baseFreq;
+
+  // Schedule ascending frequency steps
+  let freq = params.baseFreq;
+  for (let i = 0; i < params.noteCount; i++) {
+    const noteTime = i * params.noteDuration;
+    osc.frequency.setValueAtTime(freq, noteTime);
+    freq *= params.intervalRatio;
+  }
+
+  const gain = ctx.createGain();
+  gain.gain.value = params.level;
+
+  // Master envelope
+  const masterGain = ctx.createGain();
+  masterGain.gain.setValueAtTime(0, 0);
+  masterGain.gain.linearRampToValueAtTime(1, params.attack);
+  const lastNoteEnd = params.noteCount * params.noteDuration;
+  masterGain.gain.setValueAtTime(1, Math.min(lastNoteEnd, duration * 0.9));
+  masterGain.gain.linearRampToValueAtTime(0, duration);
+
+  osc.connect(gain);
+  gain.connect(masterGain);
+  masterGain.connect(ctx.destination);
+
+  // Schedule
+  osc.start(0);
+  osc.stop(duration);
+}
+
+registry.register("card-multiplier-up", {
+  factoryLoader: async () => (await import("./card-multiplier-up.js")).createCardMultiplierUp,
+  getDuration: cardMultiplierUpDuration,
+  buildOfflineGraph: cardMultiplierUpOfflineGraph,
+  description: "Rising arpeggio with ascending frequency steps for multiplier increase feedback.",
+  category: "Card Game",
+  tags: ["card", "multiplier", "up", "card-game", "chain", "positive", "arcade", "arpeggio"],
+  signalChain: "Sine Oscillator (Ascending Arpeggio Steps) -> Gain -> Master Envelope -> Destination",
+  params: [
+    { name: "baseFreq", min: 500, max: 1000, unit: "Hz" },
+    { name: "intervalRatio", min: 1.15, max: 1.5, unit: "ratio" },
+    { name: "noteCount", min: 2, max: 5, unit: "count" },
+    { name: "noteDuration", min: 0.04, max: 0.1, unit: "s" },
+    { name: "attack", min: 0.002, max: 0.01, unit: "s" },
+    { name: "level", min: 0.5, max: 0.9, unit: "amplitude" },
+  ],
+  getParams: (rng) => {
+    const p = getCardMultiplierUpParams(rng);
+    return {
+      baseFreq: p.baseFreq, intervalRatio: p.intervalRatio,
+      noteCount: p.noteCount, noteDuration: p.noteDuration,
+      attack: p.attack, level: p.level,
+    };
+  },
+});
+
+// ── card-match ────────────────────────────────────────────────────
+
+function cardMatchDuration(rng: Rng): number {
+  const params = getCardMatchParams(rng);
+  return params.tone2Delay + params.attack + params.decay;
+}
+
+function cardMatchOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getCardMatchParams(rng);
+
+  // First tone
+  const osc1 = ctx.createOscillator();
+  osc1.type = "sine";
+  osc1.frequency.value = params.tone1Freq;
+
+  const gain1 = ctx.createGain();
+  gain1.gain.value = params.level;
+
+  const env1 = ctx.createGain();
+  env1.gain.setValueAtTime(0, 0);
+  env1.gain.linearRampToValueAtTime(1, params.attack);
+  env1.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+
+  osc1.connect(gain1);
+  gain1.connect(env1);
+  env1.connect(ctx.destination);
+
+  // Second tone (higher, delayed)
+  const osc2 = ctx.createOscillator();
+  osc2.type = "sine";
+  osc2.frequency.value = params.tone1Freq * params.tone2Ratio;
+
+  const gain2 = ctx.createGain();
+  gain2.gain.value = params.level * 0.85;
+
+  const env2 = ctx.createGain();
+  env2.gain.setValueAtTime(0, 0);
+  env2.gain.setValueAtTime(0, params.tone2Delay);
+  env2.gain.linearRampToValueAtTime(1, params.tone2Delay + params.attack);
+  env2.gain.linearRampToValueAtTime(0, params.tone2Delay + params.attack + params.decay);
+
+  osc2.connect(gain2);
+  gain2.connect(env2);
+  env2.connect(ctx.destination);
+
+  // Schedule
+  osc1.start(0);
+  osc1.stop(duration);
+  osc2.start(0);
+  osc2.stop(duration);
+}
+
+registry.register("card-match", {
+  factoryLoader: async () => (await import("./card-match.js")).createCardMatch,
+  getDuration: cardMatchDuration,
+  buildOfflineGraph: cardMatchOfflineGraph,
+  description: "Dual-tone confirmation sound with delayed second tone for satisfying card match feedback.",
+  category: "Card Game",
+  tags: ["card", "match", "card-game", "confirmation", "positive", "arcade", "ding"],
+  signalChain: "Sine Tone 1 + Delayed Sine Tone 2 (Harmonic Above) -> Gain -> Envelope -> Destination",
+  params: [
+    { name: "tone1Freq", min: 700, max: 1400, unit: "Hz" },
+    { name: "tone2Ratio", min: 1.25, max: 1.6, unit: "ratio" },
+    { name: "attack", min: 0.001, max: 0.005, unit: "s" },
+    { name: "decay", min: 0.08, max: 0.2, unit: "s" },
+    { name: "tone2Delay", min: 0.04, max: 0.1, unit: "s" },
+    { name: "level", min: 0.5, max: 0.9, unit: "amplitude" },
+  ],
+  getParams: (rng) => {
+    const p = getCardMatchParams(rng);
+    return {
+      tone1Freq: p.tone1Freq, tone2Ratio: p.tone2Ratio,
+      attack: p.attack, decay: p.decay,
+      tone2Delay: p.tone2Delay, level: p.level,
     };
   },
 });
