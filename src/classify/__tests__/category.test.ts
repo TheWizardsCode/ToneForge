@@ -83,6 +83,30 @@ describe("CategoryClassifier", () => {
     expect(classifier.classify(analysis, context).category).toBe("impact");
   });
 
+  it("maps card-flip -> card-game via recipe name parsing", () => {
+    const analysis = makeAnalysis();
+    const context: RecipeContext = { name: "card-flip", category: "" };
+    expect(classifier.classify(analysis, context).category).toBe("card-game");
+  });
+
+  it("maps card-coin-collect -> card-game via recipe name parsing", () => {
+    const analysis = makeAnalysis();
+    const context: RecipeContext = { name: "card-coin-collect", category: "" };
+    expect(classifier.classify(analysis, context).category).toBe("card-game");
+  });
+
+  it("maps card-victory-fanfare -> card-game via recipe name parsing", () => {
+    const analysis = makeAnalysis();
+    const context: RecipeContext = { name: "card-victory-fanfare", category: "" };
+    expect(classifier.classify(analysis, context).category).toBe("card-game");
+  });
+
+  it("does not classify non-card recipes as card-game", () => {
+    const analysis = makeAnalysis();
+    const context: RecipeContext = { name: "character-jump", category: "" };
+    expect(classifier.classify(analysis, context).category).not.toBe("card-game");
+  });
+
   it("falls back to metrics when no recipe metadata", () => {
     // Short duration, high peak, fast attack -> impact
     const analysis = makeAnalysis({

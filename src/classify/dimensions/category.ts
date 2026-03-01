@@ -5,7 +5,7 @@
  * with metric-based fallback heuristics for unknown sources.
  *
  * Categories are always lowercase strings matching the vocabulary:
- * weapon, footstep, ui, ambient, character, creature, vehicle, impact.
+ * weapon, footstep, ui, ambient, character, creature, vehicle, impact, card-game.
  *
  * Reference: docs/prd/CLASSIFY_PRD.md
  */
@@ -33,6 +33,7 @@ const RECIPE_NAME_CATEGORY_MAP: Record<string, string> = {
   debris: "impact",
   rattle: "impact",
   resonance: "impact",
+  card: "card-game",
 };
 
 /**
