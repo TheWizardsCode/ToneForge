@@ -371,7 +371,7 @@ Repeat for each sound in your palette. Sweep, audition, promote:
 
 ```bash
 toneforge explore sweep --recipe card-draw --seed-range 0:49 --keep-top 3 --rank-by rms,spectral-centroid --clusters 2
-toneforge explore promote --latest --id card-draw_seed-00000 --category card-game
+toneforge explore promote --latest --id card-draw_seed-00021 --category card-game
 ```
 
 ```bash
@@ -381,7 +381,7 @@ toneforge explore promote --latest --id card-success_seed-00000 --category card-
 
 ```bash
 toneforge explore sweep --recipe card-coin-collect --seed-range 0:49 --keep-top 3 --rank-by rms,spectral-centroid --clusters 2
-toneforge explore promote --latest --id card-coin-collect_seed-00000 --category card-game
+toneforge explore promote --latest --id card-coin-collect_seed-00029 --category card-game
 ```
 
 ```bash
