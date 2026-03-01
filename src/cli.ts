@@ -1248,10 +1248,17 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     const searchFlag = flags["search"];
     const categoryFlag = flags["category"];
     const tagsFlag = flags["tags"];
-    if (typeof searchFlag === "string") filter.search = searchFlag;
-    if (typeof categoryFlag === "string") filter.category = categoryFlag;
+    if (typeof searchFlag === "string" && searchFlag.trim().length > 0) {
+      filter.search = searchFlag;
+    }
+    if (typeof categoryFlag === "string" && categoryFlag.trim().length > 0) {
+      filter.category = categoryFlag;
+    }
     if (typeof tagsFlag === "string") {
-      filter.tags = tagsFlag.split(",").map((t) => t.trim());
+      const parsed = tagsFlag.split(",").map((t) => t.trim()).filter((t) => t.length > 0);
+      if (parsed.length > 0) {
+        filter.tags = parsed;
+      }
     }
 
     const isFiltered =
