@@ -189,10 +189,12 @@ describe("CLI", () => {
         () => main(argv("list", "recipes")),
       );
       expect(code).toBe(0);
-      // Verify known descriptions appear alongside their recipe names
-      expect(stdout).toContain("sci-fi confirmation tone");
+      // Verify known descriptions appear (word-wrapped across the table)
+      expect(stdout).toContain("sci-fi");
+      expect(stdout).toContain("confirmation");
       expect(stdout).toContain("laser zap");
-      expect(stdout).toContain("stone footstep");
+      expect(stdout).toContain("stone");
+      expect(stdout).toContain("footstep");
     });
 
     it("outputs one recipe per line", async () => {
