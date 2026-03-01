@@ -66,6 +66,10 @@ import { getCardComboHitParams } from "./card-combo-hit-params.js";
 import { getCardComboBreakParams } from "./card-combo-break-params.js";
 import { getCardMultiplierUpParams } from "./card-multiplier-up-params.js";
 import { getCardMatchParams } from "./card-match-params.js";
+import { getCardTableAmbienceParams } from "./card-table-ambience-params.js";
+import { getCardDeckPresenceParams } from "./card-deck-presence-params.js";
+import { getCardTimerTickParams } from "./card-timer-tick-params.js";
+import { getCardTimerWarningParams } from "./card-timer-warning-params.js";
 
 /** The global recipe registry instance with all built-in recipes registered. */
 export const registry = new RecipeRegistry();
@@ -4634,6 +4638,388 @@ registry.register("card-match", {
       tone1Freq: p.tone1Freq, tone2Ratio: p.tone2Ratio,
       attack: p.attack, decay: p.decay,
       tone2Delay: p.tone2Delay, level: p.level,
+    };
+  },
+});
+
+// ── card-table-ambience ───────────────────────────────────────────
+
+function cardTableAmbienceDuration(rng: Rng): number {
+  const params = getCardTableAmbienceParams(rng);
+  return params.attack + params.sustain + params.release;
+}
+
+function cardTableAmbienceOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getCardTableAmbienceParams(rng);
+
+  // Pink noise buffer (deterministic)
+  const bufferSize = Math.ceil(ctx.sampleRate * duration);
+  const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const noiseData = noiseBuffer.getChannelData(0);
+
+  // Simple pink-ish noise: accumulate white noise for low-frequency bias
+  let b0 = 0, b1 = 0, b2 = 0;
+  for (let i = 0; i < noiseData.length; i++) {
+    const white = rng() * 2 - 1;
+    b0 = 0.99886 * b0 + white * 0.0555179;
+    b1 = 0.99332 * b1 + white * 0.0750759;
+    b2 = 0.96900 * b2 + white * 0.1538520;
+    noiseData[i] = (b0 + b1 + b2 + white * 0.5362) * 0.2;
+  }
+
+  const noiseSrc = ctx.createBufferSource();
+  noiseSrc.buffer = noiseBuffer;
+
+  // Bandpass filter
+  const filter = ctx.createBiquadFilter();
+  filter.type = "bandpass";
+  filter.frequency.value = params.filterFreq;
+  filter.Q.value = params.filterQ;
+
+  // LFO for filter modulation (sine oscillator -> filter frequency)
+  const lfo = ctx.createOscillator();
+  lfo.type = "sine";
+  lfo.frequency.value = params.lfoRate;
+
+  const lfoGain = ctx.createGain();
+  lfoGain.gain.value = params.lfoDepth;
+
+  lfo.connect(lfoGain);
+  lfoGain.connect(filter.frequency);
+
+  // Level
+  const gain = ctx.createGain();
+  gain.gain.value = params.level;
+
+  // Envelope: attack -> sustain -> release
+  const env = ctx.createGain();
+  env.gain.setValueAtTime(0, 0);
+  env.gain.linearRampToValueAtTime(1, params.attack);
+  env.gain.setValueAtTime(1, params.attack + params.sustain);
+  env.gain.linearRampToValueAtTime(0, duration);
+
+  noiseSrc.connect(filter);
+  filter.connect(gain);
+  gain.connect(env);
+  env.connect(ctx.destination);
+
+  // Schedule
+  lfo.start(0);
+  lfo.stop(duration);
+  noiseSrc.start(0);
+  noiseSrc.stop(duration);
+}
+
+registry.register("card-table-ambience", {
+  factoryLoader: async () => (await import("./card-table-ambience.js")).createCardTableAmbience,
+  getDuration: cardTableAmbienceDuration,
+  buildOfflineGraph: cardTableAmbienceOfflineGraph,
+  description: "Warm filtered noise bed with LFO modulation evoking a card table atmosphere.",
+  category: "Card Game",
+  tags: ["card", "table", "ambience", "card-game", "ambient", "atmosphere", "arcade", "background"],
+  signalChain: "Pink Noise -> Bandpass Filter (LFO-modulated) -> Gain -> Envelope -> Destination",
+  params: [
+    { name: "filterFreq", min: 200, max: 800, unit: "Hz" },
+    { name: "filterQ", min: 0.5, max: 2, unit: "Q" },
+    { name: "lfoRate", min: 0.2, max: 1.5, unit: "Hz" },
+    { name: "lfoDepth", min: 30, max: 150, unit: "Hz" },
+    { name: "attack", min: 0.05, max: 0.3, unit: "s" },
+    { name: "sustain", min: 1, max: 2, unit: "s" },
+    { name: "release", min: 0.3, max: 0.8, unit: "s" },
+    { name: "level", min: 0.3, max: 0.7, unit: "amplitude" },
+  ],
+  getParams: (rng) => {
+    const p = getCardTableAmbienceParams(rng);
+    return {
+      filterFreq: p.filterFreq, filterQ: p.filterQ,
+      lfoRate: p.lfoRate, lfoDepth: p.lfoDepth,
+      attack: p.attack, sustain: p.sustain,
+      release: p.release, level: p.level,
+    };
+  },
+});
+
+// ── card-deck-presence ────────────────────────────────────────────
+
+function cardDeckPresenceDuration(rng: Rng): number {
+  const params = getCardDeckPresenceParams(rng);
+  return params.attack + params.sustain + params.release;
+}
+
+function cardDeckPresenceOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  _duration: number,
+): void {
+  const params = getCardDeckPresenceParams(rng);
+  const duration = params.attack + params.sustain + params.release;
+
+  // Fundamental hum
+  const hum = ctx.createOscillator();
+  hum.type = "sine";
+  hum.frequency.value = params.humFreq;
+
+  const humGain = ctx.createGain();
+  humGain.gain.value = params.level;
+
+  // Shimmer harmonic
+  const shimmer = ctx.createOscillator();
+  shimmer.type = "sine";
+  shimmer.frequency.value = params.humFreq * params.shimmerRatio;
+
+  // Shimmer amplitude tremolo via LFO
+  const shimmerGain = ctx.createGain();
+  shimmerGain.gain.value = params.shimmerLevel * 0.5;
+
+  const lfo = ctx.createOscillator();
+  lfo.type = "sine";
+  lfo.frequency.value = params.shimmerRate;
+
+  const lfoGain = ctx.createGain();
+  lfoGain.gain.value = params.shimmerLevel * 0.5;
+
+  lfo.connect(lfoGain);
+  lfoGain.connect(shimmerGain.gain);
+
+  // Master envelope: attack -> sustain -> release
+  const env = ctx.createGain();
+  env.gain.setValueAtTime(0, 0);
+  env.gain.linearRampToValueAtTime(1, params.attack);
+  env.gain.setValueAtTime(1, params.attack + params.sustain);
+  env.gain.linearRampToValueAtTime(0, duration);
+
+  hum.connect(humGain);
+  humGain.connect(env);
+  shimmer.connect(shimmerGain);
+  shimmerGain.connect(env);
+  env.connect(ctx.destination);
+
+  // Schedule
+  hum.start(0);
+  hum.stop(duration);
+  shimmer.start(0);
+  shimmer.stop(duration);
+  lfo.start(0);
+  lfo.stop(duration);
+}
+
+registry.register("card-deck-presence", {
+  factoryLoader: async () => (await import("./card-deck-presence.js")).createCardDeckPresence,
+  getDuration: cardDeckPresenceDuration,
+  buildOfflineGraph: cardDeckPresenceOfflineGraph,
+  description: "Quiet tonal hum with harmonic shimmer giving the card deck a subtle ambient presence.",
+  category: "Card Game",
+  tags: ["card", "deck", "presence", "card-game", "ambient", "hum", "shimmer", "arcade"],
+  signalChain: "Sine Hum + Shimmer Sine (LFO Tremolo) -> Gain -> Master Envelope -> Destination",
+  params: [
+    { name: "humFreq", min: 80, max: 200, unit: "Hz" },
+    { name: "shimmerRatio", min: 3, max: 6, unit: "ratio" },
+    { name: "shimmerRate", min: 2, max: 8, unit: "Hz" },
+    { name: "shimmerLevel", min: 0.05, max: 0.2, unit: "amplitude" },
+    { name: "attack", min: 0.2, max: 0.5, unit: "s" },
+    { name: "sustain", min: 0.5, max: 1.2, unit: "s" },
+    { name: "release", min: 0.2, max: 0.5, unit: "s" },
+    { name: "level", min: 0.1, max: 0.3, unit: "amplitude" },
+  ],
+  getParams: (rng) => {
+    const p = getCardDeckPresenceParams(rng);
+    return {
+      humFreq: p.humFreq, shimmerRatio: p.shimmerRatio,
+      shimmerRate: p.shimmerRate, shimmerLevel: p.shimmerLevel,
+      attack: p.attack, sustain: p.sustain,
+      release: p.release, level: p.level,
+    };
+  },
+});
+
+// ── card-timer-tick ───────────────────────────────────────────────
+
+function cardTimerTickDuration(rng: Rng): number {
+  const params = getCardTimerTickParams(rng);
+  return params.attack + params.decay;
+}
+
+function cardTimerTickOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getCardTimerTickParams(rng);
+
+  // Tonal click
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.value = params.freq;
+
+  const gain = ctx.createGain();
+  gain.gain.value = params.level;
+
+  const env = ctx.createGain();
+  env.gain.setValueAtTime(0, 0);
+  env.gain.linearRampToValueAtTime(1, params.attack);
+  env.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+
+  osc.connect(gain);
+  gain.connect(env);
+  env.connect(ctx.destination);
+
+  // Highpass noise for click crispness
+  const bufferSize = Math.ceil(ctx.sampleRate * duration);
+  const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const noiseData = noiseBuffer.getChannelData(0);
+
+  for (let i = 0; i < noiseData.length; i++) {
+    noiseData[i] = rng() * 2 - 1;
+  }
+
+  const noiseSrc = ctx.createBufferSource();
+  noiseSrc.buffer = noiseBuffer;
+
+  const hpf = ctx.createBiquadFilter();
+  hpf.type = "highpass";
+  hpf.frequency.value = params.clickCutoff;
+
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.value = params.level * 0.3;
+
+  const noiseEnv = ctx.createGain();
+  noiseEnv.gain.setValueAtTime(0, 0);
+  noiseEnv.gain.linearRampToValueAtTime(1, params.attack);
+  noiseEnv.gain.linearRampToValueAtTime(0, params.attack + params.decay * 0.5);
+
+  noiseSrc.connect(hpf);
+  hpf.connect(noiseGain);
+  noiseGain.connect(noiseEnv);
+  noiseEnv.connect(ctx.destination);
+
+  // Schedule
+  osc.start(0);
+  osc.stop(duration);
+  noiseSrc.start(0);
+  noiseSrc.stop(duration);
+}
+
+registry.register("card-timer-tick", {
+  factoryLoader: async () => (await import("./card-timer-tick.js")).createCardTimerTick,
+  getDuration: cardTimerTickDuration,
+  buildOfflineGraph: cardTimerTickOfflineGraph,
+  description: "Sharp, clean click/tick for metronome-like card game timer beats.",
+  category: "Card Game",
+  tags: ["card", "timer", "tick", "card-game", "contextual", "metronome", "arcade", "click"],
+  signalChain: "Sine Click + Highpass Noise Transient -> Gain -> Envelope -> Destination",
+  params: [
+    { name: "freq", min: 1000, max: 2500, unit: "Hz" },
+    { name: "attack", min: 0.0005, max: 0.002, unit: "s" },
+    { name: "decay", min: 0.02, max: 0.08, unit: "s" },
+    { name: "level", min: 0.4, max: 0.8, unit: "amplitude" },
+    { name: "clickCutoff", min: 2000, max: 5000, unit: "Hz" },
+  ],
+  getParams: (rng) => {
+    const p = getCardTimerTickParams(rng);
+    return {
+      freq: p.freq, attack: p.attack,
+      decay: p.decay, level: p.level,
+      clickCutoff: p.clickCutoff,
+    };
+  },
+});
+
+// ── card-timer-warning ────────────────────────────────────────────
+
+function cardTimerWarningDuration(rng: Rng): number {
+  const params = getCardTimerWarningParams(rng);
+  return params.attack + params.decay;
+}
+
+function cardTimerWarningOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getCardTimerWarningParams(rng);
+
+  // Primary tone with vibrato
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.value = params.freq;
+
+  // Vibrato LFO -> osc frequency
+  const vibrato = ctx.createOscillator();
+  vibrato.type = "sine";
+  vibrato.frequency.value = params.vibratoRate;
+
+  const vibratoGain = ctx.createGain();
+  vibratoGain.gain.value = params.vibratoDepth;
+
+  vibrato.connect(vibratoGain);
+  vibratoGain.connect(osc.frequency);
+
+  const gain = ctx.createGain();
+  gain.gain.value = params.level;
+
+  const env = ctx.createGain();
+  env.gain.setValueAtTime(0, 0);
+  env.gain.linearRampToValueAtTime(1, params.attack);
+  env.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+
+  osc.connect(gain);
+  gain.connect(env);
+  env.connect(ctx.destination);
+
+  // Urgency tone (higher)
+  const urgOsc = ctx.createOscillator();
+  urgOsc.type = "sine";
+  urgOsc.frequency.value = params.freq * params.urgencyRatio;
+
+  const urgGain = ctx.createGain();
+  urgGain.gain.value = params.level * 0.6;
+
+  const urgEnv = ctx.createGain();
+  urgEnv.gain.setValueAtTime(0, 0);
+  urgEnv.gain.linearRampToValueAtTime(1, params.attack);
+  urgEnv.gain.linearRampToValueAtTime(0, params.attack + params.decay * 0.7);
+
+  urgOsc.connect(urgGain);
+  urgGain.connect(urgEnv);
+  urgEnv.connect(ctx.destination);
+
+  // Schedule
+  vibrato.start(0);
+  vibrato.stop(duration);
+  osc.start(0);
+  osc.stop(duration);
+  urgOsc.start(0);
+  urgOsc.stop(duration);
+}
+
+registry.register("card-timer-warning", {
+  factoryLoader: async () => (await import("./card-timer-warning.js")).createCardTimerWarning,
+  getDuration: cardTimerWarningDuration,
+  buildOfflineGraph: cardTimerWarningOfflineGraph,
+  description: "Escalating urgent tick with vibrato and dual-tone chord for timer warning feedback.",
+  category: "Card Game",
+  tags: ["card", "timer", "warning", "card-game", "contextual", "urgent", "arcade", "tension"],
+  signalChain: "Sine (Vibrato-modulated) + Urgency Sine (Higher) -> Gain -> Envelope -> Destination",
+  params: [
+    { name: "freq", min: 1500, max: 3500, unit: "Hz" },
+    { name: "urgencyRatio", min: 1.3, max: 1.8, unit: "ratio" },
+    { name: "attack", min: 0.0005, max: 0.002, unit: "s" },
+    { name: "decay", min: 0.05, max: 0.15, unit: "s" },
+    { name: "level", min: 0.5, max: 0.9, unit: "amplitude" },
+    { name: "vibratoRate", min: 8, max: 20, unit: "Hz" },
+    { name: "vibratoDepth", min: 20, max: 80, unit: "Hz" },
+  ],
+  getParams: (rng) => {
+    const p = getCardTimerWarningParams(rng);
+    return {
+      freq: p.freq, urgencyRatio: p.urgencyRatio,
+      attack: p.attack, decay: p.decay,
+      level: p.level, vibratoRate: p.vibratoRate,
+      vibratoDepth: p.vibratoDepth,
     };
   },
 });
