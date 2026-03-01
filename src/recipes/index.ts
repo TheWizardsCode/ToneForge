@@ -36,6 +36,12 @@ import { getDebrisTailParams } from "./debris-tail-params.js";
 import { getSlamTransientParams } from "./slam-transient-params.js";
 import { getResonanceBodyParams } from "./resonance-body-params.js";
 import { getRattleDecayParams } from "./rattle-decay-params.js";
+import { getCardFlipParams } from "./card-flip-params.js";
+import { getCardSlideParams } from "./card-slide-params.js";
+import { getCardPlaceParams } from "./card-place-params.js";
+import { getCardDrawParams } from "./card-draw-params.js";
+import { getCardShuffleParams } from "./card-shuffle-params.js";
+import { getCardFanParams } from "./card-fan-params.js";
 
 /** The global recipe registry instance with all built-in recipes registered. */
 export const registry = new RecipeRegistry();
@@ -1735,6 +1741,591 @@ registry.register("rattle-decay", {
       filterFreq: p.filterFreq, filterQ: p.filterQ,
       duration: p.duration, densityDecay: p.densityDecay,
       level: p.level,
+    };
+  },
+});
+
+// ── card-flip ─────────────────────────────────────────────────────
+
+function cardFlipDuration(rng: Rng): number {
+  const params = getCardFlipParams(rng);
+  return params.attack + params.decay;
+}
+
+function cardFlipOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getCardFlipParams(rng);
+
+  const bufferSize = Math.ceil(ctx.sampleRate * duration);
+
+  // Noise layer: bandpass-filtered white noise for the "flick" texture
+  const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const noiseData = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < noiseData.length; i++) {
+    noiseData[i] = rng() * 2 - 1;
+  }
+
+  const noiseSrc = ctx.createBufferSource();
+  noiseSrc.buffer = noiseBuffer;
+
+  const noiseFilter = ctx.createBiquadFilter();
+  noiseFilter.type = "bandpass";
+  noiseFilter.frequency.value = params.filterFreq;
+  noiseFilter.Q.value = params.filterQ;
+
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.value = params.noiseLevel;
+
+  // Noise amplitude envelope
+  const noiseEnv = ctx.createGain();
+  noiseEnv.gain.setValueAtTime(0, 0);
+  noiseEnv.gain.linearRampToValueAtTime(1, params.attack);
+  noiseEnv.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+
+  noiseSrc.connect(noiseFilter);
+  noiseFilter.connect(noiseGain);
+  noiseGain.connect(noiseEnv);
+  noiseEnv.connect(ctx.destination);
+
+  // Click layer: short sine transient for the snap
+  const clickOsc = ctx.createOscillator();
+  clickOsc.type = "sine";
+  clickOsc.frequency.value = params.clickFreq;
+
+  const clickGain = ctx.createGain();
+  clickGain.gain.setValueAtTime(params.clickLevel, 0);
+  clickGain.gain.linearRampToValueAtTime(0, Math.min(0.01, duration));
+
+  clickOsc.connect(clickGain);
+  clickGain.connect(ctx.destination);
+
+  // Schedule
+  noiseSrc.start(0);
+  noiseSrc.stop(duration);
+  clickOsc.start(0);
+  clickOsc.stop(duration);
+}
+
+registry.register("card-flip", {
+  factoryLoader: async () => (await import("./card-flip.js")).createCardFlip,
+  getDuration: cardFlipDuration,
+  buildOfflineGraph: cardFlipOfflineGraph,
+  description: "Stylized card flip sound using bandpass-filtered noise burst with a sine click transient.",
+  category: "Card Game",
+  tags: ["card", "flip", "card-game", "manipulation", "arcade"],
+  signalChain: "White Noise -> Bandpass Filter -> Gain -> Envelope + Sine Oscillator -> Click Gain -> Destination",
+  params: [
+    { name: "filterFreq", min: 800, max: 2500, unit: "Hz" },
+    { name: "filterQ", min: 1.5, max: 5, unit: "Q" },
+    { name: "attack", min: 0.001, max: 0.005, unit: "s" },
+    { name: "decay", min: 0.03, max: 0.12, unit: "s" },
+    { name: "noiseLevel", min: 0.5, max: 0.9, unit: "amplitude" },
+    { name: "clickFreq", min: 600, max: 1200, unit: "Hz" },
+    { name: "clickLevel", min: 0.3, max: 0.7, unit: "amplitude" },
+  ],
+  getParams: (rng) => {
+    const p = getCardFlipParams(rng);
+    return {
+      filterFreq: p.filterFreq, filterQ: p.filterQ,
+      attack: p.attack, decay: p.decay,
+      noiseLevel: p.noiseLevel, clickFreq: p.clickFreq,
+      clickLevel: p.clickLevel,
+    };
+  },
+});
+
+// ── card-slide ────────────────────────────────────────────────────
+
+function cardSlideDuration(rng: Rng): number {
+  const params = getCardSlideParams(rng);
+  return params.attack + params.decay;
+}
+
+function cardSlideOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getCardSlideParams(rng);
+
+  const bufferSize = Math.ceil(ctx.sampleRate * duration);
+
+  // Tonal layer: sine oscillator with downward frequency sweep
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(params.startFreq, 0);
+  osc.frequency.linearRampToValueAtTime(
+    params.startFreq - params.sweepRange,
+    duration,
+  );
+
+  // Lowpass filter for warmth
+  const filter = ctx.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.value = params.filterCutoff;
+
+  // Tonal amplitude envelope
+  const oscGain = ctx.createGain();
+  oscGain.gain.setValueAtTime(0, 0);
+  oscGain.gain.linearRampToValueAtTime(1, params.attack);
+  oscGain.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+
+  osc.connect(filter);
+  filter.connect(oscGain);
+  oscGain.connect(ctx.destination);
+
+  // Noise undertone: gentle surface friction texture
+  const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const noiseData = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < noiseData.length; i++) {
+    noiseData[i] = rng() * 2 - 1;
+  }
+
+  const noiseSrc = ctx.createBufferSource();
+  noiseSrc.buffer = noiseBuffer;
+
+  const noiseFilter = ctx.createBiquadFilter();
+  noiseFilter.type = "lowpass";
+  noiseFilter.frequency.value = params.filterCutoff * 0.5;
+
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.value = params.noiseLevel;
+
+  const noiseEnv = ctx.createGain();
+  noiseEnv.gain.setValueAtTime(0, 0);
+  noiseEnv.gain.linearRampToValueAtTime(1, params.attack);
+  noiseEnv.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+
+  noiseSrc.connect(noiseFilter);
+  noiseFilter.connect(noiseGain);
+  noiseGain.connect(noiseEnv);
+  noiseEnv.connect(ctx.destination);
+
+  // Schedule
+  osc.start(0);
+  osc.stop(duration);
+  noiseSrc.start(0);
+  noiseSrc.stop(duration);
+}
+
+registry.register("card-slide", {
+  factoryLoader: async () => (await import("./card-slide.js")).createCardSlide,
+  getDuration: cardSlideDuration,
+  buildOfflineGraph: cardSlideOfflineGraph,
+  description: "Smooth card slide sound using sine sweep with filtered noise undertone for surface friction.",
+  category: "Card Game",
+  tags: ["card", "slide", "card-game", "manipulation", "tonal", "arcade"],
+  signalChain: "Sine Oscillator (Freq Sweep) -> Lowpass Filter -> Envelope + White Noise -> Lowpass Filter -> Noise Gain -> Envelope -> Destination",
+  params: [
+    { name: "startFreq", min: 500, max: 1000, unit: "Hz" },
+    { name: "sweepRange", min: 100, max: 400, unit: "Hz" },
+    { name: "attack", min: 0.001, max: 0.008, unit: "s" },
+    { name: "decay", min: 0.06, max: 0.2, unit: "s" },
+    { name: "filterCutoff", min: 1000, max: 3000, unit: "Hz" },
+    { name: "noiseLevel", min: 0.1, max: 0.35, unit: "amplitude" },
+  ],
+  getParams: (rng) => {
+    const p = getCardSlideParams(rng);
+    return {
+      startFreq: p.startFreq, sweepRange: p.sweepRange,
+      attack: p.attack, decay: p.decay,
+      filterCutoff: p.filterCutoff, noiseLevel: p.noiseLevel,
+    };
+  },
+});
+
+// ── card-place ────────────────────────────────────────────────────
+
+function cardPlaceDuration(rng: Rng): number {
+  const params = getCardPlaceParams(rng);
+  return params.attack + params.bodyDecay;
+}
+
+function cardPlaceOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getCardPlaceParams(rng);
+
+  const bufferSize = Math.ceil(ctx.sampleRate * duration);
+
+  // Body layer: lowpass-filtered noise for the soft thud
+  const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const noiseData = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < noiseData.length; i++) {
+    noiseData[i] = rng() * 2 - 1;
+  }
+
+  const noiseSrc = ctx.createBufferSource();
+  noiseSrc.buffer = noiseBuffer;
+
+  const bodyFilter = ctx.createBiquadFilter();
+  bodyFilter.type = "lowpass";
+  bodyFilter.frequency.value = params.filterFreq;
+  bodyFilter.Q.value = params.filterQ;
+
+  const bodyGain = ctx.createGain();
+  bodyGain.gain.value = params.bodyLevel;
+
+  // Body amplitude envelope
+  const bodyEnv = ctx.createGain();
+  bodyEnv.gain.setValueAtTime(0, 0);
+  bodyEnv.gain.linearRampToValueAtTime(1, params.attack);
+  bodyEnv.gain.linearRampToValueAtTime(0, params.attack + params.bodyDecay);
+
+  noiseSrc.connect(bodyFilter);
+  bodyFilter.connect(bodyGain);
+  bodyGain.connect(bodyEnv);
+  bodyEnv.connect(ctx.destination);
+
+  // Click layer: subtle sine tap accent
+  const clickOsc = ctx.createOscillator();
+  clickOsc.type = "sine";
+  clickOsc.frequency.value = params.clickFreq;
+
+  const clickGain = ctx.createGain();
+  clickGain.gain.setValueAtTime(params.clickLevel, 0);
+  clickGain.gain.linearRampToValueAtTime(0, Math.min(0.008, duration));
+
+  clickOsc.connect(clickGain);
+  clickGain.connect(ctx.destination);
+
+  // Schedule
+  noiseSrc.start(0);
+  noiseSrc.stop(duration);
+  clickOsc.start(0);
+  clickOsc.stop(duration);
+}
+
+registry.register("card-place", {
+  factoryLoader: async () => (await import("./card-place.js")).createCardPlace,
+  getDuration: cardPlaceDuration,
+  buildOfflineGraph: cardPlaceOfflineGraph,
+  description: "Soft card placement thud using lowpass-filtered noise with a subtle sine tap accent.",
+  category: "Card Game",
+  tags: ["card", "place", "card-game", "manipulation", "impact", "arcade"],
+  signalChain: "White Noise -> Lowpass Filter -> Body Gain -> Envelope + Sine Oscillator -> Click Gain -> Destination",
+  params: [
+    { name: "filterFreq", min: 300, max: 900, unit: "Hz" },
+    { name: "filterQ", min: 1, max: 4, unit: "Q" },
+    { name: "attack", min: 0.001, max: 0.004, unit: "s" },
+    { name: "bodyDecay", min: 0.03, max: 0.1, unit: "s" },
+    { name: "bodyLevel", min: 0.5, max: 0.9, unit: "amplitude" },
+    { name: "clickFreq", min: 400, max: 800, unit: "Hz" },
+    { name: "clickLevel", min: 0.15, max: 0.4, unit: "amplitude" },
+  ],
+  getParams: (rng) => {
+    const p = getCardPlaceParams(rng);
+    return {
+      filterFreq: p.filterFreq, filterQ: p.filterQ,
+      attack: p.attack, bodyDecay: p.bodyDecay,
+      bodyLevel: p.bodyLevel, clickFreq: p.clickFreq,
+      clickLevel: p.clickLevel,
+    };
+  },
+});
+
+// ── card-draw ─────────────────────────────────────────────────────
+
+function cardDrawDuration(rng: Rng): number {
+  const params = getCardDrawParams(rng);
+  return params.attack + params.decay;
+}
+
+function cardDrawOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getCardDrawParams(rng);
+
+  const bufferSize = Math.ceil(ctx.sampleRate * duration);
+
+  // Noise layer: highpass-filtered white noise for the swipe
+  const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const noiseData = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < noiseData.length; i++) {
+    noiseData[i] = rng() * 2 - 1;
+  }
+
+  const noiseSrc = ctx.createBufferSource();
+  noiseSrc.buffer = noiseBuffer;
+
+  const noiseFilter = ctx.createBiquadFilter();
+  noiseFilter.type = "highpass";
+  noiseFilter.frequency.value = params.filterFreq;
+  noiseFilter.Q.value = params.filterQ;
+
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.value = params.noiseLevel;
+
+  // Noise amplitude envelope
+  const noiseEnv = ctx.createGain();
+  noiseEnv.gain.setValueAtTime(0, 0);
+  noiseEnv.gain.linearRampToValueAtTime(1, params.attack);
+  noiseEnv.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+
+  noiseSrc.connect(noiseFilter);
+  noiseFilter.connect(noiseGain);
+  noiseGain.connect(noiseEnv);
+  noiseEnv.connect(ctx.destination);
+
+  // Tonal accent: ascending sine sweep for lift-off feel
+  const sweepOsc = ctx.createOscillator();
+  sweepOsc.type = "sine";
+  sweepOsc.frequency.setValueAtTime(params.sweepBaseFreq, 0);
+  sweepOsc.frequency.linearRampToValueAtTime(
+    params.sweepBaseFreq + params.sweepRange,
+    duration,
+  );
+
+  const sweepGain = ctx.createGain();
+  sweepGain.gain.setValueAtTime(0, 0);
+  sweepGain.gain.linearRampToValueAtTime(params.sweepLevel, params.attack);
+  sweepGain.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+
+  sweepOsc.connect(sweepGain);
+  sweepGain.connect(ctx.destination);
+
+  // Schedule
+  noiseSrc.start(0);
+  noiseSrc.stop(duration);
+  sweepOsc.start(0);
+  sweepOsc.stop(duration);
+}
+
+registry.register("card-draw", {
+  factoryLoader: async () => (await import("./card-draw.js")).createCardDraw,
+  getDuration: cardDrawDuration,
+  buildOfflineGraph: cardDrawOfflineGraph,
+  description: "Quick card draw sound with highpass-filtered noise swipe and ascending sine sweep accent.",
+  category: "Card Game",
+  tags: ["card", "draw", "card-game", "manipulation", "swipe", "arcade"],
+  signalChain: "White Noise -> Highpass Filter -> Noise Gain -> Envelope + Sine Oscillator (Ascending Sweep) -> Sweep Gain -> Destination",
+  params: [
+    { name: "filterFreq", min: 1200, max: 3000, unit: "Hz" },
+    { name: "filterQ", min: 0.5, max: 2.5, unit: "Q" },
+    { name: "attack", min: 0.001, max: 0.005, unit: "s" },
+    { name: "decay", min: 0.04, max: 0.15, unit: "s" },
+    { name: "noiseLevel", min: 0.3, max: 0.7, unit: "amplitude" },
+    { name: "sweepBaseFreq", min: 400, max: 800, unit: "Hz" },
+    { name: "sweepRange", min: 200, max: 600, unit: "Hz" },
+    { name: "sweepLevel", min: 0.3, max: 0.6, unit: "amplitude" },
+  ],
+  getParams: (rng) => {
+    const p = getCardDrawParams(rng);
+    return {
+      filterFreq: p.filterFreq, filterQ: p.filterQ,
+      attack: p.attack, decay: p.decay,
+      noiseLevel: p.noiseLevel, sweepBaseFreq: p.sweepBaseFreq,
+      sweepRange: p.sweepRange, sweepLevel: p.sweepLevel,
+    };
+  },
+});
+
+// ── card-shuffle ──────────────────────────────────────────────────
+
+function cardShuffleDuration(rng: Rng): number {
+  const params = getCardShuffleParams(rng);
+  return params.attack + params.decay;
+}
+
+function cardShuffleOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getCardShuffleParams(rng);
+
+  const bufferSize = Math.ceil(ctx.sampleRate * duration);
+
+  // White noise source for the flutter texture
+  const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const noiseData = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < noiseData.length; i++) {
+    noiseData[i] = rng() * 2 - 1;
+  }
+
+  const noiseSrc = ctx.createBufferSource();
+  noiseSrc.buffer = noiseBuffer;
+
+  // Bandpass filter for card shuffle character
+  const filter = ctx.createBiquadFilter();
+  filter.type = "bandpass";
+  filter.frequency.value = params.filterFreq;
+  filter.Q.value = params.filterQ;
+
+  // Amplitude modulation for grain flutter effect
+  // LFO oscillator modulates amplitude at grainRate
+  const lfo = ctx.createOscillator();
+  lfo.type = "sine";
+  lfo.frequency.value = params.grainRate;
+
+  const lfoGain = ctx.createGain();
+  lfoGain.gain.value = params.grainDepth * 0.5;
+
+  const modOffset = ctx.createGain();
+  modOffset.gain.value = 1.0 - params.grainDepth * 0.5;
+
+  // Overall noise level
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.value = params.noiseLevel;
+
+  // Amplitude envelope with decay
+  const env = ctx.createGain();
+  env.gain.setValueAtTime(0, 0);
+  env.gain.linearRampToValueAtTime(1, params.attack);
+  env.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+
+  // Signal chain: noise -> filter -> noiseGain -> env -> destination
+  // LFO modulates env gain for flutter effect
+  noiseSrc.connect(filter);
+  filter.connect(noiseGain);
+  noiseGain.connect(env);
+  env.connect(modOffset);
+  modOffset.connect(ctx.destination);
+
+  // LFO -> lfoGain -> destination (additive AM on the modOffset output)
+  lfo.connect(lfoGain);
+  lfoGain.connect(modOffset.gain);
+
+  // Schedule
+  noiseSrc.start(0);
+  noiseSrc.stop(duration);
+  lfo.start(0);
+  lfo.stop(duration);
+}
+
+registry.register("card-shuffle", {
+  factoryLoader: async () => (await import("./card-shuffle.js")).createCardShuffle,
+  getDuration: cardShuffleDuration,
+  buildOfflineGraph: cardShuffleOfflineGraph,
+  description: "Rapid card shuffle riffle using bandpass-filtered noise with amplitude-modulated grain flutter.",
+  category: "Card Game",
+  tags: ["card", "shuffle", "card-game", "manipulation", "granular", "arcade"],
+  signalChain: "White Noise -> Bandpass Filter -> Gain -> Envelope -> AM (LFO Grain Flutter) -> Destination",
+  params: [
+    { name: "filterFreq", min: 600, max: 2000, unit: "Hz" },
+    { name: "filterQ", min: 1, max: 4, unit: "Q" },
+    { name: "attack", min: 0.002, max: 0.008, unit: "s" },
+    { name: "decay", min: 0.15, max: 0.4, unit: "s" },
+    { name: "grainRate", min: 20, max: 60, unit: "Hz" },
+    { name: "grainDepth", min: 0.3, max: 0.8, unit: "depth" },
+    { name: "noiseLevel", min: 0.5, max: 0.9, unit: "amplitude" },
+  ],
+  getParams: (rng) => {
+    const p = getCardShuffleParams(rng);
+    return {
+      filterFreq: p.filterFreq, filterQ: p.filterQ,
+      attack: p.attack, decay: p.decay,
+      grainRate: p.grainRate, grainDepth: p.grainDepth,
+      noiseLevel: p.noiseLevel,
+    };
+  },
+});
+
+// ── card-fan ──────────────────────────────────────────────────────
+
+function cardFanDuration(rng: Rng): number {
+  const params = getCardFanParams(rng);
+  return params.attack + params.decay;
+}
+
+function cardFanOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getCardFanParams(rng);
+
+  const bufferSize = Math.ceil(ctx.sampleRate * duration);
+
+  // Tonal layer: ascending sine sweep for the fan-out gesture
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(params.baseFreq, 0);
+  osc.frequency.linearRampToValueAtTime(
+    params.baseFreq + params.sweepRange,
+    duration,
+  );
+
+  // Lowpass filter for smoothness
+  const filter = ctx.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.value = params.filterCutoff;
+
+  // Tonal amplitude envelope
+  const oscGain = ctx.createGain();
+  oscGain.gain.setValueAtTime(0, 0);
+  oscGain.gain.linearRampToValueAtTime(params.sweepLevel, params.attack);
+  oscGain.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+
+  osc.connect(filter);
+  filter.connect(oscGain);
+  oscGain.connect(ctx.destination);
+
+  // Noise bed: gentle filtered noise for paper texture
+  const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const noiseData = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < noiseData.length; i++) {
+    noiseData[i] = rng() * 2 - 1;
+  }
+
+  const noiseSrc = ctx.createBufferSource();
+  noiseSrc.buffer = noiseBuffer;
+
+  const noiseFilter = ctx.createBiquadFilter();
+  noiseFilter.type = "lowpass";
+  noiseFilter.frequency.value = params.filterCutoff * 0.6;
+
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.value = params.noiseLevel;
+
+  const noiseEnv = ctx.createGain();
+  noiseEnv.gain.setValueAtTime(0, 0);
+  noiseEnv.gain.linearRampToValueAtTime(1, params.attack);
+  noiseEnv.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+
+  noiseSrc.connect(noiseFilter);
+  noiseFilter.connect(noiseGain);
+  noiseGain.connect(noiseEnv);
+  noiseEnv.connect(ctx.destination);
+
+  // Schedule
+  osc.start(0);
+  osc.stop(duration);
+  noiseSrc.start(0);
+  noiseSrc.stop(duration);
+}
+
+registry.register("card-fan", {
+  factoryLoader: async () => (await import("./card-fan.js")).createCardFan,
+  getDuration: cardFanDuration,
+  buildOfflineGraph: cardFanOfflineGraph,
+  description: "Smooth card fanning sound using ascending sine sweep with gentle filtered noise bed texture.",
+  category: "Card Game",
+  tags: ["card", "fan", "card-game", "manipulation", "tonal", "arcade"],
+  signalChain: "Sine Oscillator (Ascending Sweep) -> Lowpass Filter -> Envelope + White Noise -> Lowpass Filter -> Noise Gain -> Envelope -> Destination",
+  params: [
+    { name: "baseFreq", min: 400, max: 900, unit: "Hz" },
+    { name: "sweepRange", min: 200, max: 600, unit: "Hz" },
+    { name: "attack", min: 0.002, max: 0.008, unit: "s" },
+    { name: "decay", min: 0.08, max: 0.25, unit: "s" },
+    { name: "filterCutoff", min: 1500, max: 4000, unit: "Hz" },
+    { name: "noiseLevel", min: 0.1, max: 0.3, unit: "amplitude" },
+    { name: "sweepLevel", min: 0.4, max: 0.8, unit: "amplitude" },
+  ],
+  getParams: (rng) => {
+    const p = getCardFanParams(rng);
+    return {
+      baseFreq: p.baseFreq, sweepRange: p.sweepRange,
+      attack: p.attack, decay: p.decay,
+      filterCutoff: p.filterCutoff, noiseLevel: p.noiseLevel,
+      sweepLevel: p.sweepLevel,
     };
   },
 });
