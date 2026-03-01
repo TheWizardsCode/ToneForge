@@ -287,6 +287,290 @@ describe("CLI", () => {
     });
   });
 
+  describe("list recipes filtering", () => {
+    describe("--search flag", () => {
+      it("filters by keyword matching recipe name", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("list", "recipes", "--search", "laser")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toContain("weapon-laser-zap");
+        expect(stdout).not.toContain("card-flip");
+      });
+
+      it("filters by keyword matching description", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("list", "recipes", "--search", "fanfare")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toContain("card-victory-fanfare");
+        expect(stdout).not.toContain("weapon-laser-zap");
+      });
+
+      it("filters by keyword matching category", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("list", "recipes", "--search", "weapon")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toContain("weapon-laser-zap");
+      });
+
+      it("search is case-insensitive", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("list", "recipes", "--search", "LASER")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toContain("weapon-laser-zap");
+      });
+
+      it("shows filtered footer with search", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("list", "recipes", "--search", "laser")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toMatch(/Found \d+ of \d+ recipes/);
+      });
+    });
+
+    describe("--category flag", () => {
+      it("filters by exact category match", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("list", "recipes", "--category", "weapon")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toContain("weapon-laser-zap");
+        expect(stdout).not.toContain("card-flip");
+      });
+
+      it("normalizes category with spaces to hyphens", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("list", "recipes", "--category", "Card Game")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toContain("card-flip");
+        expect(stdout).not.toContain("weapon-laser-zap");
+      });
+
+      it("category match is case-insensitive", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("list", "recipes", "--category", "WEAPON")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toContain("weapon-laser-zap");
+      });
+
+      it("non-matching category returns zero results", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("list", "recipes", "--category", "nonexistent")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toMatch(/Found 0 of \d+ recipes/);
+        // Should not contain table headers when zero results
+        expect(stdout).not.toContain("Recipe");
+      });
+    });
+
+    describe("--tags flag", () => {
+      it("filters by single tag", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("list", "recipes", "--tags", "laser")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toContain("weapon-laser-zap");
+      });
+
+      it("tags match is case-insensitive", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("list", "recipes", "--tags", "LASER")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toContain("weapon-laser-zap");
+      });
+
+      it("multiple tags use AND logic", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("list", "recipes", "--tags", "card,flip")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toContain("card-flip");
+        // card-shuffle has "card" but not "flip", so should not appear
+        expect(stdout).not.toContain("card-shuffle");
+      });
+
+      it("uses exact match not substring", async () => {
+        // "laser" should match tag "laser" but NOT a tag like "laser-beam"
+        const { code, stdout } = await captureOutput(
+          () => main(argv("list", "recipes", "--tags", "las")),
+        );
+        expect(code).toBe(0);
+        // "las" is not an exact tag match for any recipe
+        expect(stdout).toMatch(/Found 0 of \d+ recipes/);
+      });
+    });
+
+    describe("combined filters", () => {
+      it("combines --category and --search with AND logic", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("list", "recipes", "--category", "card-game", "--search", "coin")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toContain("card-coin-collect");
+        expect(stdout).not.toContain("weapon-laser-zap");
+        expect(stdout).not.toContain("card-flip");
+      });
+
+      it("combines --category and --tags with AND logic", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("list", "recipes", "--category", "card-game", "--tags", "card,flip")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toContain("card-flip");
+        expect(stdout).not.toContain("weapon-laser-zap");
+      });
+    });
+
+    describe("zero results", () => {
+      it("displays footer only when no recipes match", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("list", "recipes", "--search", "zzz-nonexistent-zzz")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toMatch(/Found 0 of \d+ recipes/);
+        expect(stdout).not.toContain("| Recipe");
+      });
+    });
+
+    describe("JSON output with filters", () => {
+      it("includes total field in unfiltered JSON", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("list", "recipes", "--json")),
+        );
+        expect(code).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(typeof data.total).toBe("number");
+        expect(data.total).toBeGreaterThanOrEqual(5);
+        expect(data.recipes.length).toBe(data.total);
+      });
+
+      it("includes category and tags in JSON recipe objects", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("list", "recipes", "--json")),
+        );
+        expect(code).toBe(0);
+        const data = JSON.parse(stdout);
+        for (const r of data.recipes) {
+          expect(typeof r.category).toBe("string");
+          expect(Array.isArray(r.tags)).toBe(true);
+        }
+      });
+
+      it("includes filters object when filtering with --search", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("list", "recipes", "--json", "--search", "laser")),
+        );
+        expect(code).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.filters).toBeDefined();
+        expect(data.filters.search).toBe("laser");
+        expect(data.recipes.length).toBeLessThan(data.total);
+      });
+
+      it("includes filters object when filtering with --category", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("list", "recipes", "--json", "--category", "weapon")),
+        );
+        expect(code).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.filters).toBeDefined();
+        expect(data.filters.category).toBe("weapon");
+      });
+
+      it("includes filters object when filtering with --tags", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("list", "recipes", "--json", "--tags", "laser,zap")),
+        );
+        expect(code).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.filters).toBeDefined();
+        expect(data.filters.tags).toEqual(["laser", "zap"]);
+      });
+
+      it("omits filters object when unfiltered", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("list", "recipes", "--json")),
+        );
+        expect(code).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.filters).toBeUndefined();
+      });
+    });
+
+    describe("table format and footer", () => {
+      it("displays four-column table headers", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("list", "recipes")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toContain("Recipe");
+        expect(stdout).toContain("Description");
+        expect(stdout).toContain("Category");
+        expect(stdout).toContain("Tags");
+      });
+
+      it("displays unfiltered footer with total count", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("list", "recipes")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toMatch(/Showing \d+ recipes/);
+        expect(stdout).not.toMatch(/Found \d+ of/);
+      });
+
+      it("displays filtered footer with match count", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("list", "recipes", "--search", "laser")),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toMatch(/Found \d+ of \d+ recipes/);
+      });
+
+      it("truncates long tag lists with ellipsis", async () => {
+        // card-coin-collect-hybrid has multiple tags that should overflow 14-char column
+        const { code, stdout } = await captureOutput(
+          () => main(argv("list", "recipes", "--search", "coin-collect-hybrid")),
+        );
+        expect(code).toBe(0);
+        // The ellipsis character should appear when tags overflow
+        expect(stdout).toContain("\u2026");
+      });
+    });
+
+    describe("empty and whitespace filters", () => {
+      it("treats empty --search value as no filter", async () => {
+        const { code: codeFiltered, stdout: stdoutFiltered } = await captureOutput(
+          () => main(argv("list", "recipes", "--search", "")),
+        );
+        const { code: codeUnfiltered, stdout: stdoutUnfiltered } = await captureOutput(
+          () => main(argv("list", "recipes")),
+        );
+        expect(codeFiltered).toBe(0);
+        expect(codeUnfiltered).toBe(0);
+        // Both should show "Showing N recipes" (unfiltered footer)
+        expect(stdoutFiltered).toMatch(/Showing \d+ recipes/);
+        expect(stdoutUnfiltered).toMatch(/Showing \d+ recipes/);
+      });
+
+      it("treats whitespace-only --search value as no filter", async () => {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("list", "recipes", "--search", "   ")),
+        );
+        expect(code).toBe(0);
+        // Should show unfiltered results since whitespace is ignored at the registry level
+        expect(stdout).toMatch(/Showing \d+ recipes/);
+      });
+    });
+  });
+
   describe("--output flag (single-file WAV export)", () => {
     let tempDir: string;
 
