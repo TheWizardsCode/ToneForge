@@ -1876,8 +1876,9 @@ export async function main(argv: string[] = process.argv): Promise<number> {
               analysisRef: String(data["analysisRef"] ?? ""),
             };
 
-            // Apply filters
-            if (categoryFilter !== undefined && result.category.toLowerCase() !== categoryFilter) continue;
+            // Apply filters (normalize spaces/hyphens for robust matching)
+            const norm = (s: string) => s.toLowerCase().replace(/\s+/g, "-");
+            if (categoryFilter !== undefined && norm(result.category) !== norm(categoryFilter)) continue;
             if (intensityFilter !== undefined && result.intensity.toLowerCase() !== intensityFilter) continue;
             if (textureFilter !== undefined && !result.texture.some((t) => t.toLowerCase() === textureFilter)) continue;
 
