@@ -12,6 +12,7 @@
  * - assets/samples/footstep-gravel/impact.wav  (short transient click/crack)
  * - assets/samples/creature-vocal/growl.wav     (short tonal growl)
  * - assets/samples/vehicle-engine/loop.wav      (short engine loop)
+ * - assets/samples/card-coin-collect/clink.wav  (metallic coin clink)
  */
 
 import { writeFileSync } from "node:fs";
@@ -159,6 +160,51 @@ function generateCoinCollect(): Float32Array {
   return samples;
 }
 
+/**
+ * Generate a stylized metallic coin clink for the card-coin-collect-hybrid recipe.
+ * ~0.25s, bright metallic ping with harmonics — stylized/arcade aesthetic.
+ *
+ * Distinct from the existing `generateCoinCollect()` which produces an
+ * 8-bit retro arpeggio. This sample is a single metallic strike with
+ * harmonic shimmer, designed to layer with procedural synthesis.
+ */
+function generateCardCoinCollect(): Float32Array {
+  const rng = createRng(4004); // Deterministic seed for card coin sample
+  const duration = 0.25;
+  const length = Math.ceil(SAMPLE_RATE * duration);
+  const samples = new Float32Array(length);
+
+  // Metallic strike: inharmonic partials at non-integer ratios
+  const fundamental = 1200; // Hz, bright base
+  const partials = [
+    { ratio: 1.0, amp: 0.5 },    // fundamental
+    { ratio: 2.76, amp: 0.35 },   // inharmonic — metallic character
+    { ratio: 5.4, amp: 0.2 },     // high shimmer
+    { ratio: 8.93, amp: 0.1 },    // upper sparkle
+  ];
+
+  for (let i = 0; i < length; i++) {
+    const t = i / SAMPLE_RATE;
+    let signal = 0;
+
+    for (const partial of partials) {
+      const freq = fundamental * partial.ratio;
+      // Each partial decays at a different rate (higher = faster decay)
+      const decay = Math.exp(-t * (15 + partial.ratio * 5));
+      signal += Math.sin(2 * Math.PI * freq * t) * partial.amp * decay;
+    }
+
+    // Add a short noise transient for the "clink" impact
+    const noiseEnv = Math.exp(-t * 80);
+    const noise = (rng() * 2 - 1) * 0.3 * noiseEnv;
+
+    // Combine and soft-clip
+    samples[i] = Math.max(-0.9, Math.min(0.9, (signal + noise) * 0.7));
+  }
+
+  return samples;
+}
+
 // Generate and write all sample files
 const projectRoot = resolve(import.meta.dirname, "..");
 
@@ -190,6 +236,13 @@ console.log(
   `coin-collect/token.wav: ${coinSamples.length} samples, ${(coinSamples.length / SAMPLE_RATE).toFixed(3)}s, ${coinWav.length} bytes`,
 );
 
-const totalBytes = impactWav.length + growlWav.length + engineWav.length + coinWav.length;
+const cardCoinSamples = generateCardCoinCollect();
+const cardCoinWav = encodeWav(cardCoinSamples);
+writeFileSync(resolve(projectRoot, "assets/samples/card-coin-collect/clink.wav"), cardCoinWav);
+console.log(
+  `card-coin-collect/clink.wav: ${cardCoinSamples.length} samples, ${(cardCoinSamples.length / SAMPLE_RATE).toFixed(3)}s, ${cardCoinWav.length} bytes`,
+);
+
+const totalBytes = impactWav.length + growlWav.length + engineWav.length + coinWav.length + cardCoinWav.length;
 console.log(`\nTotal sample size: ${totalBytes} bytes (${(totalBytes / 1024).toFixed(1)} KB)`);
 console.log(`Budget: ${totalBytes < 1_000_000 ? "PASS" : "FAIL"} (< 1MB)`);

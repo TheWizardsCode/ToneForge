@@ -55,9 +55,20 @@ original works with no external copyright claims.
 | Source      | Procedurally generated (`scripts/generate-samples.ts`) |
 | License     | CC0 / Public Domain                            |
 
+### `card-coin-collect/clink.wav`
+
+| Property    | Value                                          |
+| ----------- | ---------------------------------------------- |
+| Description | Stylized metallic coin clink (inharmonic partials at 1200Hz base with noise transient) |
+| Duration    | 0.250s                                         |
+| Format      | 16-bit PCM WAV, mono, 44100 Hz                 |
+| Size        | 22,094 bytes                                   |
+| Source      | Procedurally generated (`scripts/generate-samples.ts`, seed 4004) |
+| License     | CC0 / Public Domain                            |
+
 ## Budget
 
-Total committed sample size: **92,786 bytes (90.6 KB)** — well under the 1 MB budget.
+Total committed sample size: **114,880 bytes (112.2 KB)** — well under the 1 MB budget.
 
 ## Regeneration
 

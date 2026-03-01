@@ -47,6 +47,12 @@ import { getCardFailureParams } from "./card-failure-params.js";
 import { getCardVictoryFanfareParams } from "./card-victory-fanfare-params.js";
 import { getCardDefeatStingParams } from "./card-defeat-sting-params.js";
 import { getCardRoundCompleteParams } from "./card-round-complete-params.js";
+import { getCardCoinCollectParams } from "./card-coin-collect-params.js";
+import { getCardCoinCollectHybridParams } from "./card-coin-collect-hybrid-params.js";
+import { getCardCoinSpendParams } from "./card-coin-spend-params.js";
+import { getCardChipStackParams } from "./card-chip-stack-params.js";
+import { getCardTokenEarnParams } from "./card-token-earn-params.js";
+import { getCardTreasureRevealParams } from "./card-treasure-reveal-params.js";
 
 /** The global recipe registry instance with all built-in recipes registered. */
 export const registry = new RecipeRegistry();
@@ -2743,6 +2749,651 @@ registry.register("card-round-complete", {
       frequency: p.frequency, attack: p.attack,
       sustain: p.sustain, decay: p.decay,
       filterCutoff: p.filterCutoff, level: p.level,
+    };
+  },
+});
+
+// ── card-coin-collect ─────────────────────────────────────────────
+
+function cardCoinCollectDuration(rng: Rng): number {
+  const params = getCardCoinCollectParams(rng);
+  return params.attack + params.decay;
+}
+
+function cardCoinCollectOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getCardCoinCollectParams(rng);
+
+  // Primary tone with pitch sweep (start high, settle to baseFreq)
+  const osc1 = ctx.createOscillator();
+  osc1.type = "sine";
+  osc1.frequency.setValueAtTime(params.baseFreq + params.pitchSweep, 0);
+  osc1.frequency.exponentialRampToValueAtTime(params.baseFreq, params.attack + 0.03);
+
+  const gain1 = ctx.createGain();
+  gain1.gain.value = params.toneLevel;
+
+  const env1 = ctx.createGain();
+  env1.gain.setValueAtTime(0, 0);
+  env1.gain.linearRampToValueAtTime(1, params.attack);
+  env1.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+
+  osc1.connect(gain1);
+  gain1.connect(env1);
+  env1.connect(ctx.destination);
+
+  // Harmonic overtone for metallic shimmer
+  const osc2 = ctx.createOscillator();
+  osc2.type = "sine";
+  osc2.frequency.value = params.baseFreq * 2.5;
+
+  const gain2 = ctx.createGain();
+  gain2.gain.value = params.harmonicLevel;
+
+  const env2 = ctx.createGain();
+  env2.gain.setValueAtTime(0, 0);
+  env2.gain.linearRampToValueAtTime(1, params.attack);
+  env2.gain.linearRampToValueAtTime(0, params.attack + params.decay * 0.7);
+
+  osc2.connect(gain2);
+  gain2.connect(env2);
+  env2.connect(ctx.destination);
+
+  // Noise transient for metallic clink attack
+  const bufferSize = Math.ceil(ctx.sampleRate * duration);
+  const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const noiseData = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < noiseData.length; i++) {
+    noiseData[i] = rng() * 2 - 1;
+  }
+
+  const noiseSrc = ctx.createBufferSource();
+  noiseSrc.buffer = noiseBuffer;
+
+  const noiseHpf = ctx.createBiquadFilter();
+  noiseHpf.type = "highpass";
+  noiseHpf.frequency.value = 4000;
+
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.value = params.noiseLevel;
+
+  const noiseEnv = ctx.createGain();
+  noiseEnv.gain.setValueAtTime(0, 0);
+  noiseEnv.gain.linearRampToValueAtTime(1, 0.001);
+  noiseEnv.gain.linearRampToValueAtTime(0, 0.001 + params.attack + 0.02);
+
+  noiseSrc.connect(noiseHpf);
+  noiseHpf.connect(noiseGain);
+  noiseGain.connect(noiseEnv);
+  noiseEnv.connect(ctx.destination);
+
+  // Schedule
+  osc1.start(0);
+  osc2.start(0);
+  noiseSrc.start(0);
+  osc1.stop(duration);
+  osc2.stop(duration);
+  noiseSrc.stop(duration);
+}
+
+registry.register("card-coin-collect", {
+  factoryLoader: async () => (await import("./card-coin-collect.js")).createCardCoinCollect,
+  getDuration: cardCoinCollectDuration,
+  buildOfflineGraph: cardCoinCollectOfflineGraph,
+  description: "Bright metallic ascending ping for coin/token collection events in card games.",
+  category: "Card Game",
+  tags: ["card", "coin", "collect", "card-game", "economy", "arcade", "metallic"],
+  signalChain: "Sine Oscillator (pitch sweep) + Harmonic Oscillator + Highpass Noise -> Envelope -> Destination",
+  params: [
+    { name: "baseFreq", min: 800, max: 2000, unit: "Hz" },
+    { name: "pitchSweep", min: 200, max: 800, unit: "Hz" },
+    { name: "attack", min: 0.001, max: 0.005, unit: "s" },
+    { name: "decay", min: 0.08, max: 0.3, unit: "s" },
+    { name: "toneLevel", min: 0.5, max: 0.9, unit: "amplitude" },
+    { name: "harmonicLevel", min: 0.2, max: 0.5, unit: "amplitude" },
+    { name: "noiseLevel", min: 0.1, max: 0.4, unit: "amplitude" },
+  ],
+  getParams: (rng) => {
+    const p = getCardCoinCollectParams(rng);
+    return {
+      baseFreq: p.baseFreq, pitchSweep: p.pitchSweep,
+      attack: p.attack, decay: p.decay,
+      toneLevel: p.toneLevel, harmonicLevel: p.harmonicLevel,
+      noiseLevel: p.noiseLevel,
+    };
+  },
+});
+
+// ── card-coin-collect-hybrid (sample-hybrid) ──────────────────────
+
+function cardCoinCollectHybridDuration(rng: Rng): number {
+  const params = getCardCoinCollectHybridParams(rng);
+  return params.attack + params.decay;
+}
+
+async function cardCoinCollectHybridOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): Promise<void> {
+  const params = getCardCoinCollectHybridParams(rng);
+
+  // Load the CC0 metallic coin sample
+  const sampleBuffer = await loadSample("card-coin-collect/clink.wav", ctx);
+
+  // Sample layer
+  const sampleSrc = ctx.createBufferSource();
+  sampleSrc.buffer = sampleBuffer;
+
+  const sampleGain = ctx.createGain();
+  sampleGain.gain.value = params.mixLevel;
+
+  sampleSrc.connect(sampleGain);
+  sampleGain.connect(ctx.destination);
+
+  // Synthesis tonal layer
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.value = params.baseFreq;
+
+  const synthGain = ctx.createGain();
+  synthGain.gain.value = params.synthLevel;
+
+  const synthEnv = ctx.createGain();
+  synthEnv.gain.setValueAtTime(0, 0);
+  synthEnv.gain.linearRampToValueAtTime(1, params.attack);
+  synthEnv.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+
+  osc.connect(synthGain);
+  synthGain.connect(synthEnv);
+  synthEnv.connect(ctx.destination);
+
+  // Shimmer layer: highpass-filtered noise
+  const bufferSize = Math.ceil(ctx.sampleRate * duration);
+  const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const noiseData = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < noiseData.length; i++) {
+    noiseData[i] = rng() * 2 - 1;
+  }
+
+  const noiseSrc = ctx.createBufferSource();
+  noiseSrc.buffer = noiseBuffer;
+
+  const shimmerHpf = ctx.createBiquadFilter();
+  shimmerHpf.type = "highpass";
+  shimmerHpf.frequency.value = params.filterCutoff;
+
+  const shimmerGain = ctx.createGain();
+  shimmerGain.gain.value = params.shimmerLevel;
+
+  const shimmerEnv = ctx.createGain();
+  shimmerEnv.gain.setValueAtTime(0, 0);
+  shimmerEnv.gain.linearRampToValueAtTime(1, 0.001);
+  shimmerEnv.gain.linearRampToValueAtTime(0, 0.001 + params.attack + 0.03);
+
+  noiseSrc.connect(shimmerHpf);
+  shimmerHpf.connect(shimmerGain);
+  shimmerGain.connect(shimmerEnv);
+  shimmerEnv.connect(ctx.destination);
+
+  // Schedule
+  sampleSrc.start(0);
+  osc.start(0);
+  noiseSrc.start(0);
+  sampleSrc.stop(duration);
+  osc.stop(duration);
+  noiseSrc.stop(duration);
+}
+
+registry.register("card-coin-collect-hybrid", {
+  factoryLoader: async () => (await import("./card-coin-collect-hybrid.js")).createCardCoinCollectHybrid,
+  getDuration: cardCoinCollectHybridDuration,
+  buildOfflineGraph: cardCoinCollectHybridOfflineGraph,
+  description: "Sample-hybrid metallic coin collect layering a CC0 coin clink sample with procedurally varied synthesis.",
+  category: "Card Game",
+  tags: ["card", "coin", "collect", "card-game", "economy", "arcade", "metallic", "sample-hybrid"],
+  signalChain: "CC0 Coin Sample + Sine Oscillator + Highpass Noise (shimmer) -> Envelope -> Destination",
+  params: [
+    { name: "baseFreq", min: 900, max: 1800, unit: "Hz" },
+    { name: "attack", min: 0.001, max: 0.005, unit: "s" },
+    { name: "decay", min: 0.1, max: 0.35, unit: "s" },
+    { name: "mixLevel", min: 0.3, max: 0.7, unit: "amplitude" },
+    { name: "synthLevel", min: 0.4, max: 0.8, unit: "amplitude" },
+    { name: "filterCutoff", min: 3000, max: 8000, unit: "Hz" },
+    { name: "shimmerLevel", min: 0.1, max: 0.35, unit: "amplitude" },
+  ],
+  getParams: (rng) => {
+    const p = getCardCoinCollectHybridParams(rng);
+    return {
+      baseFreq: p.baseFreq, attack: p.attack,
+      decay: p.decay, mixLevel: p.mixLevel,
+      synthLevel: p.synthLevel, filterCutoff: p.filterCutoff,
+      shimmerLevel: p.shimmerLevel,
+    };
+  },
+});
+
+// ── card-coin-spend ───────────────────────────────────────────────
+
+function cardCoinSpendDuration(rng: Rng): number {
+  const params = getCardCoinSpendParams(rng);
+  return params.attack + params.decay;
+}
+
+function cardCoinSpendOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getCardCoinSpendParams(rng);
+
+  // Primary descending tone
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(params.baseFreq, 0);
+  osc.frequency.exponentialRampToValueAtTime(
+    Math.max(20, params.baseFreq - params.pitchDrop),
+    params.attack + params.decay * 0.8,
+  );
+
+  const filter = ctx.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.value = params.filterCutoff;
+
+  const toneGain = ctx.createGain();
+  toneGain.gain.value = params.toneLevel;
+
+  const toneEnv = ctx.createGain();
+  toneEnv.gain.setValueAtTime(0, 0);
+  toneEnv.gain.linearRampToValueAtTime(1, params.attack);
+  toneEnv.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+
+  osc.connect(filter);
+  filter.connect(toneGain);
+  toneGain.connect(toneEnv);
+  toneEnv.connect(ctx.destination);
+
+  // Soft noise layer
+  const bufferSize = Math.ceil(ctx.sampleRate * duration);
+  const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const noiseData = noiseBuffer.getChannelData(0);
+  // Pink-ish noise: low-pass filtered white noise approximation
+  let pinkState = 0;
+  for (let i = 0; i < noiseData.length; i++) {
+    pinkState = pinkState * 0.95 + (rng() * 2 - 1) * 0.05;
+    noiseData[i] = pinkState * 10;
+  }
+
+  const noiseSrc = ctx.createBufferSource();
+  noiseSrc.buffer = noiseBuffer;
+
+  const noiseLpf = ctx.createBiquadFilter();
+  noiseLpf.type = "lowpass";
+  noiseLpf.frequency.value = params.filterCutoff * 0.5;
+
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.value = params.noiseLevel;
+
+  const noiseEnv = ctx.createGain();
+  noiseEnv.gain.setValueAtTime(0, 0);
+  noiseEnv.gain.linearRampToValueAtTime(1, params.attack);
+  noiseEnv.gain.linearRampToValueAtTime(0, params.attack + params.decay * 0.6);
+
+  noiseSrc.connect(noiseLpf);
+  noiseLpf.connect(noiseGain);
+  noiseGain.connect(noiseEnv);
+  noiseEnv.connect(ctx.destination);
+
+  // Schedule
+  osc.start(0);
+  noiseSrc.start(0);
+  osc.stop(duration);
+  noiseSrc.stop(duration);
+}
+
+registry.register("card-coin-spend", {
+  factoryLoader: async () => (await import("./card-coin-spend.js")).createCardCoinSpend,
+  getDuration: cardCoinSpendDuration,
+  buildOfflineGraph: cardCoinSpendOfflineGraph,
+  description: "Muted descending tone for coin/token spend events in card games.",
+  category: "Card Game",
+  tags: ["card", "coin", "spend", "card-game", "economy", "arcade", "descending"],
+  signalChain: "Sine Oscillator (descending pitch) -> Lowpass Filter + Pink Noise -> Envelope -> Destination",
+  params: [
+    { name: "baseFreq", min: 500, max: 1000, unit: "Hz" },
+    { name: "pitchDrop", min: 150, max: 500, unit: "Hz" },
+    { name: "attack", min: 0.001, max: 0.005, unit: "s" },
+    { name: "decay", min: 0.08, max: 0.3, unit: "s" },
+    { name: "toneLevel", min: 0.4, max: 0.8, unit: "amplitude" },
+    { name: "filterCutoff", min: 1000, max: 3000, unit: "Hz" },
+    { name: "noiseLevel", min: 0.05, max: 0.2, unit: "amplitude" },
+  ],
+  getParams: (rng) => {
+    const p = getCardCoinSpendParams(rng);
+    return {
+      baseFreq: p.baseFreq, pitchDrop: p.pitchDrop,
+      attack: p.attack, decay: p.decay,
+      toneLevel: p.toneLevel, filterCutoff: p.filterCutoff,
+      noiseLevel: p.noiseLevel,
+    };
+  },
+});
+
+// ── card-chip-stack ───────────────────────────────────────────────
+
+function cardChipStackDuration(rng: Rng): number {
+  const params = getCardChipStackParams(rng);
+  return params.attack + Math.max(params.clickDecay, params.ringDecay);
+}
+
+function cardChipStackOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getCardChipStackParams(rng);
+
+  // Percussive click: bandpass-filtered noise
+  const bufferSize = Math.ceil(ctx.sampleRate * duration);
+  const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const noiseData = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < noiseData.length; i++) {
+    noiseData[i] = rng() * 2 - 1;
+  }
+
+  const noiseSrc = ctx.createBufferSource();
+  noiseSrc.buffer = noiseBuffer;
+
+  const clickFilter = ctx.createBiquadFilter();
+  clickFilter.type = "bandpass";
+  clickFilter.frequency.value = params.clickFreq;
+  clickFilter.Q.value = params.clickQ;
+
+  const clickGain = ctx.createGain();
+  clickGain.gain.value = params.clickLevel;
+
+  const clickEnv = ctx.createGain();
+  clickEnv.gain.setValueAtTime(0, 0);
+  clickEnv.gain.linearRampToValueAtTime(1, params.attack);
+  clickEnv.gain.linearRampToValueAtTime(0, params.attack + params.clickDecay);
+
+  noiseSrc.connect(clickFilter);
+  clickFilter.connect(clickGain);
+  clickGain.connect(clickEnv);
+  clickEnv.connect(ctx.destination);
+
+  // Ring-out tone: damped sine
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.value = params.ringFreq;
+
+  const ringGain = ctx.createGain();
+  ringGain.gain.value = params.ringLevel;
+
+  const ringEnv = ctx.createGain();
+  ringEnv.gain.setValueAtTime(0, 0);
+  ringEnv.gain.linearRampToValueAtTime(1, params.attack);
+  ringEnv.gain.linearRampToValueAtTime(0, params.attack + params.ringDecay);
+
+  osc.connect(ringGain);
+  ringGain.connect(ringEnv);
+  ringEnv.connect(ctx.destination);
+
+  // Schedule
+  noiseSrc.start(0);
+  osc.start(0);
+  noiseSrc.stop(duration);
+  osc.stop(duration);
+}
+
+registry.register("card-chip-stack", {
+  factoryLoader: async () => (await import("./card-chip-stack.js")).createCardChipStack,
+  getDuration: cardChipStackDuration,
+  buildOfflineGraph: cardChipStackOfflineGraph,
+  description: "Percussive click with brief tonal ring for stacking chips/tokens in card games.",
+  category: "Card Game",
+  tags: ["card", "chip", "stack", "card-game", "economy", "arcade", "percussive"],
+  signalChain: "Bandpass Noise (click) + Sine Oscillator (ring) -> Envelope -> Destination",
+  params: [
+    { name: "clickFreq", min: 1500, max: 4000, unit: "Hz" },
+    { name: "clickQ", min: 2, max: 8, unit: "Q" },
+    { name: "clickLevel", min: 0.5, max: 0.9, unit: "amplitude" },
+    { name: "ringFreq", min: 800, max: 2000, unit: "Hz" },
+    { name: "ringLevel", min: 0.2, max: 0.5, unit: "amplitude" },
+    { name: "attack", min: 0.001, max: 0.003, unit: "s" },
+    { name: "clickDecay", min: 0.02, max: 0.08, unit: "s" },
+    { name: "ringDecay", min: 0.05, max: 0.2, unit: "s" },
+  ],
+  getParams: (rng) => {
+    const p = getCardChipStackParams(rng);
+    return {
+      clickFreq: p.clickFreq, clickQ: p.clickQ,
+      clickLevel: p.clickLevel, ringFreq: p.ringFreq,
+      ringLevel: p.ringLevel, attack: p.attack,
+      clickDecay: p.clickDecay, ringDecay: p.ringDecay,
+    };
+  },
+});
+
+// ── card-token-earn ───────────────────────────────────────────────
+
+function cardTokenEarnDuration(rng: Rng): number {
+  const params = getCardTokenEarnParams(rng);
+  return params.attack + params.decay;
+}
+
+function cardTokenEarnOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getCardTokenEarnParams(rng);
+
+  // Fundamental
+  const osc1 = ctx.createOscillator();
+  osc1.type = "sine";
+  osc1.frequency.value = params.baseFreq;
+
+  const gain1 = ctx.createGain();
+  gain1.gain.value = params.fundamentalLevel;
+
+  const env1 = ctx.createGain();
+  env1.gain.setValueAtTime(0, 0);
+  env1.gain.linearRampToValueAtTime(1, params.attack);
+  env1.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+
+  osc1.connect(gain1);
+  gain1.connect(env1);
+  env1.connect(ctx.destination);
+
+  // Second harmonic
+  const osc2 = ctx.createOscillator();
+  osc2.type = "sine";
+  osc2.frequency.value = params.baseFreq * params.harmonic2Ratio;
+
+  const gain2 = ctx.createGain();
+  gain2.gain.value = params.harmonic2Level;
+
+  const env2 = ctx.createGain();
+  env2.gain.setValueAtTime(0, 0);
+  env2.gain.linearRampToValueAtTime(1, params.attack);
+  env2.gain.linearRampToValueAtTime(0, params.attack + params.decay * 0.8);
+
+  osc2.connect(gain2);
+  gain2.connect(env2);
+  env2.connect(ctx.destination);
+
+  // Third harmonic
+  const osc3 = ctx.createOscillator();
+  osc3.type = "sine";
+  osc3.frequency.value = params.baseFreq * params.harmonic3Ratio;
+
+  const gain3 = ctx.createGain();
+  gain3.gain.value = params.harmonic3Level;
+
+  const env3 = ctx.createGain();
+  env3.gain.setValueAtTime(0, 0);
+  env3.gain.linearRampToValueAtTime(1, params.attack);
+  env3.gain.linearRampToValueAtTime(0, params.attack + params.decay * 0.6);
+
+  osc3.connect(gain3);
+  gain3.connect(env3);
+  env3.connect(ctx.destination);
+
+  // Schedule
+  osc1.start(0);
+  osc2.start(0);
+  osc3.start(0);
+  osc1.stop(duration);
+  osc2.stop(duration);
+  osc3.stop(duration);
+}
+
+registry.register("card-token-earn", {
+  factoryLoader: async () => (await import("./card-token-earn.js")).createCardTokenEarn,
+  getDuration: cardTokenEarnDuration,
+  buildOfflineGraph: cardTokenEarnOfflineGraph,
+  description: "Bright ascending multi-harmonic chime for earning tokens/rewards in card games.",
+  category: "Card Game",
+  tags: ["card", "token", "earn", "card-game", "economy", "arcade", "harmonic", "chime"],
+  signalChain: "Sine (fundamental) + Sine (h2) + Sine (h3) -> Envelope -> Destination",
+  params: [
+    { name: "baseFreq", min: 600, max: 1400, unit: "Hz" },
+    { name: "harmonic2Ratio", min: 1.9, max: 2.1, unit: "ratio" },
+    { name: "harmonic3Ratio", min: 2.9, max: 3.1, unit: "ratio" },
+    { name: "attack", min: 0.001, max: 0.005, unit: "s" },
+    { name: "decay", min: 0.1, max: 0.35, unit: "s" },
+    { name: "fundamentalLevel", min: 0.5, max: 0.9, unit: "amplitude" },
+    { name: "harmonic2Level", min: 0.2, max: 0.5, unit: "amplitude" },
+    { name: "harmonic3Level", min: 0.1, max: 0.3, unit: "amplitude" },
+  ],
+  getParams: (rng) => {
+    const p = getCardTokenEarnParams(rng);
+    return {
+      baseFreq: p.baseFreq, harmonic2Ratio: p.harmonic2Ratio,
+      harmonic3Ratio: p.harmonic3Ratio, attack: p.attack,
+      decay: p.decay, fundamentalLevel: p.fundamentalLevel,
+      harmonic2Level: p.harmonic2Level, harmonic3Level: p.harmonic3Level,
+    };
+  },
+});
+
+// ── card-treasure-reveal ──────────────────────────────────────────
+
+function cardTreasureRevealDuration(rng: Rng): number {
+  const params = getCardTreasureRevealParams(rng);
+  return Math.max(
+    0.005 + params.shimmerDecay,
+    params.toneAttack + params.toneDecay,
+  );
+}
+
+function cardTreasureRevealOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getCardTreasureRevealParams(rng);
+
+  // Shimmer layer: highpass-filtered white noise
+  const bufferSize = Math.ceil(ctx.sampleRate * duration);
+  const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const noiseData = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < noiseData.length; i++) {
+    noiseData[i] = rng() * 2 - 1;
+  }
+
+  const noiseSrc = ctx.createBufferSource();
+  noiseSrc.buffer = noiseBuffer;
+
+  const shimmerHpf = ctx.createBiquadFilter();
+  shimmerHpf.type = "highpass";
+  shimmerHpf.frequency.value = params.shimmerCutoff;
+
+  const shimmerGain = ctx.createGain();
+  shimmerGain.gain.value = params.shimmerLevel;
+
+  const shimmerEnv = ctx.createGain();
+  shimmerEnv.gain.setValueAtTime(0, 0);
+  shimmerEnv.gain.linearRampToValueAtTime(1, 0.005);
+  shimmerEnv.gain.linearRampToValueAtTime(0, 0.005 + params.shimmerDecay);
+
+  noiseSrc.connect(shimmerHpf);
+  shimmerHpf.connect(shimmerGain);
+  shimmerGain.connect(shimmerEnv);
+  shimmerEnv.connect(ctx.destination);
+
+  // Reveal tone: base frequency
+  const osc1 = ctx.createOscillator();
+  osc1.type = "sine";
+  osc1.frequency.value = params.toneFreq;
+
+  const gain1 = ctx.createGain();
+  gain1.gain.value = params.toneLevel;
+
+  const env1 = ctx.createGain();
+  env1.gain.setValueAtTime(0, 0);
+  env1.gain.linearRampToValueAtTime(1, params.toneAttack);
+  env1.gain.linearRampToValueAtTime(0, params.toneAttack + params.toneDecay);
+
+  osc1.connect(gain1);
+  gain1.connect(env1);
+  env1.connect(ctx.destination);
+
+  // Reveal tone: interval
+  const osc2 = ctx.createOscillator();
+  osc2.type = "sine";
+  osc2.frequency.value = params.toneFreq * params.intervalRatio;
+
+  const gain2 = ctx.createGain();
+  gain2.gain.value = params.toneLevel * 0.7;
+
+  const env2 = ctx.createGain();
+  env2.gain.setValueAtTime(0, 0);
+  env2.gain.linearRampToValueAtTime(1, params.toneAttack);
+  env2.gain.linearRampToValueAtTime(0, params.toneAttack + params.toneDecay * 0.85);
+
+  osc2.connect(gain2);
+  gain2.connect(env2);
+  env2.connect(ctx.destination);
+
+  // Schedule
+  noiseSrc.start(0);
+  osc1.start(0);
+  osc2.start(0);
+  noiseSrc.stop(duration);
+  osc1.stop(duration);
+  osc2.stop(duration);
+}
+
+registry.register("card-treasure-reveal", {
+  factoryLoader: async () => (await import("./card-treasure-reveal.js")).createCardTreasureReveal,
+  getDuration: cardTreasureRevealDuration,
+  buildOfflineGraph: cardTreasureRevealOfflineGraph,
+  description: "Dramatic shimmer-into-tone reveal sound for treasure/rare card reveals in card games.",
+  category: "Card Game",
+  tags: ["card", "treasure", "reveal", "card-game", "economy", "arcade", "dramatic", "shimmer"],
+  signalChain: "Highpass Noise (shimmer) + Sine Chord (reveal) -> Envelope -> Destination",
+  params: [
+    { name: "shimmerCutoff", min: 4000, max: 10000, unit: "Hz" },
+    { name: "shimmerLevel", min: 0.3, max: 0.7, unit: "amplitude" },
+    { name: "shimmerDecay", min: 0.1, max: 0.3, unit: "s" },
+    { name: "toneFreq", min: 500, max: 1200, unit: "Hz" },
+    { name: "intervalRatio", min: 1.2, max: 1.5, unit: "ratio" },
+    { name: "toneAttack", min: 0.02, max: 0.1, unit: "s" },
+    { name: "toneDecay", min: 0.15, max: 0.5, unit: "s" },
+    { name: "toneLevel", min: 0.5, max: 0.9, unit: "amplitude" },
+  ],
+  getParams: (rng) => {
+    const p = getCardTreasureRevealParams(rng);
+    return {
+      shimmerCutoff: p.shimmerCutoff, shimmerLevel: p.shimmerLevel,
+      shimmerDecay: p.shimmerDecay, toneFreq: p.toneFreq,
+      intervalRatio: p.intervalRatio, toneAttack: p.toneAttack,
+      toneDecay: p.toneDecay, toneLevel: p.toneLevel,
     };
   },
 });
