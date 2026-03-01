@@ -56,6 +56,12 @@ import { getCardTreasureRevealParams } from "./card-treasure-reveal-params.js";
 import { getCardDiscardParams } from "./card-discard-params.js";
 import { getCardBurnParams } from "./card-burn-params.js";
 import { getCardReturnToDeckParams } from "./card-return-to-deck-params.js";
+import { getCardPowerUpParams } from "./card-power-up-params.js";
+import { getCardPowerDownParams } from "./card-power-down-params.js";
+import { getCardLockParams } from "./card-lock-params.js";
+import { getCardUnlockParams } from "./card-unlock-params.js";
+import { getCardGlowParams } from "./card-glow-params.js";
+import { getCardTransformParams } from "./card-transform-params.js";
 
 /** The global recipe registry instance with all built-in recipes registered. */
 export const registry = new RecipeRegistry();
@@ -3717,6 +3723,533 @@ registry.register("card-return-to-deck", {
       attack: p.attack, decay: p.decay,
       noiseLevel: p.noiseLevel, toneStart: p.toneStart,
       toneEnd: p.toneEnd, toneLevel: p.toneLevel,
+    };
+  },
+});
+
+// ── card-power-up ────────────────────────────────────────────────
+
+function cardPowerUpDuration(rng: Rng): number {
+  const params = getCardPowerUpParams(rng);
+  return params.attack + params.decay;
+}
+
+function cardPowerUpOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getCardPowerUpParams(rng);
+
+  // Fundamental: ascending sine sweep
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(params.freqStart, 0);
+  osc.frequency.linearRampToValueAtTime(params.freqEnd, duration);
+
+  const gain = ctx.createGain();
+  gain.gain.value = params.level;
+
+  const env = ctx.createGain();
+  env.gain.setValueAtTime(0, 0);
+  env.gain.linearRampToValueAtTime(1, params.attack);
+  env.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+
+  osc.connect(gain);
+  gain.connect(env);
+  env.connect(ctx.destination);
+
+  // Harmonic overtone
+  const harm = ctx.createOscillator();
+  harm.type = "sine";
+  harm.frequency.setValueAtTime(params.freqStart * params.harmonicRatio, 0);
+  harm.frequency.linearRampToValueAtTime(params.freqEnd * params.harmonicRatio, duration);
+
+  const harmGain = ctx.createGain();
+  harmGain.gain.value = params.harmonicLevel;
+
+  const harmEnv = ctx.createGain();
+  harmEnv.gain.setValueAtTime(0, 0);
+  harmEnv.gain.linearRampToValueAtTime(1, params.attack);
+  harmEnv.gain.linearRampToValueAtTime(0, params.attack + params.decay * 0.8);
+
+  harm.connect(harmGain);
+  harmGain.connect(harmEnv);
+  harmEnv.connect(ctx.destination);
+
+  // Schedule
+  osc.start(0);
+  osc.stop(duration);
+  harm.start(0);
+  harm.stop(duration);
+}
+
+registry.register("card-power-up", {
+  factoryLoader: async () => (await import("./card-power-up.js")).createCardPowerUp,
+  getDuration: cardPowerUpDuration,
+  buildOfflineGraph: cardPowerUpOfflineGraph,
+  description: "Ascending pitch sweep with harmonic reinforcement for card ability activation or power gain.",
+  category: "Card Game",
+  tags: ["card", "power-up", "card-game", "state", "ascending", "arcade", "tonal"],
+  signalChain: "Ascending Sine + Harmonic Overtone -> Gain -> Envelope -> Destination",
+  params: [
+    { name: "freqStart", min: 300, max: 600, unit: "Hz" },
+    { name: "freqEnd", min: 800, max: 1600, unit: "Hz" },
+    { name: "harmonicRatio", min: 1.5, max: 3, unit: "ratio" },
+    { name: "harmonicLevel", min: 0.2, max: 0.5, unit: "amplitude" },
+    { name: "attack", min: 0.01, max: 0.04, unit: "s" },
+    { name: "decay", min: 0.15, max: 0.4, unit: "s" },
+    { name: "level", min: 0.5, max: 0.9, unit: "amplitude" },
+  ],
+  getParams: (rng) => {
+    const p = getCardPowerUpParams(rng);
+    return {
+      freqStart: p.freqStart, freqEnd: p.freqEnd,
+      harmonicRatio: p.harmonicRatio, harmonicLevel: p.harmonicLevel,
+      attack: p.attack, decay: p.decay, level: p.level,
+    };
+  },
+});
+
+// ── card-power-down ──────────────────────────────────────────────
+
+function cardPowerDownDuration(rng: Rng): number {
+  const params = getCardPowerDownParams(rng);
+  return params.attack + params.decay;
+}
+
+function cardPowerDownOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getCardPowerDownParams(rng);
+
+  // Main oscillator: descending pitch with lowpass filter
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(params.freqStart, 0);
+  osc.frequency.linearRampToValueAtTime(params.freqEnd, duration);
+
+  const lpf = ctx.createBiquadFilter();
+  lpf.type = "lowpass";
+  lpf.frequency.setValueAtTime(params.filterCutoff, 0);
+  lpf.frequency.linearRampToValueAtTime(params.filterCutoff * 0.2, duration);
+
+  const gain = ctx.createGain();
+  gain.gain.value = params.level;
+
+  const env = ctx.createGain();
+  env.gain.setValueAtTime(0, 0);
+  env.gain.linearRampToValueAtTime(1, params.attack);
+  env.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+
+  osc.connect(lpf);
+  lpf.connect(gain);
+  gain.connect(env);
+  env.connect(ctx.destination);
+
+  // Noise grit layer
+  const bufferSize = Math.ceil(ctx.sampleRate * duration);
+  const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const noiseData = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < noiseData.length; i++) {
+    noiseData[i] = rng() * 2 - 1;
+  }
+
+  const noiseSrc = ctx.createBufferSource();
+  noiseSrc.buffer = noiseBuffer;
+
+  const noiseLpf = ctx.createBiquadFilter();
+  noiseLpf.type = "lowpass";
+  noiseLpf.frequency.value = params.filterCutoff * 0.5;
+
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.value = params.noiseLevel;
+
+  const noiseEnv = ctx.createGain();
+  noiseEnv.gain.setValueAtTime(0, 0);
+  noiseEnv.gain.linearRampToValueAtTime(1, params.attack);
+  noiseEnv.gain.linearRampToValueAtTime(0, params.attack + params.decay * 0.6);
+
+  noiseSrc.connect(noiseLpf);
+  noiseLpf.connect(noiseGain);
+  noiseGain.connect(noiseEnv);
+  noiseEnv.connect(ctx.destination);
+
+  // Schedule
+  osc.start(0);
+  osc.stop(duration);
+  noiseSrc.start(0);
+  noiseSrc.stop(duration);
+}
+
+registry.register("card-power-down", {
+  factoryLoader: async () => (await import("./card-power-down.js")).createCardPowerDown,
+  getDuration: cardPowerDownDuration,
+  buildOfflineGraph: cardPowerDownOfflineGraph,
+  description: "Descending pitch sweep with lowpass filter decay and noise grit for card ability deactivation or power loss.",
+  category: "Card Game",
+  tags: ["card", "power-down", "card-game", "state", "descending", "arcade", "tonal"],
+  signalChain: "Descending Sine -> Lowpass Filter -> Gain -> Envelope + White Noise -> Lowpass -> Gain -> Envelope -> Destination",
+  params: [
+    { name: "freqStart", min: 800, max: 1600, unit: "Hz" },
+    { name: "freqEnd", min: 200, max: 500, unit: "Hz" },
+    { name: "filterCutoff", min: 2000, max: 5000, unit: "Hz" },
+    { name: "attack", min: 0.005, max: 0.02, unit: "s" },
+    { name: "decay", min: 0.2, max: 0.5, unit: "s" },
+    { name: "level", min: 0.5, max: 0.9, unit: "amplitude" },
+    { name: "noiseLevel", min: 0.05, max: 0.2, unit: "amplitude" },
+  ],
+  getParams: (rng) => {
+    const p = getCardPowerDownParams(rng);
+    return {
+      freqStart: p.freqStart, freqEnd: p.freqEnd,
+      filterCutoff: p.filterCutoff, attack: p.attack,
+      decay: p.decay, level: p.level, noiseLevel: p.noiseLevel,
+    };
+  },
+});
+
+// ── card-lock ────────────────────────────────────────────────────
+
+function cardLockDuration(rng: Rng): number {
+  const params = getCardLockParams(rng);
+  return params.attack + params.decay;
+}
+
+function cardLockOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getCardLockParams(rng);
+
+  // Click transient: square wave burst
+  const click = ctx.createOscillator();
+  click.type = "square";
+  click.frequency.value = params.clickFreq;
+
+  const clickGain = ctx.createGain();
+  clickGain.gain.setValueAtTime(params.clickLevel, 0);
+  clickGain.gain.linearRampToValueAtTime(0, Math.min(0.011, duration));
+
+  click.connect(clickGain);
+  clickGain.connect(ctx.destination);
+
+  // Noise body with descending lowpass sweep
+  const bufferSize = Math.ceil(ctx.sampleRate * duration);
+  const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const noiseData = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < noiseData.length; i++) {
+    noiseData[i] = rng() * 2 - 1;
+  }
+
+  const noiseSrc = ctx.createBufferSource();
+  noiseSrc.buffer = noiseBuffer;
+
+  const lpf = ctx.createBiquadFilter();
+  lpf.type = "lowpass";
+  lpf.frequency.setValueAtTime(params.filterStart, 0);
+  lpf.frequency.linearRampToValueAtTime(params.filterEnd, duration);
+
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.value = params.noiseLevel;
+
+  const noiseEnv = ctx.createGain();
+  noiseEnv.gain.setValueAtTime(0, 0);
+  noiseEnv.gain.linearRampToValueAtTime(1, params.attack);
+  noiseEnv.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+
+  noiseSrc.connect(lpf);
+  lpf.connect(noiseGain);
+  noiseGain.connect(noiseEnv);
+  noiseEnv.connect(ctx.destination);
+
+  // Schedule
+  click.start(0);
+  click.stop(duration);
+  noiseSrc.start(0);
+  noiseSrc.stop(duration);
+}
+
+registry.register("card-lock", {
+  factoryLoader: async () => (await import("./card-lock.js")).createCardLock,
+  getDuration: cardLockDuration,
+  buildOfflineGraph: cardLockOfflineGraph,
+  description: "Mechanical click with descending lowpass filter sweep for locking or sealing a card.",
+  category: "Card Game",
+  tags: ["card", "lock", "card-game", "state", "mechanical", "arcade", "descending"],
+  signalChain: "Square Click -> Gain + White Noise -> Lowpass Sweep -> Gain -> Envelope -> Destination",
+  params: [
+    { name: "clickFreq", min: 1500, max: 4000, unit: "Hz" },
+    { name: "clickLevel", min: 0.4, max: 0.8, unit: "amplitude" },
+    { name: "filterStart", min: 3000, max: 6000, unit: "Hz" },
+    { name: "filterEnd", min: 200, max: 600, unit: "Hz" },
+    { name: "noiseLevel", min: 0.3, max: 0.6, unit: "amplitude" },
+    { name: "attack", min: 0.001, max: 0.005, unit: "s" },
+    { name: "decay", min: 0.05, max: 0.2, unit: "s" },
+  ],
+  getParams: (rng) => {
+    const p = getCardLockParams(rng);
+    return {
+      clickFreq: p.clickFreq, clickLevel: p.clickLevel,
+      filterStart: p.filterStart, filterEnd: p.filterEnd,
+      noiseLevel: p.noiseLevel, attack: p.attack, decay: p.decay,
+    };
+  },
+});
+
+// ── card-unlock ──────────────────────────────────────────────────
+
+function cardUnlockDuration(rng: Rng): number {
+  const params = getCardUnlockParams(rng);
+  return params.attack + params.decay;
+}
+
+function cardUnlockOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getCardUnlockParams(rng);
+
+  // Click transient: square wave burst
+  const click = ctx.createOscillator();
+  click.type = "square";
+  click.frequency.value = params.clickFreq;
+
+  const clickGain = ctx.createGain();
+  clickGain.gain.setValueAtTime(params.clickLevel, 0);
+  clickGain.gain.linearRampToValueAtTime(0, Math.min(0.011, duration));
+
+  click.connect(clickGain);
+  clickGain.connect(ctx.destination);
+
+  // Noise body with ascending highpass sweep
+  const bufferSize = Math.ceil(ctx.sampleRate * duration);
+  const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const noiseData = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < noiseData.length; i++) {
+    noiseData[i] = rng() * 2 - 1;
+  }
+
+  const noiseSrc = ctx.createBufferSource();
+  noiseSrc.buffer = noiseBuffer;
+
+  const hpf = ctx.createBiquadFilter();
+  hpf.type = "highpass";
+  hpf.frequency.setValueAtTime(params.filterStart, 0);
+  hpf.frequency.linearRampToValueAtTime(params.filterEnd, duration);
+
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.value = params.noiseLevel;
+
+  const noiseEnv = ctx.createGain();
+  noiseEnv.gain.setValueAtTime(0, 0);
+  noiseEnv.gain.linearRampToValueAtTime(1, params.attack);
+  noiseEnv.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+
+  noiseSrc.connect(hpf);
+  hpf.connect(noiseGain);
+  noiseGain.connect(noiseEnv);
+  noiseEnv.connect(ctx.destination);
+
+  // Schedule
+  click.start(0);
+  click.stop(duration);
+  noiseSrc.start(0);
+  noiseSrc.stop(duration);
+}
+
+registry.register("card-unlock", {
+  factoryLoader: async () => (await import("./card-unlock.js")).createCardUnlock,
+  getDuration: cardUnlockDuration,
+  buildOfflineGraph: cardUnlockOfflineGraph,
+  description: "Click transient with ascending highpass filter sweep for unlocking or releasing a card.",
+  category: "Card Game",
+  tags: ["card", "unlock", "card-game", "state", "mechanical", "arcade", "ascending"],
+  signalChain: "Square Click -> Gain + White Noise -> Highpass Sweep -> Gain -> Envelope -> Destination",
+  params: [
+    { name: "clickFreq", min: 2000, max: 5000, unit: "Hz" },
+    { name: "clickLevel", min: 0.4, max: 0.8, unit: "amplitude" },
+    { name: "filterStart", min: 200, max: 600, unit: "Hz" },
+    { name: "filterEnd", min: 3000, max: 6000, unit: "Hz" },
+    { name: "noiseLevel", min: 0.3, max: 0.6, unit: "amplitude" },
+    { name: "attack", min: 0.001, max: 0.005, unit: "s" },
+    { name: "decay", min: 0.05, max: 0.2, unit: "s" },
+  ],
+  getParams: (rng) => {
+    const p = getCardUnlockParams(rng);
+    return {
+      clickFreq: p.clickFreq, clickLevel: p.clickLevel,
+      filterStart: p.filterStart, filterEnd: p.filterEnd,
+      noiseLevel: p.noiseLevel, attack: p.attack, decay: p.decay,
+    };
+  },
+});
+
+// ── card-glow ────────────────────────────────────────────────────
+
+function cardGlowDuration(rng: Rng): number {
+  const params = getCardGlowParams(rng);
+  return params.attack + params.sustain + params.release;
+}
+
+function cardGlowOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getCardGlowParams(rng);
+
+  // Base oscillator with LFO vibrato (simulated via frequency automation)
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.value = params.baseFreq;
+
+  // Simulate LFO vibrato with frequency automation points
+  const lfoSteps = Math.ceil(duration * params.lfoRate * 4);
+  for (let i = 0; i <= lfoSteps; i++) {
+    const t = (i / lfoSteps) * duration;
+    const lfoVal = Math.sin(2 * Math.PI * params.lfoRate * t) * params.lfoDepth;
+    osc.frequency.setValueAtTime(params.baseFreq + lfoVal, t);
+  }
+
+  const bpf = ctx.createBiquadFilter();
+  bpf.type = "bandpass";
+  bpf.frequency.value = params.filterFreq;
+  bpf.Q.value = params.filterQ;
+
+  const gain = ctx.createGain();
+  gain.gain.value = params.level;
+
+  // Envelope: attack -> sustain -> release
+  const env = ctx.createGain();
+  env.gain.setValueAtTime(0, 0);
+  env.gain.linearRampToValueAtTime(1, params.attack);
+  env.gain.setValueAtTime(1, params.attack + params.sustain);
+  env.gain.linearRampToValueAtTime(0, duration);
+
+  osc.connect(bpf);
+  bpf.connect(gain);
+  gain.connect(env);
+  env.connect(ctx.destination);
+
+  // Schedule
+  osc.start(0);
+  osc.stop(duration);
+}
+
+registry.register("card-glow", {
+  factoryLoader: async () => (await import("./card-glow.js")).createCardGlow,
+  getDuration: cardGlowDuration,
+  buildOfflineGraph: cardGlowOfflineGraph,
+  description: "Sustained filtered oscillator with LFO vibrato shimmer for a card radiating energy or highlight state.",
+  category: "Card Game",
+  tags: ["card", "glow", "card-game", "state", "atmospheric", "arcade", "shimmer", "sustained"],
+  signalChain: "Sine Oscillator (LFO vibrato) -> Bandpass Filter -> Gain -> Envelope -> Destination",
+  params: [
+    { name: "baseFreq", min: 400, max: 900, unit: "Hz" },
+    { name: "lfoRate", min: 3, max: 10, unit: "Hz" },
+    { name: "lfoDepth", min: 10, max: 50, unit: "Hz" },
+    { name: "filterFreq", min: 1000, max: 3000, unit: "Hz" },
+    { name: "filterQ", min: 2, max: 8, unit: "Q" },
+    { name: "attack", min: 0.05, max: 0.15, unit: "s" },
+    { name: "sustain", min: 0.3, max: 0.6, unit: "s" },
+    { name: "release", min: 0.1, max: 0.3, unit: "s" },
+    { name: "level", min: 0.4, max: 0.8, unit: "amplitude" },
+  ],
+  getParams: (rng) => {
+    const p = getCardGlowParams(rng);
+    return {
+      baseFreq: p.baseFreq, lfoRate: p.lfoRate, lfoDepth: p.lfoDepth,
+      filterFreq: p.filterFreq, filterQ: p.filterQ,
+      attack: p.attack, sustain: p.sustain,
+      release: p.release, level: p.level,
+    };
+  },
+});
+
+// ── card-transform ───────────────────────────────────────────────
+
+function cardTransformDuration(rng: Rng): number {
+  const params = getCardTransformParams(rng);
+  return params.attack + params.sustain + params.release;
+}
+
+function cardTransformOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getCardTransformParams(rng);
+
+  // Modulator oscillator for FM synthesis
+  const modFreq = params.carrierFreq * params.modRatio;
+  const modulator = ctx.createOscillator();
+  modulator.type = "sine";
+  modulator.frequency.value = modFreq;
+
+  // FM depth sweep from start to end
+  const modGain = ctx.createGain();
+  modGain.gain.setValueAtTime(params.modDepthStart, 0);
+  modGain.gain.linearRampToValueAtTime(params.modDepthEnd, duration);
+
+  // Carrier oscillator
+  const carrier = ctx.createOscillator();
+  carrier.type = "sine";
+  carrier.frequency.value = params.carrierFreq;
+
+  modulator.connect(modGain);
+  modGain.connect(carrier.frequency);
+
+  const gain = ctx.createGain();
+  gain.gain.value = params.level;
+
+  // Envelope: attack -> sustain -> release
+  const env = ctx.createGain();
+  env.gain.setValueAtTime(0, 0);
+  env.gain.linearRampToValueAtTime(1, params.attack);
+  env.gain.setValueAtTime(1, params.attack + params.sustain);
+  env.gain.linearRampToValueAtTime(0, duration);
+
+  carrier.connect(gain);
+  gain.connect(env);
+  env.connect(ctx.destination);
+
+  // Schedule
+  modulator.start(0);
+  modulator.stop(duration);
+  carrier.start(0);
+  carrier.stop(duration);
+}
+
+registry.register("card-transform", {
+  factoryLoader: async () => (await import("./card-transform.js")).createCardTransform,
+  getDuration: cardTransformDuration,
+  buildOfflineGraph: cardTransformOfflineGraph,
+  description: "Morphing FM synthesis with modulation depth sweep for card transformation or shape-shifting.",
+  category: "Card Game",
+  tags: ["card", "transform", "card-game", "state", "fm", "arcade", "morphing", "dramatic"],
+  signalChain: "FM Synthesis: Modulator -> Depth Sweep -> Carrier Frequency + Carrier Sine -> Gain -> Envelope -> Destination",
+  params: [
+    { name: "carrierFreq", min: 300, max: 700, unit: "Hz" },
+    { name: "modRatio", min: 1, max: 4, unit: "ratio" },
+    { name: "modDepthStart", min: 50, max: 200, unit: "Hz" },
+    { name: "modDepthEnd", min: 300, max: 800, unit: "Hz" },
+    { name: "attack", min: 0.02, max: 0.08, unit: "s" },
+    { name: "sustain", min: 0.2, max: 0.5, unit: "s" },
+    { name: "release", min: 0.1, max: 0.3, unit: "s" },
+    { name: "level", min: 0.5, max: 0.9, unit: "amplitude" },
+  ],
+  getParams: (rng) => {
+    const p = getCardTransformParams(rng);
+    return {
+      carrierFreq: p.carrierFreq, modRatio: p.modRatio,
+      modDepthStart: p.modDepthStart, modDepthEnd: p.modDepthEnd,
+      attack: p.attack, sustain: p.sustain,
+      release: p.release, level: p.level,
     };
   },
 });
