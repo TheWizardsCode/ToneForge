@@ -32,7 +32,7 @@ import { VERSION } from "./index.js";
 import { createRng } from "./core/rng.js";
 import { profiler } from "./core/profiler.js";
 import { outputMarkdown, outputError, outputWarning, outputSuccess, outputInfo, outputTable } from "./output.js";
-import type { RecipeRegistration } from "./core/recipe.js";
+import type { RecipeRegistration, RecipeFilterQuery } from "./core/recipe.js";
 import { renderStack } from "./stack/renderer.js";
 import type { StackDefinition } from "./stack/renderer.js";
 import { loadPreset } from "./stack/preset-loader.js";
@@ -329,11 +329,19 @@ async function printListHelp(): Promise<void> {
 
 ## Usage
 
-\`toneforge list [resource]\`
+\`toneforge list [resource] [options]\`
 
 ## Resources
 
-- **recipes** — List all registered recipes with a one-line summary *(default)*
+- **recipes** — List all registered recipes with name, description, category, and tags *(default)*
+
+## Filtering
+
+- \`--search <text>\` — Case-insensitive substring search across name, description, category, and tags
+- \`--category <name>\` — Filter by exact category (normalized: lowercase, spaces to hyphens)
+- \`--tags <t1,t2,...>\` — Filter by tags (exact, case-insensitive, AND logic, comma-separated)
+
+Filters combine with AND logic. Empty or whitespace-only values are ignored.
 
 ## Options
 
@@ -345,6 +353,11 @@ async function printListHelp(): Promise<void> {
 \`\`\`
 toneforge list
 toneforge list recipes
+toneforge list recipes --search laser
+toneforge list recipes --category weapon
+toneforge list recipes --tags sci-fi,laser
+toneforge list recipes --search beam --category weapon --tags laser
+toneforge list recipes --json
 \`\`\``;
   await outputMarkdown(md);
 }
@@ -1001,6 +1014,25 @@ function formatNumber(n: number): string {
 }
 
 /**
+ * Truncate a list of tags to fit within `maxWidth` characters.
+ * Joins tags with ", " and appends "\u2026" (ellipsis) if truncated.
+ * Returns "\u2014" (em-dash) if the tag list is empty.
+ */
+function truncateTags(tags: string[], maxWidth: number): string {
+  if (tags.length === 0) return "\u2014";
+  const joined = tags.join(", ");
+  if (joined.length <= maxWidth) return joined;
+  // Truncate: leave room for the ellipsis character
+  const truncated = joined.slice(0, maxWidth - 1);
+  // Try to break at last comma-space to avoid cutting mid-tag
+  const lastSep = truncated.lastIndexOf(", ");
+  if (lastSep > 0) {
+    return truncated.slice(0, lastSep) + "\u2026";
+  }
+  return truncated + "\u2026";
+}
+
+/**
  * Output a JSON object to stdout. Used by all commands when --json is active.
  */
 function jsonOut(data: Record<string, unknown>): void {
@@ -1211,22 +1243,71 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       return 1;
     }
 
-    const recipes = registry.listSummaries();
+    // Build filter from CLI flags
+    const filter: RecipeFilterQuery = {};
+    const searchFlag = flags["search"];
+    const categoryFlag = flags["category"];
+    const tagsFlag = flags["tags"];
+    if (typeof searchFlag === "string") filter.search = searchFlag;
+    if (typeof categoryFlag === "string") filter.category = categoryFlag;
+    if (typeof tagsFlag === "string") {
+      filter.tags = tagsFlag.split(",").map((t) => t.trim());
+    }
+
+    const isFiltered =
+      filter.search !== undefined ||
+      filter.category !== undefined ||
+      filter.tags !== undefined;
+
+    // Get total count before filtering for the footer
+    const totalCount = registry.listDetailed().length;
+    const recipes = registry.listDetailed(isFiltered ? filter : undefined);
+
     if (jsonMode) {
       jsonOut({ command: "list", resource: "recipes", recipes });
     } else {
-      const TABLE_WIDTH = 76;
-      // Table row overhead: "| " + col1 + " | " + col2 + " |" = 7 chars
-      const nameCol = Math.max(...recipes.map((r) => r.name.length));
-      const descCol = TABLE_WIDTH - nameCol - 7;
+      if (recipes.length === 0) {
+        outputInfo(
+          isFiltered
+            ? `Found 0 of ${totalCount} recipes matching the filter.`
+            : "No recipes registered.",
+        );
+      } else {
+        const TABLE_WIDTH = 76;
+        // Table row overhead for 4 columns:
+        // "| " + col1 + " | " + col2 + " | " + col3 + " | " + col4 + " |"
+        // = 4 separators * 3 chars ("| " or " |") + 3 inner " | " = 13 chars
+        const nameCol = Math.max(...recipes.map((r) => r.name.length));
+        const catCol = Math.max(
+          "Category".length,
+          ...recipes.map((r) => (r.category || "").length),
+        );
+        const TAG_COL_WIDTH = 14;
+        // 4 cols with separators: "| " + c1 + " | " + c2 + " | " + c3 + " | " + c4 + " |" = 5*2 + 3 = 13
+        const descCol = TABLE_WIDTH - nameCol - catCol - TAG_COL_WIDTH - 13;
 
-      outputTable(
-        [
-          { header: "Recipe", width: nameCol },
-          { header: "Description", width: descCol },
-        ],
-        recipes.map((r) => [r.name, r.description || "\u2014"]),
-      );
+        outputTable(
+          [
+            { header: "Recipe", width: nameCol },
+            { header: "Description", width: Math.max(descCol, 10) },
+            { header: "Category", width: catCol },
+            { header: "Tags", width: TAG_COL_WIDTH },
+          ],
+          recipes.map((r) => [
+            r.name,
+            r.description || "\u2014",
+            r.category || "\u2014",
+            truncateTags(r.tags, TAG_COL_WIDTH),
+          ]),
+        );
+
+        // Footer
+        if (isFiltered) {
+          outputInfo(`Found ${recipes.length} of ${totalCount} recipes.`);
+        } else {
+          outputInfo(`Showing ${recipes.length} recipes.`);
+        }
+      }
     }
     return 0;
   }
