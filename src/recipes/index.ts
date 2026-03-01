@@ -53,6 +53,9 @@ import { getCardCoinSpendParams } from "./card-coin-spend-params.js";
 import { getCardChipStackParams } from "./card-chip-stack-params.js";
 import { getCardTokenEarnParams } from "./card-token-earn-params.js";
 import { getCardTreasureRevealParams } from "./card-treasure-reveal-params.js";
+import { getCardDiscardParams } from "./card-discard-params.js";
+import { getCardBurnParams } from "./card-burn-params.js";
+import { getCardReturnToDeckParams } from "./card-return-to-deck-params.js";
 
 /** The global recipe registry instance with all built-in recipes registered. */
 export const registry = new RecipeRegistry();
@@ -3394,6 +3397,326 @@ registry.register("card-treasure-reveal", {
       shimmerDecay: p.shimmerDecay, toneFreq: p.toneFreq,
       intervalRatio: p.intervalRatio, toneAttack: p.toneAttack,
       toneDecay: p.toneDecay, toneLevel: p.toneLevel,
+    };
+  },
+});
+
+// ── card-discard ─────────────────────────────────────────────────
+
+function cardDiscardDuration(rng: Rng): number {
+  const params = getCardDiscardParams(rng);
+  return params.attack + params.decay;
+}
+
+function cardDiscardOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getCardDiscardParams(rng);
+
+  const bufferSize = Math.ceil(ctx.sampleRate * duration);
+
+  // Noise burst layer: bandpass-filtered white noise
+  const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const noiseData = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < noiseData.length; i++) {
+    noiseData[i] = rng() * 2 - 1;
+  }
+
+  const noiseSrc = ctx.createBufferSource();
+  noiseSrc.buffer = noiseBuffer;
+
+  const bpf = ctx.createBiquadFilter();
+  bpf.type = "bandpass";
+  bpf.frequency.value = params.filterFreq;
+  bpf.Q.value = params.filterQ;
+
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.value = params.noiseLevel;
+
+  const noiseEnv = ctx.createGain();
+  noiseEnv.gain.setValueAtTime(0, 0);
+  noiseEnv.gain.linearRampToValueAtTime(1, params.attack);
+  noiseEnv.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+
+  noiseSrc.connect(bpf);
+  bpf.connect(noiseGain);
+  noiseGain.connect(noiseEnv);
+  noiseEnv.connect(ctx.destination);
+
+  // Thud layer: low sine oscillator
+  const thud = ctx.createOscillator();
+  thud.type = "sine";
+  thud.frequency.value = params.thudFreq;
+
+  const thudGain = ctx.createGain();
+  thudGain.gain.value = params.thudLevel;
+
+  const thudEnv = ctx.createGain();
+  thudEnv.gain.setValueAtTime(0, 0);
+  thudEnv.gain.linearRampToValueAtTime(1, 0.001);
+  thudEnv.gain.linearRampToValueAtTime(0, 0.001 + params.decay * 0.5);
+
+  thud.connect(thudGain);
+  thudGain.connect(thudEnv);
+  thudEnv.connect(ctx.destination);
+
+  // Schedule
+  noiseSrc.start(0);
+  noiseSrc.stop(duration);
+  thud.start(0);
+  thud.stop(duration);
+}
+
+registry.register("card-discard", {
+  factoryLoader: async () => (await import("./card-discard.js")).createCardDiscard,
+  getDuration: cardDiscardDuration,
+  buildOfflineGraph: cardDiscardOfflineGraph,
+  description: "Short noise burst with tonal thud for discarding a card — subtle, neutral removal action.",
+  category: "Card Game",
+  tags: ["card", "discard", "card-game", "removal", "arcade", "neutral"],
+  signalChain: "White Noise -> Bandpass Filter -> Noise Gain -> Envelope + Sine Thud -> Thud Gain -> Envelope -> Destination",
+  params: [
+    { name: "filterFreq", min: 600, max: 2000, unit: "Hz" },
+    { name: "filterQ", min: 1, max: 4, unit: "Q" },
+    { name: "attack", min: 0.001, max: 0.005, unit: "s" },
+    { name: "decay", min: 0.04, max: 0.15, unit: "s" },
+    { name: "noiseLevel", min: 0.4, max: 0.8, unit: "amplitude" },
+    { name: "thudFreq", min: 100, max: 300, unit: "Hz" },
+    { name: "thudLevel", min: 0.2, max: 0.5, unit: "amplitude" },
+  ],
+  getParams: (rng) => {
+    const p = getCardDiscardParams(rng);
+    return {
+      filterFreq: p.filterFreq, filterQ: p.filterQ,
+      attack: p.attack, decay: p.decay,
+      noiseLevel: p.noiseLevel, thudFreq: p.thudFreq,
+      thudLevel: p.thudLevel,
+    };
+  },
+});
+
+// ── card-burn ────────────────────────────────────────────────────
+
+function cardBurnDuration(rng: Rng): number {
+  const params = getCardBurnParams(rng);
+  return params.attack + params.decay;
+}
+
+function cardBurnOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getCardBurnParams(rng);
+
+  const bufferSize = Math.ceil(ctx.sampleRate * duration);
+
+  // Main noise layer with descending lowpass sweep
+  const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const noiseData = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < noiseData.length; i++) {
+    noiseData[i] = rng() * 2 - 1;
+  }
+
+  const noiseSrc = ctx.createBufferSource();
+  noiseSrc.buffer = noiseBuffer;
+
+  const lpf = ctx.createBiquadFilter();
+  lpf.type = "lowpass";
+  lpf.frequency.setValueAtTime(params.filterStart, 0);
+  lpf.frequency.linearRampToValueAtTime(params.filterEnd, duration);
+
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.value = params.noiseLevel;
+
+  const noiseEnv = ctx.createGain();
+  noiseEnv.gain.setValueAtTime(0, 0);
+  noiseEnv.gain.linearRampToValueAtTime(1, params.attack);
+  noiseEnv.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+
+  noiseSrc.connect(lpf);
+  lpf.connect(noiseGain);
+  noiseGain.connect(noiseEnv);
+  noiseEnv.connect(ctx.destination);
+
+  // Crackle layer: highpass-filtered noise for fire texture
+  const crackleBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const crackleData = crackleBuffer.getChannelData(0);
+  for (let i = 0; i < crackleData.length; i++) {
+    crackleData[i] = rng() * 2 - 1;
+  }
+
+  const crackleSrc = ctx.createBufferSource();
+  crackleSrc.buffer = crackleBuffer;
+
+  const hpf = ctx.createBiquadFilter();
+  hpf.type = "highpass";
+  hpf.frequency.value = 5000;
+
+  const crackleGain = ctx.createGain();
+  crackleGain.gain.value = params.crackleLevel;
+
+  const crackleEnv = ctx.createGain();
+  crackleEnv.gain.setValueAtTime(0, 0);
+  crackleEnv.gain.linearRampToValueAtTime(1, params.attack);
+  crackleEnv.gain.linearRampToValueAtTime(0, params.attack + params.decay * 0.7);
+
+  crackleSrc.connect(hpf);
+  hpf.connect(crackleGain);
+  crackleGain.connect(crackleEnv);
+  crackleEnv.connect(ctx.destination);
+
+  // Low rumble: sine oscillator
+  const rumble = ctx.createOscillator();
+  rumble.type = "sine";
+  rumble.frequency.value = params.rumbleFreq;
+
+  const rumbleGain = ctx.createGain();
+  rumbleGain.gain.value = params.rumbleLevel;
+
+  const rumbleEnv = ctx.createGain();
+  rumbleEnv.gain.setValueAtTime(0, 0);
+  rumbleEnv.gain.linearRampToValueAtTime(1, params.attack);
+  rumbleEnv.gain.linearRampToValueAtTime(0, params.attack + params.decay * 0.8);
+
+  rumble.connect(rumbleGain);
+  rumbleGain.connect(rumbleEnv);
+  rumbleEnv.connect(ctx.destination);
+
+  // Schedule
+  noiseSrc.start(0);
+  noiseSrc.stop(duration);
+  crackleSrc.start(0);
+  crackleSrc.stop(duration);
+  rumble.start(0);
+  rumble.stop(duration);
+}
+
+registry.register("card-burn", {
+  factoryLoader: async () => (await import("./card-burn.js")).createCardBurn,
+  getDuration: cardBurnDuration,
+  buildOfflineGraph: cardBurnOfflineGraph,
+  description: "Destructive dissolve/fire effect with descending filter sweep, crackle, and rumble for permanently burning a card.",
+  category: "Card Game",
+  tags: ["card", "burn", "card-game", "removal", "destructive", "arcade", "fire", "dramatic"],
+  signalChain: "White Noise -> Lowpass Sweep -> Noise Gain -> Envelope + Highpass Noise (crackle) -> Envelope + Sine Rumble -> Envelope -> Destination",
+  params: [
+    { name: "filterStart", min: 3000, max: 8000, unit: "Hz" },
+    { name: "filterEnd", min: 200, max: 800, unit: "Hz" },
+    { name: "attack", min: 0.005, max: 0.02, unit: "s" },
+    { name: "decay", min: 0.3, max: 0.7, unit: "s" },
+    { name: "noiseLevel", min: 0.4, max: 0.8, unit: "amplitude" },
+    { name: "crackleLevel", min: 0.1, max: 0.4, unit: "amplitude" },
+    { name: "rumbleFreq", min: 60, max: 150, unit: "Hz" },
+    { name: "rumbleLevel", min: 0.1, max: 0.3, unit: "amplitude" },
+  ],
+  getParams: (rng) => {
+    const p = getCardBurnParams(rng);
+    return {
+      filterStart: p.filterStart, filterEnd: p.filterEnd,
+      attack: p.attack, decay: p.decay,
+      noiseLevel: p.noiseLevel, crackleLevel: p.crackleLevel,
+      rumbleFreq: p.rumbleFreq, rumbleLevel: p.rumbleLevel,
+    };
+  },
+});
+
+// ── card-return-to-deck ──────────────────────────────────────────
+
+function cardReturnToDeckDuration(rng: Rng): number {
+  const params = getCardReturnToDeckParams(rng);
+  return params.attack + params.decay;
+}
+
+function cardReturnToDeckOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getCardReturnToDeckParams(rng);
+
+  const bufferSize = Math.ceil(ctx.sampleRate * duration);
+
+  // Swoosh noise layer: bandpass-filtered white noise
+  const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const noiseData = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < noiseData.length; i++) {
+    noiseData[i] = rng() * 2 - 1;
+  }
+
+  const noiseSrc = ctx.createBufferSource();
+  noiseSrc.buffer = noiseBuffer;
+
+  const bpf = ctx.createBiquadFilter();
+  bpf.type = "bandpass";
+  bpf.frequency.value = params.filterFreq;
+  bpf.Q.value = params.filterQ;
+
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.value = params.noiseLevel;
+
+  const noiseEnv = ctx.createGain();
+  noiseEnv.gain.setValueAtTime(0, 0);
+  noiseEnv.gain.linearRampToValueAtTime(1, params.attack);
+  noiseEnv.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+
+  noiseSrc.connect(bpf);
+  bpf.connect(noiseGain);
+  noiseGain.connect(noiseEnv);
+  noiseEnv.connect(ctx.destination);
+
+  // Ascending tonal accent: sine with frequency ramp
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(params.toneStart, 0);
+  osc.frequency.linearRampToValueAtTime(params.toneEnd, duration);
+
+  const toneGain = ctx.createGain();
+  toneGain.gain.value = params.toneLevel;
+
+  const toneEnv = ctx.createGain();
+  toneEnv.gain.setValueAtTime(0, 0);
+  toneEnv.gain.linearRampToValueAtTime(1, params.attack);
+  toneEnv.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+
+  osc.connect(toneGain);
+  toneGain.connect(toneEnv);
+  toneEnv.connect(ctx.destination);
+
+  // Schedule
+  noiseSrc.start(0);
+  noiseSrc.stop(duration);
+  osc.start(0);
+  osc.stop(duration);
+}
+
+registry.register("card-return-to-deck", {
+  factoryLoader: async () => (await import("./card-return-to-deck.js")).createCardReturnToDeck,
+  getDuration: cardReturnToDeckDuration,
+  buildOfflineGraph: cardReturnToDeckOfflineGraph,
+  description: "Subtle swoosh with ascending tonal accent for returning a card to the deck — conceptual inverse of card-draw.",
+  category: "Card Game",
+  tags: ["card", "return", "deck", "card-game", "removal", "arcade", "swoosh", "ascending"],
+  signalChain: "White Noise -> Bandpass Filter -> Noise Gain -> Envelope + Ascending Sine -> Tone Gain -> Envelope -> Destination",
+  params: [
+    { name: "filterFreq", min: 800, max: 2500, unit: "Hz" },
+    { name: "filterQ", min: 1.5, max: 5, unit: "Q" },
+    { name: "attack", min: 0.001, max: 0.005, unit: "s" },
+    { name: "decay", min: 0.05, max: 0.15, unit: "s" },
+    { name: "noiseLevel", min: 0.3, max: 0.7, unit: "amplitude" },
+    { name: "toneStart", min: 400, max: 800, unit: "Hz" },
+    { name: "toneEnd", min: 800, max: 1400, unit: "Hz" },
+    { name: "toneLevel", min: 0.2, max: 0.5, unit: "amplitude" },
+  ],
+  getParams: (rng) => {
+    const p = getCardReturnToDeckParams(rng);
+    return {
+      filterFreq: p.filterFreq, filterQ: p.filterQ,
+      attack: p.attack, decay: p.decay,
+      noiseLevel: p.noiseLevel, toneStart: p.toneStart,
+      toneEnd: p.toneEnd, toneLevel: p.toneLevel,
     };
   },
 });
