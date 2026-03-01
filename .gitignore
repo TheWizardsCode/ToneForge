@@ -33,6 +33,13 @@ classification/
 .exploration/
 
 ##################################
+# Library and demo output
+##################################
+.toneforge-library/
+card-sfx/
+game-assets/
+
+##################################
 # Build output binaries
 ##################################
 bin/
