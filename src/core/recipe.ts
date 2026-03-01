@@ -151,6 +151,45 @@ export interface LazyRecipeRegistration {
   getParams: (rng: Rng) => Record<string, number>;
 }
 
+/**
+ * Filter query for recipe search/filtering.
+ *
+ * All specified filters are combined with AND logic. Empty or
+ * whitespace-only values are ignored (treated as if not provided).
+ */
+export interface RecipeFilterQuery {
+  /**
+   * Case-insensitive substring match across name, description,
+   * category, and tag strings. A recipe matches if any field
+   * contains the search string.
+   */
+  search?: string;
+
+  /**
+   * Exact category match after normalization. Both sides are
+   * lowercased and spaces are replaced with hyphens, so
+   * "Card Game", "card-game", and "card game" all match.
+   */
+  category?: string;
+
+  /**
+   * Exact case-insensitive tag match with AND logic. All specified
+   * tags must be present on the recipe. "laser" matches tag "laser"
+   * but NOT "laser-beam".
+   */
+  tags?: string[];
+}
+
+/**
+ * Detailed recipe summary including category and tags.
+ */
+export interface RecipeDetailedSummary {
+  name: string;
+  description: string;
+  category: string;
+  tags: string[];
+}
+
 /** Internal entry type: either a fully resolved registration or a lazy one. */
 type RegistryEntry =
   | { kind: "eager"; registration: RecipeRegistration }
@@ -305,4 +344,93 @@ export class RecipeRegistry {
           : entry.lazy.description,
     }));
   }
+
+  /**
+   * List all registered recipes with detailed metadata (name, description,
+   * category, tags), optionally filtered by search, category, and/or tags.
+   *
+   * All filters combine with AND logic. Empty or whitespace-only filter
+   * values are ignored (treated as if not provided).
+   *
+   * Filter behavior:
+   * - search: case-insensitive substring match across name, description,
+   *   category, and tag strings (any field match = recipe included)
+   * - category: exact match after normalization (lowercase + spaces-to-hyphens)
+   * - tags: exact case-insensitive match with AND logic (all specified tags
+   *   must be present; "laser" matches "laser" but NOT "laser-beam")
+   */
+  listDetailed(filter?: RecipeFilterQuery): RecipeDetailedSummary[] {
+    const results: RecipeDetailedSummary[] = [];
+
+    // Pre-process filter values (ignore empty/whitespace-only)
+    const searchTerm =
+      filter?.search?.trim() ? filter.search.trim().toLowerCase() : undefined;
+    const categoryTerm =
+      filter?.category?.trim()
+        ? normalizeCategory(filter.category.trim())
+        : undefined;
+    const tagTerms =
+      filter?.tags && filter.tags.filter((t) => t.trim().length > 0).length > 0
+        ? filter.tags
+            .filter((t) => t.trim().length > 0)
+            .map((t) => t.trim().toLowerCase())
+        : undefined;
+
+    for (const [name, entry] of this.entries) {
+      const description =
+        entry.kind === "eager"
+          ? entry.registration.description
+          : entry.lazy.description;
+      const category =
+        entry.kind === "eager"
+          ? (entry.registration.category ?? "")
+          : (entry.lazy.category ?? "");
+      const tags =
+        entry.kind === "eager"
+          ? (entry.registration.tags ?? [])
+          : (entry.lazy.tags ?? []);
+
+      // Apply search filter: case-insensitive substring across all fields
+      if (searchTerm !== undefined) {
+        const nameLower = name.toLowerCase();
+        const descLower = description.toLowerCase();
+        const catLower = category.toLowerCase();
+        const tagsLower = tags.map((t) => t.toLowerCase());
+        const matchesSearch =
+          nameLower.includes(searchTerm) ||
+          descLower.includes(searchTerm) ||
+          catLower.includes(searchTerm) ||
+          tagsLower.some((t) => t.includes(searchTerm));
+        if (!matchesSearch) continue;
+      }
+
+      // Apply category filter: exact match after normalization
+      if (categoryTerm !== undefined) {
+        if (normalizeCategory(category) !== categoryTerm) continue;
+      }
+
+      // Apply tags filter: exact case-insensitive AND logic
+      if (tagTerms !== undefined) {
+        const entryTagsLower = tags.map((t) => t.toLowerCase());
+        const allPresent = tagTerms.every((tag) =>
+          entryTagsLower.includes(tag),
+        );
+        if (!allPresent) continue;
+      }
+
+      results.push({ name, description, category, tags });
+    }
+
+    return results;
+  }
+}
+
+/**
+ * Normalize a category string for comparison: lowercase and
+ * replace whitespace sequences with hyphens.
+ *
+ * e.g. "Card Game" -> "card-game", "card game" -> "card-game"
+ */
+function normalizeCategory(category: string): string {
+  return category.toLowerCase().replace(/\s+/g, "-");
 }

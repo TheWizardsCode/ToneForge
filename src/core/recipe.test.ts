@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { RecipeRegistry } from "./recipe.js";
-import type { Recipe, RecipeFactory } from "./recipe.js";
+import type {
+  Recipe,
+  RecipeFactory,
+  RecipeRegistration,
+  LazyRecipeRegistration,
+} from "./recipe.js";
 import { createRng } from "./rng.js";
 
 describe("RecipeRegistry", () => {
@@ -75,5 +80,543 @@ describe("Recipe interface compliance", () => {
     expect(typeof recipe.stop).toBe("function");
     expect(typeof recipe.toDestination).toBe("function");
     expect(typeof recipe.duration).toBe("number");
+  });
+});
+
+/** Helper: create a full RecipeRegistration for tests. */
+function makeRegistration(
+  overrides: Partial<RecipeRegistration> = {},
+): RecipeRegistration {
+  return {
+    factory: (_rng) => ({
+      start: () => {},
+      stop: () => {},
+      toDestination: () => {},
+      duration: 1,
+    }),
+    getDuration: () => 1,
+    buildOfflineGraph: () => {},
+    description: overrides.description ?? "A test recipe",
+    category: overrides.category ?? "weapon",
+    tags: overrides.tags ?? ["sharp", "bright"],
+    signalChain: "Oscillator -> Destination",
+    params: [],
+    getParams: () => ({}),
+    ...overrides,
+  };
+}
+
+/** Helper: create a LazyRecipeRegistration for tests. */
+function makeLazyRegistration(
+  overrides: Partial<LazyRecipeRegistration> = {},
+): LazyRecipeRegistration {
+  return {
+    factoryLoader: async () =>
+      (_rng) => ({
+        start: () => {},
+        stop: () => {},
+        toDestination: () => {},
+        duration: 1,
+      }),
+    getDuration: () => 1,
+    buildOfflineGraph: () => {},
+    description: overrides.description ?? "A lazy test recipe",
+    category: overrides.category ?? "ui",
+    tags: overrides.tags ?? ["click", "interface"],
+    signalChain: "Oscillator -> Destination",
+    params: [],
+    getParams: () => ({}),
+    ...overrides,
+  };
+}
+
+describe("RecipeRegistry.listDetailed", () => {
+  it("returns all recipes with name, description, category, and tags", () => {
+    const reg = new RecipeRegistry();
+    reg.register(
+      "weapon-laser",
+      makeRegistration({
+        description: "Sci-fi laser blast",
+        category: "Weapon",
+        tags: ["laser", "sci-fi"],
+      }),
+    );
+    reg.register(
+      "ui-click",
+      makeRegistration({
+        description: "Simple UI click",
+        category: "UI",
+        tags: ["click", "interface"],
+      }),
+    );
+
+    const results = reg.listDetailed();
+
+    expect(results).toHaveLength(2);
+    expect(results[0]).toEqual({
+      name: "weapon-laser",
+      description: "Sci-fi laser blast",
+      category: "Weapon",
+      tags: ["laser", "sci-fi"],
+    });
+    expect(results[1]).toEqual({
+      name: "ui-click",
+      description: "Simple UI click",
+      category: "UI",
+      tags: ["click", "interface"],
+    });
+  });
+
+  it("handles lazy registry entries", () => {
+    const reg = new RecipeRegistry();
+    reg.register(
+      "lazy-recipe",
+      makeLazyRegistration({
+        description: "A lazy recipe",
+        category: "Ambient",
+        tags: ["nature", "wind"],
+      }),
+    );
+
+    const results = reg.listDetailed();
+
+    expect(results).toHaveLength(1);
+    expect(results[0]).toEqual({
+      name: "lazy-recipe",
+      description: "A lazy recipe",
+      category: "Ambient",
+      tags: ["nature", "wind"],
+    });
+  });
+
+  it("handles missing category (treats as empty string)", () => {
+    const reg = new RecipeRegistry();
+    const bareFactory: RecipeFactory = (_rng) => ({
+      start: () => {},
+      stop: () => {},
+      toDestination: () => {},
+      duration: 1,
+    });
+    reg.register("bare", bareFactory);
+
+    const results = reg.listDetailed();
+
+    expect(results).toHaveLength(1);
+    expect(results[0]!.category).toBe("");
+    expect(results[0]!.tags).toEqual([]);
+  });
+
+  it("handles recipes with undefined tags (treats as empty array)", () => {
+    const reg = new RecipeRegistry();
+    reg.register(
+      "no-tags",
+      makeRegistration({
+        description: "No tags recipe",
+        category: "Impact",
+        tags: undefined,
+      }),
+    );
+
+    const results = reg.listDetailed();
+
+    expect(results).toHaveLength(1);
+    expect(results[0]!.tags).toEqual([]);
+  });
+
+  describe("search filter", () => {
+    it("matches by recipe name (case-insensitive substring)", () => {
+      const reg = new RecipeRegistry();
+      reg.register(
+        "weapon-laser-blast",
+        makeRegistration({ description: "A blast", category: "Weapon" }),
+      );
+      reg.register(
+        "ui-click",
+        makeRegistration({ description: "A click", category: "UI" }),
+      );
+
+      const results = reg.listDetailed({ search: "Laser" });
+
+      expect(results).toHaveLength(1);
+      expect(results[0]!.name).toBe("weapon-laser-blast");
+    });
+
+    it("matches by description (case-insensitive substring)", () => {
+      const reg = new RecipeRegistry();
+      reg.register(
+        "weapon-laser",
+        makeRegistration({
+          description: "Sci-fi laser blast with echo",
+          category: "Weapon",
+        }),
+      );
+      reg.register(
+        "ui-click",
+        makeRegistration({
+          description: "Simple button click",
+          category: "UI",
+        }),
+      );
+
+      const results = reg.listDetailed({ search: "echo" });
+
+      expect(results).toHaveLength(1);
+      expect(results[0]!.name).toBe("weapon-laser");
+    });
+
+    it("matches by category (case-insensitive substring)", () => {
+      const reg = new RecipeRegistry();
+      reg.register(
+        "recipe-a",
+        makeRegistration({ description: "A", category: "Card Game" }),
+      );
+      reg.register(
+        "recipe-b",
+        makeRegistration({ description: "B", category: "Weapon" }),
+      );
+
+      const results = reg.listDetailed({ search: "card" });
+
+      expect(results).toHaveLength(1);
+      expect(results[0]!.name).toBe("recipe-a");
+    });
+
+    it("matches by tag value (case-insensitive substring)", () => {
+      const reg = new RecipeRegistry();
+      reg.register(
+        "recipe-a",
+        makeRegistration({
+          description: "A",
+          category: "Weapon",
+          tags: ["laser", "sci-fi"],
+        }),
+      );
+      reg.register(
+        "recipe-b",
+        makeRegistration({
+          description: "B",
+          category: "Weapon",
+          tags: ["sword", "fantasy"],
+        }),
+      );
+
+      const results = reg.listDetailed({ search: "SCI" });
+
+      expect(results).toHaveLength(1);
+      expect(results[0]!.name).toBe("recipe-a");
+    });
+  });
+
+  describe("category filter", () => {
+    it("filters by exact category match (case-insensitive)", () => {
+      const reg = new RecipeRegistry();
+      reg.register(
+        "recipe-a",
+        makeRegistration({ category: "Weapon" }),
+      );
+      reg.register(
+        "recipe-b",
+        makeRegistration({ category: "UI" }),
+      );
+      reg.register(
+        "recipe-c",
+        makeRegistration({ category: "Weapon" }),
+      );
+
+      const results = reg.listDetailed({ category: "weapon" });
+
+      expect(results).toHaveLength(2);
+      expect(results.map((r) => r.name)).toEqual(["recipe-a", "recipe-c"]);
+    });
+
+    it("normalizes spaces to hyphens for matching", () => {
+      const reg = new RecipeRegistry();
+      reg.register(
+        "card-recipe",
+        makeRegistration({ category: "Card Game" }),
+      );
+
+      // All of these should match
+      expect(reg.listDetailed({ category: "card-game" })).toHaveLength(1);
+      expect(reg.listDetailed({ category: "Card Game" })).toHaveLength(1);
+      expect(reg.listDetailed({ category: "card game" })).toHaveLength(1);
+      expect(reg.listDetailed({ category: "CARD-GAME" })).toHaveLength(1);
+    });
+
+    it("does not match substring of category", () => {
+      const reg = new RecipeRegistry();
+      reg.register(
+        "recipe-a",
+        makeRegistration({ category: "Card Game" }),
+      );
+
+      const results = reg.listDetailed({ category: "card" });
+
+      expect(results).toHaveLength(0);
+    });
+  });
+
+  describe("tags filter", () => {
+    it("filters by exact tag match (case-insensitive)", () => {
+      const reg = new RecipeRegistry();
+      reg.register(
+        "recipe-a",
+        makeRegistration({ tags: ["laser", "sci-fi"] }),
+      );
+      reg.register(
+        "recipe-b",
+        makeRegistration({ tags: ["sword", "fantasy"] }),
+      );
+
+      const results = reg.listDetailed({ tags: ["LASER"] });
+
+      expect(results).toHaveLength(1);
+      expect(results[0]!.name).toBe("recipe-a");
+    });
+
+    it("uses AND logic (all tags must be present)", () => {
+      const reg = new RecipeRegistry();
+      reg.register(
+        "recipe-a",
+        makeRegistration({ tags: ["laser", "sci-fi", "bright"] }),
+      );
+      reg.register(
+        "recipe-b",
+        makeRegistration({ tags: ["laser", "fantasy"] }),
+      );
+
+      const results = reg.listDetailed({ tags: ["laser", "sci-fi"] });
+
+      expect(results).toHaveLength(1);
+      expect(results[0]!.name).toBe("recipe-a");
+    });
+
+    it("does not match substring of tag (exact match only)", () => {
+      const reg = new RecipeRegistry();
+      reg.register(
+        "recipe-a",
+        makeRegistration({ tags: ["laser-beam", "sci-fi"] }),
+      );
+
+      const results = reg.listDetailed({ tags: ["laser"] });
+
+      expect(results).toHaveLength(0);
+    });
+
+    it("ignores empty tags in filter array", () => {
+      const reg = new RecipeRegistry();
+      reg.register(
+        "recipe-a",
+        makeRegistration({ tags: ["laser"] }),
+      );
+      reg.register(
+        "recipe-b",
+        makeRegistration({ tags: ["sword"] }),
+      );
+
+      // Empty strings in tags array should be ignored -> returns all
+      const results = reg.listDetailed({ tags: ["", "  "] });
+
+      expect(results).toHaveLength(2);
+    });
+  });
+
+  describe("combined filters", () => {
+    it("combines search and category with AND logic", () => {
+      const reg = new RecipeRegistry();
+      reg.register(
+        "weapon-laser",
+        makeRegistration({
+          description: "Laser blast",
+          category: "Weapon",
+          tags: ["laser"],
+        }),
+      );
+      reg.register(
+        "ui-laser-button",
+        makeRegistration({
+          description: "Laser-styled button",
+          category: "UI",
+          tags: ["laser"],
+        }),
+      );
+
+      const results = reg.listDetailed({
+        search: "laser",
+        category: "weapon",
+      });
+
+      expect(results).toHaveLength(1);
+      expect(results[0]!.name).toBe("weapon-laser");
+    });
+
+    it("combines category and tags with AND logic", () => {
+      const reg = new RecipeRegistry();
+      reg.register(
+        "weapon-a",
+        makeRegistration({
+          category: "Weapon",
+          tags: ["laser", "sci-fi"],
+        }),
+      );
+      reg.register(
+        "weapon-b",
+        makeRegistration({
+          category: "Weapon",
+          tags: ["sword", "fantasy"],
+        }),
+      );
+      reg.register(
+        "ui-a",
+        makeRegistration({
+          category: "UI",
+          tags: ["laser", "click"],
+        }),
+      );
+
+      const results = reg.listDetailed({
+        category: "weapon",
+        tags: ["laser"],
+      });
+
+      expect(results).toHaveLength(1);
+      expect(results[0]!.name).toBe("weapon-a");
+    });
+
+    it("combines all three filters with AND logic", () => {
+      const reg = new RecipeRegistry();
+      reg.register(
+        "weapon-laser",
+        makeRegistration({
+          description: "A powerful blast",
+          category: "Weapon",
+          tags: ["laser", "sci-fi"],
+        }),
+      );
+      reg.register(
+        "weapon-sword",
+        makeRegistration({
+          description: "A powerful swing",
+          category: "Weapon",
+          tags: ["sword", "fantasy"],
+        }),
+      );
+
+      const results = reg.listDetailed({
+        search: "powerful",
+        category: "weapon",
+        tags: ["laser"],
+      });
+
+      expect(results).toHaveLength(1);
+      expect(results[0]!.name).toBe("weapon-laser");
+    });
+  });
+
+  describe("edge cases", () => {
+    it("returns empty array when no recipes match", () => {
+      const reg = new RecipeRegistry();
+      reg.register(
+        "recipe-a",
+        makeRegistration({ category: "Weapon" }),
+      );
+
+      const results = reg.listDetailed({ category: "footstep" });
+
+      expect(results).toEqual([]);
+    });
+
+    it("returns empty array when registry is empty", () => {
+      const reg = new RecipeRegistry();
+
+      const results = reg.listDetailed();
+
+      expect(results).toEqual([]);
+    });
+
+    it("ignores empty search string", () => {
+      const reg = new RecipeRegistry();
+      reg.register("recipe-a", makeRegistration());
+      reg.register("recipe-b", makeRegistration());
+
+      const results = reg.listDetailed({ search: "" });
+
+      expect(results).toHaveLength(2);
+    });
+
+    it("ignores whitespace-only search string", () => {
+      const reg = new RecipeRegistry();
+      reg.register("recipe-a", makeRegistration());
+      reg.register("recipe-b", makeRegistration());
+
+      const results = reg.listDetailed({ search: "   " });
+
+      expect(results).toHaveLength(2);
+    });
+
+    it("ignores empty category string", () => {
+      const reg = new RecipeRegistry();
+      reg.register("recipe-a", makeRegistration());
+
+      const results = reg.listDetailed({ category: "" });
+
+      expect(results).toHaveLength(1);
+    });
+
+    it("ignores whitespace-only category string", () => {
+      const reg = new RecipeRegistry();
+      reg.register("recipe-a", makeRegistration());
+
+      const results = reg.listDetailed({ category: "   " });
+
+      expect(results).toHaveLength(1);
+    });
+
+    it("ignores empty tags array", () => {
+      const reg = new RecipeRegistry();
+      reg.register("recipe-a", makeRegistration());
+
+      const results = reg.listDetailed({ tags: [] });
+
+      expect(results).toHaveLength(1);
+    });
+
+    it("returns all recipes when filter is an empty object", () => {
+      const reg = new RecipeRegistry();
+      reg.register("recipe-a", makeRegistration());
+      reg.register("recipe-b", makeRegistration());
+
+      const results = reg.listDetailed({});
+
+      expect(results).toHaveLength(2);
+    });
+
+    it("handles mixed eager and lazy entries", () => {
+      const reg = new RecipeRegistry();
+      reg.register(
+        "eager-recipe",
+        makeRegistration({
+          description: "Eager",
+          category: "Weapon",
+          tags: ["sharp"],
+        }),
+      );
+      reg.register(
+        "lazy-recipe",
+        makeLazyRegistration({
+          description: "Lazy",
+          category: "Weapon",
+          tags: ["sharp"],
+        }),
+      );
+
+      const results = reg.listDetailed({ category: "weapon" });
+
+      expect(results).toHaveLength(2);
+      expect(results.map((r) => r.name)).toEqual([
+        "eager-recipe",
+        "lazy-recipe",
+      ]);
+    });
   });
 });
