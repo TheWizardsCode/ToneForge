@@ -128,6 +128,24 @@ describe("CategoryClassifier", () => {
     expect(classifier.classify(analysis).category).toBe("ambient");
   });
 
+  it("normalizes spaces in context category to hyphens", () => {
+    const analysis = makeAnalysis();
+    const context: RecipeContext = { name: "card-flip", category: "Card Game", tags: ["card", "card-game"] };
+    expect(classifier.classify(analysis, context).category).toBe("card-game");
+  });
+
+  it("normalizes already-hyphenated context category", () => {
+    const analysis = makeAnalysis();
+    const context: RecipeContext = { name: "card-flip", category: "card-game", tags: ["card"] };
+    expect(classifier.classify(analysis, context).category).toBe("card-game");
+  });
+
+  it("normalizes lowercase-with-spaces context category", () => {
+    const analysis = makeAnalysis();
+    const context: RecipeContext = { name: "card-flip", category: "card game", tags: [] };
+    expect(classifier.classify(analysis, context).category).toBe("card-game");
+  });
+
   it("is deterministic", () => {
     const analysis = makeAnalysis();
     const context: RecipeContext = { name: "weapon-laser-zap", category: "Weapon" };

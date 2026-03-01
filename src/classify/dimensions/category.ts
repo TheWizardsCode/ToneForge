@@ -98,8 +98,10 @@ export class CategoryClassifier implements DimensionClassifier {
 
   classify(analysis: AnalysisResult, context?: RecipeContext): DimensionResult {
     // Primary signal: recipe metadata
+    // Normalize to lowercase hyphenated form (e.g. "Card Game" -> "card-game")
+    // to match the canonical vocabulary used in RECIPE_NAME_CATEGORY_MAP.
     if (context?.category) {
-      return { category: context.category.toLowerCase() };
+      return { category: context.category.toLowerCase().replace(/\s+/g, "-") };
     }
 
     // Secondary signal: recipe name parsing
