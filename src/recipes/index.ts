@@ -42,6 +42,11 @@ import { getCardPlaceParams } from "./card-place-params.js";
 import { getCardDrawParams } from "./card-draw-params.js";
 import { getCardShuffleParams } from "./card-shuffle-params.js";
 import { getCardFanParams } from "./card-fan-params.js";
+import { getCardSuccessParams } from "./card-success-params.js";
+import { getCardFailureParams } from "./card-failure-params.js";
+import { getCardVictoryFanfareParams } from "./card-victory-fanfare-params.js";
+import { getCardDefeatStingParams } from "./card-defeat-sting-params.js";
+import { getCardRoundCompleteParams } from "./card-round-complete-params.js";
 
 /** The global recipe registry instance with all built-in recipes registered. */
 export const registry = new RecipeRegistry();
@@ -2326,6 +2331,418 @@ registry.register("card-fan", {
       attack: p.attack, decay: p.decay,
       filterCutoff: p.filterCutoff, noiseLevel: p.noiseLevel,
       sweepLevel: p.sweepLevel,
+    };
+  },
+});
+
+// ── card-success ──────────────────────────────────────────────────
+
+function cardSuccessDuration(rng: Rng): number {
+  const params = getCardSuccessParams(rng);
+  return params.attack + params.decay;
+}
+
+function cardSuccessOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getCardSuccessParams(rng);
+
+  // Primary tone
+  const osc1 = ctx.createOscillator();
+  osc1.type = "sine";
+  osc1.frequency.value = params.baseFreq;
+
+  const gain1 = ctx.createGain();
+  gain1.gain.value = params.primaryLevel;
+
+  const env1 = ctx.createGain();
+  env1.gain.setValueAtTime(0, 0);
+  env1.gain.linearRampToValueAtTime(1, params.attack);
+  env1.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+
+  osc1.connect(gain1);
+  gain1.connect(env1);
+  env1.connect(ctx.destination);
+
+  // Secondary tone at consonant interval
+  const osc2 = ctx.createOscillator();
+  osc2.type = "sine";
+  osc2.frequency.value = params.baseFreq * params.intervalRatio;
+
+  const gain2 = ctx.createGain();
+  gain2.gain.value = params.secondaryLevel;
+
+  const env2 = ctx.createGain();
+  env2.gain.setValueAtTime(0, 0);
+  env2.gain.linearRampToValueAtTime(1, params.attack);
+  env2.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+
+  osc2.connect(gain2);
+  gain2.connect(env2);
+  env2.connect(ctx.destination);
+
+  // Schedule
+  osc1.start(0);
+  osc1.stop(duration);
+  osc2.start(0);
+  osc2.stop(duration);
+}
+
+registry.register("card-success", {
+  factoryLoader: async () => (await import("./card-success.js")).createCardSuccess,
+  getDuration: cardSuccessDuration,
+  buildOfflineGraph: cardSuccessOfflineGraph,
+  description: "Bright ascending dual-tone confirmation for positive card game outcomes.",
+  category: "Card Game",
+  tags: ["card", "success", "card-game", "outcome", "positive", "arcade"],
+  signalChain: "Sine Oscillator (Base) + Sine Oscillator (Interval) -> Gain -> Envelope -> Destination",
+  params: [
+    { name: "baseFreq", min: 600, max: 1100, unit: "Hz" },
+    { name: "intervalRatio", min: 1.2, max: 1.5, unit: "ratio" },
+    { name: "attack", min: 0.001, max: 0.005, unit: "s" },
+    { name: "decay", min: 0.1, max: 0.4, unit: "s" },
+    { name: "primaryLevel", min: 0.5, max: 0.9, unit: "amplitude" },
+    { name: "secondaryLevel", min: 0.3, max: 0.6, unit: "amplitude" },
+  ],
+  getParams: (rng) => {
+    const p = getCardSuccessParams(rng);
+    return {
+      baseFreq: p.baseFreq, intervalRatio: p.intervalRatio,
+      attack: p.attack, decay: p.decay,
+      primaryLevel: p.primaryLevel, secondaryLevel: p.secondaryLevel,
+    };
+  },
+});
+
+// ── card-failure ──────────────────────────────────────────────────
+
+function cardFailureDuration(rng: Rng): number {
+  const params = getCardFailureParams(rng);
+  return params.attack + params.decay;
+}
+
+function cardFailureOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getCardFailureParams(rng);
+
+  // Primary descending oscillator
+  const osc1 = ctx.createOscillator();
+  osc1.type = "sine";
+  osc1.frequency.setValueAtTime(params.startFreq, 0);
+  osc1.frequency.linearRampToValueAtTime(
+    params.startFreq - params.sweepDrop,
+    duration,
+  );
+
+  const gain1 = ctx.createGain();
+  gain1.gain.value = params.primaryLevel;
+
+  const env1 = ctx.createGain();
+  env1.gain.setValueAtTime(0, 0);
+  env1.gain.linearRampToValueAtTime(1, params.attack);
+  env1.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+
+  osc1.connect(gain1);
+  gain1.connect(env1);
+  env1.connect(ctx.destination);
+
+  // Detuned secondary oscillator for dissonance
+  const osc2 = ctx.createOscillator();
+  osc2.type = "sine";
+  osc2.frequency.setValueAtTime(params.startFreq + params.detuneOffset, 0);
+  osc2.frequency.linearRampToValueAtTime(
+    params.startFreq - params.sweepDrop + params.detuneOffset,
+    duration,
+  );
+
+  const gain2 = ctx.createGain();
+  gain2.gain.value = params.secondaryLevel;
+
+  const env2 = ctx.createGain();
+  env2.gain.setValueAtTime(0, 0);
+  env2.gain.linearRampToValueAtTime(1, params.attack);
+  env2.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+
+  osc2.connect(gain2);
+  gain2.connect(env2);
+  env2.connect(ctx.destination);
+
+  // Schedule
+  osc1.start(0);
+  osc1.stop(duration);
+  osc2.start(0);
+  osc2.stop(duration);
+}
+
+registry.register("card-failure", {
+  factoryLoader: async () => (await import("./card-failure.js")).createCardFailure,
+  getDuration: cardFailureDuration,
+  buildOfflineGraph: cardFailureOfflineGraph,
+  description: "Descending dissonant tone for negative card game outcomes with detuned beating.",
+  category: "Card Game",
+  tags: ["card", "failure", "card-game", "outcome", "negative", "arcade"],
+  signalChain: "Sine Oscillator (Descending) + Detuned Sine -> Gain -> Envelope -> Destination",
+  params: [
+    { name: "startFreq", min: 500, max: 900, unit: "Hz" },
+    { name: "sweepDrop", min: 100, max: 300, unit: "Hz" },
+    { name: "detuneOffset", min: 15, max: 50, unit: "Hz" },
+    { name: "attack", min: 0.001, max: 0.005, unit: "s" },
+    { name: "decay", min: 0.15, max: 0.5, unit: "s" },
+    { name: "primaryLevel", min: 0.5, max: 0.9, unit: "amplitude" },
+    { name: "secondaryLevel", min: 0.2, max: 0.5, unit: "amplitude" },
+  ],
+  getParams: (rng) => {
+    const p = getCardFailureParams(rng);
+    return {
+      startFreq: p.startFreq, sweepDrop: p.sweepDrop,
+      detuneOffset: p.detuneOffset, attack: p.attack,
+      decay: p.decay, primaryLevel: p.primaryLevel,
+      secondaryLevel: p.secondaryLevel,
+    };
+  },
+});
+
+// ── card-victory-fanfare ──────────────────────────────────────────
+
+function cardVictoryFanfareDuration(rng: Rng): number {
+  const params = getCardVictoryFanfareParams(rng);
+  return params.noteCount * params.noteDuration + params.tailDecay;
+}
+
+function cardVictoryFanfareOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getCardVictoryFanfareParams(rng);
+
+  // Primary sine oscillator for arpeggio
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.value = params.baseFreq;
+
+  // Harmonic triangle oscillator at 2x frequency
+  const harmOsc = ctx.createOscillator();
+  harmOsc.type = "triangle";
+  harmOsc.frequency.value = params.baseFreq * 2;
+
+  const oscGain = ctx.createGain();
+  oscGain.gain.value = params.primaryLevel;
+
+  const harmGain = ctx.createGain();
+  harmGain.gain.value = params.harmonicLevel;
+
+  // Master envelope
+  const masterGain = ctx.createGain();
+  masterGain.gain.setValueAtTime(0, 0);
+  masterGain.gain.linearRampToValueAtTime(1, params.noteAttack);
+
+  const tailStart = params.noteCount * params.noteDuration;
+  masterGain.gain.setValueAtTime(1, tailStart);
+  masterGain.gain.linearRampToValueAtTime(0, tailStart + params.tailDecay);
+
+  // Schedule ascending arpeggio frequencies
+  let freq = params.baseFreq;
+  for (let i = 0; i < params.noteCount; i++) {
+    const noteTime = i * params.noteDuration;
+    osc.frequency.setValueAtTime(freq, noteTime);
+    harmOsc.frequency.setValueAtTime(freq * 2, noteTime);
+    freq *= params.stepRatio;
+  }
+
+  osc.connect(oscGain);
+  oscGain.connect(masterGain);
+  harmOsc.connect(harmGain);
+  harmGain.connect(masterGain);
+  masterGain.connect(ctx.destination);
+
+  // Schedule
+  osc.start(0);
+  osc.stop(duration);
+  harmOsc.start(0);
+  harmOsc.stop(duration);
+}
+
+registry.register("card-victory-fanfare", {
+  factoryLoader: async () => (await import("./card-victory-fanfare.js")).createCardVictoryFanfare,
+  getDuration: cardVictoryFanfareDuration,
+  buildOfflineGraph: cardVictoryFanfareOfflineGraph,
+  description: "Ascending multi-note arpeggio fanfare with harmonic reinforcement for card game victories.",
+  category: "Card Game",
+  tags: ["card", "victory", "fanfare", "card-game", "outcome", "positive", "arcade"],
+  signalChain: "Sine Oscillator (Arpeggio) + Triangle Harmonic -> Gain -> Master Envelope -> Destination",
+  params: [
+    { name: "baseFreq", min: 400, max: 800, unit: "Hz" },
+    { name: "noteCount", min: 3, max: 7, unit: "count" },
+    { name: "noteDuration", min: 0.15, max: 0.35, unit: "s" },
+    { name: "noteAttack", min: 0.005, max: 0.02, unit: "s" },
+    { name: "stepRatio", min: 1.1, max: 1.26, unit: "ratio" },
+    { name: "primaryLevel", min: 0.5, max: 0.85, unit: "amplitude" },
+    { name: "harmonicLevel", min: 0.2, max: 0.5, unit: "amplitude" },
+    { name: "tailDecay", min: 0.3, max: 0.8, unit: "s" },
+  ],
+  getParams: (rng) => {
+    const p = getCardVictoryFanfareParams(rng);
+    return {
+      baseFreq: p.baseFreq, noteCount: p.noteCount,
+      noteDuration: p.noteDuration, noteAttack: p.noteAttack,
+      stepRatio: p.stepRatio, primaryLevel: p.primaryLevel,
+      harmonicLevel: p.harmonicLevel, tailDecay: p.tailDecay,
+    };
+  },
+});
+
+// ── card-defeat-sting ─────────────────────────────────────────────
+
+function cardDefeatStingDuration(rng: Rng): number {
+  const params = getCardDefeatStingParams(rng);
+  return params.noteDuration * 2 + params.tailDecay;
+}
+
+function cardDefeatStingOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getCardDefeatStingParams(rng);
+
+  // Sine oscillator with descending step
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+
+  // First note
+  osc.frequency.setValueAtTime(params.startFreq, 0);
+  // Second note (minor interval drop)
+  osc.frequency.setValueAtTime(
+    params.startFreq * params.dropRatio,
+    params.noteDuration,
+  );
+
+  // Lowpass filter sweeping downward during tail
+  const filter = ctx.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.setValueAtTime(params.filterStart, 0);
+  filter.frequency.linearRampToValueAtTime(params.filterEnd, duration);
+
+  const gain = ctx.createGain();
+  gain.gain.value = params.level;
+
+  // Amplitude envelope
+  const env = ctx.createGain();
+  env.gain.setValueAtTime(0, 0);
+  env.gain.linearRampToValueAtTime(1, params.noteAttack);
+  env.gain.linearRampToValueAtTime(0, duration);
+
+  osc.connect(filter);
+  filter.connect(gain);
+  gain.connect(env);
+  env.connect(ctx.destination);
+
+  // Schedule
+  osc.start(0);
+  osc.stop(duration);
+}
+
+registry.register("card-defeat-sting", {
+  factoryLoader: async () => (await import("./card-defeat-sting.js")).createCardDefeatSting,
+  getDuration: cardDefeatStingDuration,
+  buildOfflineGraph: cardDefeatStingOfflineGraph,
+  description: "Descending minor-interval sting with lowpass filter sweep for card game defeat moments.",
+  category: "Card Game",
+  tags: ["card", "defeat", "sting", "card-game", "outcome", "negative", "arcade"],
+  signalChain: "Sine Oscillator (Descending Steps) -> Lowpass Filter (Sweeping) -> Gain -> Envelope -> Destination",
+  params: [
+    { name: "startFreq", min: 400, max: 700, unit: "Hz" },
+    { name: "dropRatio", min: 0.75, max: 0.9, unit: "ratio" },
+    { name: "noteDuration", min: 0.3, max: 0.6, unit: "s" },
+    { name: "noteAttack", min: 0.005, max: 0.02, unit: "s" },
+    { name: "filterStart", min: 2000, max: 4000, unit: "Hz" },
+    { name: "filterEnd", min: 200, max: 600, unit: "Hz" },
+    { name: "level", min: 0.5, max: 0.9, unit: "amplitude" },
+    { name: "tailDecay", min: 0.5, max: 1.2, unit: "s" },
+  ],
+  getParams: (rng) => {
+    const p = getCardDefeatStingParams(rng);
+    return {
+      startFreq: p.startFreq, dropRatio: p.dropRatio,
+      noteDuration: p.noteDuration, noteAttack: p.noteAttack,
+      filterStart: p.filterStart, filterEnd: p.filterEnd,
+      level: p.level, tailDecay: p.tailDecay,
+    };
+  },
+});
+
+// ── card-round-complete ───────────────────────────────────────────
+
+function cardRoundCompleteDuration(rng: Rng): number {
+  const params = getCardRoundCompleteParams(rng);
+  return params.attack + params.decay;
+}
+
+function cardRoundCompleteOfflineGraph(
+  rng: Rng,
+  ctx: OfflineAudioContext,
+  duration: number,
+): void {
+  const params = getCardRoundCompleteParams(rng);
+
+  // Sine oscillator
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.value = params.frequency;
+
+  // Lowpass filter
+  const filter = ctx.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.value = params.filterCutoff;
+
+  // Level gain
+  const gain = ctx.createGain();
+  gain.gain.value = params.level;
+
+  // Amplitude envelope
+  const env = ctx.createGain();
+  env.gain.setValueAtTime(0, 0);
+  env.gain.linearRampToValueAtTime(1, params.attack);
+  env.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+
+  osc.connect(filter);
+  filter.connect(gain);
+  gain.connect(env);
+  env.connect(ctx.destination);
+
+  // Schedule
+  osc.start(0);
+  osc.stop(duration);
+}
+
+registry.register("card-round-complete", {
+  factoryLoader: async () => (await import("./card-round-complete.js")).createCardRoundComplete,
+  getDuration: cardRoundCompleteDuration,
+  buildOfflineGraph: cardRoundCompleteOfflineGraph,
+  description: "Neutral completion tone for round/turn end events in card games.",
+  category: "Card Game",
+  tags: ["card", "round-complete", "card-game", "outcome", "neutral", "arcade"],
+  signalChain: "Sine Oscillator -> Lowpass Filter -> Gain -> Envelope -> Destination",
+  params: [
+    { name: "frequency", min: 500, max: 900, unit: "Hz" },
+    { name: "attack", min: 0.005, max: 0.02, unit: "s" },
+    { name: "sustain", min: 0.3, max: 0.6, unit: "amplitude" },
+    { name: "decay", min: 0.1, max: 0.35, unit: "s" },
+    { name: "filterCutoff", min: 1500, max: 3500, unit: "Hz" },
+    { name: "level", min: 0.5, max: 0.85, unit: "amplitude" },
+  ],
+  getParams: (rng) => {
+    const p = getCardRoundCompleteParams(rng);
+    return {
+      frequency: p.frequency, attack: p.attack,
+      sustain: p.sustain, decay: p.decay,
+      filterCutoff: p.filterCutoff, level: p.level,
     };
   },
 });
