@@ -11,6 +11,8 @@ import {
   wordWrap,
   setTtyOverride,
   COLORS,
+  stripAnsi,
+  ansiWidth,
 } from "./output.js";
 
 // ANSI escape sequence pattern
@@ -45,6 +47,70 @@ describe("output", () => {
     delete process.env["NO_COLOR"];
     stdoutWriteSpy.mockRestore();
     stderrWriteSpy.mockRestore();
+  });
+
+  // -----------------------------------------------------------------------
+  // stripAnsi
+  // -----------------------------------------------------------------------
+  describe("stripAnsi", () => {
+    it("returns plain strings unchanged", () => {
+      expect(stripAnsi("hello world")).toBe("hello world");
+    });
+
+    it("strips bold escape sequences", () => {
+      expect(stripAnsi("\x1b[1mbold\x1b[0m")).toBe("bold");
+    });
+
+    it("strips multiple different codes", () => {
+      expect(stripAnsi("\x1b[31mred\x1b[0m and \x1b[1mbold\x1b[0m")).toBe(
+        "red and bold",
+      );
+    });
+
+    it("strips nested/stacked codes", () => {
+      expect(stripAnsi("\x1b[1m\x1b[31mboldred\x1b[0m")).toBe("boldred");
+    });
+
+    it("returns empty string for empty input", () => {
+      expect(stripAnsi("")).toBe("");
+    });
+
+    it("returns empty string for a string containing only ANSI codes", () => {
+      expect(stripAnsi("\x1b[1m\x1b[0m")).toBe("");
+    });
+
+    it("does not modify strings with literal brackets that are not ANSI sequences", () => {
+      expect(stripAnsi("[INFO] message")).toBe("[INFO] message");
+    });
+
+    it("handles codes with multi-digit parameters", () => {
+      expect(stripAnsi("\x1b[38;5;196mcolored\x1b[0m")).toBe("colored");
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // ansiWidth
+  // -----------------------------------------------------------------------
+  describe("ansiWidth", () => {
+    it("returns length of plain string", () => {
+      expect(ansiWidth("hello")).toBe(5);
+    });
+
+    it("returns visible width ignoring bold codes", () => {
+      expect(ansiWidth("\x1b[1mbold\x1b[0m")).toBe(4);
+    });
+
+    it("returns visible width with mixed ANSI and plain text", () => {
+      expect(ansiWidth("\x1b[1mhi\x1b[0m there")).toBe(8);
+    });
+
+    it("returns 0 for empty string", () => {
+      expect(ansiWidth("")).toBe(0);
+    });
+
+    it("returns 0 for string containing only ANSI codes", () => {
+      expect(ansiWidth("\x1b[1m\x1b[0m")).toBe(0);
+    });
   });
 
   // -----------------------------------------------------------------------

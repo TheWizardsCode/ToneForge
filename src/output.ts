@@ -28,6 +28,23 @@ export const COLORS = {
 } as const;
 
 // ---------------------------------------------------------------------------
+// ANSI string utilities
+// ---------------------------------------------------------------------------
+
+/** Regex matching ANSI SGR escape sequences (e.g. `\x1b[1m`, `\x1b[0m`). */
+const ANSI_SGR_RE = /\x1b\[[0-9;]*m/g;
+
+/** Remove all ANSI SGR escape sequences from `s`. */
+export function stripAnsi(s: string): string {
+  return s.replace(ANSI_SGR_RE, "");
+}
+
+/** Return the visible character width of `s` (ANSI codes are zero-width). */
+export function ansiWidth(s: string): number {
+  return stripAnsi(s).length;
+}
+
+// ---------------------------------------------------------------------------
 // TTY detection & overrides
 // ---------------------------------------------------------------------------
 
