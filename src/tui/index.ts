@@ -21,6 +21,7 @@ import { installCleanupHandler } from "./cleanup.js";
 import { WIZARD_STAGES } from "./types.js";
 import type { WizardStage } from "./types.js";
 import { runDefineStage } from "./stages/define.js";
+import { runExploreStage } from "./stages/explore.js";
 
 /** Stage display names for user-facing output. */
 const STAGE_NAMES: Record<WizardStage, string> = {
@@ -91,10 +92,17 @@ export async function launchWizard(): Promise<number> {
         break;
       }
 
-      case "explore":
+      case "explore": {
         // Stage 2: Explore & Audition (TF-0MM8S1JZX1GYYQT0, TF-0MM8S1W4C0NQ1CW6)
-        outputInfo("Stage 2 (Explore) is not yet implemented. Coming soon!");
-        return 0;
+        const exploreResult = await runExploreStage(session);
+        if (exploreResult === "back") {
+          session.goBack();
+          break;
+        }
+        // exploreResult === "advance" -- move to next stage
+        session.advance();
+        break;
+      }
 
       case "review":
         // Stage 3: Review & Refine (TF-0MM8S29GD0JJ1WTC)
