@@ -154,6 +154,7 @@ async function printHelp(): Promise<void> {
 | **show** | Display recipe metadata and parameters |
 | **play** | Play a WAV file through the system audio player |
 | **list** | List available resources (e.g. recipes) |
+| **tui** | Interactive wizard for building sound palettes |
 | **version** | Print the ToneForge version |
 
 ## Options
@@ -807,8 +808,50 @@ toneforge library regenerate --id lib-creature-vocal_seed-04821 --json
   await outputMarkdown(md);
 }
 
+/** Print help text for the tui command. */
+async function printTuiHelp(): Promise<void> {
+  const md = `# ToneForge tui
+
+**Interactive wizard for building sound palettes**
+
+Guides you through assembling a coherent sound palette in four stages:
+
+1. **Define** — Browse recipes by category, preview sounds, and build a manifest
+2. **Explore** — Sweep seed ranges, audition top candidates, and refine with mutation
+3. **Review** — Review palette coherence, swap selections, add/remove recipes
+4. **Export** — Promote to library and export WAV files organized by category
+
+## Usage
+
+\`\`\`
+toneforge tui
+\`\`\`
+
+## Features
+
+- Interactive prompts guide you through each stage
+- Preview sounds inline during selection
+- Back navigation between stages (state preserved)
+- Progress feedback during seed sweeps
+- Coherence checking flags intensity/texture outliers
+- Exports WAV files with optional manifest JSON
+- Ctrl+C cleanly exits at any point
+
+## Requirements
+
+- Must be run in an interactive terminal (TTY)
+- Non-TTY environments (piped, CI) exit with a clear error
+
+## Examples
+
+\`\`\`
+toneforge tui              # Launch the wizard
+toneforge tui --help       # Show this help
+\`\`\``;
+  await outputMarkdown(md);
+}
+
 /**
- * Compute the Levenshtein edit distance between two strings.
  * Used for fuzzy recipe name matching when a recipe is not found.
  */
 function levenshtein(a: string, b: string): number {
@@ -1296,6 +1339,8 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       }
     } else if (command === "library") {
       await printLibraryHelp();
+    } else if (command === "tui") {
+      await printTuiHelp();
     } else if (command === "sequence") {
       if (subcommand === "generate") {
         await printSequenceGenerateHelp();
@@ -3816,6 +3861,15 @@ export async function main(argv: string[] = process.argv): Promise<number> {
 
     await printSequenceHelp();
     return 0;
+  }
+
+  if (command === "tui") {
+    if (flags["help"]) {
+      await printTuiHelp();
+      return 0;
+    }
+    const { launchWizard } = await import("./tui/index.js");
+    return launchWizard();
   }
 
   if (command !== "generate") {
