@@ -401,6 +401,32 @@ describe("output", () => {
       }
       expect(lines.join(" ")).toBe(desc);
     });
+
+    it("treats ANSI bold codes as zero-width and does not wrap prematurely", () => {
+      // "hello" is 5 visible chars; with bold codes it's longer in raw length
+      const bold = `${COLORS.bold}hello${COLORS.reset}`;
+      expect(bold.length).toBeGreaterThan(10); // raw length includes ANSI codes
+      const lines = wordWrap(bold, 10);
+      expect(lines).toEqual([bold]); // fits within 10 visible chars
+    });
+
+    it("wraps ANSI-styled text at correct visible position", () => {
+      const boldWord = `${COLORS.bold}one${COLORS.reset}`;
+      const text = `${boldWord} two three four`;
+      const lines = wordWrap(text, 10);
+      // "one two" is 7 visible chars, fits in 10
+      // "three four" is 10 visible chars, fits in 10
+      expect(lines).toHaveLength(2);
+      expect(lines[0]).toContain("one");
+      expect(lines[0]).toContain("two");
+      expect(lines[1]).toBe("three four");
+    });
+
+    it("plain string produces identical output as before (regression guard)", () => {
+      const text = "alpha beta gamma delta epsilon";
+      const result = wordWrap(text, 15);
+      expect(result).toEqual(["alpha beta", "gamma delta", "epsilon"]);
+    });
   });
 
   // -----------------------------------------------------------------------
@@ -484,6 +510,24 @@ describe("output", () => {
       // Last line should be data, not a separator
       expect(lines[lines.length - 1]).not.toMatch(/^[\s|]*-+/);
       expect(lines[lines.length - 1]).toContain("two");
+    });
+
+    it("pads ANSI-styled cell content correctly (ANSI codes do not consume width)", () => {
+      const boldCell = `${COLORS.bold}hi${COLORS.reset}`;
+      const smallCols = [{ header: "A", width: 10 }];
+      const result = formatTable(smallCols, [[boldCell]], false);
+      const dataLine = result.split("\n")[2]; // header, separator, data
+      // "hi" is 2 visible chars in a 10-wide column → 8 spaces of padding
+      // The raw string has ANSI codes + "hi" + 8 spaces
+      expect(dataLine).toContain(boldCell);
+      // Verify consistent line width (ANSI-aware padding keeps alignment)
+      const headerLine = result.split("\n")[0];
+      // In non-TTY mode no ANSI codes in header, so widths should match
+      // accounting for the ANSI codes in the data line
+      const lines = result.split("\n");
+      // All lines should have same visible width (strip ANSI first)
+      const visibleWidths = lines.map((l) => l.replace(/\x1b\[[0-9;]*m/g, "").length);
+      expect(new Set(visibleWidths).size).toBe(1);
     });
 
     it("adds row separators between data rows in TTY mode", () => {

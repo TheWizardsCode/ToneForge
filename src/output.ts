@@ -216,28 +216,31 @@ export async function outputMarkdown(md: string): Promise<void> {
 // Table formatting with word-wrap
 // ---------------------------------------------------------------------------
 
-/** Pad `s` with trailing spaces to width `w`. */
+/** Pad `s` with trailing spaces to width `w` (ANSI-aware). */
 function pad(s: string, w: number): string {
-  return s + " ".repeat(Math.max(0, w - s.length));
+  return s + " ".repeat(Math.max(0, w - ansiWidth(s)));
 }
 
 /**
- * Word-wrap `text` to fit within `width` characters.
+ * Word-wrap `text` to fit within `width` visible characters.
  * Breaks on word boundaries where possible; forces a break mid-word only
  * when a single word exceeds the available width.
+ *
+ * Width comparisons use `ansiWidth()` so that ANSI escape sequences are
+ * treated as zero-width and do not affect line-break decisions.
  */
 export function wordWrap(text: string, width: number): string[] {
   if (width <= 0) return [text];
-  if (text.length <= width) return [text];
+  if (ansiWidth(text) <= width) return [text];
 
   const words = text.split(" ");
   const lines: string[] = [];
   let current = "";
 
   for (const word of words) {
-    if (current.length === 0) {
+    if (ansiWidth(current) === 0) {
       // Force-break words longer than width
-      if (word.length > width) {
+      if (ansiWidth(word) > width) {
         for (let i = 0; i < word.length; i += width) {
           lines.push(word.slice(i, i + width));
         }
@@ -245,24 +248,24 @@ export function wordWrap(text: string, width: number): string[] {
         // If the last chunk was exactly `width` it was pushed; if shorter
         // it becomes the start of the next line.
         const last = lines[lines.length - 1];
-        if (last && last.length < width) {
+        if (last && ansiWidth(last) < width) {
           current = lines.pop()!;
         }
       } else {
         current = word;
       }
-    } else if (current.length + 1 + word.length <= width) {
+    } else if (ansiWidth(current) + 1 + ansiWidth(word) <= width) {
       current += " " + word;
     } else {
       lines.push(current);
       // Handle overlong word at line start
-      if (word.length > width) {
+      if (ansiWidth(word) > width) {
         for (let i = 0; i < word.length; i += width) {
           lines.push(word.slice(i, i + width));
         }
         current = "";
         const last = lines[lines.length - 1];
-        if (last && last.length < width) {
+        if (last && ansiWidth(last) < width) {
           current = lines.pop()!;
         }
       } else {
@@ -270,7 +273,7 @@ export function wordWrap(text: string, width: number): string[] {
       }
     }
   }
-  if (current.length > 0) {
+  if (ansiWidth(current) > 0) {
     lines.push(current);
   }
 
