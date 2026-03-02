@@ -1355,10 +1355,12 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     const recipes = registry.listDetailed(isFiltered ? filter : undefined);
 
     if (jsonMode) {
+      // Strip matchedTags from JSON output (display-only concern)
+      const recipesJson = recipes.map(({ matchedTags: _mt, ...rest }) => rest);
       const output: Record<string, unknown> = {
         command: "list",
         resource: "recipes",
-        recipes,
+        recipes: recipesJson,
         total: totalCount,
       };
       if (isFiltered) {
@@ -1401,7 +1403,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
             r.name,
             r.description || "\u2014",
             r.category || "\u2014",
-            truncateTags(r.tags, TAG_COL_WIDTH),
+            truncateTags(r.tags, TAG_COL_WIDTH, r.matchedTags, isStdoutTty()),
           ]),
         );
 
