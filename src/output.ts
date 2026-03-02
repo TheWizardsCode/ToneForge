@@ -60,7 +60,7 @@ export function setTtyOverride(value: boolean | undefined): void {
 }
 
 /** Returns `true` when stdout should emit styled output. */
-function isStdoutTty(): boolean {
+export function isStdoutTty(): boolean {
   if (process.env["NO_COLOR"] !== undefined) return false;
   if (ttyOverride !== undefined) return ttyOverride;
   return process.stdout.isTTY === true;

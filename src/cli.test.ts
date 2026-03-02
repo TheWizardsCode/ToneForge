@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { main } from "./cli.js";
+import { main, truncateTags } from "./cli.js";
 import { existsSync, readFileSync, unlinkSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -542,6 +542,132 @@ describe("CLI", () => {
         expect(code).toBe(0);
         // The ellipsis character should appear when tags overflow
         expect(stdout).toContain("\u2026");
+      });
+    });
+
+    describe("truncateTags unit tests", () => {
+      it("returns em-dash for empty tag list", () => {
+        expect(truncateTags([], 14)).toBe("\u2014");
+      });
+
+      it("returns em-dash for empty tags even when matchedTags provided", () => {
+        expect(truncateTags([], 14, ["laser"], true)).toBe("\u2014");
+      });
+
+      it("joins tags without truncation when they fit", () => {
+        expect(truncateTags(["a", "b", "c"], 14)).toBe("a, b, c");
+      });
+
+      it("truncates with ellipsis when tags exceed maxWidth", () => {
+        const result = truncateTags(["laser", "sci-fi", "bright", "arcade"], 14);
+        expect(result).toContain("\u2026");
+        // Visible width should be <= 14
+        expect(result.length).toBeLessThanOrEqual(14);
+      });
+
+      it("preserves original order when matchedTags is empty", () => {
+        const result = truncateTags(["alpha", "beta"], 20, []);
+        expect(result).toBe("alpha, beta");
+      });
+
+      it("reorders matched tags to the front", () => {
+        // "beta" is matched, should move before "alpha"
+        const result = truncateTags(["alpha", "beta", "gamma"], 30, ["beta"]);
+        expect(result).toBe("beta, alpha, gamma");
+      });
+
+      it("preserves relative order within matched and unmatched groups", () => {
+        const result = truncateTags(
+          ["a", "b", "c", "d", "e"],
+          40,
+          ["c", "e"],
+        );
+        // matched: c, e  |  unmatched: a, b, d
+        expect(result).toBe("c, e, a, b, d");
+      });
+
+      it("applies ANSI bold to matched tags in TTY mode", () => {
+        const result = truncateTags(["laser", "sci-fi"], 30, ["laser"], true);
+        expect(result).toBe("\x1b[1mlaser\x1b[0m, sci-fi");
+      });
+
+      it("does not apply ANSI codes when tty is false", () => {
+        const result = truncateTags(["laser", "sci-fi"], 30, ["laser"], false);
+        expect(result).toBe("laser, sci-fi");
+      });
+
+      it("does not apply ANSI codes when tty defaults to false", () => {
+        const result = truncateTags(["laser", "sci-fi"], 30, ["laser"]);
+        expect(result).toBe("laser, sci-fi");
+      });
+
+      it("truncates correctly with ANSI bold (visible width only)", () => {
+        // Tags: "laser", "sci-fi", "bright" with "laser" matched and bold
+        // Bold "laser" = \x1b[1mlaser\x1b[0m (5 visible chars)
+        // Joined: "\x1b[1mlaser\x1b[0m, sci-fi, bright" (22 visible chars)
+        // With maxWidth=14, should truncate but ANSI codes are zero-width
+        const result = truncateTags(
+          ["laser", "sci-fi", "bright"],
+          14,
+          ["laser"],
+          true,
+        );
+        expect(result).toContain("\x1b[1mlaser\x1b[0m");
+        expect(result).toContain("\u2026");
+      });
+
+      it("closes open ANSI bold before appending ellipsis", () => {
+        // With a very short maxWidth, truncation may cut mid-bold-tag
+        // Use tags where the matched tag itself is long enough to be truncated
+        const result = truncateTags(
+          ["longmatchedtag"],
+          10,
+          ["longmatchedtag"],
+          true,
+        );
+        // The result should contain ellipsis and a reset before it
+        expect(result).toContain("\u2026");
+        // Should not have unclosed bold (last ANSI code before ellipsis should be reset)
+        const lastBold = result.lastIndexOf("\x1b[1m");
+        const lastReset = result.lastIndexOf("\x1b[0m");
+        if (lastBold >= 0) {
+          expect(lastReset).toBeGreaterThan(lastBold);
+        }
+      });
+
+      it("handles all tags matched and fitting within maxWidth", () => {
+        const result = truncateTags(["a", "b"], 14, ["a", "b"], true);
+        expect(result).toBe("\x1b[1ma\x1b[0m, \x1b[1mb\x1b[0m");
+        // No ellipsis since it fits
+        expect(result).not.toContain("\u2026");
+      });
+
+      it("ignores matchedTags not present in tags array", () => {
+        const result = truncateTags(["alpha", "beta"], 30, ["gamma"], false);
+        // "gamma" is not in tags, so no reordering happens
+        expect(result).toBe("alpha, beta");
+      });
+
+      it("handles case-insensitive matching for reordering", () => {
+        // matchedTags uses case-insensitive comparison
+        const result = truncateTags(
+          ["Laser", "Sci-Fi"],
+          30,
+          ["laser"],
+          false,
+        );
+        // "Laser" should be recognized as matched (case-insensitive)
+        expect(result).toBe("Laser, Sci-Fi");
+      });
+
+      it("reorders with case-insensitive match and applies bold", () => {
+        const result = truncateTags(
+          ["alpha", "Laser", "beta"],
+          40,
+          ["laser"],
+          true,
+        );
+        expect(result).toBe("\x1b[1mLaser\x1b[0m, alpha, beta");
       });
     });
 
