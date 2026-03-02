@@ -22,6 +22,7 @@ import { WIZARD_STAGES } from "./types.js";
 import type { WizardStage } from "./types.js";
 import { runDefineStage } from "./stages/define.js";
 import { runExploreStage } from "./stages/explore.js";
+import { runReviewStage } from "./stages/review.js";
 
 /** Stage display names for user-facing output. */
 const STAGE_NAMES: Record<WizardStage, string> = {
@@ -104,10 +105,17 @@ export async function launchWizard(): Promise<number> {
         break;
       }
 
-      case "review":
+      case "review": {
         // Stage 3: Review & Refine (TF-0MM8S29GD0JJ1WTC)
-        outputInfo("Stage 3 (Review) is not yet implemented. Coming soon!");
-        return 0;
+        const reviewResult = await runReviewStage(session);
+        if (reviewResult === "back") {
+          session.goBack();
+          break;
+        }
+        // reviewResult === "advance" -- move to next stage
+        session.advance();
+        break;
+      }
 
       case "export":
         // Stage 4: Export (TF-0MM8S2LKQ1WM38F4)
