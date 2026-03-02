@@ -158,12 +158,14 @@ describe("RecipeRegistry.listDetailed", () => {
       description: "Sci-fi laser blast",
       category: "Weapon",
       tags: ["laser", "sci-fi"],
+      matchedTags: [],
     });
     expect(results[1]).toEqual({
       name: "ui-click",
       description: "Simple UI click",
       category: "UI",
       tags: ["click", "interface"],
+      matchedTags: [],
     });
   });
 
@@ -186,6 +188,7 @@ describe("RecipeRegistry.listDetailed", () => {
       description: "A lazy recipe",
       category: "Ambient",
       tags: ["nature", "wind"],
+      matchedTags: [],
     });
   });
 
@@ -617,6 +620,193 @@ describe("RecipeRegistry.listDetailed", () => {
         "eager-recipe",
         "lazy-recipe",
       ]);
+    });
+  });
+
+  describe("matchedTags metadata", () => {
+    it("returns empty matchedTags when no filter is active", () => {
+      const reg = new RecipeRegistry();
+      reg.register(
+        "recipe-a",
+        makeRegistration({
+          description: "A recipe",
+          category: "Weapon",
+          tags: ["laser", "sci-fi"],
+        }),
+      );
+
+      const results = reg.listDetailed();
+
+      expect(results).toHaveLength(1);
+      expect(results[0]!.matchedTags).toEqual([]);
+    });
+
+    it("returns empty matchedTags when only --category filter is active", () => {
+      const reg = new RecipeRegistry();
+      reg.register(
+        "recipe-a",
+        makeRegistration({
+          description: "A recipe",
+          category: "Weapon",
+          tags: ["laser", "sci-fi"],
+        }),
+      );
+
+      const results = reg.listDetailed({ category: "weapon" });
+
+      expect(results).toHaveLength(1);
+      expect(results[0]!.matchedTags).toEqual([]);
+    });
+
+    it("populates matchedTags for --tags filter (exact case-insensitive)", () => {
+      const reg = new RecipeRegistry();
+      reg.register(
+        "recipe-a",
+        makeRegistration({
+          description: "A recipe",
+          category: "Weapon",
+          tags: ["laser", "sci-fi", "bright"],
+        }),
+      );
+
+      const results = reg.listDetailed({ tags: ["LASER", "SCI-FI"] });
+
+      expect(results).toHaveLength(1);
+      expect(results[0]!.matchedTags).toEqual(["laser", "sci-fi"]);
+    });
+
+    it("populates matchedTags for --search filter (substring case-insensitive)", () => {
+      const reg = new RecipeRegistry();
+      reg.register(
+        "recipe-a",
+        makeRegistration({
+          description: "A recipe",
+          category: "Weapon",
+          tags: ["laser-beam", "sci-fi", "arcade"],
+        }),
+      );
+
+      // "laser" matches "laser-beam" by substring
+      const results = reg.listDetailed({ search: "laser" });
+
+      expect(results).toHaveLength(1);
+      expect(results[0]!.matchedTags).toEqual(["laser-beam"]);
+    });
+
+    it("computes union of matchedTags when both --search and --tags are active", () => {
+      const reg = new RecipeRegistry();
+      reg.register(
+        "recipe-a",
+        makeRegistration({
+          description: "A recipe",
+          category: "Weapon",
+          tags: ["laser-beam", "sci-fi", "arcade"],
+        }),
+      );
+
+      // --tags "sci-fi" matches "sci-fi" exactly
+      // --search "laser" matches "laser-beam" by substring
+      const results = reg.listDetailed({
+        search: "laser",
+        tags: ["sci-fi"],
+      });
+
+      expect(results).toHaveLength(1);
+      // Union: laser-beam (from search) + sci-fi (from tags), preserving order
+      expect(results[0]!.matchedTags).toEqual(["laser-beam", "sci-fi"]);
+    });
+
+    it("deduplicates matchedTags when a tag matches both --search and --tags", () => {
+      const reg = new RecipeRegistry();
+      reg.register(
+        "recipe-a",
+        makeRegistration({
+          description: "A recipe",
+          category: "Weapon",
+          tags: ["laser", "sci-fi"],
+        }),
+      );
+
+      // --tags "laser" exact matches "laser"
+      // --search "laser" substring also matches "laser"
+      const results = reg.listDetailed({
+        search: "laser",
+        tags: ["laser"],
+      });
+
+      expect(results).toHaveLength(1);
+      // "laser" should appear only once despite matching both filters
+      expect(results[0]!.matchedTags).toEqual(["laser"]);
+    });
+
+    it("preserves original tag casing in matchedTags", () => {
+      const reg = new RecipeRegistry();
+      reg.register(
+        "recipe-a",
+        makeRegistration({
+          description: "A recipe",
+          category: "Weapon",
+          tags: ["LaserBeam", "Sci-Fi"],
+        }),
+      );
+
+      const results = reg.listDetailed({ tags: ["laserbeam"] });
+
+      expect(results).toHaveLength(1);
+      expect(results[0]!.matchedTags).toEqual(["LaserBeam"]);
+    });
+
+    it("returns empty matchedTags for recipe with no tags when filter is active", () => {
+      const reg = new RecipeRegistry();
+      reg.register(
+        "recipe-a",
+        makeRegistration({
+          description: "Laser recipe",
+          category: "Weapon",
+          tags: [],
+        }),
+      );
+
+      // search matches by description but no tags to match
+      const results = reg.listDetailed({ search: "laser" });
+
+      expect(results).toHaveLength(1);
+      expect(results[0]!.matchedTags).toEqual([]);
+    });
+
+    it("returns empty matchedTags when search matches non-tag fields only", () => {
+      const reg = new RecipeRegistry();
+      reg.register(
+        "weapon-laser",
+        makeRegistration({
+          description: "A powerful blast",
+          category: "Weapon",
+          tags: ["bright", "sci-fi"],
+        }),
+      );
+
+      // "powerful" matches description but none of the tags
+      const results = reg.listDetailed({ search: "powerful" });
+
+      expect(results).toHaveLength(1);
+      expect(results[0]!.matchedTags).toEqual([]);
+    });
+
+    it("works with lazy registry entries", () => {
+      const reg = new RecipeRegistry();
+      reg.register(
+        "lazy-recipe",
+        makeLazyRegistration({
+          description: "Lazy",
+          category: "Weapon",
+          tags: ["laser", "sci-fi"],
+        }),
+      );
+
+      const results = reg.listDetailed({ tags: ["laser"] });
+
+      expect(results).toHaveLength(1);
+      expect(results[0]!.matchedTags).toEqual(["laser"]);
     });
   });
 });

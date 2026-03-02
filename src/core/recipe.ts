@@ -188,6 +188,8 @@ export interface RecipeDetailedSummary {
   description: string;
   category: string;
   tags: string[];
+  /** Tags that contributed to the current filter match (empty when unfiltered). */
+  matchedTags: string[];
 }
 
 /** Internal entry type: either a fully resolved registration or a lazy one. */
@@ -418,7 +420,29 @@ export class RecipeRegistry {
         if (!allPresent) continue;
       }
 
-      results.push({ name, description, category, tags });
+      // Compute matchedTags: union of tags matching --tags and --search filters
+      const matchedTags: string[] = [];
+      if (searchTerm !== undefined || tagTerms !== undefined) {
+        const seen = new Set<string>();
+        for (const tag of tags) {
+          const tagLower = tag.toLowerCase();
+          let matched = false;
+          // --tags: exact case-insensitive match
+          if (tagTerms !== undefined && tagTerms.includes(tagLower)) {
+            matched = true;
+          }
+          // --search: substring case-insensitive match
+          if (searchTerm !== undefined && tagLower.includes(searchTerm)) {
+            matched = true;
+          }
+          if (matched && !seen.has(tagLower)) {
+            seen.add(tagLower);
+            matchedTags.push(tag);
+          }
+        }
+      }
+
+      results.push({ name, description, category, tags, matchedTags });
     }
 
     return results;
