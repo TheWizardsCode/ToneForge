@@ -20,6 +20,8 @@ import { WizardSession } from "./state.js";
 import { installCleanupHandler } from "./cleanup.js";
 import { WIZARD_STAGES } from "./types.js";
 import type { WizardStage } from "./types.js";
+import { runDefineStage } from "./stages/define.js";
+import { runExploreStage } from "./stages/explore.js";
 
 /** Stage display names for user-facing output. */
 const STAGE_NAMES: Record<WizardStage, string> = {
@@ -78,15 +80,29 @@ export async function launchWizard(): Promise<number> {
 
     // Stage dispatch -- implementations will be added by subsequent work items
     switch (stage) {
-      case "define":
+      case "define": {
         // Stage 1: Define Your Palette (TF-0MM8S0Y021PI6KW1, TF-0MM8S17RQ0U4Y4H1)
-        outputInfo("Stage 1 (Define) is not yet implemented. Coming soon!");
-        return 0;
+        const defineResult = await runDefineStage(session);
+        if (defineResult === "quit") {
+          outputInfo("\nWizard cancelled. Goodbye!\n");
+          return 0;
+        }
+        // defineResult === "advance" -- move to next stage
+        session.advance();
+        break;
+      }
 
-      case "explore":
+      case "explore": {
         // Stage 2: Explore & Audition (TF-0MM8S1JZX1GYYQT0, TF-0MM8S1W4C0NQ1CW6)
-        outputInfo("Stage 2 (Explore) is not yet implemented. Coming soon!");
-        return 0;
+        const exploreResult = await runExploreStage(session);
+        if (exploreResult === "back") {
+          session.goBack();
+          break;
+        }
+        // exploreResult === "advance" -- move to next stage
+        session.advance();
+        break;
+      }
 
       case "review":
         // Stage 3: Review & Refine (TF-0MM8S29GD0JJ1WTC)

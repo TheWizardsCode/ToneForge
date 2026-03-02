@@ -1,14 +1,18 @@
 /**
- * TUI Wizard Stage 1a -- Recipe Browsing and Preview.
+ * TUI Wizard Stage 1 -- Define Your Palette.
  *
- * Provides interactive recipe browsing by category with filtering
- * and inline play/stop preview at a default seed.
+ * Stage 1a: Provides interactive recipe browsing by category with
+ * filtering and inline play/stop preview at a default seed.
  *
- * Reference: Work item TF-0MM8S0Y021PI6KW1
+ * Stage 1b: Builds, reviews, and confirms the palette manifest.
+ * The user can add/remove recipes, review the manifest as a numbered
+ * list, and confirm before advancing to Stage 2.
+ *
+ * Reference: Work items TF-0MM8S0Y021PI6KW1, TF-0MM8S17RQ0U4Y4H1
  * Parent epic: TF-0MM7HULM506CGSOP
  */
 
-import { select, input, Separator } from "@inquirer/prompts";
+import { select, input, confirm, Separator } from "@inquirer/prompts";
 import type { RecipeDetailedSummary, RecipeFilterQuery } from "../../core/recipe.js";
 import { registry } from "../../recipes/index.js";
 import { renderRecipe } from "../../core/renderer.js";
@@ -99,6 +103,19 @@ export function buildFilterQuery(
   const trimmed = searchText.trim();
   if (trimmed.length === 0) return undefined;
   return { search: trimmed };
+}
+
+/**
+ * Format the palette manifest as a numbered summary string.
+ *
+ * Each line shows: index. recipe-name (category)
+ * Returns an empty string if the manifest is empty.
+ */
+export function formatManifestSummary(entries: ManifestEntry[]): string {
+  if (entries.length === 0) return "";
+  return entries
+    .map((e, i) => `  ${i + 1}. ${e.recipe} (${e.category || "uncategorized"})`)
+    .join("\n");
 }
 
 // ---------------------------------------------------------------------------
@@ -342,5 +359,143 @@ export async function previewRecipe(recipeName: string): Promise<void> {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     outputError(`Preview failed for "${recipeName}": ${msg}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Stage 1b -- Palette Manifest Builder
+// ---------------------------------------------------------------------------
+
+/** Action the user can take from the manifest review menu. */
+type ManifestAction = "confirm" | "add_more" | "remove" | "back";
+
+/**
+ * Build and confirm the palette manifest.
+ *
+ * Presents the user with a review of their selected recipes and
+ * allows them to confirm, add more recipes, remove entries, or
+ * go back to browsing.
+ *
+ * @returns "advance" to proceed to Stage 2, or "back" to return to browsing.
+ */
+export async function buildManifest(
+  session: WizardSession,
+): Promise<"advance" | "back"> {
+  while (true) {
+    const entries = session.manifest.entries;
+
+    // Minimum-1 validation
+    if (entries.length === 0) {
+      outputInfo(
+        "\nYour palette is empty. You need at least 1 recipe to continue.\n" +
+          "Returning to recipe browsing...\n",
+      );
+      return "back";
+    }
+
+    // Display manifest summary
+    outputInfo(
+      `\nYour palette manifest (${entries.length} recipe${entries.length === 1 ? "" : "s"}):\n`,
+    );
+    outputInfo(formatManifestSummary(entries));
+    outputInfo("");
+
+    const action = await select<ManifestAction>({
+      message: "What would you like to do?",
+      choices: [
+        { value: "confirm" as const, name: "Confirm palette and continue to exploration" },
+        { value: "add_more" as const, name: "Add more recipes (return to browsing)" },
+        { value: "remove" as const, name: "Remove a recipe from the palette" },
+        new Separator(),
+        { value: "back" as const, name: "Back to browsing (keep selections)" },
+      ],
+    });
+
+    switch (action) {
+      case "confirm": {
+        const proceed = await confirm({
+          message: `Proceed with ${entries.length} recipe${entries.length === 1 ? "" : "s"} to seed exploration?`,
+          default: true,
+        });
+        if (proceed) {
+          outputSuccess(
+            `\nPalette confirmed with ${entries.length} recipe${entries.length === 1 ? "" : "s"}.\n`,
+          );
+          return "advance";
+        }
+        // User said no -- stay in manifest review
+        break;
+      }
+      case "add_more":
+        return "back";
+
+      case "remove": {
+        if (entries.length === 1) {
+          outputInfo(
+            "Cannot remove the last recipe. Your palette must have at least 1 recipe.",
+          );
+          break;
+        }
+        const toRemove = await select<string | "__cancel__">({
+          message: "Select a recipe to remove:",
+          choices: [
+            ...entries.map((e) => ({
+              value: e.recipe,
+              name: `${e.recipe} (${e.category || "uncategorized"})`,
+            })),
+            new Separator(),
+            { value: "__cancel__", name: "Cancel" },
+          ],
+        });
+        if (toRemove !== "__cancel__") {
+          session.removeFromManifest(toRemove);
+          outputInfo(
+            `Removed "${toRemove}" from palette (${session.manifestSize} remaining).`,
+          );
+        }
+        break;
+      }
+      case "back":
+        return "back";
+    }
+  }
+}
+
+/**
+ * Run the full Define stage (Stage 1).
+ *
+ * Orchestrates the browse -> manifest build -> confirm flow.
+ * Loops between browsing and manifest review until the user
+ * confirms or cancels.
+ *
+ * @returns "advance" to proceed to Stage 2, or "quit" to exit the wizard.
+ */
+export async function runDefineStage(
+  session: WizardSession,
+): Promise<"advance" | "quit"> {
+  while (true) {
+    // Stage 1a: Browse recipes
+    const browseResult = await browseRecipes(session);
+
+    if (browseResult === "back") {
+      // At Stage 1, "back" from browsing means the user wants to quit
+      const quitConfirm = await confirm({
+        message: "Exit the wizard? Your selections will be lost.",
+        default: false,
+      });
+      if (quitConfirm) return "quit";
+      // User chose not to quit -- continue browsing
+      continue;
+    }
+
+    // Stage 1b: Build and confirm manifest
+    const manifestResult = await buildManifest(session);
+
+    if (manifestResult === "advance") {
+      return "advance";
+    }
+
+    // manifestResult === "back" -- return to browsing loop
+    // All selections are preserved in session state
   }
 }

@@ -5,8 +5,10 @@ import {
   formatRecipeChoice,
   toManifestEntry,
   buildFilterQuery,
+  formatManifestSummary,
 } from "../stages/define.js";
 import type { RecipeDetailedSummary } from "../../core/recipe.js";
+import type { ManifestEntry } from "../types.js";
 
 /** Factory for test recipe summaries. */
 function recipe(overrides: Partial<RecipeDetailedSummary> = {}): RecipeDetailedSummary {
@@ -228,5 +230,71 @@ describe("buildFilterQuery", () => {
   it("trims whitespace from search text", () => {
     const query = buildFilterQuery("  flip  ");
     expect(query).toEqual({ search: "flip" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// formatManifestSummary
+// ---------------------------------------------------------------------------
+
+/** Factory for test manifest entries. */
+function manifestEntry(overrides: Partial<ManifestEntry> = {}): ManifestEntry {
+  return {
+    recipe: "test-recipe",
+    description: "A test recipe",
+    category: "test",
+    tags: ["tag1"],
+    ...overrides,
+  };
+}
+
+describe("formatManifestSummary", () => {
+  it("returns an empty string for an empty manifest", () => {
+    expect(formatManifestSummary([])).toBe("");
+  });
+
+  it("formats a single entry with 1-based index", () => {
+    const entries = [manifestEntry({ recipe: "card-flip", category: "card-game" })];
+    const result = formatManifestSummary(entries);
+    expect(result).toBe("  1. card-flip (card-game)");
+  });
+
+  it("formats multiple entries with sequential numbering", () => {
+    const entries = [
+      manifestEntry({ recipe: "card-flip", category: "card-game" }),
+      manifestEntry({ recipe: "coin-collect", category: "reward" }),
+      manifestEntry({ recipe: "laser-blast", category: "weapon" }),
+    ];
+    const result = formatManifestSummary(entries);
+    const lines = result.split("\n");
+
+    expect(lines).toHaveLength(3);
+    expect(lines[0]).toBe("  1. card-flip (card-game)");
+    expect(lines[1]).toBe("  2. coin-collect (reward)");
+    expect(lines[2]).toBe("  3. laser-blast (weapon)");
+  });
+
+  it("uses 'uncategorized' for entries with empty category", () => {
+    const entries = [manifestEntry({ recipe: "orphan", category: "" })];
+    const result = formatManifestSummary(entries);
+    expect(result).toBe("  1. orphan (uncategorized)");
+  });
+
+  it("preserves entry order", () => {
+    const entries = [
+      manifestEntry({ recipe: "z-recipe", category: "z" }),
+      manifestEntry({ recipe: "a-recipe", category: "a" }),
+    ];
+    const result = formatManifestSummary(entries);
+    const lines = result.split("\n");
+
+    expect(lines[0]).toContain("z-recipe");
+    expect(lines[1]).toContain("a-recipe");
+  });
+
+  it("indents each line with two spaces", () => {
+    const entries = [manifestEntry({ recipe: "test", category: "cat" })];
+    const result = formatManifestSummary(entries);
+    expect(result).toMatch(/^ {2}\d+\./);
   });
 });
