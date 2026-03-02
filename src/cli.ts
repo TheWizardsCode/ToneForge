@@ -1049,7 +1049,7 @@ export function truncateTags(
   const matchedSet = new Set(matchedTags.map((t) => t.toLowerCase()));
   const styled = ordered.map((tag) => {
     if (tty && matchedSet.has(tag.toLowerCase())) {
-      return COLORS.bold + tag + COLORS.reset;
+      return COLORS.bold + COLORS.yellow + tag + COLORS.reset;
     }
     return tag;
   });

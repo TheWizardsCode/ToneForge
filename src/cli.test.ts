@@ -586,9 +586,9 @@ describe("CLI", () => {
         expect(result).toBe("c, e, a, b, d");
       });
 
-      it("applies ANSI bold to matched tags in TTY mode", () => {
+      it("applies ANSI bold+yellow to matched tags in TTY mode", () => {
         const result = truncateTags(["laser", "sci-fi"], 30, ["laser"], true);
-        expect(result).toBe("\x1b[1mlaser\x1b[0m, sci-fi");
+        expect(result).toBe("\x1b[1m\x1b[33mlaser\x1b[0m, sci-fi");
       });
 
       it("does not apply ANSI codes when tty is false", () => {
@@ -601,10 +601,9 @@ describe("CLI", () => {
         expect(result).toBe("laser, sci-fi");
       });
 
-      it("truncates correctly with ANSI bold (visible width only)", () => {
-        // Tags: "laser", "sci-fi", "bright" with "laser" matched and bold
-        // Bold "laser" = \x1b[1mlaser\x1b[0m (5 visible chars)
-        // Joined: "\x1b[1mlaser\x1b[0m, sci-fi, bright" (22 visible chars)
+      it("truncates correctly with ANSI bold+yellow (visible width only)", () => {
+        // Tags: "laser", "sci-fi", "bright" with "laser" matched and styled
+        // Styled "laser" = \x1b[1m\x1b[33mlaser\x1b[0m (5 visible chars)
         // With maxWidth=14, should truncate but ANSI codes are zero-width
         const result = truncateTags(
           ["laser", "sci-fi", "bright"],
@@ -612,7 +611,7 @@ describe("CLI", () => {
           ["laser"],
           true,
         );
-        expect(result).toContain("\x1b[1mlaser\x1b[0m");
+        expect(result).toContain("\x1b[1m\x1b[33mlaser\x1b[0m");
         expect(result).toContain("\u2026");
       });
 
@@ -637,7 +636,7 @@ describe("CLI", () => {
 
       it("handles all tags matched and fitting within maxWidth", () => {
         const result = truncateTags(["a", "b"], 14, ["a", "b"], true);
-        expect(result).toBe("\x1b[1ma\x1b[0m, \x1b[1mb\x1b[0m");
+        expect(result).toBe("\x1b[1m\x1b[33ma\x1b[0m, \x1b[1m\x1b[33mb\x1b[0m");
         // No ellipsis since it fits
         expect(result).not.toContain("\u2026");
       });
@@ -667,7 +666,7 @@ describe("CLI", () => {
           ["laser"],
           true,
         );
-        expect(result).toBe("\x1b[1mLaser\x1b[0m, alpha, beta");
+        expect(result).toBe("\x1b[1m\x1b[33mLaser\x1b[0m, alpha, beta");
       });
     });
 
