@@ -23,6 +23,7 @@ import type { WizardStage } from "./types.js";
 import { runDefineStage } from "./stages/define.js";
 import { runExploreStage } from "./stages/explore.js";
 import { runReviewStage } from "./stages/review.js";
+import { runExportStage } from "./stages/export.js";
 
 /** Stage display names for user-facing output. */
 const STAGE_NAMES: Record<WizardStage, string> = {
@@ -117,10 +118,17 @@ export async function launchWizard(): Promise<number> {
         break;
       }
 
-      case "export":
+      case "export": {
         // Stage 4: Export (TF-0MM8S2LKQ1WM38F4)
-        outputInfo("Stage 4 (Export) is not yet implemented. Coming soon!");
+        const exportResult = await runExportStage(session);
+        if (exportResult === "back") {
+          session.goBack();
+          break;
+        }
+        // exportResult === "advance" -- wizard complete
+        outputInfo("\nThank you for using ToneForge Sound Palette Builder!\n");
         return 0;
+      }
 
       default: {
         // Exhaustive check -- should never reach here
