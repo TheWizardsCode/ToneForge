@@ -37,6 +37,8 @@ On local development machines, `npm install` runs a safe postinstall step that a
 
 Both commands are identical -- they run `bin/dev-cli.js`, which loads `src/cli.yargs.ts` (and the current CLI pipeline) directly via tsx. No build step is needed, and source changes are reflected immediately.
 
+The command migration matrix and cutover gates are tracked in `docs/cli-cutover-checklist.md`.
+
 ### Quick start
 
 ```bash
