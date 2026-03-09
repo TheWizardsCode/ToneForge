@@ -17,7 +17,7 @@ npm install
 npm run build
 ```
 
-After `npm install`, the `tf` and `toneforge` CLI commands are available on your PATH (via automatic `npm link`). The web demo's embedded terminal uses these commands.
+After `npm install` on local machines, the `tf` and `toneforge` CLI commands are usually available on your PATH (via a safe postinstall `npm link` attempt). In CI/restricted environments, use `./bin/dev-cli.js` directly. The web demo's embedded terminal uses these commands when available.
 
 ### 2. Install web dependencies
 

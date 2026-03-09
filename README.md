@@ -30,12 +30,12 @@ git clone <repo-url> && cd ToneForge
 npm install
 ```
 
-`npm install` automatically runs `npm link`, making two CLI commands available on your PATH:
+On local development machines, `npm install` runs a safe postinstall step that attempts `npm link`, making two CLI commands available on your PATH:
 
 - **`tf`** -- short alias (recommended for daily use)
 - **`toneforge`** -- full name (used in demos and documentation)
 
-Both commands are identical -- they run `bin/dev-cli.js`, which loads `src/cli.ts` directly via tsx. No build step is needed, and source changes are reflected immediately.
+Both commands are identical -- they run `bin/dev-cli.js`, which loads `src/cli.yargs.ts` (and the current CLI pipeline) directly via tsx. No build step is needed, and source changes are reflected immediately.
 
 ### Quick start
 
@@ -59,7 +59,7 @@ npm run dev:web
 
 ### Troubleshooting
 
-If `npm link` fails during install (e.g. in CI or restricted environments), you'll see a warning. Use the loader script directly as a fallback:
+In CI, the postinstall step skips linking automatically. If linking is unavailable locally (permissions/restricted environments), you'll see a non-failing message and can use the loader script directly:
 
 ```bash
 ./bin/dev-cli.js generate --recipe ui-scifi-confirm --seed 42

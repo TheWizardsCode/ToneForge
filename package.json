@@ -18,7 +18,7 @@
     "generate": "./bin/dev-cli.js generate",
     "demo": "tsx scripts/demo/run.ts",
     "dev:web": "npm run build && npm run build --prefix web && concurrently -k -n backend,vite -c blue,green \"npm start --prefix web\" \"npm run dev --prefix web\"",
-    "postinstall": "npm link --ignore-scripts --silent 2>/dev/null || echo 'Warning: npm link failed. Run tf via ./bin/dev-cli.js instead.'"
+    "postinstall": "node ./scripts/postinstall-cli-link.mjs"
   },
   "keywords": [
     "audio",
