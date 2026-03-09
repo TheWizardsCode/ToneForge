@@ -18,7 +18,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { renderRecipe } from "./core/renderer.js";
 import { encodeWav } from "./audio/wav-encoder.js";
-import { main } from "./cli.js";
+import { main } from "./compat/cli.js";
 
 // Mock the playAudio function for CLI tests in this file
 import { vi } from "vitest";

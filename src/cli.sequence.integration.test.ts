@@ -17,7 +17,7 @@ vi.mock("./audio/player.js", () => ({
   playAudio: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { main } from "./cli.js";
+import { main } from "./compat/cli.js";
 
 // ── Helpers ───────────────────────────────────────────────────────
 

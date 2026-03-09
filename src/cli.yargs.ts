@@ -14,6 +14,10 @@ import versionCommand from "./cli/commands/version.js";
 export async function yargsMain(argv: string[] = process.argv): Promise<number> {
   const y = yargs(hideBin(argv)).scriptName("toneforge");
 
+  // When used programmatically we must avoid yargs calling process.exit().
+  // Disable automatic exiting and let the caller decide how to handle exit codes.
+  y.exitProcess(false);
+
   y.command(generateCommand as any);
   y.command(listCommand as any);
   y.command(showCommand as any);
@@ -22,8 +26,14 @@ export async function yargsMain(argv: string[] = process.argv): Promise<number> 
 
   y.help().strict();
 
-  await y.parse();
-  return process.exitCode ?? 0;
+  try {
+    await y.parse();
+    // y.parse may set process.exitCode; prefer returning it when present.
+    return process.exitCode ?? 0;
+  } catch (err) {
+    // yargs may throw validation errors; map to non-zero exit code for compatibility
+    return 1;
+  }
 }
 
 // If executed directly, run yargsMain

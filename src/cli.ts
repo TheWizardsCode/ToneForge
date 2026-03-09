@@ -1295,6 +1295,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
   profiler.mark("module_load");
   profiler.mark("cli_parse");
 
+
   // --version flag or `version` command
   if (flags["version"] || command === "version") {
     if (jsonMode) {

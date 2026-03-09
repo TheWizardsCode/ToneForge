@@ -11,7 +11,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { existsSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { main } from "./cli.js";
+import { main } from "./compat/cli.js";
 import { clearIndexCache } from "./library/index-store.js";
 
 // Mock the playAudio function for CLI tests
