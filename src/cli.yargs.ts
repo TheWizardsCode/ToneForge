@@ -31,6 +31,10 @@ export async function yargsMain(argv: string[] = process.argv): Promise<number> 
   y.exitProcess(false);
   y.strictCommands();
   y.parserConfiguration({ "unknown-options-as-args": true });
+  y.showHelpOnFail(false);
+  y.fail((msg, err) => {
+    throw err ?? new Error(msg ?? "yargs parse failed");
+  });
 
   y.command("generate", false, () => {}, () => {});
   y.command("list [resource]", false, () => {}, () => {});
