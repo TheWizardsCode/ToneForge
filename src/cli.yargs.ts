@@ -2,34 +2,45 @@
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 
-// Load command modules. Each module exports a command definition compatible
-// with yargs (see src/cli/commands/*.ts). We delegate to the existing
-// implementation where appropriate to keep migration incremental.
-import generateCommand from "./cli/commands/generate.js";
-import listCommand from "./cli/commands/list.js";
-import showCommand from "./cli/commands/show.js";
-import playCommand from "./cli/commands/play.js";
-import versionCommand from "./cli/commands/version.js";
+const MIGRATED_COMMANDS = new Set(["generate", "list", "show", "play", "version"]);
+
+async function runLegacy(argv: string[]): Promise<number> {
+  const legacy = await import("./cli.js");
+  if (typeof legacy.main !== "function") {
+    return 1;
+  }
+  return legacy.main(argv);
+}
 
 export async function yargsMain(argv: string[] = process.argv): Promise<number> {
-  const y = yargs(hideBin(argv)).scriptName("toneforge");
+  const raw = hideBin(argv);
+  const command = raw[0];
+
+  if (raw.includes("--help") || raw.includes("-h") || raw.includes("--version") || raw.includes("-V")) {
+    return runLegacy(argv);
+  }
+
+  if (typeof command !== "string" || !MIGRATED_COMMANDS.has(command)) {
+    return runLegacy(argv);
+  }
+
+  const y = yargs(raw).scriptName("toneforge");
 
   // When used programmatically we must avoid yargs calling process.exit().
   // Disable automatic exiting and let the caller decide how to handle exit codes.
   y.exitProcess(false);
+  y.strictCommands();
+  y.parserConfiguration({ "unknown-options-as-args": true });
 
-  y.command(generateCommand as any);
-  y.command(listCommand as any);
-  y.command(showCommand as any);
-  y.command(playCommand as any);
-  y.command(versionCommand as any);
-
-  y.help().strict();
+  y.command("generate", false, () => {}, () => {});
+  y.command("list [resource]", false, () => {}, () => {});
+  y.command("show <recipe>", false, () => {}, () => {});
+  y.command("play <file>", false, () => {}, () => {});
+  y.command("version", false, () => {}, () => {});
 
   try {
     await y.parse();
-    // y.parse may set process.exitCode; prefer returning it when present.
-    return process.exitCode ?? 0;
+    return runLegacy(argv);
   } catch (err) {
     // yargs may throw validation errors; map to non-zero exit code for compatibility
     return 1;
