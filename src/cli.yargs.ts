@@ -1,59 +1,26 @@
 #!/usr/bin/env node
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
-import { main as legacyMain } from "./cli.js";
 
-// Minimal yargs wrapper that delegates to the existing `main()` implementation
-// for now. This allows an incremental migration to yargs while preserving
-// the current parsing behavior and tests.
+// Load command modules. Each module exports a command definition compatible
+// with yargs (see src/cli/commands/*.ts). We delegate to the existing
+// implementation where appropriate to keep migration incremental.
+import generateCommand from "./cli/commands/generate.js";
+import listCommand from "./cli/commands/list.js";
+import showCommand from "./cli/commands/show.js";
+import playCommand from "./cli/commands/play.js";
+import versionCommand from "./cli/commands/version.js";
 
 export async function yargsMain(argv: string[] = process.argv): Promise<number> {
-  const y = yargs(hideBin(argv))
-    .scriptName("toneforge")
-    .command(
-      "generate",
-      "Render and export procedural sounds",
-      (yargsBuilder) => yargsBuilder,
-      async (args) => {
-        // Delegate to legacy main using process.argv to maintain parity while
-        // migrating.
-        process.exitCode = await legacyMain(process.argv);
-      },
-    )
-    .command(
-      "list [resource]",
-      "List available resources",
-      () => {},
-      async () => {
-        process.exitCode = await legacyMain(process.argv);
-      },
-    )
-    .command(
-      "show <name>",
-      "Show recipe metadata",
-      () => {},
-      async () => {
-        process.exitCode = await legacyMain(process.argv);
-      },
-    )
-    .command(
-      "play <file>",
-      "Play a WAV file",
-      () => {},
-      async () => {
-        process.exitCode = await legacyMain(process.argv);
-      },
-    )
-    .command(
-      "version",
-      "Print the ToneForge version",
-      () => {},
-      () => {
-        process.exitCode = 0;
-      },
-    )
-    .help()
-    .strict();
+  const y = yargs(hideBin(argv)).scriptName("toneforge");
+
+  y.command(generateCommand as any);
+  y.command(listCommand as any);
+  y.command(showCommand as any);
+  y.command(playCommand as any);
+  y.command(versionCommand as any);
+
+  y.help().strict();
 
   await y.parse();
   return process.exitCode ?? 0;
@@ -61,7 +28,5 @@ export async function yargsMain(argv: string[] = process.argv): Promise<number> 
 
 // If executed directly, run yargsMain
 if (import.meta.url === `file://${process.argv[1]}`) {
-  yargs
-    .help()
-    .parse();
+  yargs.help().parse();
 }
