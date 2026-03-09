@@ -20,7 +20,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
   // (those continue to use the legacy path).
   if (useYargs && typeof cmd === "string" && migrated.has(cmd)) {
     try {
-      const mod = await import("./cli.yargs.js");
+        const mod = await import("../cli.yargs.js");
       if (typeof mod.yargsMain === "function") {
         return await mod.yargsMain(argv);
       }
@@ -35,7 +35,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
   // Otherwise delegate to the legacy main implementation to preserve exact
   // behavioral parity with existing tests and programmatic consumers.
   try {
-    const legacy = await import("./cli.js");
+    const legacy = await import("../cli.js");
     if (typeof legacy.main === "function") {
       return await legacy.main(argv);
     }
