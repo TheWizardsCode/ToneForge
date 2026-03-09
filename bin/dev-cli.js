@@ -13,5 +13,7 @@ globalThis.__toneforgeProcessStart = process.hrtime.bigint();
 import { register } from "tsx/esm/api";
 register();
 
-const { main } = await import("../src/cli.ts");
-process.exitCode = await main();
+// Use the commander-based dev loader which scaffolds the future CLI framework
+// while preserving the existing programmatic `main()` export in `src/cli.ts`.
+const { commanderMain } = await import("../src/cli.commander.ts");
+process.exitCode = await commanderMain();
