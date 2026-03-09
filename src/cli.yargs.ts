@@ -42,12 +42,12 @@ export async function yargsMain(argv: string[] = process.argv): Promise<number> 
     await y.parse();
     return runLegacy(argv);
   } catch (err) {
-    // yargs may throw validation errors; map to non-zero exit code for compatibility
-    return 1;
+    // Preserve legacy UX and machine output for any parse edge cases.
+    return runLegacy(argv);
   }
 }
 
 // If executed directly, run yargsMain
 if (import.meta.url === `file://${process.argv[1]}`) {
-  yargs.help().parse();
+  process.exitCode = await yargsMain();
 }
