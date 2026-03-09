@@ -9,10 +9,16 @@ export async function main(argv: string[] = process.argv): Promise<number> {
   // Commands that have been migrated to yargs and are safe to route to
   const migrated = new Set(["generate", "list", "show", "play", "version"]);
 
-  // Only delegate to yargs when an explicit command matches a migrated command.
-  // This keeps behavior identical for top-level flags like `--help` and `--version`
-  // when invoked without a command (those continue to use the legacy path).
-  if (typeof cmd === "string" && migrated.has(cmd)) {
+  // By default keep using the legacy CLI to preserve test stability. To opt in
+  // to the new yargs runner for migrated commands set the environment
+  // variable `TONEFORGE_USE_YARGS=1` (used during targeted migration).
+  const useYargs = process.env.TONEFORGE_USE_YARGS === "1";
+
+  // Only delegate to yargs when explicitly enabled AND an explicit command
+  // matches a migrated command. This keeps behavior identical for top-level
+  // flags like `--help` and `--version` when invoked without a command
+  // (those continue to use the legacy path).
+  if (useYargs && typeof cmd === "string" && migrated.has(cmd)) {
     try {
       const mod = await import("./cli.yargs.js");
       if (typeof mod.yargsMain === "function") {
