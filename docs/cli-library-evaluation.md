@@ -107,7 +107,7 @@ export function cli(argv = process.argv.slice(2)) {
 8. Iterate: convert and test each command module one-by-one. This allows incremental PRs per command and small, reviewable changes.
 
 Minimal code shim to preserve tests
-- If tests import compiled `cli` function from dist, provide a thin compatibility file that re-exports the new function with the same name/path. Example `src/compat/cli.ts` that imports and re-exports `cli` from `src/cli/index.ts`.
+- If tests import compiled `cli` function from dist, provide a thin adapter that re-exports from the canonical entrypoint (`src/cli.ts`) to keep import paths stable during migration.
 
 Risk notes
 - Tests that import the compiled output via exact file paths may need their import paths adjusted or preserved with compatibility shims. Avoid changing compiled entrypoints until command modules are fully wired.

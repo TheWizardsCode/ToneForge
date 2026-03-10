@@ -1,5 +1,6 @@
 import type { Arguments } from "yargs";
 import { registry } from "../../recipes/index.js";
+import { createRng } from "../../core/rng.js";
 import { outputInfo, outputError } from "../../output.js";
 
 export const command = "show <name>";
@@ -22,7 +23,7 @@ export async function handler(argv: Arguments) {
     name,
     description: reg.description,
     category: reg.category,
-    params: reg.getParams ? reg.getParams() : [],
+    params: reg.getParams ? reg.getParams(createRng(0)) : [],
   };
 
   if (jsonMode) {

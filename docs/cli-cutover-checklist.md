@@ -23,11 +23,11 @@ This checklist tracks ownership of user-facing CLI commands after the yargs cuto
 
 - [x] Framework command ownership matrix documented.
 - [x] Top-level CLI entrypoint (`src/cli.ts`) routes through yargs.
-- [x] Legacy parser/dispatcher moved out of canonical entrypoint (`src/cli.legacy.ts`).
+- [x] Core parser/dispatcher moved out of canonical entrypoint (`src/cli.core.ts`).
 - [x] Compatibility exports retained for test helpers (`truncateTags`).
 - [x] Integration tests for yargs entrypoint exist and pass (`src/cli.yargs.integration.test.ts`).
 - [x] Full test suite passes (`npm test`).
 
 ## Rollback guidance
 
-If rollback is needed, point `src/cli.ts` back to the legacy `main()` export from `src/cli.legacy.ts` while preserving the yargs coverage tests for reattempt.
+If rollback is needed, point `src/cli.ts` back to the core `main()` export from `src/cli.core.ts` while preserving the yargs coverage tests for reattempt.

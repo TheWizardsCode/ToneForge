@@ -20,11 +20,11 @@ export const FRAMEWORK_COMMANDS = [
 const MIGRATED_COMMANDS = new Set(FRAMEWORK_COMMANDS);
 
 async function runLegacy(argv: string[]): Promise<number> {
-  const legacy = await import("./cli.legacy.js");
-  if (typeof legacy.main !== "function") {
+  const core = await import("./cli.core.js");
+  if (typeof core.main !== "function") {
     return 1;
   }
-  return legacy.main(argv);
+  return core.main(argv);
 }
 
 function makeLegacyHandler(raw: string[], commandPrefix: string[] = []): () => Promise<number> {

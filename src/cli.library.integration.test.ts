@@ -61,7 +61,7 @@ vi.mock("./audio/wav-encoder.js", () => ({
 // Imports (after mocks)
 // ---------------------------------------------------------------------------
 
-import { main } from "./compat/cli.js";
+import { main } from "./cli.js";
 import { addEntry } from "./library/storage.js";
 import { clearIndexCache } from "./library/index-store.js";
 import type { ExploreCandidate } from "./explore/types.js";
