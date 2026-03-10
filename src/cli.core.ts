@@ -32,6 +32,7 @@ import { VERSION } from "./index.js";
 import { createRng } from "./core/rng.js";
 import { profiler } from "./core/profiler.js";
 import { outputMarkdown, outputError, outputWarning, outputSuccess, outputInfo, outputTable, COLORS, ansiWidth, stripAnsi, isStdoutTty } from "./output.js";
+import { truncateTags } from "./cli/helpers.js";
 import type { RecipeRegistration, RecipeFilterQuery } from "./core/recipe.js";
 import { renderStack } from "./stack/renderer.js";
 import type { StackDefinition } from "./stack/renderer.js";
@@ -1069,95 +1070,9 @@ function formatNumber(n: number): string {
  *
  * @internal Exported for testing only.
  */
-export function truncateTags(
-  tags: string[],
-  maxWidth: number,
-  matchedTags: string[] = [],
-  tty: boolean = false,
-): string {
-  if (tags.length === 0) return "\u2014";
-
-  // Partition into matched (front) and unmatched (back), preserving relative order
-  let ordered: string[];
-  if (matchedTags.length > 0) {
-    const matchedSet = new Set(matchedTags.map((t) => t.toLowerCase()));
-    const matched = tags.filter((t) => matchedSet.has(t.toLowerCase()));
-    const unmatched = tags.filter((t) => !matchedSet.has(t.toLowerCase()));
-    ordered = [...matched, ...unmatched];
-  } else {
-    ordered = tags;
-  }
-
-  // Build display tokens: apply bold to matched tags in TTY mode
-  const matchedSet = new Set(matchedTags.map((t) => t.toLowerCase()));
-  const styled = ordered.map((tag) => {
-    if (tty && matchedSet.has(tag.toLowerCase())) {
-      return COLORS.bold + COLORS.yellow + tag + COLORS.reset;
-    }
-    return tag;
-  });
-
-  const joined = styled.join(", ");
-  if (ansiWidth(joined) <= maxWidth) return joined;
-
-  // Truncate to maxWidth visible characters, leaving room for ellipsis
-  const budget = maxWidth - 1; // 1 for the ellipsis character
-  let visible = 0;
-  let result = "";
-  let i = 0;
-
-  while (i < joined.length && visible < budget) {
-    // Check for ANSI escape sequence
-    if (joined[i] === "\x1b") {
-      const seqEnd = joined.indexOf("m", i);
-      if (seqEnd !== -1) {
-        // Copy the entire escape sequence (zero-width)
-        result += joined.slice(i, seqEnd + 1);
-        i = seqEnd + 1;
-        continue;
-      }
-    }
-    result += joined[i];
-    visible++;
-    i++;
-  }
-
-  // Try to break at last comma-space to avoid cutting mid-tag
-  const plainResult = stripAnsi(result);
-  const lastSep = plainResult.lastIndexOf(", ");
-  if (lastSep > 0) {
-    // Find the position in `result` corresponding to `lastSep` visible chars
-    let vis = 0;
-    let cutIdx = 0;
-    for (let j = 0; j < result.length; j++) {
-      if (result[j] === "\x1b") {
-        const seqEnd = result.indexOf("m", j);
-        if (seqEnd !== -1) {
-          j = seqEnd;
-          continue;
-        }
-      }
-      if (vis === lastSep) {
-        cutIdx = j;
-        break;
-      }
-      vis++;
-    }
-    result = result.slice(0, cutIdx);
-  }
-
-  // Ensure any open ANSI bold is closed before appending ellipsis
-  if (tty && result.includes(COLORS.bold)) {
-    // Check if the last ANSI code in result is a bold (unclosed)
-    const lastBold = result.lastIndexOf(COLORS.bold);
-    const lastReset = result.lastIndexOf(COLORS.reset);
-    if (lastBold > lastReset) {
-      result += COLORS.reset;
-    }
-  }
-
-  return result + "\u2026";
-}
+// TruncateTags implementation moved to src/cli/helpers.ts to enable
+// removal of behaviorful runtime code from this core module.
+export { truncateTags } from "./cli/helpers.js";
 
 /**
  * Output a JSON object to stdout. Used by all commands when --json is active.
@@ -1302,6 +1217,8 @@ function formatClassificationBatchTable(
  * @param layers     - Ordered list of `--layer` inline spec strings (stack cmd).
  * @returns          Promise resolving to a numeric exit code (0 = success).
  */
+import * as listCmd from "./cli/commands/list.js";
+
 export async function dispatchCommand(
   command: string | undefined,
   subcommand: string | undefined,
@@ -1381,109 +1298,20 @@ export async function dispatchCommand(
   }
 
   if (command === "list") {
-    if (flags["help"]) {
-      await printListHelp();
-      return 0;
-    }
-
-    if (subcommand !== "recipes" && subcommand !== undefined) {
-      if (jsonMode) {
-        jsonErr(`Unknown resource '${subcommand}'. Run 'toneforge list --help' for usage.`);
-      } else {
-        outputError(`Error: Unknown resource '${subcommand}'. Run 'toneforge list --help' for usage.`);
-      }
-      return 1;
-    }
-
-    // Build filter from CLI flags
-    const filter: RecipeFilterQuery = {};
-    const searchFlag = flags["search"];
-    const categoryFlag = flags["category"];
-    const tagsFlag = flags["tags"];
-    if (typeof searchFlag === "string" && searchFlag.trim().length > 0) {
-      filter.search = searchFlag;
-    }
-    if (typeof categoryFlag === "string" && categoryFlag.trim().length > 0) {
-      filter.category = categoryFlag;
-    }
-    if (typeof tagsFlag === "string") {
-      const parsed = tagsFlag.split(",").map((t) => t.trim()).filter((t) => t.length > 0);
-      if (parsed.length > 0) {
-        filter.tags = parsed;
-      }
-    }
-
-    const isFiltered =
-      filter.search !== undefined ||
-      filter.category !== undefined ||
-      filter.tags !== undefined;
-
-    // Get total count before filtering for the footer
-    const totalCount = registry.listDetailed().length;
-    const recipes = registry.listDetailed(isFiltered ? filter : undefined);
-
-    if (jsonMode) {
-      // Strip matchedTags from JSON output (display-only concern)
-      const recipesJson = recipes.map(({ matchedTags: _mt, ...rest }) => rest);
-      const output: Record<string, unknown> = {
-        command: "list",
-        resource: "recipes",
-        recipes: recipesJson,
-        total: totalCount,
-      };
-      if (isFiltered) {
-        const filters: Record<string, unknown> = {};
-        if (filter.search !== undefined) filters.search = filter.search;
-        if (filter.category !== undefined) filters.category = filter.category;
-        if (filter.tags !== undefined) filters.tags = filter.tags;
-        output.filters = filters;
-      }
-      jsonOut(output);
-    } else {
-      if (recipes.length === 0) {
-        outputInfo(
-          isFiltered
-            ? `Found 0 of ${totalCount} recipes matching the filter.`
-            : "No recipes registered.",
-        );
-      } else {
-        const TABLE_WIDTH = 76;
-        // Table row overhead for 4 columns:
-        // "| " + col1 + " | " + col2 + " | " + col3 + " | " + col4 + " |"
-        // = 4 separators * 3 chars ("| " or " |") + 3 inner " | " = 13 chars
-        const nameCol = Math.max(...recipes.map((r) => r.name.length));
-        const catCol = Math.max(
-          "Category".length,
-          ...recipes.map((r) => (r.category || "").length),
-        );
-        const TAG_COL_WIDTH = 14;
-        // 4 cols with separators: "| " + c1 + " | " + c2 + " | " + c3 + " | " + c4 + " |" = 5*2 + 3 = 13
-        const descCol = TABLE_WIDTH - nameCol - catCol - TAG_COL_WIDTH - 13;
-
-        outputTable(
-          [
-            { header: "Recipe", width: nameCol },
-            { header: "Description", width: Math.max(descCol, 10) },
-            { header: "Category", width: catCol },
-            { header: "Tags", width: TAG_COL_WIDTH },
-          ],
-          recipes.map((r) => [
-            r.name,
-            r.description || "\u2014",
-            r.category || "\u2014",
-            truncateTags(r.tags, TAG_COL_WIDTH, r.matchedTags, isStdoutTty()),
-          ]),
-        );
-
-        // Footer
-        if (isFiltered) {
-          outputInfo(`Found ${recipes.length} of ${totalCount} recipes.`);
-        } else {
-          outputInfo(`Showing ${recipes.length} recipes.`);
-        }
-      }
-    }
-    return 0;
+    // Delegate to the dedicated yargs command handler to avoid duplicating
+    // display and JSON formatting logic. Construct a minimal argv-like
+    // object the handler expects.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const argv: any = {
+      resource: subcommand,
+      search: flags["search"],
+      category: flags["category"],
+      tags: flags["tags"],
+      json: jsonMode,
+    };
+    // The command handler returns an exit code
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (await (listCmd as any).handler(argv as any)) as number;
   }
 
   if (command === "show") {
