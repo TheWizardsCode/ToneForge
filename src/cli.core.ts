@@ -32,6 +32,7 @@ import { VERSION } from "./index.js";
 import { createRng } from "./core/rng.js";
 import { profiler } from "./core/profiler.js";
 import { outputMarkdown, outputError, outputWarning, outputSuccess, outputInfo, outputTable, COLORS, ansiWidth, stripAnsi, isStdoutTty } from "./output.js";
+import { truncateTags } from "./cli/helpers.js";
 import type { RecipeRegistration, RecipeFilterQuery } from "./core/recipe.js";
 import { renderStack } from "./stack/renderer.js";
 import type { StackDefinition } from "./stack/renderer.js";
@@ -1069,95 +1070,9 @@ function formatNumber(n: number): string {
  *
  * @internal Exported for testing only.
  */
-export function truncateTags(
-  tags: string[],
-  maxWidth: number,
-  matchedTags: string[] = [],
-  tty: boolean = false,
-): string {
-  if (tags.length === 0) return "\u2014";
-
-  // Partition into matched (front) and unmatched (back), preserving relative order
-  let ordered: string[];
-  if (matchedTags.length > 0) {
-    const matchedSet = new Set(matchedTags.map((t) => t.toLowerCase()));
-    const matched = tags.filter((t) => matchedSet.has(t.toLowerCase()));
-    const unmatched = tags.filter((t) => !matchedSet.has(t.toLowerCase()));
-    ordered = [...matched, ...unmatched];
-  } else {
-    ordered = tags;
-  }
-
-  // Build display tokens: apply bold to matched tags in TTY mode
-  const matchedSet = new Set(matchedTags.map((t) => t.toLowerCase()));
-  const styled = ordered.map((tag) => {
-    if (tty && matchedSet.has(tag.toLowerCase())) {
-      return COLORS.bold + COLORS.yellow + tag + COLORS.reset;
-    }
-    return tag;
-  });
-
-  const joined = styled.join(", ");
-  if (ansiWidth(joined) <= maxWidth) return joined;
-
-  // Truncate to maxWidth visible characters, leaving room for ellipsis
-  const budget = maxWidth - 1; // 1 for the ellipsis character
-  let visible = 0;
-  let result = "";
-  let i = 0;
-
-  while (i < joined.length && visible < budget) {
-    // Check for ANSI escape sequence
-    if (joined[i] === "\x1b") {
-      const seqEnd = joined.indexOf("m", i);
-      if (seqEnd !== -1) {
-        // Copy the entire escape sequence (zero-width)
-        result += joined.slice(i, seqEnd + 1);
-        i = seqEnd + 1;
-        continue;
-      }
-    }
-    result += joined[i];
-    visible++;
-    i++;
-  }
-
-  // Try to break at last comma-space to avoid cutting mid-tag
-  const plainResult = stripAnsi(result);
-  const lastSep = plainResult.lastIndexOf(", ");
-  if (lastSep > 0) {
-    // Find the position in `result` corresponding to `lastSep` visible chars
-    let vis = 0;
-    let cutIdx = 0;
-    for (let j = 0; j < result.length; j++) {
-      if (result[j] === "\x1b") {
-        const seqEnd = result.indexOf("m", j);
-        if (seqEnd !== -1) {
-          j = seqEnd;
-          continue;
-        }
-      }
-      if (vis === lastSep) {
-        cutIdx = j;
-        break;
-      }
-      vis++;
-    }
-    result = result.slice(0, cutIdx);
-  }
-
-  // Ensure any open ANSI bold is closed before appending ellipsis
-  if (tty && result.includes(COLORS.bold)) {
-    // Check if the last ANSI code in result is a bold (unclosed)
-    const lastBold = result.lastIndexOf(COLORS.bold);
-    const lastReset = result.lastIndexOf(COLORS.reset);
-    if (lastBold > lastReset) {
-      result += COLORS.reset;
-    }
-  }
-
-  return result + "\u2026";
-}
+// TruncateTags implementation moved to src/cli/helpers.ts to enable
+// removal of behaviorful runtime code from this core module.
+export { truncateTags } from "./cli/helpers.js";
 
 /**
  * Output a JSON object to stdout. Used by all commands when --json is active.
