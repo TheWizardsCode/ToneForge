@@ -7,7 +7,10 @@ export const command = "show <name>";
 export const desc = "Show recipe metadata";
 
 export function builder(yargs: any) {
-  return yargs.positional("name", { type: "string" }).option("json", { type: "boolean" });
+  return yargs
+    .positional("name", { type: "string", describe: "Recipe name to inspect" })
+    .option("seed", { type: "string", describe: "Integer seed for parameter defaults" })
+    .option("json", { type: "boolean", describe: "Output JSON" });
 }
 
 export async function handler(argv: Arguments) {

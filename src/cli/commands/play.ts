@@ -8,7 +8,9 @@ export const command = "play <file>";
 export const desc = "Play a WAV file";
 
 export function builder(yargs: any) {
-  return yargs.positional("file", { type: "string" }).option("json", { type: "boolean" });
+  return yargs
+    .positional("file", { type: "string", describe: "Path to WAV file to play" })
+    .option("json", { type: "boolean", describe: "Output JSON" });
 }
 
 export async function handler(argv: Arguments) {
