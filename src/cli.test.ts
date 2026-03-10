@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { main, truncateTags } from "./cli.js";
+import { main } from "./cli.js";
+import { truncateTags } from "./cli.js";
 import { existsSync, readFileSync, unlinkSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
