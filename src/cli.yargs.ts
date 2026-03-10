@@ -82,48 +82,31 @@ export async function yargsMain(argv: string[] = process.argv): Promise<number> 
 
   // ── generate ──────────────────────────────────────────────────────────────
   y.command(generateCmd.command, generateCmd.desc, generateCmd.builder, async (argv) => {
-    exitCode = await dispatchCommand("generate", undefined, buildFlags(argv, {
-      ...(argv.recipe !== undefined ? { recipe: String(argv.recipe) } : {}),
-      ...(argv.seed !== undefined ? { seed: String(argv.seed) } : {}),
-      ...(argv["seed-range"] !== undefined ? { "seed-range": String(argv["seed-range"]) } : {}),
-      ...(argv.output !== undefined ? { output: String(argv.output) } : {}),
-    }), []);
+    // Call the native yargs handler for generate rather than delegating to the
+    // legacy dispatchCommand. This keeps execution local to the command module.
+    // The handler returns an exit code.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    exitCode = await (generateCmd as any).handler(argv as any);
   });
 
   // ── list ──────────────────────────────────────────────────────────────────
   y.command(listCmd.command, listCmd.desc, listCmd.builder, async (argv) => {
-    exitCode = await dispatchCommand(
-      "list",
-      argv.resource as string | undefined,
-      buildFlags(argv, {
-        ...(argv.search !== undefined ? { search: String(argv.search) } : {}),
-        ...(argv.category !== undefined ? { category: String(argv.category) } : {}),
-        ...(argv.tags !== undefined ? { tags: String(argv.tags) } : {}),
-      }),
-      [],
-    );
+    exitCode = await (listCmd as any).handler(argv as any);
   });
 
   // ── show ──────────────────────────────────────────────────────────────────
   y.command(showCmd.command, showCmd.desc, showCmd.builder, async (argv) => {
-    exitCode = await dispatchCommand(
-      "show",
-      argv.name as string | undefined,
-      buildFlags(argv, {
-        ...(argv.seed !== undefined ? { seed: String(argv.seed) } : {}),
-      }),
-      [],
-    );
+    exitCode = await (showCmd as any).handler(argv as any);
   });
 
   // ── play ──────────────────────────────────────────────────────────────────
   y.command(playCmd.command, playCmd.desc, playCmd.builder, async (argv) => {
-    exitCode = await dispatchCommand("play", argv.file as string | undefined, buildFlags(argv), []);
+    exitCode = await (playCmd as any).handler(argv as any);
   });
 
   // ── version ───────────────────────────────────────────────────────────────
   y.command(versionCmd.command, versionCmd.desc, versionCmd.builder, async (argv) => {
-    exitCode = await dispatchCommand("version", undefined, buildFlags(argv), []);
+    exitCode = await (versionCmd as any).handler(argv as any);
   });
 
   // ── analyze ───────────────────────────────────────────────────────────────
