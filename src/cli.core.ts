@@ -81,7 +81,7 @@ import { renderSequence } from "./sequence/renderer.js";
 import type { SequenceDefinition } from "./sequence/schema.js";
 
 /** Parse command-line arguments into a structured map. */
-function parseArgs(argv: string[]): {
+export function parseArgs(argv: string[]): {
   command: string | undefined;
   subcommand: string | undefined;
   flags: Record<string, string | boolean>;
@@ -1284,8 +1284,30 @@ function formatClassificationBatchTable(
 }
 
 /** Main CLI entry point. Exported for testability. */
-export async function main(argv: string[] = process.argv): Promise<number> {
-  const { command, subcommand, flags, layers } = parseArgs(argv);
+/**
+ * Dispatch a command using pre-parsed arguments.
+ *
+ * yargs (or any other caller) should perform argument parsing and pass the
+ * structured result here. `coreMain.main()` is now a thin wrapper around this
+ * function so that the legacy entry-point remains available.
+ *
+ * @param command    - Top-level command name (e.g. "generate", "stack"), or
+ *                     `undefined` for global flags only (--help, --version).
+ * @param subcommand - Subcommand name (e.g. "render" for `stack render`), or
+ *                     `undefined` when no subcommand is present.
+ * @param flags      - Parsed flag values keyed by their hyphenated CLI name
+ *                     (e.g. `"seed-range"`, `"keep-top"`). Boolean flags have
+ *                     value `true`; option values are stored as strings so that
+ *                     the command handlers can perform their own validation.
+ * @param layers     - Ordered list of `--layer` inline spec strings (stack cmd).
+ * @returns          Promise resolving to a numeric exit code (0 = success).
+ */
+export async function dispatchCommand(
+  command: string | undefined,
+  subcommand: string | undefined,
+  flags: Record<string, string | boolean>,
+  layers: string[],
+): Promise<number> {
   const jsonMode = flags["json"] === true;
 
   // Enable profiling when --profile flag is set
@@ -4215,6 +4237,15 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     profiler.report();
     return 1;
   }
+}
+
+/**
+ * Legacy entry point — parses raw argv then delegates to dispatchCommand.
+ * Retained for backwards compatibility (bin scripts, tests that import main).
+ */
+export async function main(argv: string[] = process.argv): Promise<number> {
+  const { command, subcommand, flags, layers } = parseArgs(argv);
+  return dispatchCommand(command, subcommand, flags, layers);
 }
 
 // Run when executed directly (via ./bin/dev-cli.js or tf/toneforge commands).

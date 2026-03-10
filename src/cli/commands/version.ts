@@ -2,7 +2,7 @@ export const command = "version";
 export const desc = "Print the ToneForge version";
 
 export function builder(yargs: any) {
-  return yargs;
+  return yargs.option("json", { type: "boolean", describe: "Output JSON" });
 }
 
 export async function handler() {

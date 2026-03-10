@@ -10,10 +10,25 @@ export const desc = "Render and export procedural sounds";
 
 export function builder(yargs: any) {
   return yargs
-    .option("recipe", { type: "string", demandOption: true })
-    .option("seed", { type: "number" })
-    .option("output", { type: "string" })
-    .option("json", { type: "boolean" });
+    .option("recipe", {
+      type: "string",
+      describe: "Recipe name (e.g. ui-scifi-confirm)",
+    })
+    .option("seed", {
+      type: "string",
+      describe: "Integer seed for deterministic rendering",
+    })
+    .option("seed-range", {
+      type: "string",
+      describe: "Seed range for batch generation (e.g. 1:10)",
+    })
+    .option("output", {
+      type: "string",
+      describe: "Output WAV path or directory (for --seed-range)",
+    })
+    .option("json", { type: "boolean", describe: "Output JSON" })
+    .example("generate --recipe ui-scifi-confirm --seed 42", "Render a specific seed")
+    .example("generate --recipe ui-scifi-confirm", "Render with a random seed");
 }
 
 export async function handler(argv: Arguments) {
