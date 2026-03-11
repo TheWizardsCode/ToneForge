@@ -139,7 +139,10 @@ export async function yargsMain(argv: string[] = process.argv): Promise<number> 
 
   // ── tui ───────────────────────────────────────────────────────────────────
   y.command(tuiCmd.command, tuiCmd.desc, tuiCmd.builder, async (argv) => {
-    exitCode = await dispatchCommand("tui", undefined, buildFlags(argv), []);
+    exitCode = await dispatchCommand("tui", undefined, buildFlags(argv, {
+      ...(argv.resume !== undefined ? { resume: String(argv.resume) } : {}),
+      ...(argv["session-file"] !== undefined ? { "session-file": String(argv["session-file"]) } : {}),
+    }), []);
   });
 
   // ── stack ─────────────────────────────────────────────────────────────────

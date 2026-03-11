@@ -41,6 +41,11 @@ card-sfx/
 game-assets/
 
 ##################################
+# TUI wizard session files
+##################################
+.toneforge-session*.json
+
+##################################
 # Build output binaries
 ##################################
 bin/

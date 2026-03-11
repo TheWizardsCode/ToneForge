@@ -317,4 +317,136 @@ describe("WizardSession", () => {
       expect(data.manifest.entries[0].recipe).toBe("recipe-a");
     });
   });
+
+  // -------------------------------------------------------------------------
+  // fromData() round-trip
+  // -------------------------------------------------------------------------
+
+  describe("fromData", () => {
+    it("restores stage from toData snapshot", () => {
+      session.advance(); // -> explore
+      session.advance(); // -> review
+
+      const restored = WizardSession.fromData(session.toData());
+      expect(restored.currentStage).toBe("review");
+      expect(restored.currentStageNumber).toBe(3);
+    });
+
+    it("restores manifest entries", () => {
+      session.addToManifest(makeManifestEntry("recipe-a"));
+      session.addToManifest(makeManifestEntry("recipe-b"));
+
+      const restored = WizardSession.fromData(session.toData());
+      expect(restored.manifestSize).toBe(2);
+      expect(restored.manifest.entries[0].recipe).toBe("recipe-a");
+      expect(restored.manifest.entries[1].recipe).toBe("recipe-b");
+    });
+
+    it("restores selections as a Map", () => {
+      session.addToManifest(makeManifestEntry("recipe-a"));
+      session.setSelection("recipe-a", makeSelection("recipe-a", 7));
+
+      const restored = WizardSession.fromData(session.toData());
+      expect(restored.selections).toBeInstanceOf(Map);
+      expect(restored.selections.size).toBe(1);
+      const sel = restored.getSelection("recipe-a");
+      expect(sel).toBeDefined();
+      expect(sel!.candidate.seed).toBe(7);
+      expect(sel!.candidate.recipe).toBe("recipe-a");
+      expect(sel!.classification.category).toBe("test");
+    });
+
+    it("restores sweep cache as a Map", () => {
+      const cache: SweepCache = {
+        recipe: "recipe-a",
+        candidates: [makeCandidate("recipe-a", 1)],
+      };
+      session.setSweepCache("recipe-a", cache);
+
+      const restored = WizardSession.fromData(session.toData());
+      expect(restored.hasSweepCache("recipe-a")).toBe(true);
+      expect(restored.getSweepCache("recipe-a")!.candidates).toHaveLength(1);
+    });
+
+    it("restores export settings", () => {
+      session.exportDir = "/tmp/export";
+      session.exportByCategory = false;
+
+      const restored = WizardSession.fromData(session.toData());
+      expect(restored.exportDir).toBe("/tmp/export");
+      expect(restored.exportByCategory).toBe(false);
+    });
+
+    it("round-trips a fully populated session", () => {
+      // Populate every field
+      session.addToManifest(makeManifestEntry("recipe-a"));
+      session.addToManifest(makeManifestEntry("recipe-b"));
+      session.advance(); // -> explore
+      session.setSelection("recipe-a", makeSelection("recipe-a", 42));
+      session.setSweepCache("recipe-a", {
+        recipe: "recipe-a",
+        candidates: [makeCandidate("recipe-a", 1), makeCandidate("recipe-a", 2)],
+      });
+      session.advance(); // -> review
+      session.exportDir = "./out";
+      session.exportByCategory = true;
+
+      const data = session.toData();
+      const restored = WizardSession.fromData(data);
+
+      // Stage
+      expect(restored.currentStage).toBe(session.currentStage);
+      // Manifest
+      expect(restored.manifestSize).toBe(session.manifestSize);
+      expect(restored.manifest.entries.map((e) => e.recipe)).toEqual(
+        session.manifest.entries.map((e) => e.recipe),
+      );
+      // Selections
+      expect(restored.selections.size).toBe(session.selections.size);
+      expect(restored.getSelection("recipe-a")!.candidate.seed).toBe(42);
+      // Sweep cache
+      expect(restored.hasSweepCache("recipe-a")).toBe(true);
+      // Export settings
+      expect(restored.exportDir).toBe(session.exportDir);
+      expect(restored.exportByCategory).toBe(session.exportByCategory);
+    });
+
+    it("produces an independent copy (mutations do not affect original data)", () => {
+      session.addToManifest(makeManifestEntry("recipe-a"));
+      const data = session.toData();
+      const restored = WizardSession.fromData(data);
+
+      // Mutate restored session
+      restored.addToManifest(makeManifestEntry("recipe-z"));
+      restored.advance();
+
+      // Original data should be unaffected
+      expect(data.manifest.entries).toHaveLength(1);
+      expect(data.currentStage).toBe("define");
+    });
+
+    it("restores a session at the first stage with empty collections", () => {
+      const restored = WizardSession.fromData(session.toData());
+      expect(restored.currentStage).toBe("define");
+      expect(restored.manifestSize).toBe(0);
+      expect(restored.selections.size).toBe(0);
+      expect(restored.exportDir).toBeNull();
+      expect(restored.exportByCategory).toBe(true);
+    });
+
+    it("supports navigation after restore", () => {
+      session.advance(); // -> explore
+      const restored = WizardSession.fromData(session.toData());
+
+      // Can go back
+      expect(restored.goBack()).toBe(true);
+      expect(restored.currentStage).toBe("define");
+
+      // Can advance again
+      expect(restored.advance()).toBe(true);
+      expect(restored.currentStage).toBe("explore");
+      expect(restored.advance()).toBe(true);
+      expect(restored.currentStage).toBe("review");
+    });
+  });
 });
