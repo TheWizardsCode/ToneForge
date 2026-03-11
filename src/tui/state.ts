@@ -217,11 +217,34 @@ export class WizardSession {
   }
 
   // ---------------------------------------------------------------------------
-  // Serialization (for future session save/resume)
+  // Serialization (for session save/resume)
   // ---------------------------------------------------------------------------
 
   /** Get the raw session data (for serialization). */
   toData(): WizardSessionData {
     return { ...this.data };
+  }
+
+  /**
+   * Create a WizardSession from deserialized session data.
+   *
+   * Restores all session state including stage, manifest, selections,
+   * sweep cache, and export settings. Used by the session resume flow
+   * to reconstruct a session from a saved file.
+   *
+   * @param data - The deserialized WizardSessionData to restore from.
+   * @returns A new WizardSession instance with the restored state.
+   */
+  static fromData(data: WizardSessionData): WizardSession {
+    const session = new WizardSession();
+    session.data = {
+      currentStage: data.currentStage,
+      manifest: { entries: [...data.manifest.entries] },
+      selections: new Map(data.selections),
+      sweepCache: new Map(data.sweepCache),
+      exportDir: data.exportDir,
+      exportByCategory: data.exportByCategory,
+    };
+    return session;
   }
 }
