@@ -34,6 +34,27 @@ import { profiler } from "../core/profiler.js";
 export interface PlayOptions {
   /** Sample rate in Hz (default: 44100). */
   sampleRate?: number;
+
+  /**
+   * Optional lifecycle hooks for process/temp-file tracking.
+   *
+   * When provided, these callbacks are invoked at key points during
+   * playback so that callers (e.g. the TUI wizard) can register
+   * spawned child processes and temp files with a cleanup handler.
+   * This keeps the audio player decoupled from any specific cleanup
+   * framework while allowing opt-in tracking.
+   */
+  lifecycle?: PlaybackLifecycleHooks;
+}
+
+/** Lifecycle hooks called during audio playback. */
+export interface PlaybackLifecycleHooks {
+  /** Called when a child process is spawned for playback. */
+  onProcessSpawned?: (proc: import("node:child_process").ChildProcess) => void;
+  /** Called when a temp file is created on disk. */
+  onTempFileCreated?: (path: string) => void;
+  /** Called when a temp file is removed (normal cleanup). */
+  onTempFileRemoved?: (path: string) => void;
 }
 
 /** A candidate audio player with its command and argument builder. */
@@ -125,12 +146,16 @@ function findStdinPlayer(): StdinPlayerCandidate | null {
 function playViaStdin(
   wavBuffer: Buffer,
   player: StdinPlayerCandidate,
+  lifecycle?: PlaybackLifecycleHooks,
 ): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     const args = player.stdinArgs();
     const child = spawn(player.command, args, {
       stdio: ["pipe", "ignore", "ignore"],
     });
+
+    // Notify lifecycle hook so callers can track the process.
+    lifecycle?.onProcessSpawned?.(child);
 
     child.on("error", (err) => {
       reject(
@@ -307,7 +332,7 @@ export async function playAudio(
   samples: Float32Array,
   options: PlayOptions = {},
 ): Promise<void> {
-  const { sampleRate = 44100 } = options;
+  const { sampleRate = 44100, lifecycle } = options;
 
   // Validate samples contain non-silent audio
   if (samples.length === 0) {
@@ -340,7 +365,7 @@ export async function playAudio(
   if (stdinPlayer) {
     try {
       profiler.mark("playback_launch");
-      await playViaStdin(wavBuffer, stdinPlayer);
+      await playViaStdin(wavBuffer, stdinPlayer, lifecycle);
       return; // Success — skip temp-file path entirely.
     } catch {
       // Stdin piping failed; fall through to temp-file path.
@@ -354,12 +379,15 @@ export async function playAudio(
   await writeFile(tempPath, wavBuffer);
   profiler.mark("file_write");
 
+  // Notify lifecycle hook so callers can track the temp file.
+  lifecycle?.onTempFileCreated?.(tempPath);
+
   try {
     const { command, args } = getPlayerCommand(tempPath);
     profiler.mark("playback_launch");
 
     await new Promise<void>((resolve, reject) => {
-      execFile(command, args, (error) => {
+      const child = execFile(command, args, (error) => {
         if (error) {
           reject(
             new Error(
@@ -370,11 +398,16 @@ export async function playAudio(
           resolve();
         }
       });
+
+      // Notify lifecycle hook so callers can track the player process.
+      lifecycle?.onProcessSpawned?.(child);
     });
   } finally {
     // Always clean up the temp file
     await unlink(tempPath).catch(() => {
       // Silently ignore cleanup errors — the OS will eventually clean tmpdir
     });
+    // Notify lifecycle hook that the temp file has been cleaned up.
+    lifecycle?.onTempFileRemoved?.(tempPath);
   }
 }
