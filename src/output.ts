@@ -59,6 +59,11 @@ export function setTtyOverride(value: boolean | undefined): void {
   ttyOverride = value;
 }
 
+/** Return the current tty override value (testing/diagnostics). */
+export function getTtyOverride(): boolean | undefined {
+  return ttyOverride;
+}
+
 /** Returns `true` when stdout should emit styled output. */
 export function isStdoutTty(): boolean {
   if (process.env["NO_COLOR"] !== undefined) return false;
