@@ -71,71 +71,78 @@ export async function launchWizard(): Promise<number> {
     `Press Ctrl+C at any time to exit.\n`,
   );
 
-  // Stage loop -- placeholder for future stage implementations
-  // Each stage module will be implemented in subsequent work items.
-  while (true) {
-    const stage = session.currentStage;
-    const stageNum = session.currentStageNumber;
-    const stageName = STAGE_NAMES[stage];
+  // Stage loop -- drives the wizard through all four stages
+  // with back-navigation support and a top-level error boundary.
+  try {
+    while (true) {
+      const stage = session.currentStage;
+      const stageNum = session.currentStageNumber;
+      const stageName = STAGE_NAMES[stage];
 
-    outputInfo(`\n--- Stage ${stageNum}/${stageCount}: ${stageName} ---\n`);
+      outputInfo(`\n--- Stage ${stageNum}/${stageCount}: ${stageName} ---\n`);
 
-    // Stage dispatch -- implementations will be added by subsequent work items
-    switch (stage) {
-      case "define": {
-        // Stage 1: Define Your Palette (TF-0MM8S0Y021PI6KW1, TF-0MM8S17RQ0U4Y4H1)
-        const defineResult = await runDefineStage(session);
-        if (defineResult === "quit") {
-          outputInfo("\nWizard cancelled. Goodbye!\n");
+      // Stage dispatch -- implementations will be added by subsequent work items
+      switch (stage) {
+        case "define": {
+          // Stage 1: Define Your Palette (TF-0MM8S0Y021PI6KW1, TF-0MM8S17RQ0U4Y4H1)
+          const defineResult = await runDefineStage(session);
+          if (defineResult === "quit") {
+            outputInfo("\nWizard cancelled. Goodbye!\n");
+            return 0;
+          }
+          // defineResult === "advance" -- move to next stage
+          session.advance();
+          break;
+        }
+
+        case "explore": {
+          // Stage 2: Explore & Audition (TF-0MM8S1JZX1GYYQT0, TF-0MM8S1W4C0NQ1CW6)
+          const exploreResult = await runExploreStage(session);
+          if (exploreResult === "back") {
+            session.goBack();
+            break;
+          }
+          // exploreResult === "advance" -- move to next stage
+          session.advance();
+          break;
+        }
+
+        case "review": {
+          // Stage 3: Review & Refine (TF-0MM8S29GD0JJ1WTC)
+          const reviewResult = await runReviewStage(session);
+          if (reviewResult === "back") {
+            session.goBack();
+            break;
+          }
+          // reviewResult === "advance" -- move to next stage
+          session.advance();
+          break;
+        }
+
+        case "export": {
+          // Stage 4: Export (TF-0MM8S2LKQ1WM38F4)
+          const exportResult = await runExportStage(session);
+          if (exportResult === "back") {
+            session.goBack();
+            break;
+          }
+          // exportResult === "advance" -- wizard complete
+          outputInfo("\nThank you for using ToneForge Sound Palette Builder!\n");
           return 0;
         }
-        // defineResult === "advance" -- move to next stage
-        session.advance();
-        break;
-      }
 
-      case "explore": {
-        // Stage 2: Explore & Audition (TF-0MM8S1JZX1GYYQT0, TF-0MM8S1W4C0NQ1CW6)
-        const exploreResult = await runExploreStage(session);
-        if (exploreResult === "back") {
-          session.goBack();
-          break;
+        default: {
+          // Exhaustive check -- should never reach here
+          const _exhaustive: never = stage;
+          outputError(`Unknown stage: ${_exhaustive}`);
+          return 1;
         }
-        // exploreResult === "advance" -- move to next stage
-        session.advance();
-        break;
-      }
-
-      case "review": {
-        // Stage 3: Review & Refine (TF-0MM8S29GD0JJ1WTC)
-        const reviewResult = await runReviewStage(session);
-        if (reviewResult === "back") {
-          session.goBack();
-          break;
-        }
-        // reviewResult === "advance" -- move to next stage
-        session.advance();
-        break;
-      }
-
-      case "export": {
-        // Stage 4: Export (TF-0MM8S2LKQ1WM38F4)
-        const exportResult = await runExportStage(session);
-        if (exportResult === "back") {
-          session.goBack();
-          break;
-        }
-        // exportResult === "advance" -- wizard complete
-        outputInfo("\nThank you for using ToneForge Sound Palette Builder!\n");
-        return 0;
-      }
-
-      default: {
-        // Exhaustive check -- should never reach here
-        const _exhaustive: never = stage;
-        outputError(`Unknown stage: ${_exhaustive}`);
-        return 1;
       }
     }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    outputError(`\nWizard encountered an unexpected error: ${message}\n`);
+    outputError("Please report this issue at https://github.com/anomalyco/ToneForge/issues\n");
+    return 1;
   }
 }

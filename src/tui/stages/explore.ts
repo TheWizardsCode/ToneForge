@@ -419,7 +419,7 @@ export async function playCandidate(candidate: ExploreCandidate): Promise<void> 
     outputInfo("Playback complete.");
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    outputError(`Playback failed for seed ${candidate.seed}: ${msg}`);
+    outputError(`Playback failed for "${candidate.recipe}" (seed ${candidate.seed}): ${msg}`);
   }
 }
 
