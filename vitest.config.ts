@@ -9,5 +9,6 @@ export default defineConfig({
       "**/*.e2e.test.*",
       "web/**",
     ],
+    setupFiles: ["<rootDir>/test/setup-reset-globals.ts"],
   },
 });
