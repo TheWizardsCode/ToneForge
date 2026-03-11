@@ -23,7 +23,7 @@ export const FRAMEWORK_COMMANDS = [
 const MIGRATED_COMMANDS = new Set(FRAMEWORK_COMMANDS);
 
 async function runLegacy(argv: string[]): Promise<number> {
-  // Legacy core was removed as part of cleanup. Use a runtime-safe dynamic import
+  // Legacy runtime is loaded dynamically so this wrapper can preserve behavior
   // which will attempt to load a built artifact if present under dist/, otherwise
   // short-circuit with an explanatory error code.
   // We must avoid static import errors during tsc. Use dynamic import with a relative
@@ -33,8 +33,8 @@ async function runLegacy(argv: string[]): Promise<number> {
 
   // Prefer loading the source sibling during test runs so that test-time mocks
   // (vitest/vi.mock) and module identity match the modules imported by tests.
-  const builtPath = "../dist/cli.core.js";
-  const runtimePath = "./cli.core.js";
+  const builtPath = "../dist/cli.runtime.js";
+  const runtimePath = "./cli.runtime.js";
 
   // Prefer the source sibling by default so runtime module identity aligns
   // with test mocks and source imports. Falling back to dist only if the
@@ -46,7 +46,7 @@ async function runLegacy(argv: string[]): Promise<number> {
       const coreMod = await import(p as string);
       const core = (coreMod as unknown) as LegacyCore;
       // Avoid calling back into our own migrated yargsMain shim which would
-      // create a recursive loop (cli.yargs -> runLegacy -> cli.core.js ->
+       // create a recursive loop (cli.yargs -> runLegacy -> cli.runtime.js ->
       // yargsMain -> runLegacy ...). If the imported module's main is the
       // same function reference as our yargsMain, skip it.
       // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
