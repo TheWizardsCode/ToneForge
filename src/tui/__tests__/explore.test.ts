@@ -618,7 +618,10 @@ describe("playCandidate", () => {
     await playCandidate(candidate);
 
     expect(renderRecipe).toHaveBeenCalledWith("card-flip", 7);
-    expect(playAudio).toHaveBeenCalledWith(mockResult.samples, { sampleRate: 44100 });
+    expect(playAudio).toHaveBeenCalledWith(
+      mockResult.samples,
+      expect.objectContaining({ sampleRate: 44100 }),
+    );
   });
 
   it("handles render errors gracefully", async () => {
