@@ -22,6 +22,7 @@ import { sweep, mutate, defaultConcurrency } from "../../explore/sweep.js";
 import { rankCandidates, keepTopN } from "../../explore/ranking.js";
 import { renderRecipe } from "../../core/renderer.js";
 import { playAudio } from "../../audio/player.js";
+import type { PlaybackLifecycleHooks } from "../../audio/player.js";
 import type {
   ExploreCandidate,
   SweepConfig,
@@ -33,6 +34,7 @@ import { VALID_RANK_METRICS } from "../../explore/types.js";
 import { outputInfo, outputError, outputSuccess } from "../../output.js";
 import type { WizardSession } from "../state.js";
 import type { ManifestEntry, CandidateSelection, SweepCache } from "../types.js";
+import { trackProcess, trackTempFile, untrackTempFile } from "../cleanup.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -46,6 +48,13 @@ const SEED_END = 19;
 
 /** Number of top candidates to keep per recipe. */
 const KEEP_TOP = 5;
+
+/** Lifecycle hooks that wire playAudio into the TUI cleanup handler. */
+const cleanupHooks: PlaybackLifecycleHooks = {
+  onProcessSpawned: trackProcess,
+  onTempFileCreated: trackTempFile,
+  onTempFileRemoved: untrackTempFile,
+};
 
 /** Default rank metrics used for composite scoring. */
 const DEFAULT_RANK_METRICS: RankMetric[] = [
@@ -415,11 +424,11 @@ export async function playCandidate(candidate: ExploreCandidate): Promise<void> 
   try {
     outputInfo(`Playing "${candidate.recipe}" at seed ${candidate.seed}...`);
     const result = await renderRecipe(candidate.recipe, candidate.seed);
-    await playAudio(result.samples, { sampleRate: result.sampleRate });
+    await playAudio(result.samples, { sampleRate: result.sampleRate, lifecycle: cleanupHooks });
     outputInfo("Playback complete.");
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    outputError(`Playback failed for seed ${candidate.seed}: ${msg}`);
+    outputError(`Playback failed for "${candidate.recipe}" (seed ${candidate.seed}): ${msg}`);
   }
 }
 

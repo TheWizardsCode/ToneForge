@@ -317,7 +317,14 @@ export async function runExportStage(
   });
 
   const manifestPath = join(outputDir, "manifest.json");
-  await writeFile(manifestPath, JSON.stringify(manifestEntries, null, 2));
+  try {
+    await writeFile(manifestPath, JSON.stringify(manifestEntries, null, 2));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    outputError(
+      `  Failed to write manifest to "${manifestPath}": ${message}`,
+    );
+  }
 
   // 6. Display summary
   const exported = successfulResults.length;

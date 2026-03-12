@@ -17,12 +17,21 @@ import type { RecipeDetailedSummary, RecipeFilterQuery } from "../../core/recipe
 import { registry } from "../../recipes/index.js";
 import { renderRecipe } from "../../core/renderer.js";
 import { playAudio } from "../../audio/player.js";
+import type { PlaybackLifecycleHooks } from "../../audio/player.js";
 import { outputInfo, outputError, outputSuccess } from "../../output.js";
 import type { WizardSession } from "../state.js";
 import type { ManifestEntry } from "../types.js";
+import { trackProcess, trackTempFile, untrackTempFile } from "../cleanup.js";
 
 /** Default seed for recipe preview playback. */
 const PREVIEW_SEED = 0;
+
+/** Lifecycle hooks that wire playAudio into the TUI cleanup handler. */
+const cleanupHooks: PlaybackLifecycleHooks = {
+  onProcessSpawned: trackProcess,
+  onTempFileCreated: trackTempFile,
+  onTempFileRemoved: untrackTempFile,
+};
 
 // ---------------------------------------------------------------------------
 // Pure helpers (easily testable)
@@ -354,7 +363,7 @@ export async function previewRecipe(recipeName: string): Promise<void> {
     outputInfo(`Rendering "${recipeName}" at seed ${PREVIEW_SEED}...`);
     const result = await renderRecipe(recipeName, PREVIEW_SEED);
     outputInfo("Playing preview...");
-    await playAudio(result.samples, { sampleRate: result.sampleRate });
+    await playAudio(result.samples, { sampleRate: result.sampleRate, lifecycle: cleanupHooks });
     outputInfo("Preview complete.");
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

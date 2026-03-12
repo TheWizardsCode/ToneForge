@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { yargsMain } from "./cli.yargs.js";
-export { truncateTags } from "./cli.runtime.js";
+export { truncateTags } from "./cli/helpers.js";
 
 export async function main(argv: string[] = process.argv): Promise<number> {
   return yargsMain(argv);

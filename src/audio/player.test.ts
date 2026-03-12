@@ -308,6 +308,107 @@ describe("player", () => {
   });
 
   // -----------------------------------------------------------------------
+  // Lifecycle hooks
+  // -----------------------------------------------------------------------
+  describe("lifecycle hooks", () => {
+    it("calls onProcessSpawned on the stdin path", async () => {
+      setAvailableCommands("paplay");
+
+      const child = fakeChild();
+      mockSpawn.mockReturnValue(child);
+
+      const onProcessSpawned = vi.fn();
+      const promise = playAudio(samples, {
+        lifecycle: { onProcessSpawned },
+      });
+
+      expect(onProcessSpawned).toHaveBeenCalledOnce();
+      expect(onProcessSpawned).toHaveBeenCalledWith(child);
+
+      child.emit("close", 0);
+      await promise;
+    });
+
+    it("calls onProcessSpawned on the temp-file path", async () => {
+      setAvailableCommands("play"); // sox — not in STDIN_PLAYERS
+
+      const execChild = fakeChild();
+      mockExecFile.mockImplementation(
+        (_cmd: string, _args: string[], cb: (err: Error | null) => void) => {
+          cb(null);
+          return execChild;
+        },
+      );
+
+      const onProcessSpawned = vi.fn();
+      await playAudio(samples, {
+        lifecycle: { onProcessSpawned },
+      });
+
+      expect(onProcessSpawned).toHaveBeenCalledOnce();
+      expect(onProcessSpawned).toHaveBeenCalledWith(execChild);
+    });
+
+    it("calls onTempFileCreated and onTempFileRemoved on the temp-file path", async () => {
+      setAvailableCommands("play"); // sox — not in STDIN_PLAYERS
+
+      mockExecFile.mockImplementation(
+        (_cmd: string, _args: string[], cb: (err: Error | null) => void) => {
+          cb(null);
+        },
+      );
+
+      const onTempFileCreated = vi.fn();
+      const onTempFileRemoved = vi.fn();
+      await playAudio(samples, {
+        lifecycle: { onTempFileCreated, onTempFileRemoved },
+      });
+
+      expect(onTempFileCreated).toHaveBeenCalledOnce();
+      const createdPath = onTempFileCreated.mock.calls[0]![0] as string;
+      expect(createdPath).toMatch(/toneforge-[0-9a-f]+\.wav$/);
+
+      expect(onTempFileRemoved).toHaveBeenCalledOnce();
+      expect(onTempFileRemoved).toHaveBeenCalledWith(createdPath);
+    });
+
+    it("calls onTempFileRemoved even when playback fails", async () => {
+      setAvailableCommands("play"); // sox
+
+      mockExecFile.mockImplementation(
+        (_cmd: string, _args: string[], cb: (err: Error | null) => void) => {
+          cb(new Error("crash"));
+        },
+      );
+
+      const onTempFileCreated = vi.fn();
+      const onTempFileRemoved = vi.fn();
+      await expect(
+        playAudio(samples, {
+          lifecycle: { onTempFileCreated, onTempFileRemoved },
+        }),
+      ).rejects.toThrow("Audio playback failed");
+
+      // Temp file should still be cleaned up and hook notified
+      expect(onTempFileRemoved).toHaveBeenCalledOnce();
+      expect(onTempFileRemoved).toHaveBeenCalledWith(
+        onTempFileCreated.mock.calls[0]![0],
+      );
+    });
+
+    it("does not error when no lifecycle hooks are provided", async () => {
+      setAvailableCommands("paplay");
+
+      const child = fakeChild();
+      mockSpawn.mockReturnValue(child);
+
+      const promise = playAudio(samples); // no lifecycle option
+      child.emit("close", 0);
+      await promise; // should not throw
+    });
+  });
+
+  // -----------------------------------------------------------------------
   // getPlayerCommand
   // -----------------------------------------------------------------------
   describe("getPlayerCommand", () => {
