@@ -1,0 +1,45 @@
+{
+  "name": "treasure_event",
+  "seed": 42,
+  "sampleRate": 44100,
+  "totalDuration": 1.1,
+  "totalDuration_ms": 1100,
+  "events": [
+    {
+      "time_ms": 0,
+      "sampleOffset": 0,
+      "event": "card-flip",
+      "seedOffset": 0,
+      "eventSeed": 42,
+      "gain": 0.9,
+      "repetition": 0
+    },
+    {
+      "time_ms": 300,
+      "sampleOffset": 13230,
+      "event": "card-treasure-reveal",
+      "seedOffset": 1,
+      "eventSeed": 43,
+      "gain": 1,
+      "repetition": 0
+    },
+    {
+      "time_ms": 800,
+      "sampleOffset": 35280,
+      "event": "card-coin-collect-hybrid",
+      "seedOffset": 2,
+      "eventSeed": 44,
+      "gain": 1,
+      "repetition": 0
+    },
+    {
+      "time_ms": 1100,
+      "sampleOffset": 48510,
+      "event": "card-token-earn",
+      "seedOffset": 3,
+      "eventSeed": 45,
+      "gain": 0.75,
+      "repetition": 0
+    }
+  ]
+}

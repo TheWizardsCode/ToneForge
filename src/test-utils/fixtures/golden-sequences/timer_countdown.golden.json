@@ -1,0 +1,81 @@
+{
+  "name": "timer_countdown",
+  "seed": 42,
+  "sampleRate": 44100,
+  "totalDuration": 2.25,
+  "totalDuration_ms": 2250,
+  "events": [
+    {
+      "time_ms": 0,
+      "sampleOffset": 0,
+      "event": "card-timer-warning",
+      "seedOffset": 0,
+      "eventSeed": 42,
+      "gain": 1,
+      "repetition": 0
+    },
+    {
+      "time_ms": 500,
+      "sampleOffset": 22050,
+      "event": "card-timer-tick",
+      "seedOffset": 1,
+      "eventSeed": 43,
+      "gain": 0.9,
+      "repetition": 0
+    },
+    {
+      "time_ms": 750,
+      "sampleOffset": 33075,
+      "event": "card-timer-tick",
+      "seedOffset": 2,
+      "eventSeed": 44,
+      "gain": 0.95,
+      "repetition": 0
+    },
+    {
+      "time_ms": 1000,
+      "sampleOffset": 44100,
+      "event": "card-timer-tick",
+      "seedOffset": 3,
+      "eventSeed": 45,
+      "gain": 1,
+      "repetition": 0
+    },
+    {
+      "time_ms": 1250,
+      "sampleOffset": 55125,
+      "event": "card-timer-warning",
+      "seedOffset": 0,
+      "eventSeed": 42,
+      "gain": 1,
+      "repetition": 1
+    },
+    {
+      "time_ms": 1750,
+      "sampleOffset": 77175,
+      "event": "card-timer-tick",
+      "seedOffset": 1,
+      "eventSeed": 43,
+      "gain": 0.9,
+      "repetition": 1
+    },
+    {
+      "time_ms": 2000,
+      "sampleOffset": 88200,
+      "event": "card-timer-tick",
+      "seedOffset": 2,
+      "eventSeed": 44,
+      "gain": 0.95,
+      "repetition": 1
+    },
+    {
+      "time_ms": 2250,
+      "sampleOffset": 99225,
+      "event": "card-timer-tick",
+      "seedOffset": 3,
+      "eventSeed": 45,
+      "gain": 1,
+      "repetition": 1
+    }
+  ]
+}

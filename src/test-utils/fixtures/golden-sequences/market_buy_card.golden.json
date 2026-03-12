@@ -1,0 +1,45 @@
+{
+  "name": "market_buy_card",
+  "seed": 42,
+  "sampleRate": 44100,
+  "totalDuration": 0.65,
+  "totalDuration_ms": 650,
+  "events": [
+    {
+      "time_ms": 0,
+      "sampleOffset": 0,
+      "event": "card-coin-spend",
+      "seedOffset": 0,
+      "eventSeed": 42,
+      "gain": 1,
+      "repetition": 0
+    },
+    {
+      "time_ms": 300,
+      "sampleOffset": 13230,
+      "event": "card-slide",
+      "seedOffset": 1,
+      "eventSeed": 43,
+      "gain": 0.9,
+      "repetition": 0
+    },
+    {
+      "time_ms": 500,
+      "sampleOffset": 22050,
+      "event": "card-place",
+      "seedOffset": 2,
+      "eventSeed": 44,
+      "gain": 0.85,
+      "repetition": 0
+    },
+    {
+      "time_ms": 650,
+      "sampleOffset": 28665,
+      "event": "card-success",
+      "seedOffset": 3,
+      "eventSeed": 45,
+      "gain": 0.7,
+      "repetition": 0
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "version": "1.0",
+  "name": "market_buy_event",
+  "description": "Market purchase event: coin spend layered with chip-stack rattle for a rich transactional feel.",
+  "layers": [
+    {
+      "recipe": "card-coin-spend",
+      "startTime": 0,
+      "gain": 1.0
+    },
+    {
+      "recipe": "card-chip-stack",
+      "startTime": 0.06,
+      "gain": 0.8
+    },
+    {
+      "recipe": "card-slide",
+      "startTime": 0.15,
+      "gain": 0.65
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "name": "market_game_setup",
+  "seed": 42,
+  "sampleRate": 44100,
+  "totalDuration": 1.4,
+  "totalDuration_ms": 1400,
+  "events": [
+    {
+      "time_ms": 0,
+      "sampleOffset": 0,
+      "event": "card-table-ambience",
+      "seedOffset": 0,
+      "eventSeed": 42,
+      "gain": 0.5,
+      "repetition": 0
+    },
+    {
+      "time_ms": 200,
+      "sampleOffset": 8820,
+      "event": "card-shuffle",
+      "seedOffset": 1,
+      "eventSeed": 43,
+      "gain": 1,
+      "repetition": 0
+    },
+    {
+      "time_ms": 900,
+      "sampleOffset": 39690,
+      "event": "card-fan",
+      "seedOffset": 2,
+      "eventSeed": 44,
+      "gain": 0.85,
+      "repetition": 0
+    },
+    {
+      "time_ms": 1400,
+      "sampleOffset": 61740,
+      "event": "card-deck-presence",
+      "seedOffset": 3,
+      "eventSeed": 45,
+      "gain": 0.6,
+      "repetition": 0
+    }
+  ]
+}

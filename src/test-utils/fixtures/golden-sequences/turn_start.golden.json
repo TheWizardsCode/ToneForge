@@ -1,0 +1,36 @@
+{
+  "name": "turn_start",
+  "seed": 42,
+  "sampleRate": 44100,
+  "totalDuration": 0.5,
+  "totalDuration_ms": 500,
+  "events": [
+    {
+      "time_ms": 0,
+      "sampleOffset": 0,
+      "event": "card-flip",
+      "seedOffset": 0,
+      "eventSeed": 42,
+      "gain": 1,
+      "repetition": 0
+    },
+    {
+      "time_ms": 250,
+      "sampleOffset": 11025,
+      "event": "card-draw",
+      "seedOffset": 1,
+      "eventSeed": 43,
+      "gain": 0.9,
+      "repetition": 0
+    },
+    {
+      "time_ms": 500,
+      "sampleOffset": 22050,
+      "event": "card-deck-presence",
+      "seedOffset": 2,
+      "eventSeed": 44,
+      "gain": 0.55,
+      "repetition": 0
+    }
+  ]
+}

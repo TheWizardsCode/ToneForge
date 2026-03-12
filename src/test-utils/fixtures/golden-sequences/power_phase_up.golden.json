@@ -1,0 +1,45 @@
+{
+  "name": "power_phase_up",
+  "seed": 42,
+  "sampleRate": 44100,
+  "totalDuration": 0.75,
+  "totalDuration_ms": 750,
+  "events": [
+    {
+      "time_ms": 0,
+      "sampleOffset": 0,
+      "event": "card-power-up",
+      "seedOffset": 0,
+      "eventSeed": 42,
+      "gain": 1,
+      "repetition": 0
+    },
+    {
+      "time_ms": 300,
+      "sampleOffset": 13230,
+      "event": "card-glow",
+      "seedOffset": 1,
+      "eventSeed": 43,
+      "gain": 0.85,
+      "repetition": 0
+    },
+    {
+      "time_ms": 550,
+      "sampleOffset": 24255,
+      "event": "card-lock",
+      "seedOffset": 2,
+      "eventSeed": 44,
+      "gain": 0.9,
+      "repetition": 0
+    },
+    {
+      "time_ms": 750,
+      "sampleOffset": 33075,
+      "event": "card-success",
+      "seedOffset": 3,
+      "eventSeed": 45,
+      "gain": 0.7,
+      "repetition": 0
+    }
+  ]
+}

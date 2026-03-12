@@ -1,0 +1,36 @@
+{
+  "name": "market_sell_card",
+  "seed": 42,
+  "sampleRate": 44100,
+  "totalDuration": 0.38,
+  "totalDuration_ms": 380,
+  "events": [
+    {
+      "time_ms": 0,
+      "sampleOffset": 0,
+      "event": "card-flip",
+      "seedOffset": 0,
+      "eventSeed": 42,
+      "gain": 1,
+      "repetition": 0
+    },
+    {
+      "time_ms": 200,
+      "sampleOffset": 8820,
+      "event": "card-discard",
+      "seedOffset": 1,
+      "eventSeed": 43,
+      "gain": 0.85,
+      "repetition": 0
+    },
+    {
+      "time_ms": 380,
+      "sampleOffset": 16758,
+      "event": "card-coin-collect",
+      "seedOffset": 2,
+      "eventSeed": 44,
+      "gain": 1,
+      "repetition": 0
+    }
+  ]
+}

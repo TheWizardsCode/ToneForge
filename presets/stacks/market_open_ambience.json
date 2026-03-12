@@ -1,0 +1,22 @@
+{
+  "version": "1.0",
+  "name": "market_open_ambience",
+  "description": "Market opening ambience: layered table atmosphere with coin activity to establish the market-street scene.",
+  "layers": [
+    {
+      "recipe": "card-table-ambience",
+      "startTime": 0,
+      "gain": 0.6
+    },
+    {
+      "recipe": "card-deck-presence",
+      "startTime": 0.05,
+      "gain": 0.5
+    },
+    {
+      "recipe": "card-coin-collect",
+      "startTime": 0.15,
+      "gain": 0.45
+    }
+  ]
+}

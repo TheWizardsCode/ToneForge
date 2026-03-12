@@ -1,0 +1,45 @@
+{
+  "name": "victory_resolution",
+  "seed": 42,
+  "sampleRate": 44100,
+  "totalDuration": 1.2,
+  "totalDuration_ms": 1200,
+  "events": [
+    {
+      "time_ms": 0,
+      "sampleOffset": 0,
+      "event": "card-success",
+      "seedOffset": 0,
+      "eventSeed": 42,
+      "gain": 1,
+      "repetition": 0
+    },
+    {
+      "time_ms": 300,
+      "sampleOffset": 13230,
+      "event": "card-victory-fanfare",
+      "seedOffset": 1,
+      "eventSeed": 43,
+      "gain": 1,
+      "repetition": 0
+    },
+    {
+      "time_ms": 900,
+      "sampleOffset": 39690,
+      "event": "card-coin-collect-hybrid",
+      "seedOffset": 2,
+      "eventSeed": 44,
+      "gain": 0.8,
+      "repetition": 0
+    },
+    {
+      "time_ms": 1200,
+      "sampleOffset": 52920,
+      "event": "card-treasure-reveal",
+      "seedOffset": 3,
+      "eventSeed": 45,
+      "gain": 0.7,
+      "repetition": 0
+    }
+  ]
+}

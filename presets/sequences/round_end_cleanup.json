@@ -1,0 +1,32 @@
+{
+  "version": "1.0",
+  "name": "round_end_cleanup",
+  "description": "End-of-round cleanup: round complete chime, cards return to deck, deck shuffled for next round.",
+  "events": [
+    {
+      "time": 0,
+      "event": "card-round-complete",
+      "seedOffset": 0,
+      "gain": 1.0
+    },
+    {
+      "time": 0.4,
+      "event": "card-return-to-deck",
+      "seedOffset": 1,
+      "gain": 0.8
+    },
+    {
+      "time": 0.6,
+      "event": "card-return-to-deck",
+      "seedOffset": 2,
+      "gain": 0.75,
+      "probability": 0.85
+    },
+    {
+      "time": 0.85,
+      "event": "card-shuffle",
+      "seedOffset": 3,
+      "gain": 0.9
+    }
+  ]
+}

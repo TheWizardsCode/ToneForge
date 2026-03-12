@@ -1,0 +1,38 @@
+{
+  "version": "1.0",
+  "name": "market_event_surge",
+  "description": "A market event card triggers a sudden price surge: event announcement followed by economic activity.",
+  "events": [
+    {
+      "time": 0,
+      "event": "card-flip",
+      "seedOffset": 0,
+      "gain": 1.0
+    },
+    {
+      "time": 0.25,
+      "event": "card-match",
+      "seedOffset": 1,
+      "gain": 0.95
+    },
+    {
+      "time": 0.5,
+      "event": "card-multiplier-up",
+      "seedOffset": 2,
+      "gain": 0.9
+    },
+    {
+      "time": 0.7,
+      "event": "card-coin-collect",
+      "seedOffset": 3,
+      "gain": 0.85,
+      "probability": 0.85
+    },
+    {
+      "time": 0.9,
+      "event": "card-table-ambience",
+      "seedOffset": 4,
+      "gain": 0.4
+    }
+  ]
+}

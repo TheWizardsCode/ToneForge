@@ -1,0 +1,32 @@
+{
+  "version": "1.0",
+  "name": "treasure_event",
+  "description": "Treasure card revealed from the market: dramatic reveal followed by coin reward.",
+  "events": [
+    {
+      "time": 0,
+      "event": "card-flip",
+      "seedOffset": 0,
+      "gain": 0.9
+    },
+    {
+      "time": 0.3,
+      "event": "card-treasure-reveal",
+      "seedOffset": 1,
+      "gain": 1.0
+    },
+    {
+      "time": 0.8,
+      "event": "card-coin-collect-hybrid",
+      "seedOffset": 2,
+      "gain": 1.0
+    },
+    {
+      "time": 1.1,
+      "event": "card-token-earn",
+      "seedOffset": 3,
+      "gain": 0.75,
+      "probability": 0.9
+    }
+  ]
+}

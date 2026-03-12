@@ -1,0 +1,32 @@
+{
+  "version": "1.0",
+  "name": "market_sell_card",
+  "description": "Player sells a card back to the market to collect coins: flip card, receive coin payout.",
+  "events": [
+    {
+      "time": 0,
+      "event": "card-flip",
+      "seedOffset": 0,
+      "gain": 1.0
+    },
+    {
+      "time": 0.2,
+      "event": "card-discard",
+      "seedOffset": 1,
+      "gain": 0.85
+    },
+    {
+      "time": 0.38,
+      "event": "card-coin-collect",
+      "seedOffset": 2,
+      "gain": 1.0
+    },
+    {
+      "time": 0.6,
+      "event": "card-chip-stack",
+      "seedOffset": 3,
+      "gain": 0.6,
+      "probability": 0.8
+    }
+  ]
+}

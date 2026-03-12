@@ -1,0 +1,34 @@
+{
+  "version": "1.0",
+  "name": "discard_phase",
+  "description": "End-of-turn discard phase: player discards excess cards down to hand limit.",
+  "events": [
+    {
+      "time": 0,
+      "event": "card-discard",
+      "seedOffset": 0,
+      "gain": 1.0
+    },
+    {
+      "time": 0.2,
+      "event": "card-discard",
+      "seedOffset": 1,
+      "gain": 0.9,
+      "probability": 0.9
+    },
+    {
+      "time": 0.4,
+      "event": "card-discard",
+      "seedOffset": 2,
+      "gain": 0.85,
+      "probability": 0.7
+    },
+    {
+      "time": 0.65,
+      "event": "card-return-to-deck",
+      "seedOffset": 3,
+      "gain": 0.55,
+      "probability": 0.6
+    }
+  ]
+}

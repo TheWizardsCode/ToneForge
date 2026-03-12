@@ -1,0 +1,22 @@
+{
+  "version": "1.0",
+  "name": "treasure_reveal_moment",
+  "description": "Treasure card reveal: layered reveal shimmer with hybrid coin cascade for high-impact market discovery.",
+  "layers": [
+    {
+      "recipe": "card-treasure-reveal",
+      "startTime": 0,
+      "gain": 1.0
+    },
+    {
+      "recipe": "card-glow",
+      "startTime": 0.1,
+      "gain": 0.7
+    },
+    {
+      "recipe": "card-coin-collect-hybrid",
+      "startTime": 0.25,
+      "gain": 0.9
+    }
+  ]
+}

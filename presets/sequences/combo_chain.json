@@ -1,0 +1,37 @@
+{
+  "version": "1.0",
+  "name": "combo_chain",
+  "description": "Combo chain activation: rapid successive combo hits build into a multiplier bonus.",
+  "events": [
+    {
+      "time": 0,
+      "event": "card-combo-hit",
+      "seedOffset": 0,
+      "gain": 1.0
+    },
+    {
+      "time": 0.15,
+      "event": "card-combo-hit",
+      "seedOffset": 1,
+      "gain": 1.05
+    },
+    {
+      "time": 0.3,
+      "event": "card-combo-hit",
+      "seedOffset": 2,
+      "gain": 1.1
+    },
+    {
+      "time": 0.5,
+      "event": "card-multiplier-up",
+      "seedOffset": 3,
+      "gain": 1.0
+    },
+    {
+      "time": 0.7,
+      "event": "card-success",
+      "seedOffset": 4,
+      "gain": 0.9
+    }
+  ]
+}

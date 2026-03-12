@@ -1,0 +1,36 @@
+{
+  "name": "tableau_play_card",
+  "seed": 42,
+  "sampleRate": 44100,
+  "totalDuration": 0.35,
+  "totalDuration_ms": 350,
+  "events": [
+    {
+      "time_ms": 0,
+      "sampleOffset": 0,
+      "event": "card-slide",
+      "seedOffset": 0,
+      "eventSeed": 42,
+      "gain": 1,
+      "repetition": 0
+    },
+    {
+      "time_ms": 220,
+      "sampleOffset": 9702,
+      "event": "card-place",
+      "seedOffset": 1,
+      "eventSeed": 43,
+      "gain": 0.95,
+      "repetition": 0
+    },
+    {
+      "time_ms": 350,
+      "sampleOffset": 15435,
+      "event": "card-glow",
+      "seedOffset": 2,
+      "eventSeed": 44,
+      "gain": 0.6,
+      "repetition": 0
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "version": "1.0",
+  "name": "victory_fanfare_stack",
+  "description": "Victory fanfare stack: full victory fanfare layered with round-complete and coin cascade for maximum impact.",
+  "layers": [
+    {
+      "recipe": "card-victory-fanfare",
+      "startTime": 0,
+      "gain": 1.0
+    },
+    {
+      "recipe": "card-round-complete",
+      "startTime": 0.05,
+      "gain": 0.65
+    },
+    {
+      "recipe": "card-coin-collect-hybrid",
+      "startTime": 0.2,
+      "gain": 0.7
+    }
+  ]
+}

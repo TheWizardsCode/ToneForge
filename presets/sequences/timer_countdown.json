@@ -1,0 +1,36 @@
+{
+  "version": "1.0",
+  "name": "timer_countdown",
+  "description": "Turn timer approaching expiry: warning tick followed by rapid countdown ticks.",
+  "tempo": 120,
+  "events": [
+    {
+      "time": 0,
+      "event": "card-timer-warning",
+      "seedOffset": 0,
+      "gain": 1.0
+    },
+    {
+      "time": 0.5,
+      "event": "card-timer-tick",
+      "seedOffset": 1,
+      "gain": 0.9
+    },
+    {
+      "time": 0.75,
+      "event": "card-timer-tick",
+      "seedOffset": 2,
+      "gain": 0.95
+    },
+    {
+      "time": 1.0,
+      "event": "card-timer-tick",
+      "seedOffset": 3,
+      "gain": 1.0
+    }
+  ],
+  "repeat": {
+    "count": 1,
+    "interval": 1.25
+  }
+}
