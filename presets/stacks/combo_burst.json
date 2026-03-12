@@ -1,0 +1,22 @@
+{
+  "version": "1.0",
+  "name": "combo_burst",
+  "description": "Explosive combo moment: combo hit layered with a multiplier surge and success chime.",
+  "layers": [
+    {
+      "recipe": "card-combo-hit",
+      "startTime": 0,
+      "gain": 1.0
+    },
+    {
+      "recipe": "card-multiplier-up",
+      "startTime": 0.05,
+      "gain": 0.85
+    },
+    {
+      "recipe": "card-success",
+      "startTime": 0.15,
+      "gain": 0.75
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "version": "1.0",
+  "name": "card_burn_stack",
+  "description": "Card burn event: burn effect layered with power-down to signal permanent card removal from the market.",
+  "layers": [
+    {
+      "recipe": "card-burn",
+      "startTime": 0,
+      "gain": 1.0
+    },
+    {
+      "recipe": "card-power-down",
+      "startTime": 0.1,
+      "gain": 0.75
+    },
+    {
+      "recipe": "card-discard",
+      "startTime": 0.2,
+      "gain": 0.6
+    }
+  ]
+}

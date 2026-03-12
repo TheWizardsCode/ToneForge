@@ -1,0 +1,43 @@
+{
+  "version": "1.0",
+  "name": "deal_opening_hand",
+  "description": "Dealer draws and places five cards to form a player's opening hand at game start.",
+  "events": [
+    {
+      "time": 0,
+      "event": "card-draw",
+      "seedOffset": 0,
+      "gain": 1.0
+    },
+    {
+      "time": 0.18,
+      "event": "card-draw",
+      "seedOffset": 1,
+      "gain": 0.95
+    },
+    {
+      "time": 0.36,
+      "event": "card-draw",
+      "seedOffset": 2,
+      "gain": 0.95
+    },
+    {
+      "time": 0.54,
+      "event": "card-draw",
+      "seedOffset": 3,
+      "gain": 0.9
+    },
+    {
+      "time": 0.72,
+      "event": "card-draw",
+      "seedOffset": 4,
+      "gain": 0.9
+    },
+    {
+      "time": 0.9,
+      "event": "card-fan",
+      "seedOffset": 5,
+      "gain": 0.75
+    }
+  ]
+}

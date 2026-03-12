@@ -1,0 +1,22 @@
+{
+  "version": "1.0",
+  "name": "round_complete_sting",
+  "description": "Round complete sting: round-complete chime layered with a success accent for end-of-round punctuation.",
+  "layers": [
+    {
+      "recipe": "card-round-complete",
+      "startTime": 0,
+      "gain": 1.0
+    },
+    {
+      "recipe": "card-success",
+      "startTime": 0.1,
+      "gain": 0.7
+    },
+    {
+      "recipe": "card-token-earn",
+      "startTime": 0.2,
+      "gain": 0.55
+    }
+  ]
+}

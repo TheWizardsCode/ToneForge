@@ -1,0 +1,45 @@
+{
+  "name": "card_transform_event",
+  "seed": 42,
+  "sampleRate": 44100,
+  "totalDuration": 0.9,
+  "totalDuration_ms": 900,
+  "events": [
+    {
+      "time_ms": 0,
+      "sampleOffset": 0,
+      "event": "card-power-up",
+      "seedOffset": 0,
+      "eventSeed": 42,
+      "gain": 0.85,
+      "repetition": 0
+    },
+    {
+      "time_ms": 350,
+      "sampleOffset": 15435,
+      "event": "card-glow",
+      "seedOffset": 1,
+      "eventSeed": 43,
+      "gain": 0.9,
+      "repetition": 0
+    },
+    {
+      "time_ms": 600,
+      "sampleOffset": 26460,
+      "event": "card-transform",
+      "seedOffset": 2,
+      "eventSeed": 44,
+      "gain": 1,
+      "repetition": 0
+    },
+    {
+      "time_ms": 900,
+      "sampleOffset": 39690,
+      "event": "card-unlock",
+      "seedOffset": 3,
+      "eventSeed": 45,
+      "gain": 0.8,
+      "repetition": 0
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "version": "1.0",
+  "name": "turn_transition_stack",
+  "description": "Turn transition: cards return to deck layered with ambient table presence to signal the next player's turn.",
+  "layers": [
+    {
+      "recipe": "card-return-to-deck",
+      "startTime": 0,
+      "gain": 0.9
+    },
+    {
+      "recipe": "card-flip",
+      "startTime": 0.08,
+      "gain": 0.65
+    },
+    {
+      "recipe": "card-table-ambience",
+      "startTime": 0.15,
+      "gain": 0.4
+    }
+  ]
+}

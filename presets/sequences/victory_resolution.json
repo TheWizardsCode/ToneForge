@@ -1,0 +1,31 @@
+{
+  "version": "1.0",
+  "name": "victory_resolution",
+  "description": "Victory resolution: triumphant fanfare as the winning player claims the market crown.",
+  "events": [
+    {
+      "time": 0,
+      "event": "card-success",
+      "seedOffset": 0,
+      "gain": 1.0
+    },
+    {
+      "time": 0.3,
+      "event": "card-victory-fanfare",
+      "seedOffset": 1,
+      "gain": 1.0
+    },
+    {
+      "time": 0.9,
+      "event": "card-coin-collect-hybrid",
+      "seedOffset": 2,
+      "gain": 0.8
+    },
+    {
+      "time": 1.2,
+      "event": "card-treasure-reveal",
+      "seedOffset": 3,
+      "gain": 0.7
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "version": "1.0",
+  "name": "market_buy_card",
+  "description": "Player spends coins to purchase a card from the market row: spend coins, slide card into hand.",
+  "events": [
+    {
+      "time": 0,
+      "event": "card-coin-spend",
+      "seedOffset": 0,
+      "gain": 1.0
+    },
+    {
+      "time": 0.3,
+      "event": "card-slide",
+      "seedOffset": 1,
+      "gain": 0.9
+    },
+    {
+      "time": 0.5,
+      "event": "card-place",
+      "seedOffset": 2,
+      "gain": 0.85
+    },
+    {
+      "time": 0.65,
+      "event": "card-success",
+      "seedOffset": 3,
+      "gain": 0.7,
+      "probability": 0.9
+    }
+  ]
+}

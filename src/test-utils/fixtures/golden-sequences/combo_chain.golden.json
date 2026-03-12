@@ -1,0 +1,54 @@
+{
+  "name": "combo_chain",
+  "seed": 42,
+  "sampleRate": 44100,
+  "totalDuration": 0.7,
+  "totalDuration_ms": 700,
+  "events": [
+    {
+      "time_ms": 0,
+      "sampleOffset": 0,
+      "event": "card-combo-hit",
+      "seedOffset": 0,
+      "eventSeed": 42,
+      "gain": 1,
+      "repetition": 0
+    },
+    {
+      "time_ms": 150,
+      "sampleOffset": 6615,
+      "event": "card-combo-hit",
+      "seedOffset": 1,
+      "eventSeed": 43,
+      "gain": 1.05,
+      "repetition": 0
+    },
+    {
+      "time_ms": 300,
+      "sampleOffset": 13230,
+      "event": "card-combo-hit",
+      "seedOffset": 2,
+      "eventSeed": 44,
+      "gain": 1.1,
+      "repetition": 0
+    },
+    {
+      "time_ms": 500,
+      "sampleOffset": 22050,
+      "event": "card-multiplier-up",
+      "seedOffset": 3,
+      "eventSeed": 45,
+      "gain": 1,
+      "repetition": 0
+    },
+    {
+      "time_ms": 700,
+      "sampleOffset": 30870,
+      "event": "card-success",
+      "seedOffset": 4,
+      "eventSeed": 46,
+      "gain": 0.9,
+      "repetition": 0
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "version": "1.0",
+  "name": "card_shuffle_deal",
+  "description": "Full shuffle and deal sequence: collect all cards, shuffle the deck, then deal out a fresh market row.",
+  "events": [
+    {
+      "time": 0,
+      "event": "card-return-to-deck",
+      "seedOffset": 0,
+      "gain": 0.8
+    },
+    {
+      "time": 0.2,
+      "event": "card-return-to-deck",
+      "seedOffset": 1,
+      "gain": 0.75,
+      "probability": 0.9
+    },
+    {
+      "time": 0.4,
+      "event": "card-shuffle",
+      "seedOffset": 2,
+      "gain": 1.0
+    },
+    {
+      "time": 1.1,
+      "event": "card-draw",
+      "seedOffset": 3,
+      "gain": 0.9
+    },
+    {
+      "time": 1.28,
+      "event": "card-draw",
+      "seedOffset": 4,
+      "gain": 0.9
+    },
+    {
+      "time": 1.46,
+      "event": "card-draw",
+      "seedOffset": 5,
+      "gain": 0.85
+    },
+    {
+      "time": 1.64,
+      "event": "card-place",
+      "seedOffset": 6,
+      "gain": 0.8
+    }
+  ]
+}

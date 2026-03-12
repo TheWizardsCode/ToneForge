@@ -1,0 +1,32 @@
+{
+  "version": "1.0",
+  "name": "economy_income",
+  "description": "Economy income phase: earn tokens and collect coins from market income sources.",
+  "events": [
+    {
+      "time": 0,
+      "event": "card-token-earn",
+      "seedOffset": 0,
+      "gain": 1.0
+    },
+    {
+      "time": 0.25,
+      "event": "card-coin-collect",
+      "seedOffset": 1,
+      "gain": 0.95
+    },
+    {
+      "time": 0.45,
+      "event": "card-coin-collect",
+      "seedOffset": 2,
+      "gain": 0.85,
+      "probability": 0.8
+    },
+    {
+      "time": 0.65,
+      "event": "card-chip-stack",
+      "seedOffset": 3,
+      "gain": 0.7
+    }
+  ]
+}

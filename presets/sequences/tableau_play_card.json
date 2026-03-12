@@ -1,0 +1,26 @@
+{
+  "version": "1.0",
+  "name": "tableau_play_card",
+  "description": "Player slides a card from hand and places it onto the market tableau.",
+  "events": [
+    {
+      "time": 0,
+      "event": "card-slide",
+      "seedOffset": 0,
+      "gain": 1.0
+    },
+    {
+      "time": 0.22,
+      "event": "card-place",
+      "seedOffset": 1,
+      "gain": 0.95
+    },
+    {
+      "time": 0.35,
+      "event": "card-glow",
+      "seedOffset": 2,
+      "gain": 0.6,
+      "probability": 0.8
+    }
+  ]
+}

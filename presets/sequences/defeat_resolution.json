@@ -1,0 +1,31 @@
+{
+  "version": "1.0",
+  "name": "defeat_resolution",
+  "description": "Defeat resolution: losing sting plays as the market collapses and cards scatter.",
+  "events": [
+    {
+      "time": 0,
+      "event": "card-failure",
+      "seedOffset": 0,
+      "gain": 1.0
+    },
+    {
+      "time": 0.35,
+      "event": "card-defeat-sting",
+      "seedOffset": 1,
+      "gain": 1.0
+    },
+    {
+      "time": 0.9,
+      "event": "card-discard",
+      "seedOffset": 2,
+      "gain": 0.7
+    },
+    {
+      "time": 1.1,
+      "event": "card-combo-break",
+      "seedOffset": 3,
+      "gain": 0.8
+    }
+  ]
+}

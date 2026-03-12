@@ -1,0 +1,72 @@
+{
+  "name": "card_shuffle_deal",
+  "seed": 42,
+  "sampleRate": 44100,
+  "totalDuration": 1.64,
+  "totalDuration_ms": 1640,
+  "events": [
+    {
+      "time_ms": 0,
+      "sampleOffset": 0,
+      "event": "card-return-to-deck",
+      "seedOffset": 0,
+      "eventSeed": 42,
+      "gain": 0.8,
+      "repetition": 0
+    },
+    {
+      "time_ms": 200,
+      "sampleOffset": 8820,
+      "event": "card-return-to-deck",
+      "seedOffset": 1,
+      "eventSeed": 43,
+      "gain": 0.75,
+      "repetition": 0
+    },
+    {
+      "time_ms": 400,
+      "sampleOffset": 17640,
+      "event": "card-shuffle",
+      "seedOffset": 2,
+      "eventSeed": 44,
+      "gain": 1,
+      "repetition": 0
+    },
+    {
+      "time_ms": 1100,
+      "sampleOffset": 48510,
+      "event": "card-draw",
+      "seedOffset": 3,
+      "eventSeed": 45,
+      "gain": 0.9,
+      "repetition": 0
+    },
+    {
+      "time_ms": 1280,
+      "sampleOffset": 56448,
+      "event": "card-draw",
+      "seedOffset": 4,
+      "eventSeed": 46,
+      "gain": 0.9,
+      "repetition": 0
+    },
+    {
+      "time_ms": 1460,
+      "sampleOffset": 64386,
+      "event": "card-draw",
+      "seedOffset": 5,
+      "eventSeed": 47,
+      "gain": 0.85,
+      "repetition": 0
+    },
+    {
+      "time_ms": 1640,
+      "sampleOffset": 72324,
+      "event": "card-place",
+      "seedOffset": 6,
+      "eventSeed": 48,
+      "gain": 0.8,
+      "repetition": 0
+    }
+  ]
+}

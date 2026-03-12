@@ -1,0 +1,22 @@
+{
+  "version": "1.0",
+  "name": "card_play_landing",
+  "description": "Card placed to the tableau with a satisfying landing: slide impact layered with a subtle glow swell.",
+  "layers": [
+    {
+      "recipe": "card-slide",
+      "startTime": 0,
+      "gain": 1.0
+    },
+    {
+      "recipe": "card-place",
+      "startTime": 0.08,
+      "gain": 0.9
+    },
+    {
+      "recipe": "card-glow",
+      "startTime": 0.18,
+      "gain": 0.55
+    }
+  ]
+}

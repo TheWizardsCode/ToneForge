@@ -1,0 +1,22 @@
+{
+  "version": "1.0",
+  "name": "defeat_sting_stack",
+  "description": "Defeat sting stack: defeat sting layered with failure accent and combo-break for a punishing loss moment.",
+  "layers": [
+    {
+      "recipe": "card-defeat-sting",
+      "startTime": 0,
+      "gain": 1.0
+    },
+    {
+      "recipe": "card-failure",
+      "startTime": 0.08,
+      "gain": 0.75
+    },
+    {
+      "recipe": "card-combo-break",
+      "startTime": 0.18,
+      "gain": 0.6
+    }
+  ]
+}

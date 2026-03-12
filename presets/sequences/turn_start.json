@@ -1,0 +1,26 @@
+{
+  "version": "1.0",
+  "name": "turn_start",
+  "description": "Beginning of a player's turn: flip the top card and draw from the market deck.",
+  "events": [
+    {
+      "time": 0,
+      "event": "card-flip",
+      "seedOffset": 0,
+      "gain": 1.0
+    },
+    {
+      "time": 0.25,
+      "event": "card-draw",
+      "seedOffset": 1,
+      "gain": 0.9
+    },
+    {
+      "time": 0.5,
+      "event": "card-deck-presence",
+      "seedOffset": 2,
+      "gain": 0.55,
+      "probability": 0.75
+    }
+  ]
+}
