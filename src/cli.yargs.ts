@@ -2,7 +2,7 @@
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 import type { Arguments } from "yargs";
-import { dispatchCommand, parseArgs } from "./cli.core.js";
+import { dispatchCommand, parseArgs } from "./cli.runtime.js";
 import { truncateTags } from "./cli/helpers.js";
 
 import * as generateCmd from "./cli/commands/generate.js";
