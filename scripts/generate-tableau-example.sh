@@ -1,59 +1,165 @@
 #!/usr/bin/env bash
-# Helper script to generate example tableau sounds into assets/sfx/tableau/
-# By default the script runs in dry-run mode and only prints the commands it would run.
-# To actually generate audio set RUN=1 in the environment: `RUN=1 bash scripts/generate-tableau-example.sh`
+# scripts/generate-tableau-example.sh
+#
+# Generates all five tableau card-game SFX events for the high-street economy
+# example and writes WAVs to assets/sfx/tableau/<event>/.
+#
+# Usage:
+#   bash scripts/generate-tableau-example.sh
+#
+# Prerequisites:
+#   - toneforge CLI on PATH (run `npm install` from the repo root)
+#   - No audio hardware required — all commands write to disk only
+#
+# Output:
+#   assets/sfx/tableau/tableau_play_card/tableau_play_card.wav
+#   assets/sfx/tableau/coin_collect/coin_collect.wav
+#   assets/sfx/tableau/market_upgrade/market_upgrade.wav
+#   assets/sfx/tableau/rent_collect/rent_collect.wav
+#   assets/sfx/tableau/turn_end/turn_end.wav
+#
+# See docs/guides/gamedev-workflow-example.md for the full workflow guide.
 
 set -euo pipefail
 
-RUN=${RUN:-0}
+SEED=42
+RENT_SEED=77
+BASE_DIR="assets/sfx/tableau"
 
-ROOT_DIR=$(dirname "$0")/..
-ROOT_DIR=$(cd "$ROOT_DIR" && pwd)
+echo "=== ToneForge Tableau Example Generator ==="
+echo "Output root: $BASE_DIR"
+echo ""
 
-OUTDIR="$ROOT_DIR/assets/sfx/tableau"
+# ---------------------------------------------------------------------------
+# tableau_play_card — card slides from hand and lands on the market tableau
+# ---------------------------------------------------------------------------
+EVENT="tableau_play_card"
+OUTDIR="$BASE_DIR/$EVENT"
+mkdir -p "$OUTDIR"
+echo "Rendering $EVENT ..."
+toneforge sequence generate \
+  --preset presets/sequences/tableau_play_card.json \
+  --seed "$SEED" \
+  --output "$OUTDIR/$EVENT.wav"
+echo "  -> $OUTDIR/$EVENT.wav"
 
-mkdir -p "$OUTDIR/{tableau_play_card,coin_collect,market_upgrade,rent_collect,turn_end}"
+# ---------------------------------------------------------------------------
+# coin_collect — player collects coins from income sources on the board
+# ---------------------------------------------------------------------------
+EVENT="coin_collect"
+OUTDIR="$BASE_DIR/$EVENT"
+mkdir -p "$OUTDIR"
+echo "Rendering $EVENT ..."
+toneforge sequence generate \
+  --preset presets/sequences/economy_income.json \
+  --seed "$SEED" \
+  --output "$OUTDIR/$EVENT.wav"
+echo "  -> $OUTDIR/$EVENT.wav"
 
-echo "Target output dir: $OUTDIR"
+# Light single-chime variant
+toneforge generate \
+  --recipe card-coin-collect \
+  --seed "$SEED" \
+  --output "$OUTDIR/${EVENT}_light.wav"
+echo "  -> $OUTDIR/${EVENT}_light.wav"
 
-cmds=(
-  "toneforge sequence generate --preset presets/sequences/tableau_play_card.json --seed 42 --output $OUTDIR/tableau_play_card/tableau_play_card_v1.wav --duration 1.5"
-  "toneforge sequence generate --preset presets/sequences/tableau_coin_collect.json --seed 7 --output $OUTDIR/coin_collect/coin_collect_plain_v1.wav --duration 0.8"
-  "toneforge stack render --preset presets/stacks/card_play_landing.json --seed 11 --output $OUTDIR/tableau_play_card/landing_v1.wav --duration 0.6"
+# ---------------------------------------------------------------------------
+# market_upgrade — player upgrades a market property (spends coins)
+# ---------------------------------------------------------------------------
+EVENT="market_upgrade"
+OUTDIR="$BASE_DIR/$EVENT"
+mkdir -p "$OUTDIR"
+echo "Rendering $EVENT ..."
+toneforge stack render \
+  --preset presets/stacks/market_buy_event.json \
+  --seed "$SEED" \
+  --output "$OUTDIR/$EVENT.wav"
+echo "  -> $OUTDIR/$EVENT.wav"
+
+# Power-up accent variant
+toneforge generate \
+  --recipe card-power-up \
+  --seed "$SEED" \
+  --output "$OUTDIR/${EVENT}_powerup.wav"
+echo "  -> $OUTDIR/${EVENT}_powerup.wav"
+
+# ---------------------------------------------------------------------------
+# rent_collect — player collects rent from properties they own
+# ---------------------------------------------------------------------------
+EVENT="rent_collect"
+OUTDIR="$BASE_DIR/$EVENT"
+mkdir -p "$OUTDIR"
+echo "Rendering $EVENT ..."
+toneforge sequence generate \
+  --preset presets/sequences/economy_income.json \
+  --seed "$RENT_SEED" \
+  --output "$OUTDIR/$EVENT.wav"
+echo "  -> $OUTDIR/$EVENT.wav"
+
+# Single-token variant (partial rent)
+toneforge generate \
+  --recipe card-token-earn \
+  --seed "$RENT_SEED" \
+  --output "$OUTDIR/${EVENT}_token.wav"
+echo "  -> $OUTDIR/${EVENT}_token.wav"
+
+# ---------------------------------------------------------------------------
+# turn_end — current player's turn ends, board resets for next player
+# ---------------------------------------------------------------------------
+EVENT="turn_end"
+OUTDIR="$BASE_DIR/$EVENT"
+mkdir -p "$OUTDIR"
+echo "Rendering $EVENT ..."
+toneforge sequence generate \
+  --preset presets/sequences/round_end_cleanup.json \
+  --seed "$SEED" \
+  --output "$OUTDIR/$EVENT.wav"
+echo "  -> $OUTDIR/$EVENT.wav"
+
+# Short transition variant (no full shuffle)
+toneforge stack render \
+  --preset presets/stacks/turn_transition_stack.json \
+  --seed "$SEED" \
+  --output "$OUTDIR/${EVENT}_transition.wav"
+echo "  -> $OUTDIR/${EVENT}_transition.wav"
+
+# ---------------------------------------------------------------------------
+# Verify all required files exist and are non-empty
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== Verification ==="
+REQUIRED=(
+  "assets/sfx/tableau/tableau_play_card/tableau_play_card.wav"
+  "assets/sfx/tableau/coin_collect/coin_collect.wav"
+  "assets/sfx/tableau/market_upgrade/market_upgrade.wav"
+  "assets/sfx/tableau/rent_collect/rent_collect.wav"
+  "assets/sfx/tableau/turn_end/turn_end.wav"
 )
 
-echo
-echo "Commands to run:"
-for c in "${cmds[@]}"; do
-  echo "  $c"
+ALL_OK=true
+for f in "${REQUIRED[@]}"; do
+  if [ -s "$f" ]; then
+    echo "OK      $f"
+  else
+    echo "MISSING $f"
+    ALL_OK=false
+  fi
 done
 
-if [ "$RUN" != "1" ]; then
-  echo
-  echo "Dry-run mode (no audio will be generated)."
-  echo "To execute and generate audio set RUN=1, e.g."
-  echo "  RUN=1 bash $0"
-  exit 0
+# ---------------------------------------------------------------------------
+# Generate checksums for reproducibility
+# Written to scripts/ so the file can be committed and used by CI to verify
+# that re-running the script produces byte-identical output.
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== Checksums ==="
+CHECKSUM_FILE="scripts/tableau-checksums.sha256"
+sha256sum "${REQUIRED[@]}" | tee "$CHECKSUM_FILE"
+
+echo ""
+if [ "$ALL_OK" = true ]; then
+  echo "All required files generated successfully."
+else
+  echo "ERROR: One or more required files are missing or empty."
+  exit 1
 fi
-
-echo
-echo "Executing..."
-for c in "${cmds[@]}"; do
-  echo "+ $c"
-  # shellcheck disable=SC2086
-  eval "$c"
-done
-
-echo
-echo "Generation complete. Checksums:"
-find "$OUTDIR" -type f -name "*.wav" -print0 | xargs -0 sha256sum || true
-
-echo
-echo "Summary per event:"
-for e in tableau_play_card coin_collect market_upgrade rent_collect turn_end; do
-  count=$(ls -1 "$OUTDIR/$e" 2>/dev/null | wc -l || true)
-  echo "$e: $count files"
-done
-
-echo
-echo "Reminder: do NOT commit generated audio. Commit only presets and this script."
