@@ -40,6 +40,7 @@ const DEFAULT_RECIPE_NAME_CATEGORY_MAP: Record<string, string> = {
 };
 
 let cachedMap: Record<string, string> | null = null;
+let warnedMissingConfig = false;
 
 function loadConfigMap(): Record<string, string> {
   if (cachedMap) return cachedMap;
@@ -50,25 +51,64 @@ function loadConfigMap(): Record<string, string> {
     if (fs.existsSync(cfgPath)) {
       const raw = fs.readFileSync(cfgPath, "utf8");
       const parsed = yaml.load(raw);
+
+      // Reject array roots and other unexpected shapes explicitly
+      if (Array.isArray(parsed)) {
+        throw new Error(`${cfgPath}: expected mapping of prefix->category, got array`);
+      }
+
       if (parsed && typeof parsed === "object") {
-        // Expect top-level mapping of prefix -> category
-        const map: Record<string, string> = {};
-        for (const [k, v] of Object.entries(parsed as Record<string, any>)) {
-          if (typeof v === "string") map[k] = v;
+        // Accept either a top-level mapping or a { prefixToCategory: { ... } } shape
+        const root = parsed as Record<string, any>;
+        const candidate = (root.prefixToCategory && typeof root.prefixToCategory === "object")
+          ? root.prefixToCategory
+          : root;
+
+        if (Array.isArray(candidate) || typeof candidate !== "object") {
+          throw new Error(`${cfgPath}: expected mapping of prefix->category`);
         }
-        cachedMap = { ...DEFAULT_RECIPE_NAME_CATEGORY_MAP, ...map };
+
+        const map: Record<string, string> = {};
+        for (const [k, v] of Object.entries(candidate as Record<string, any>)) {
+          if (typeof v === "string") {
+            const key = String(k).toLowerCase();
+            const value = String(v).toLowerCase().replace(/\s+/g, "-");
+            map[key] = value;
+          }
+        }
+
+        // Normalize defaults as well (defensive)
+        const normalizedDefaults: Record<string, string> = {};
+        for (const [k, v] of Object.entries(DEFAULT_RECIPE_NAME_CATEGORY_MAP)) {
+          normalizedDefaults[String(k).toLowerCase()] = String(v).toLowerCase().replace(/\s+/g, "-");
+        }
+
+        cachedMap = { ...normalizedDefaults, ...map };
         return cachedMap;
       }
+
       // malformed structure
-      throw new Error(".toneforge/config.yaml: expected mapping of prefix->category");
+      throw new Error(`${cfgPath}: expected mapping of prefix->category`);
     }
   } catch (err) {
-    // Fail fast on malformed config so CI/tests surface the issue
-    throw err;
+    // Fail fast on malformed config so CI/tests surface the issue; add context
+    throw new Error(`Error loading ${cfgPath}: ${(err as Error).message}`);
   }
 
-  // No config file — fall back to in-memory defaults
-  cachedMap = { ...DEFAULT_RECIPE_NAME_CATEGORY_MAP };
+  // No config file — warn once and fall back to in-memory defaults
+  if (!warnedMissingConfig) {
+    // eslint-disable-next-line no-console
+    console.warn(`.toneforge/config.yaml not found at ${cfgPath}, using built-in defaults`);
+    warnedMissingConfig = true;
+  }
+
+  // Ensure defaults are normalized defensively
+  const normalizedDefaults: Record<string, string> = {};
+  for (const [k, v] of Object.entries(DEFAULT_RECIPE_NAME_CATEGORY_MAP)) {
+    normalizedDefaults[String(k).toLowerCase()] = String(v).toLowerCase().replace(/\s+/g, "-");
+  }
+
+  cachedMap = { ...normalizedDefaults };
   return cachedMap;
 }
 
@@ -142,7 +182,7 @@ export class CategoryClassifier implements DimensionClassifier {
 
     // Secondary signal: recipe name parsing (use config if available)
     if (context?.name) {
-      const firstSegment = context.name.split("-")[0]!;
+      const firstSegment = context.name.split("-")[0]!.toLowerCase();
       const map = loadConfigMap();
       const mapped = map[firstSegment];
       if (mapped) {
