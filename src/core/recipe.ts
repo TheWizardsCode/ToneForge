@@ -455,6 +455,8 @@ export class RecipeRegistry {
  *
  * e.g. "Card Game" -> "card-game", "card game" -> "card-game"
  */
+import { normalizeCategory as normalizeCategoryFn } from "./normalize-category.js";
+
 function normalizeCategory(category: string): string {
-  return category.toLowerCase().replace(/\s+/g, "-");
+  return normalizeCategoryFn(category);
 }

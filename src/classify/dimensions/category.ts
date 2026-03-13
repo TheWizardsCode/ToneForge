@@ -13,6 +13,7 @@
 import fs from "fs";
 import path from "path";
 import yaml from "js-yaml";
+import { normalizeCategory } from "../../core/normalize-category.js";
 import type { AnalysisResult } from "../../analyze/types.js";
 import type { DimensionClassifier, DimensionResult, RecipeContext } from "../types.js";
 
@@ -177,7 +178,7 @@ export class CategoryClassifier implements DimensionClassifier {
     // Normalize to lowercase hyphenated form (e.g. "Card Game" -> "card-game")
     // to match the canonical vocabulary used in RECIPE_NAME_CATEGORY_MAP.
     if (context?.category) {
-      return { category: context.category.toLowerCase().replace(/\s+/g, "-") };
+      return { category: normalizeCategory(context.category) };
     }
 
     // Secondary signal: recipe name parsing (use config if available)
