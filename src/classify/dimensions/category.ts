@@ -10,6 +10,9 @@
  * Reference: docs/prd/CLASSIFY_PRD.md
  */
 
+import fs from "fs";
+import path from "path";
+import yaml from "js-yaml";
 import type { AnalysisResult } from "../../analyze/types.js";
 import type { DimensionClassifier, DimensionResult, RecipeContext } from "../types.js";
 
@@ -19,7 +22,7 @@ import type { DimensionClassifier, DimensionResult, RecipeContext } from "../typ
  * When a recipe name starts with one of these prefixes (before the first `-`
  * or as a known multi-segment prefix), the corresponding category is assigned.
  */
-const RECIPE_NAME_CATEGORY_MAP: Record<string, string> = {
+const DEFAULT_RECIPE_NAME_CATEGORY_MAP: Record<string, string> = {
   weapon: "weapon",
   footstep: "footstep",
   ui: "ui",
@@ -35,6 +38,39 @@ const RECIPE_NAME_CATEGORY_MAP: Record<string, string> = {
   resonance: "impact",
   card: "card-game",
 };
+
+let cachedMap: Record<string, string> | null = null;
+
+function loadConfigMap(): Record<string, string> {
+  if (cachedMap) return cachedMap;
+
+  // Prefer .toneforge/config.yaml in repository root
+  const cfgPath = path.resolve(process.cwd(), ".toneforge", "config.yaml");
+  try {
+    if (fs.existsSync(cfgPath)) {
+      const raw = fs.readFileSync(cfgPath, "utf8");
+      const parsed = yaml.load(raw);
+      if (parsed && typeof parsed === "object") {
+        // Expect top-level mapping of prefix -> category
+        const map: Record<string, string> = {};
+        for (const [k, v] of Object.entries(parsed as Record<string, any>)) {
+          if (typeof v === "string") map[k] = v;
+        }
+        cachedMap = { ...DEFAULT_RECIPE_NAME_CATEGORY_MAP, ...map };
+        return cachedMap;
+      }
+      // malformed structure
+      throw new Error(".toneforge/config.yaml: expected mapping of prefix->category");
+    }
+  } catch (err) {
+    // Fail fast on malformed config so CI/tests surface the issue
+    throw err;
+  }
+
+  // No config file — fall back to in-memory defaults
+  cachedMap = { ...DEFAULT_RECIPE_NAME_CATEGORY_MAP };
+  return cachedMap;
+}
 
 /**
  * Infer category from analysis metrics when no recipe metadata is available.
@@ -104,10 +140,11 @@ export class CategoryClassifier implements DimensionClassifier {
       return { category: context.category.toLowerCase().replace(/\s+/g, "-") };
     }
 
-    // Secondary signal: recipe name parsing
+    // Secondary signal: recipe name parsing (use config if available)
     if (context?.name) {
       const firstSegment = context.name.split("-")[0]!;
-      const mapped = RECIPE_NAME_CATEGORY_MAP[firstSegment];
+      const map = loadConfigMap();
+      const mapped = map[firstSegment];
       if (mapped) {
         return { category: mapped };
       }
