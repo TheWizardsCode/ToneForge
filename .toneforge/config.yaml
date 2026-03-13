@@ -1,0 +1,20 @@
+# ToneForge category classifier configuration.
+# Maps recipe-name prefixes (before the first '-') to canonical category labels.
+# Edit this file to add or rename categories without modifying TypeScript source.
+# Schema: prefixToCategory is a flat map of string -> string.
+
+prefixToCategory:
+  weapon: weapon
+  footstep: footstep
+  ui: ui
+  ambient: ambient
+  character: character
+  creature: creature
+  vehicle: vehicle
+  impact: impact
+  slam: impact
+  rumble: impact
+  debris: impact
+  rattle: impact
+  resonance: impact
+  card: card-game

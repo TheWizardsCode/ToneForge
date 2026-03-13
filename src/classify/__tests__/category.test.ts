@@ -1,4 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { writeFileSync, mkdirSync, rmSync } from "fs";
+import { join } from "path";
+import { tmpdir } from "os";
 import { CategoryClassifier } from "../dimensions/category.js";
 import type { AnalysisResult } from "../../analyze/types.js";
 import type { RecipeContext } from "../types.js";
@@ -153,5 +156,129 @@ describe("CategoryClassifier", () => {
     for (const r of results) {
       expect(r).toEqual(results[0]);
     }
+  });
+});
+
+describe("CategoryClassifier — config loading", () => {
+  let tmpDir: string;
+
+  afterEach(() => {
+    if (tmpDir) {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+    vi.restoreAllMocks();
+  });
+
+  function makeTmpConfig(content: string): string {
+    tmpDir = join(tmpdir(), `toneforge-cat-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    mkdirSync(tmpDir, { recursive: true });
+    const configPath = join(tmpDir, "config.yaml");
+    writeFileSync(configPath, content, "utf-8");
+    return configPath;
+  }
+
+  function makeAnalysis(): AnalysisResult {
+    return {
+      analysisVersion: "1.0",
+      sampleRate: 44100,
+      sampleCount: 44100,
+      metrics: {
+        time: { duration: 1.0, peak: 0.5, rms: 0.2, crestFactor: 2.5 },
+        quality: { clipping: false, silence: false },
+        envelope: { attackTime: 10 },
+        spectral: { spectralCentroid: 2000 },
+      },
+    };
+  }
+
+  it("loads prefix-to-category mappings from a valid YAML config", () => {
+    const configPath = makeTmpConfig(`
+prefixToCategory:
+  explosion: explosion
+  weapon: weapon
+`);
+    const classifier = new CategoryClassifier(configPath);
+    const analysis = makeAnalysis();
+
+    expect(classifier.classify(analysis, { name: "explosion-large", category: "" }).category).toBe("explosion");
+    expect(classifier.classify(analysis, { name: "weapon-shotgun", category: "" }).category).toBe("weapon");
+  });
+
+  it("config mappings override built-in defaults when present", () => {
+    const configPath = makeTmpConfig(`
+prefixToCategory:
+  weapon: custom-weapon
+`);
+    const classifier = new CategoryClassifier(configPath);
+    const analysis = makeAnalysis();
+    // The config only has "weapon"; "card" is not in config so falls through to metric heuristics
+    expect(classifier.classify(analysis, { name: "weapon-laser", category: "" }).category).toBe("custom-weapon");
+  });
+
+  it("falls back to built-in defaults and warns when config file is missing", () => {
+    const missingPath = join(tmpdir(), `nonexistent-${Date.now()}`, "config.yaml");
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    const classifier = new CategoryClassifier(missingPath);
+    const analysis = makeAnalysis();
+
+    // Should use built-in defaults (card -> card-game)
+    expect(classifier.classify(analysis, { name: "card-flip", category: "" }).category).toBe("card-game");
+    expect(warnSpy).toHaveBeenCalledOnce();
+    const warnMessage = warnSpy.mock.calls[0]![0] as string;
+    expect(warnMessage).toContain("[ToneForge]");
+    expect(warnMessage).toContain("built-in category mappings");
+  });
+
+  it("caches mappings — warning is only emitted once per classifier instance", () => {
+    const missingPath = join(tmpdir(), `nonexistent-${Date.now()}`, "config.yaml");
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    const classifier = new CategoryClassifier(missingPath);
+    const analysis = makeAnalysis();
+
+    classifier.classify(analysis, { name: "card-flip", category: "" });
+    classifier.classify(analysis, { name: "weapon-gun", category: "" });
+
+    expect(warnSpy).toHaveBeenCalledOnce();
+  });
+
+  it("throws on malformed YAML (not a top-level object)", () => {
+    const configPath = makeTmpConfig(`- item1\n- item2\n`);
+    const classifier = new CategoryClassifier(configPath);
+    const analysis = makeAnalysis();
+    expect(() => classifier.classify(analysis, { name: "weapon-gun", category: "" })).toThrow(
+      /Invalid config/,
+    );
+  });
+
+  it("throws when prefixToCategory key is missing", () => {
+    const configPath = makeTmpConfig(`someOtherKey:\n  weapon: weapon\n`);
+    const classifier = new CategoryClassifier(configPath);
+    const analysis = makeAnalysis();
+    expect(() => classifier.classify(analysis, { name: "weapon-gun", category: "" })).toThrow(
+      /prefixToCategory/,
+    );
+  });
+
+  it("throws when a prefixToCategory value is not a string", () => {
+    const configPath = makeTmpConfig(`prefixToCategory:\n  weapon: 42\n`);
+    const classifier = new CategoryClassifier(configPath);
+    const analysis = makeAnalysis();
+    expect(() => classifier.classify(analysis, { name: "weapon-gun", category: "" })).toThrow(
+      /must be a string/,
+    );
+  });
+
+  it("config load does not trigger when context.category is set", () => {
+    const missingPath = join(tmpdir(), `nonexistent-${Date.now()}`, "config.yaml");
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    const classifier = new CategoryClassifier(missingPath);
+    const analysis = makeAnalysis();
+
+    // context.category is set, so config should not be loaded
+    classifier.classify(analysis, { name: "weapon-gun", category: "weapon" });
+    expect(warnSpy).not.toHaveBeenCalled();
   });
 });
