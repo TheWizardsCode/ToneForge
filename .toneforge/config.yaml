@@ -1,0 +1,6 @@
+prefixToCategory:
+  ui: "User Interface"
+  perf: "Performance"
+  build: "Build System"
+  core: "Core"
+  infra: "Infrastructure"
