@@ -34,6 +34,19 @@ toneforge list recipes --search "tableau"
 toneforge list recipes --category "card-game"
 ```
 
+List preset files in the repository (sequence and stack presets are JSON files under `presets/`). This helps you see concrete preset names and file paths you can preview or edit.
+
+```bash
+# list sequence presets
+ls -1 presets/sequences/*.json || true
+
+# list stack presets
+ls -1 presets/stacks/*.json || true
+
+# or show all preset files recursively
+find presets -type f -name "*.json" -print
+```
+
 ## Preview Recipes — audition without writing files
 
 Before committing to edits or batch renders you should audition recipes and presets. The CLI supports playing rendered audio directly when you omit `--output`, so these commands let you listen without creating WAV files on disk.
