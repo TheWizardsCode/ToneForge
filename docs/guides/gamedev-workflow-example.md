@@ -34,6 +34,21 @@ toneforge list recipes --search "tableau"
 toneforge list recipes --category "card-game"
 ```
 
+## Preview Recipes — audition without writing files
+
+Before committing to edits or batch renders you should audition recipes and presets. The CLI supports playing rendered audio directly when you omit `--output`, so these commands let you listen without creating WAV files on disk.
+
+```bash
+# Play a registered recipe (renders and plays in memory)
+toneforge generate --recipe ui-scifi-confirm --seed 42
+
+# Play a sequence preset (no --output -> plays instead of saving)
+toneforge sequence generate --preset presets/sequences/tableau_play_card.json --seed 42
+
+# Play a stack preset (stack render requires --seed; omit --output to play)
+toneforge stack render --preset presets/stacks/card_play_landing.json --seed 42
+```
+
 ## Preview / quick play (safe, ephemeral)
 
 Quick previews let you validate changes without producing committed assets — iterate rapidly by generating short samples and listening before doing batch renders.
