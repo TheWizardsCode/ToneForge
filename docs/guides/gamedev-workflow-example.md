@@ -2,13 +2,12 @@
 
 This short, copy‑pasteable CLI guide shows how to discover, author, iterate, and export game‑ready sounds for a tableau‑style card game. Commands assume you have the ToneForge CLI installed and the repository checked out.
 
-## Prerequisites
+## Definitions
 
-- Node 16+ and npm
-- ToneForge CLI on PATH (e.g. `npm install` and `npm run build` or `npm link`)
-- Working repository checkout
-
-These prerequisites ensure the ToneForge CLI and local environment can execute the commands in this guide; missing them will cause generation or playback to fail.
+- **Recipe:** A registered generator/orchestration invoked with `toneforge generate --recipe <name>`; it describes the process used to produce sounds (the workflow), not the final artifact. These are parameterized and can be customized and varied when played back.
+- **Stack:** A layered combination of sources/effects defined in a stack preset, used for multi-layered or composite sounds. The sounds within a stack can be offset in time and mixed together, making them ideal for things like character actions or environmental sounds where multiple elements combine to create a richer effect.
+- **Sequence:** A timed series of sound events defined in a sequence preset, typically used for single-shot or short, ordered sounds. Particularly usefule for things like weapon bursts, UI feedback, or short musical cues in which there are distinct sounds that need to play at specific times relative to each other.
+- **Preview:** An ephemeral render played in-memory (omit `--output`) or written to a temporary file for auditioning; previews are for iteration, not canonical exports.
 
 ## Conventions
 
@@ -17,11 +16,11 @@ These prerequisites ensure the ToneForge CLI and local environment can execute t
 
 Following consistent naming and export locations makes it simple for game code, CI, and artists to find and validate generated assets.
 
-## Discovery — find recipes and presets
+## Discovery — Recipes
 
-Finding existing recipes and presets helps you identify reusable sounds and reduces duplication; use these commands to explore the registry and narrow choices before authoring.
+Finding existing recipes helps you identify reusable, registered render flows and reduces duplication; explore recipes first to see if a ready-made generator fits your needs.
 
-Display available recipes and presets (implemented CLI):
+Display available recipes (implemented CLI):
 ```bash
 # list all registered recipes (default resource)
 toneforge list
@@ -34,7 +33,18 @@ toneforge list recipes --search "tableau"
 toneforge list recipes --category "card-game"
 ```
 
-List preset files in the repository (sequence and stack presets are JSON files under `presets/`). This helps you see concrete preset names and file paths you can preview or edit.
+## Preview Recipes — audition registered recipes
+
+Audit a registered recipe before exporting assets. When you omit `--output` the CLI will render and play in memory (no WAV written).
+
+```bash
+# Play a registered recipe (renders and plays in memory)
+toneforge generate --recipe ui-scifi-confirm --seed 42
+```
+
+## Discovery — Presets
+
+Preset files (JSON) capture concrete parameter sets for sequences and stacks. Listing them helps you find editable files you can preview or version.
 
 ```bash
 # list sequence presets
@@ -47,34 +57,28 @@ ls -1 presets/stacks/*.json || true
 find presets -type f -name "*.json" -print
 ```
 
-## Preview Recipes — audition without writing files
+## Preview Presets — audition sequence & stack presets
 
-Before committing to edits or batch renders you should audition recipes and presets. The CLI supports playing rendered audio directly when you omit `--output`, so these commands let you listen without creating WAV files on disk.
+Preview presets to validate parameters before committing or batch-rendering. For quick, ephemeral checks you can either play in-memory (omit `--output`) or write a temporary preview file and play it back.
 
+In-memory playback (no file written):
 ```bash
-# Play a registered recipe (renders and plays in memory)
-toneforge generate --recipe ui-scifi-confirm --seed 42
-
-# Play a sequence preset (no --output -> plays instead of saving)
+# Play a sequence preset (renders and plays in memory)
 toneforge sequence generate --preset presets/sequences/tableau_play_card.json --seed 42
 
-# Play a stack preset (stack render requires --seed; omit --output to play)
+# Play a stack preset (renders and plays in memory)
 toneforge stack render --preset presets/stacks/card_play_landing.json --seed 42
 ```
 
-## Preview / quick play (safe, ephemeral)
-
-Quick previews let you validate changes without producing committed assets — iterate rapidly by generating short samples and listening before doing batch renders.
-
-Create a short preview of an existing preset and play it using `toneforge play` (the CLI writes a file then plays it):
+Temporary preview files (safe, ephemeral):
 ```bash
-# sequence preset -> use `sequence generate`
+# write a short preview file from a sequence preset
 toneforge sequence generate --preset presets/sequences/tableau_play_card.json --seed 42 --output /tmp/preview_tableau.wav --duration 1.5
 
 # play via ToneForge's playback helper (or fallback message)
 toneforge play /tmp/preview_tableau.wav || echo "preview written to /tmp/preview_tableau.wav"
 
-# stack preset -> use `stack render` (example)
+# stack preset -> write and preview
 toneforge stack render --preset presets/stacks/card_play_landing.json --seed 42 --output /tmp/preview_landing.wav --duration 0.6
 ```
 
