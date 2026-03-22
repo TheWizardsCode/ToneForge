@@ -1,0 +1,58 @@
+# Migration note: hand-translated from src/recipes/index.ts uiSciFiConfirmOfflineGraph().
+version: "0.1"
+meta:
+  name: ui-scifi-confirm
+  description: Short sci-fi confirmation tone using sine synthesis with a filtered sweep.
+  category: UI
+  tags:
+    - sci-fi
+    - confirm
+    - ui
+  duration: 0.08468207950044473
+  parameters:
+    - name: frequency
+      type: number
+      min: 400
+      max: 1200
+      unit: Hz
+      default: 402.1151140337147
+    - name: attack
+      type: number
+      min: 0.001
+      max: 0.01
+      unit: s
+      default: 0.006942807797794885
+    - name: decay
+      type: number
+      min: 0.05
+      max: 0.3
+      unit: s
+      default: 0.07773927170264984
+    - name: filterCutoff
+      type: number
+      min: 800
+      max: 4000
+      unit: Hz
+      default: 3518.0060869823224
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 402.1151140337147
+  filter:
+    kind: biquadFilter
+    params:
+      type: lowpass
+      frequency: 3518.0060869823224
+  env:
+    kind: envelope
+    params:
+      attack: 0.006942807797794885
+      decay: 0.07773927170264984
+      sustain: 0
+      release: 0
+  out:
+    kind: destination
+routing:
+  - chain: [osc, filter, env, out]

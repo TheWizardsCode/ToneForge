@@ -1,0 +1,103 @@
+# Migration note: hand-translated from src/recipes/index.ts ambientWindGustOfflineGraph().
+version: "0.1"
+meta:
+  name: ambient-wind-gust
+  description: Environmental wind burst with filtered noise and LFO-modulated bandpass sweep.
+  category: Ambient
+  tags:
+    - wind
+    - ambient
+    - environment
+    - nature
+  duration: 1.6374298564009368
+  parameters:
+    - name: filterFreq
+      type: number
+      min: 200
+      max: 1500
+      unit: Hz
+      default: 203.4370603047863
+    - name: filterQ
+      type: number
+      min: 0.5
+      max: 3
+      unit: Q
+      default: 2.150779943831912
+    - name: lfoRate
+      type: number
+      min: 0.5
+      max: 4
+      unit: Hz
+      default: 0.8883498038370976
+    - name: lfoDepth
+      type: number
+      min: 100
+      max: 800
+      unit: Hz
+      default: 694.563831527383
+    - name: attack
+      type: number
+      min: 0.1
+      max: 0.5
+      unit: s
+      default: 0.4501757566701099
+    - name: sustain
+      type: number
+      min: 0.2
+      max: 1
+      unit: s
+      default: 0.46848877488367463
+    - name: release
+      type: number
+      min: 0.2
+      max: 0.8
+      unit: s
+      default: 0.7187653248474852
+    - name: level
+      type: number
+      min: 0.3
+      max: 0.8
+      unit: amplitude
+      default: 0.5830806577771623
+nodes:
+  windNoise:
+    kind: noise
+    params:
+      color: white
+      level: 1
+  pinkFilter:
+    kind: biquadFilter
+    params:
+      type: lowpass
+      frequency: 2000
+  windFilter:
+    kind: biquadFilter
+    params:
+      type: bandpass
+      frequency: 203.4370603047863
+      Q: 2.150779943831912
+    automation:
+      frequency:
+        - kind: lfo
+          rate: 0.8883498038370976
+          depth: 347.2819157636915
+          offset: 203.4370603047863
+          start: 0
+          end: 1.6374298564009368
+          step: 0.00704331396731618
+          wave: sine
+  level:
+    kind: gain
+    params:
+      gain: 0.5830806577771623
+  env:
+    kind: envelope
+    params:
+      attack: 0.4501757566701099
+      decay: 0.46848877488367463
+      sustain: 1
+      release: 0.7187653248474852
+  out:
+    kind: destination
+routing:
+  - chain: [windNoise, pinkFilter, windFilter, level, env, out]

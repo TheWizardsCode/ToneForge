@@ -1,43 +1,44 @@
 import { describe, it, expect } from "vitest";
-import { RecipeRegistry } from "./recipe.js";
-import type {
-  Recipe,
-  RecipeFactory,
-  RecipeRegistration,
-  LazyRecipeRegistration,
-} from "./recipe.js";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { OfflineAudioContext } from "node-web-audio-api";
 import { createRng } from "./rng.js";
+import { RecipeRegistry, discoverFileBackedRecipes } from "./recipe.js";
+
+function makeRegistration(overrides: Record<string, unknown> = {}) {
+  return {
+    getDuration: () => 1,
+    buildOfflineGraph: () => {},
+    description: "A test recipe",
+    category: "weapon",
+    tags: ["sharp", "bright"],
+    signalChain: "Oscillator -> Destination",
+    params: [],
+    getParams: () => ({}),
+    ...overrides,
+  };
+}
 
 describe("RecipeRegistry", () => {
-  it("registers and retrieves a recipe factory", () => {
+  it("registers and retrieves a recipe registration", () => {
     const reg = new RecipeRegistry();
-    const factory: RecipeFactory = (_rng) => ({
-      start: () => {},
-      stop: () => {},
-      toDestination: () => {},
-      duration: 1,
-    });
+    const registration = makeRegistration();
 
-    reg.register("test-recipe", factory);
-    expect(reg.getRecipe("test-recipe")).toBe(factory);
+    reg.register("test-recipe", registration);
+    expect(reg.getRegistration("test-recipe")).toBe(registration);
   });
 
   it("returns undefined for unregistered recipe", () => {
     const reg = new RecipeRegistry();
-    expect(reg.getRecipe("nonexistent")).toBeUndefined();
+    expect(reg.getRegistration("nonexistent")).toBeUndefined();
   });
 
   it("lists all registered recipe names", () => {
     const reg = new RecipeRegistry();
-    const factory: RecipeFactory = (_rng) => ({
-      start: () => {},
-      stop: () => {},
-      toDestination: () => {},
-      duration: 1,
-    });
 
-    reg.register("alpha", factory);
-    reg.register("beta", factory);
+    reg.register("alpha", makeRegistration());
+    reg.register("beta", makeRegistration());
 
     const names = reg.list();
     expect(names).toContain("alpha");
@@ -45,90 +46,16 @@ describe("RecipeRegistry", () => {
     expect(names).toHaveLength(2);
   });
 
-  it("overwrites existing factory with same name", () => {
+  it("overwrites existing registration with same name", () => {
     const reg = new RecipeRegistry();
-    const factory1: RecipeFactory = (_rng) => ({
-      start: () => {},
-      stop: () => {},
-      toDestination: () => {},
-      duration: 1,
-    });
-    const factory2: RecipeFactory = (_rng) => ({
-      start: () => {},
-      stop: () => {},
-      toDestination: () => {},
-      duration: 2,
-    });
+    const registration1 = makeRegistration({ description: "one" });
+    const registration2 = makeRegistration({ description: "two" });
 
-    reg.register("same", factory1);
-    reg.register("same", factory2);
-    expect(reg.getRecipe("same")).toBe(factory2);
+    reg.register("same", registration1);
+    reg.register("same", registration2);
+    expect(reg.getRegistration("same")).toBe(registration2);
   });
 });
-
-describe("Recipe interface compliance", () => {
-  it("factory returns an object with start, stop, toDestination, and duration", () => {
-    const factory: RecipeFactory = (rng) => ({
-      start: (_time: number) => {},
-      stop: (_time: number) => {},
-      toDestination: () => {},
-      duration: 0.5,
-    });
-
-    const recipe: Recipe = factory(createRng(42));
-    expect(typeof recipe.start).toBe("function");
-    expect(typeof recipe.stop).toBe("function");
-    expect(typeof recipe.toDestination).toBe("function");
-    expect(typeof recipe.duration).toBe("number");
-  });
-});
-
-/** Helper: create a full RecipeRegistration for tests. */
-function makeRegistration(
-  overrides: Partial<RecipeRegistration> = {},
-): RecipeRegistration {
-  return {
-    factory: (_rng) => ({
-      start: () => {},
-      stop: () => {},
-      toDestination: () => {},
-      duration: 1,
-    }),
-    getDuration: () => 1,
-    buildOfflineGraph: () => {},
-    description: overrides.description ?? "A test recipe",
-    category: overrides.category ?? "weapon",
-    tags: overrides.tags ?? ["sharp", "bright"],
-    signalChain: "Oscillator -> Destination",
-    params: [],
-    getParams: () => ({}),
-    ...overrides,
-  };
-}
-
-/** Helper: create a LazyRecipeRegistration for tests. */
-function makeLazyRegistration(
-  overrides: Partial<LazyRecipeRegistration> = {},
-): LazyRecipeRegistration {
-  return {
-    factoryLoader: async () =>
-      (_rng) => ({
-        start: () => {},
-        stop: () => {},
-        toDestination: () => {},
-        duration: 1,
-      }),
-    getDuration: () => 1,
-    buildOfflineGraph: () => {},
-    description: overrides.description ?? "A lazy test recipe",
-    category: overrides.category ?? "ui",
-    tags: overrides.tags ?? ["click", "interface"],
-    signalChain: "Oscillator -> Destination",
-    params: [],
-    getParams: () => ({}),
-    ...overrides,
-  };
-}
 
 describe("RecipeRegistry.listDetailed", () => {
   it("returns all recipes with name, description, category, and tags", () => {
@@ -167,46 +94,6 @@ describe("RecipeRegistry.listDetailed", () => {
       tags: ["click", "interface"],
       matchedTags: [],
     });
-  });
-
-  it("handles lazy registry entries", () => {
-    const reg = new RecipeRegistry();
-    reg.register(
-      "lazy-recipe",
-      makeLazyRegistration({
-        description: "A lazy recipe",
-        category: "Ambient",
-        tags: ["nature", "wind"],
-      }),
-    );
-
-    const results = reg.listDetailed();
-
-    expect(results).toHaveLength(1);
-    expect(results[0]).toEqual({
-      name: "lazy-recipe",
-      description: "A lazy recipe",
-      category: "Ambient",
-      tags: ["nature", "wind"],
-      matchedTags: [],
-    });
-  });
-
-  it("handles missing category (treats as empty string)", () => {
-    const reg = new RecipeRegistry();
-    const bareFactory: RecipeFactory = (_rng) => ({
-      start: () => {},
-      stop: () => {},
-      toDestination: () => {},
-      duration: 1,
-    });
-    reg.register("bare", bareFactory);
-
-    const results = reg.listDetailed();
-
-    expect(results).toHaveLength(1);
-    expect(results[0]!.category).toBe("");
-    expect(results[0]!.tags).toEqual([]);
   });
 
   it("handles recipes with undefined tags (treats as empty array)", () => {
@@ -339,7 +226,6 @@ describe("RecipeRegistry.listDetailed", () => {
         makeRegistration({ category: "Card Game" }),
       );
 
-      // All of these should match
       expect(reg.listDetailed({ category: "card-game" })).toHaveLength(1);
       expect(reg.listDetailed({ category: "Card Game" })).toHaveLength(1);
       expect(reg.listDetailed({ category: "card game" })).toHaveLength(1);
@@ -417,7 +303,6 @@ describe("RecipeRegistry.listDetailed", () => {
         makeRegistration({ tags: ["sword"] }),
       );
 
-      // Empty strings in tags array should be ignored -> returns all
       const results = reg.listDetailed({ tags: ["", "  "] });
 
       expect(results).toHaveLength(2);
@@ -593,34 +478,6 @@ describe("RecipeRegistry.listDetailed", () => {
 
       expect(results).toHaveLength(2);
     });
-
-    it("handles mixed eager and lazy entries", () => {
-      const reg = new RecipeRegistry();
-      reg.register(
-        "eager-recipe",
-        makeRegistration({
-          description: "Eager",
-          category: "Weapon",
-          tags: ["sharp"],
-        }),
-      );
-      reg.register(
-        "lazy-recipe",
-        makeLazyRegistration({
-          description: "Lazy",
-          category: "Weapon",
-          tags: ["sharp"],
-        }),
-      );
-
-      const results = reg.listDetailed({ category: "weapon" });
-
-      expect(results).toHaveLength(2);
-      expect(results.map((r) => r.name)).toEqual([
-        "eager-recipe",
-        "lazy-recipe",
-      ]);
-    });
   });
 
   describe("matchedTags metadata", () => {
@@ -686,7 +543,6 @@ describe("RecipeRegistry.listDetailed", () => {
         }),
       );
 
-      // "laser" matches "laser-beam" by substring
       const results = reg.listDetailed({ search: "laser" });
 
       expect(results).toHaveLength(1);
@@ -704,15 +560,12 @@ describe("RecipeRegistry.listDetailed", () => {
         }),
       );
 
-      // --tags "sci-fi" matches "sci-fi" exactly
-      // --search "laser" matches "laser-beam" by substring
       const results = reg.listDetailed({
         search: "laser",
         tags: ["sci-fi"],
       });
 
       expect(results).toHaveLength(1);
-      // Union: laser-beam (from search) + sci-fi (from tags), preserving order
       expect(results[0]!.matchedTags).toEqual(["laser-beam", "sci-fi"]);
     });
 
@@ -727,15 +580,12 @@ describe("RecipeRegistry.listDetailed", () => {
         }),
       );
 
-      // --tags "laser" exact matches "laser"
-      // --search "laser" substring also matches "laser"
       const results = reg.listDetailed({
         search: "laser",
         tags: ["laser"],
       });
 
       expect(results).toHaveLength(1);
-      // "laser" should appear only once despite matching both filters
       expect(results[0]!.matchedTags).toEqual(["laser"]);
     });
 
@@ -767,7 +617,6 @@ describe("RecipeRegistry.listDetailed", () => {
         }),
       );
 
-      // search matches by description but no tags to match
       const results = reg.listDetailed({ search: "laser" });
 
       expect(results).toHaveLength(1);
@@ -785,28 +634,123 @@ describe("RecipeRegistry.listDetailed", () => {
         }),
       );
 
-      // "powerful" matches description but none of the tags
       const results = reg.listDetailed({ search: "powerful" });
 
       expect(results).toHaveLength(1);
       expect(results[0]!.matchedTags).toEqual([]);
     });
+  });
+});
 
-    it("works with lazy registry entries", () => {
-      const reg = new RecipeRegistry();
-      reg.register(
-        "lazy-recipe",
-        makeLazyRegistration({
-          description: "Lazy",
-          category: "Weapon",
-          tags: ["laser", "sci-fi"],
-        }),
+describe("discoverFileBackedRecipes", () => {
+  it("discovers valid JSON/YAML ToneGraph files and skips invalid files with warning", async () => {
+    const tempRoot = await mkdtemp(join(tmpdir(), "toneforge-recipes-"));
+    const warnMessages: string[] = [];
+    const logger = {
+      warn: (message: string) => {
+        warnMessages.push(message);
+      },
+    };
+
+    try {
+      await writeFile(join(tempRoot, "file-backed-json.json"), JSON.stringify({
+        version: "0.1",
+        meta: {
+          description: "JSON file-backed recipe",
+          category: "UI",
+          tags: ["file-backed", "json"],
+          duration: 0.08,
+        },
+        nodes: {
+          osc: {
+            kind: "oscillator",
+            params: { type: "sine", frequency: 440 },
+            parameters: {
+              frequency: { min: 220, max: 880, unit: "Hz", default: 550, type: "number" },
+            },
+          },
+          amp: {
+            kind: "gain",
+            params: { gain: 0.2 },
+            parameters: {
+              gain: { min: 0.1, max: 0.8, unit: "amplitude", default: 0.2, type: "number" },
+            },
+          },
+          out: { kind: "destination" },
+        },
+        routing: [{ chain: ["osc", "amp", "out"] }],
+      }, null, 2), "utf-8");
+
+      await writeFile(join(tempRoot, "file-backed-yaml.yaml"), `version: "0.1"
+meta:
+  description: "YAML file-backed recipe"
+  category: "UI"
+  tags: ["file-backed", "yaml"]
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: triangle
+      frequency: 330
+  env:
+    kind: envelope
+    params:
+      attack: 0.02
+      decay: 0.08
+      sustain: 0.0
+      release: 0.05
+  out:
+    kind: destination
+routing:
+  - chain: [osc, env, out]
+`, "utf-8");
+
+      await writeFile(join(tempRoot, "invalid.json"), JSON.stringify({
+        version: "0.2",
+        nodes: {
+          bad: { kind: "oscillator" },
+        },
+        routing: [],
+      }, null, 2), "utf-8");
+
+      const registry = new RecipeRegistry();
+      registry.register("built-in-stub", makeRegistration());
+
+      const discovered = await discoverFileBackedRecipes(registry, {
+        recipeDirectory: tempRoot,
+        logger,
+      });
+
+      expect(discovered.sort()).toEqual(["file-backed-json", "file-backed-yaml"]);
+      expect(registry.list()).toContain("built-in-stub");
+      expect(registry.list()).toContain("file-backed-json");
+      expect(registry.list()).toContain("file-backed-yaml");
+      expect(registry.list()).not.toContain("invalid");
+      expect(warnMessages.some((message) => message.includes("invalid.json"))).toBe(true);
+
+      const jsonReg = registry.getRegistration("file-backed-json");
+      expect(jsonReg).toBeDefined();
+      expect(jsonReg!.params.map((p) => p.name).sort()).toEqual(["frequency", "gain"]);
+      expect(jsonReg!.getParams(createRng(7))).toEqual({ frequency: 550, gain: 0.2 });
+      expect(jsonReg!.getDuration(createRng(1))).toBeCloseTo(0.08, 6);
+
+      const yamlReg = registry.getRegistration("file-backed-yaml");
+      expect(yamlReg).toBeDefined();
+      expect(yamlReg!.getDuration(createRng(1))).toBeCloseTo(0.15, 6);
+
+      const renderDuration = jsonReg!.getDuration(createRng(42));
+      const sampleRate = 44100;
+      const ctx = new OfflineAudioContext(
+        1,
+        Math.ceil(sampleRate * renderDuration),
+        sampleRate,
       );
-
-      const results = reg.listDetailed({ tags: ["laser"] });
-
-      expect(results).toHaveLength(1);
-      expect(results[0]!.matchedTags).toEqual(["laser"]);
-    });
+      await jsonReg!.buildOfflineGraph(createRng(42), ctx, renderDuration);
+      const rendered = await ctx.startRendering();
+      const samples = new Float32Array(rendered.getChannelData(0));
+      expect(samples.some((sample) => sample !== 0)).toBe(true);
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true });
+    }
   });
 });

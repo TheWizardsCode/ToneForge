@@ -14,16 +14,7 @@
  * Reference: docs/prd/CORE_PRD.md Section 5
  */
 
-import { resolve, dirname } from "node:path";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import type { OfflineAudioContext, AudioBuffer } from "node-web-audio-api";
-
-/** Directory of this file (src/audio/) */
-const __dirname = dirname(fileURLToPath(import.meta.url));
-
-/** Project root (two levels up from src/audio/) */
-const PROJECT_ROOT = resolve(__dirname, "..", "..");
 
 /**
  * Detect whether we are running in a browser environment.
@@ -60,7 +51,15 @@ async function loadSampleNode(
   relativePath: string,
   ctx: OfflineAudioContext,
 ): Promise<AudioBuffer> {
-  const fullPath = resolve(PROJECT_ROOT, "assets", "samples", relativePath);
+  const [{ resolve, dirname }, { readFileSync }, { fileURLToPath }] = await Promise.all([
+    import("node:path"),
+    import("node:fs"),
+    import("node:url"),
+  ]);
+
+  const dir = dirname(fileURLToPath(import.meta.url));
+  const projectRoot = resolve(dir, "..", "..");
+  const fullPath = resolve(projectRoot, "assets", "samples", relativePath);
 
   let fileBuffer: Buffer;
   try {

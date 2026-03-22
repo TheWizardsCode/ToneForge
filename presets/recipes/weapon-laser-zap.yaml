@@ -1,0 +1,100 @@
+# Migration note: hand-translated from src/recipes/index.ts weaponLaserZapOfflineGraph().
+version: "0.1"
+meta:
+  name: weapon-laser-zap
+  description: Punchy laser zap using FM synthesis with a bandpass-filtered noise burst.
+  category: Weapon
+  tags:
+    - laser
+    - zap
+    - sci-fi
+    - weapon
+  duration: 0.10833617065971161
+  parameters:
+    - name: carrierFreq
+      type: number
+      min: 200
+      max: 2000
+      unit: Hz
+      default: 204.759006575858
+    - name: modulatorFreq
+      type: number
+      min: 50
+      max: 500
+      unit: Hz
+      default: 347.1403898897442
+    - name: modIndex
+      type: number
+      min: 1
+      max: 10
+      unit: ratio
+      default: 1.998613781295394
+    - name: noiseBurstLevel
+      type: number
+      min: 0.1
+      max: 0.5
+      unit: amplitude
+      default: 0.4397507608727903
+    - name: attack
+      type: number
+      min: 0.001
+      max: 0.005
+      unit: s
+      default: 0.004501757566701099
+    - name: decay
+      type: number
+      min: 0.03
+      max: 0.25
+      unit: s
+      default: 0.10383441309301052
+nodes:
+  modulator:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 347.1403898897442
+  modDepth:
+    kind: gain
+    params:
+      gain: 693.799567277899
+  carrier:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 204.759006575858
+  carrierEnv:
+    kind: envelope
+    params:
+      attack: 0.004501757566701099
+      decay: 0.10383441309301052
+      sustain: 0
+      release: 0
+  noise:
+    kind: noise
+    params:
+      color: white
+      level: 1
+  noiseFilter:
+    kind: biquadFilter
+    params:
+      type: bandpass
+      frequency: 409.518013151716
+  noiseLevel:
+    kind: gain
+    params:
+      gain: 0.4397507608727903
+  noiseEnv:
+    kind: envelope
+    params:
+      attack: 0.004501757566701099
+      decay: 0.05191720654650526
+      sustain: 0
+      release: 0
+  out:
+    kind: destination
+routing:
+  - chain: [modulator, modDepth]
+  - from: modDepth
+    to: carrier.frequency
+  - chain: [carrier, carrierEnv, out]
+  - chain: [noise, noiseFilter, noiseLevel, noiseEnv, out]

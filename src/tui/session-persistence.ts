@@ -229,6 +229,14 @@ export async function loadSession(
 export function detectSessionFile(
   filePath: string = DEFAULT_SESSION_FILE,
 ): boolean {
+  // During test runs (Vitest/NODE_ENV=test) we avoid interacting with a
+  // developer's on-disk session file to keep tests hermetic and deterministic.
+  // Tests set `VITEST=true` in the environment; respect that and treat the
+  // session file as absent so the TUI does not prompt to resume or delete it.
+  if (process.env.VITEST === "true" || process.env.NODE_ENV === "test") {
+    return false;
+  }
+
   return existsSync(filePath);
 }
 
