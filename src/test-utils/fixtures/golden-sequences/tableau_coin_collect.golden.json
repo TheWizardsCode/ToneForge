@@ -1,0 +1,27 @@
+{
+  "name": "tableau_coin_collect",
+  "seed": 42,
+  "sampleRate": 44100,
+  "totalDuration": 0.15,
+  "totalDuration_ms": 150,
+  "events": [
+    {
+      "time_ms": 0,
+      "sampleOffset": 0,
+      "event": "card-coin-collect",
+      "seedOffset": 0,
+      "eventSeed": 42,
+      "gain": 1,
+      "repetition": 0
+    },
+    {
+      "time_ms": 150,
+      "sampleOffset": 6615,
+      "event": "card-chip-stack",
+      "seedOffset": 1,
+      "eventSeed": 43,
+      "gain": 0.8,
+      "repetition": 0
+    }
+  ]
+}
