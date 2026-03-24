@@ -1,0 +1,20 @@
+{
+  "version": "1.0",
+  "name": "tableau_coin_collect",
+  "description": "Collect coins from the tableau market or rent collection in a high-street economy card game.",
+  "events": [
+    {
+      "time": 0,
+      "event": "card-coin-collect",
+      "seedOffset": 0,
+      "gain": 1.0
+    },
+    {
+      "time": 0.15,
+      "event": "card-chip-stack",
+      "seedOffset": 1,
+      "gain": 0.8,
+      "probability": 0.7
+    }
+  ]
+}
