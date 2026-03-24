@@ -16,9 +16,10 @@
  * Reference: docs/prd/CLASSIFY_PRD.md
  */
 
-import { readFileSync } from "fs";
-import { join } from "path";
-import { load as loadYaml } from "js-yaml";
+import fs from "fs";
+import path from "path";
+import yaml from "js-yaml";
+import { normalizeCategory } from "../../core/normalize-category.js";
 import type { AnalysisResult } from "../../analyze/types.js";
 import type { DimensionClassifier, DimensionResult, RecipeContext } from "../types.js";
 
@@ -28,7 +29,7 @@ import type { DimensionClassifier, DimensionResult, RecipeContext } from "../typ
  * When a recipe name starts with one of these prefixes (before the first `-`
  * or as a known multi-segment prefix), the corresponding category is assigned.
  */
-const RECIPE_NAME_CATEGORY_MAP: Record<string, string> = {
+const DEFAULT_RECIPE_NAME_CATEGORY_MAP: Record<string, string> = {
   weapon: "weapon",
   footstep: "footstep",
   ui: "ui",
@@ -45,8 +46,78 @@ const RECIPE_NAME_CATEGORY_MAP: Record<string, string> = {
   card: "card-game",
 };
 
-/** Default config file path, relative to the working directory at classify time. */
-const DEFAULT_CONFIG_PATH = join(".toneforge", "config.yaml");
+let cachedMap: Record<string, string> | null = null;
+let warnedMissingConfig = false;
+
+function loadConfigMap(): Record<string, string> {
+  if (cachedMap) return cachedMap;
+
+  // Prefer .toneforge/config.yaml in repository root
+  const cfgPath = path.resolve(process.cwd(), ".toneforge", "config.yaml");
+  try {
+    if (fs.existsSync(cfgPath)) {
+      const raw = fs.readFileSync(cfgPath, "utf8");
+      const parsed = yaml.load(raw);
+
+      // Reject array roots and other unexpected shapes explicitly
+      if (Array.isArray(parsed)) {
+        throw new Error(`${cfgPath}: expected mapping of prefix->category, got array`);
+      }
+
+      if (parsed && typeof parsed === "object") {
+        // Accept either a top-level mapping or a { prefixToCategory: { ... } } shape
+        const root = parsed as Record<string, any>;
+        const candidate = (root.prefixToCategory && typeof root.prefixToCategory === "object")
+          ? root.prefixToCategory
+          : root;
+
+        if (Array.isArray(candidate) || typeof candidate !== "object") {
+          throw new Error(`${cfgPath}: expected mapping of prefix->category`);
+        }
+
+        const map: Record<string, string> = {};
+        for (const [k, v] of Object.entries(candidate as Record<string, any>)) {
+          if (typeof v === "string") {
+            const key = String(k).toLowerCase();
+            const value = String(v).toLowerCase().replace(/\s+/g, "-");
+            map[key] = value;
+          }
+        }
+
+        // Normalize defaults as well (defensive)
+        const normalizedDefaults: Record<string, string> = {};
+        for (const [k, v] of Object.entries(DEFAULT_RECIPE_NAME_CATEGORY_MAP)) {
+          normalizedDefaults[String(k).toLowerCase()] = String(v).toLowerCase().replace(/\s+/g, "-");
+        }
+
+        cachedMap = { ...normalizedDefaults, ...map };
+        return cachedMap;
+      }
+
+      // malformed structure
+      throw new Error(`${cfgPath}: expected mapping of prefix->category`);
+    }
+  } catch (err) {
+    // Fail fast on malformed config so CI/tests surface the issue; add context
+    throw new Error(`Error loading ${cfgPath}: ${(err as Error).message}`);
+  }
+
+  // No config file — warn once and fall back to in-memory defaults
+  if (!warnedMissingConfig) {
+    // eslint-disable-next-line no-console
+    console.warn(`.toneforge/config.yaml not found at ${cfgPath}, using built-in defaults`);
+    warnedMissingConfig = true;
+  }
+
+  // Ensure defaults are normalized defensively
+  const normalizedDefaults: Record<string, string> = {};
+  for (const [k, v] of Object.entries(DEFAULT_RECIPE_NAME_CATEGORY_MAP)) {
+    normalizedDefaults[String(k).toLowerCase()] = String(v).toLowerCase().replace(/\s+/g, "-");
+  }
+
+  cachedMap = { ...normalizedDefaults };
+  return cachedMap;
+}
 
 /**
  * Infer category from analysis metrics when no recipe metadata is available.
@@ -194,14 +265,20 @@ export class CategoryClassifier implements DimensionClassifier {
     // Normalize to lowercase hyphenated form (e.g. "Card Game" -> "card-game")
     // to match the canonical vocabulary used in RECIPE_NAME_CATEGORY_MAP.
     if (context?.category) {
-      return { category: context.category.toLowerCase().replace(/\s+/g, "-") };
+      return { category: normalizeCategory(context.category) };
     }
 
-    // Secondary signal: recipe name parsing (triggers lazy config load)
+    // Secondary signal: recipe name parsing (use config if available)
     if (context?.name) {
-      const mappings = this.loadMappings();
-      const firstSegment = context.name.split("-")[0]!;
-      const mapped = mappings[firstSegment];
+      const firstSegment = context.name.split("-")[0]!.toLowerCase();
+      const map = loadConfigMap();
+      const mapped = map[firstSegment];
+    // Secondary signal: recipe name parsing (use config if available)
+    if (context?.name) {
+      const firstSegment = context.name.split("-")[0]!.toLowerCase();
+      const map = loadConfigMap();
+      const mapped = map[firstSegment];
+>>>>>>> origin/main
       if (mapped) {
         return { category: mapped };
       }

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ToneForge category classifier configuration.
 # Maps recipe-name prefixes (before the first '-') to canonical category labels.
 # Edit this file to add or rename categories without modifying TypeScript source.
@@ -18,3 +19,11 @@ prefixToCategory:
   rattle: impact
   resonance: impact
   card: card-game
+=======
+prefixToCategory:
+  ui: "User Interface"
+  perf: "Performance"
+  build: "Build System"
+  core: "Core"
+  infra: "Infrastructure"
+>>>>>>> origin/main

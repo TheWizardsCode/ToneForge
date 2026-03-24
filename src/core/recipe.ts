@@ -14,6 +14,10 @@
 
 import type { OfflineAudioContext } from "node-web-audio-api";
 import type { Rng } from "./rng.js";
+import fs from "fs";
+import path from "path";
+import yaml from "js-yaml";
+import { loadToneGraph } from "./tonegraph.js";
 
 /**
  * Describes a single recipe parameter with its name, range, and unit.
@@ -450,11 +454,125 @@ export class RecipeRegistry {
 }
 
 /**
+ * Discover on-disk ToneGraph recipe files under `presets/recipes/` and
+ * register them as lazy recipe entries. Files supported: .json, .yaml, .yml
+ *
+ * This function is idempotent and will not overwrite existing registry
+ * entries. It is intentionally conservative: file-backed recipes provide
+ * metadata (description, params) and a minimal `getDuration`. Offline
+ * rendering support may be added later.
+ */
+export function discoverFileBackedRecipes(registry: RecipeRegistry) {
+  const presetsDir = path.resolve(process.cwd(), "presets/recipes");
+  if (!fs.existsSync(presetsDir)) return;
+
+  const entries = fs.readdirSync(presetsDir);
+  for (const file of entries) {
+    const ext = path.extname(file).toLowerCase();
+    if (![".json", ".yaml", ".yml"].includes(ext)) continue;
+    const full = path.join(presetsDir, file);
+    let doc: any;
+    try {
+      const txt = fs.readFileSync(full, "utf8");
+      doc = ext === ".json" ? JSON.parse(txt) : yaml.load(txt);
+    } catch (e) {
+      // skip malformed files
+      continue;
+    }
+
+    const name = (doc?.meta?.name as string) ?? path.basename(file, ext);
+
+    // Do not overwrite existing registration
+    if (registry.getRegistration(name)) continue;
+
+    const description = doc?.meta?.description ?? "";
+    const category = doc?.meta?.category ?? "";
+    const params = Array.isArray(doc?.params) ? doc.params : [];
+    const signalChain = doc?.meta?.signalChain ?? "";
+
+    // Minimal getDuration: prefer meta.duration, otherwise heuristic
+    const getDuration = (_rng: Rng) => {
+      if (typeof doc?.meta?.duration === "number") return doc.meta.duration;
+      // look for amplitude envelopes
+      let dur = 0;
+      for (const node of Object.values(doc.nodes ?? {}) as any[]) {
+        if ((node?.kind ?? "") === "tone/AmplitudeEnvelope") {
+          dur = Math.max(dur, (node.attack ?? 0) + (node.decay ?? 0) + (node.release ?? 0));
+        }
+      }
+      return dur > 0 ? dur : 1;
+    };
+
+    const lazy = {
+      factoryLoader: async () => {
+        // Return a factory that, when called, will import Tone and create
+        // a simple Recipe factory that uses the ToneGraph loader to build
+        // a runtime graph bound to Tone.
+        const ToneMod = await import("tone");
+        const Tone = (ToneMod as any).default ?? ToneMod;
+
+        return (rng: Rng) => {
+          // runtime binding — Tone is captured from the async import above
+          const handle = loadToneGraph(doc, { Tone, rng });
+
+          // Build a Recipe-compatible wrapper
+          const recipe: any = {
+            start(time: number) {
+              handle.start(time);
+            },
+            stop(time: number) {
+              handle.stop(time);
+            },
+            toDestination() {
+              // Attempt to connect any node named 'amp' or connect all nodes
+              // that expose toDestination/connect to Tone.Destination.
+              for (const node of Object.values(handle.nodes)) {
+                try {
+                  if (node && typeof node.toDestination === "function") {
+                    node.toDestination();
+                  } else if (node && typeof node.connect === "function") {
+                    node.connect(Tone.Destination);
+                  }
+                } catch (e) {
+                  // ignore
+                }
+              }
+            },
+            get duration() {
+              return handle.duration;
+            },
+            dispose() {
+              handle.dispose();
+            },
+          };
+
+          return recipe;
+        };
+      },
+      getDuration,
+      buildOfflineGraph: () => {
+        throw new Error("Offline rendering of file-backed ToneGraph recipes is not implemented yet.");
+      },
+      description,
+      category,
+      tags: doc?.meta?.tags ?? [],
+      signalChain,
+      params,
+      getParams: (_rng: Rng) => ({}),
+    };
+
+    registry.register(name, lazy);
+  }
+}
+
+/**
  * Normalize a category string for comparison: lowercase and
  * replace whitespace sequences with hyphens.
  *
  * e.g. "Card Game" -> "card-game", "card game" -> "card-game"
  */
+import { normalizeCategory as normalizeCategoryFn } from "./normalize-category.js";
+
 function normalizeCategory(category: string): string {
-  return category.toLowerCase().replace(/\s+/g, "-");
+  return normalizeCategoryFn(category);
 }
