@@ -205,59 +205,66 @@ export class CategoryClassifier implements DimensionClassifier {
    */
   private loadMappings(): Record<string, string> {
     if (this.loaded) {
-      return this.mappings ?? RECIPE_NAME_CATEGORY_MAP;
+      return this.mappings ?? DEFAULT_RECIPE_NAME_CATEGORY_MAP;
     }
     this.loaded = true;
 
-    const resolvedPath = this.configPath ?? join(process.cwd(), DEFAULT_CONFIG_PATH);
-    let raw: string;
-    try {
-      raw = readFileSync(resolvedPath, "utf-8");
-    } catch (err: unknown) {
-      if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-        console.warn(
-          `[ToneForge] No ${resolvedPath} found; using built-in category mappings.`,
-        );
-        return RECIPE_NAME_CATEGORY_MAP;
+    // If an instance-specific configPath was provided, prefer that and
+    // perform instance-scoped loading and warnings (so tests can spy on
+    // console.warn per-instance). Otherwise delegate to the module loader.
+    if (this.configPath) {
+      try {
+        if (fs.existsSync(this.configPath)) {
+          const raw = fs.readFileSync(this.configPath, "utf8");
+          const parsed = yaml.load(raw);
+
+          if (Array.isArray(parsed) || !parsed || typeof parsed !== "object") {
+            throw new Error(`Invalid config: expected a top-level mapping`);
+          }
+
+          const root = parsed as Record<string, any>;
+          const candidate = (root.prefixToCategory && typeof root.prefixToCategory === "object")
+            ? root.prefixToCategory
+            : root;
+
+          if (Array.isArray(candidate) || typeof candidate !== "object") {
+            throw new Error(`Invalid config: expected mapping of prefix->category`);
+          }
+
+          const map: Record<string, string> = {};
+          for (const [k, v] of Object.entries(candidate as Record<string, any>)) {
+            if (typeof v !== "string") {
+              throw new Error(`prefixToCategory['${k}'] must be a string, got ${typeof v}`);
+            }
+            map[String(k).toLowerCase()] = String(v).toLowerCase().replace(/\s+/g, "-");
+          }
+
+          const normalizedDefaults: Record<string, string> = {};
+          for (const [k, v] of Object.entries(DEFAULT_RECIPE_NAME_CATEGORY_MAP)) {
+            normalizedDefaults[String(k).toLowerCase()] = String(v).toLowerCase().replace(/\s+/g, "-");
+          }
+
+          this.mappings = { ...normalizedDefaults, ...map };
+          return this.mappings;
+        }
+
+        // Missing file: emit a per-instance warning and fall back to defaults
+        // eslint-disable-next-line no-console
+        console.warn(`[ToneForge] No ${this.configPath} found; using built-in category mappings.`);
+        const normalizedDefaults: Record<string, string> = {};
+        for (const [k, v] of Object.entries(DEFAULT_RECIPE_NAME_CATEGORY_MAP)) {
+          normalizedDefaults[String(k).toLowerCase()] = String(v).toLowerCase().replace(/\s+/g, "-");
+        }
+        this.mappings = { ...normalizedDefaults };
+        return this.mappings;
+      } catch (err) {
+        throw new Error(`Error loading ${this.configPath}: ${(err as Error).message}`);
       }
-      throw err;
     }
 
-    const parsed = loadYaml(raw) as unknown;
-
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      throw new Error(
-        `[ToneForge] Invalid config at ${resolvedPath}: expected a YAML object at the top level.`,
-      );
-    }
-
-    const config = parsed as Record<string, unknown>;
-    const prefixToCategory = config["prefixToCategory"];
-
-    if (
-      !prefixToCategory ||
-      typeof prefixToCategory !== "object" ||
-      Array.isArray(prefixToCategory)
-    ) {
-      throw new Error(
-        `[ToneForge] Invalid config at ${resolvedPath}: missing or invalid 'prefixToCategory' key.`,
-      );
-    }
-
-    const mappings: Record<string, string> = {};
-    for (const [key, value] of Object.entries(
-      prefixToCategory as Record<string, unknown>,
-    )) {
-      if (typeof value !== "string") {
-        throw new Error(
-          `[ToneForge] Invalid config at ${resolvedPath}: prefixToCategory['${key}'] must be a string, got ${typeof value}.`,
-        );
-      }
-      mappings[key] = value;
-    }
-
-    this.mappings = mappings;
-    return mappings;
+    // No instance path — use module-level loader which caches globally
+    this.mappings = loadConfigMap();
+    return this.mappings;
   }
 
   classify(analysis: AnalysisResult, context?: RecipeContext): DimensionResult {
@@ -271,14 +278,8 @@ export class CategoryClassifier implements DimensionClassifier {
     // Secondary signal: recipe name parsing (use config if available)
     if (context?.name) {
       const firstSegment = context.name.split("-")[0]!.toLowerCase();
-      const map = loadConfigMap();
+      const map = this.loadMappings();
       const mapped = map[firstSegment];
-    // Secondary signal: recipe name parsing (use config if available)
-    if (context?.name) {
-      const firstSegment = context.name.split("-")[0]!.toLowerCase();
-      const map = loadConfigMap();
-      const mapped = map[firstSegment];
->>>>>>> origin/main
       if (mapped) {
         return { category: mapped };
       }
