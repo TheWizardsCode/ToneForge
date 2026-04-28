@@ -7,6 +7,12 @@
  * Categories are always lowercase strings matching the vocabulary:
  * weapon, footstep, ui, ambient, character, creature, vehicle, impact, card-game.
  *
+ * Prefix-to-category mappings are loaded lazily from `.toneforge/config.yaml`
+ * (relative to the current working directory) on the first name-based lookup.
+ * If the config file is absent, the built-in defaults below are used and a
+ * warning is emitted. If the file exists but is malformed, an error is thrown
+ * so CI surfaces the problem immediately.
+ *
  * Reference: docs/prd/CLASSIFY_PRD.md
  */
 
@@ -18,7 +24,7 @@ import type { AnalysisResult } from "../../analyze/types.js";
 import type { DimensionClassifier, DimensionResult, RecipeContext } from "../types.js";
 
 /**
- * Known category prefixes extracted from recipe names.
+ * Built-in prefix-to-category defaults, used when `.toneforge/config.yaml` is absent.
  *
  * When a recipe name starts with one of these prefixes (before the first `-`
  * or as a known multi-segment prefix), the corresponding category is assigned.
@@ -169,9 +175,97 @@ function inferCategoryFromMetrics(analysis: AnalysisResult): string {
  *
  * Uses recipe metadata as the primary signal for category, with
  * analysis-metric-based fallback for unknown sources.
+ *
+ * Prefix-to-category mappings are lazy-loaded from the YAML config on the
+ * first name-based lookup. Pass a custom `configPath` in the constructor to
+ * override the default location (useful for testing).
  */
 export class CategoryClassifier implements DimensionClassifier {
   readonly name = "category";
+
+  private readonly configPath: string | undefined;
+  private mappings: Record<string, string> | null = null;
+  private loaded = false;
+
+  /**
+   * @param configPath - Optional override for the config file path. When omitted,
+   *   the path is resolved from `process.cwd()` at the time of the first name-based
+   *   classify call, so it reflects the working directory at usage time.
+   */
+  constructor(configPath?: string) {
+    this.configPath = configPath;
+  }
+
+  /**
+   * Lazily load prefix-to-category mappings from `.toneforge/config.yaml`.
+   *
+   * - If the file is absent: emits a console warning and returns built-in defaults.
+   * - If the file is present but malformed: throws an error to fail fast.
+   * - On subsequent calls: returns the cached result.
+   */
+  private loadMappings(): Record<string, string> {
+    if (this.loaded) {
+      return this.mappings ?? DEFAULT_RECIPE_NAME_CATEGORY_MAP;
+    }
+    this.loaded = true;
+
+    // If an instance-specific configPath was provided, prefer that and
+    // perform instance-scoped loading and warnings (so tests can spy on
+    // console.warn per-instance). Otherwise delegate to the module loader.
+    if (this.configPath) {
+      try {
+        if (fs.existsSync(this.configPath)) {
+          const raw = fs.readFileSync(this.configPath, "utf8");
+          const parsed = yaml.load(raw);
+
+          if (Array.isArray(parsed) || !parsed || typeof parsed !== "object") {
+            throw new Error(`Invalid config: expected a top-level mapping`);
+          }
+
+          const root = parsed as Record<string, any>;
+          const candidate = (root.prefixToCategory && typeof root.prefixToCategory === "object")
+            ? root.prefixToCategory
+            : root;
+
+          if (Array.isArray(candidate) || typeof candidate !== "object") {
+            throw new Error(`Invalid config: expected mapping of prefix->category`);
+          }
+
+          const map: Record<string, string> = {};
+          for (const [k, v] of Object.entries(candidate as Record<string, any>)) {
+            if (typeof v !== "string") {
+              throw new Error(`prefixToCategory['${k}'] must be a string, got ${typeof v}`);
+            }
+            map[String(k).toLowerCase()] = String(v).toLowerCase().replace(/\s+/g, "-");
+          }
+
+          const normalizedDefaults: Record<string, string> = {};
+          for (const [k, v] of Object.entries(DEFAULT_RECIPE_NAME_CATEGORY_MAP)) {
+            normalizedDefaults[String(k).toLowerCase()] = String(v).toLowerCase().replace(/\s+/g, "-");
+          }
+
+          this.mappings = { ...normalizedDefaults, ...map };
+          return this.mappings;
+        }
+
+        // Missing file: emit a per-instance warning and fall back to defaults
+        // eslint-disable-next-line no-console
+        console.warn(`[ToneForge] No ${this.configPath} found; using built-in category mappings.`);
+        const normalizedDefaults: Record<string, string> = {};
+        for (const [k, v] of Object.entries(DEFAULT_RECIPE_NAME_CATEGORY_MAP)) {
+          normalizedDefaults[String(k).toLowerCase()] = String(v).toLowerCase().replace(/\s+/g, "-");
+        }
+        this.mappings = { ...normalizedDefaults };
+        return this.mappings;
+      } catch (err) {
+        throw new Error(`Error loading ${this.configPath}: ${(err as Error).message}`);
+      }
+    }
+
+    // No instance path — use module-level loader which caches globally
+    this.mappings = loadConfigMap();
+    return this.mappings;
+  }
 
   classify(analysis: AnalysisResult, context?: RecipeContext): DimensionResult {
     // Primary signal: recipe metadata
@@ -184,7 +278,7 @@ export class CategoryClassifier implements DimensionClassifier {
     // Secondary signal: recipe name parsing (use config if available)
     if (context?.name) {
       const firstSegment = context.name.split("-")[0]!.toLowerCase();
-      const map = loadConfigMap();
+      const map = this.loadMappings();
       const mapped = map[firstSegment];
       if (mapped) {
         return { category: mapped };
