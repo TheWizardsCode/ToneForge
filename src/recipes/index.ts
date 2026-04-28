@@ -2,26 +2,14 @@
  * Recipe Registry Index
  *
  * Registers all built-in recipes and exports the shared registry instance.
- * Each recipe provides a LazyRecipeRegistration with:
- *   - factoryLoader: deferred Tone.js factory import (avoids loading
- *     heavy dependencies at module load time)
- *   - getDuration: compute natural duration from a seeded RNG
- *   - buildOfflineGraph: build Web Audio API graph on OfflineAudioContext
- *
- * Only the lightweight param modules are imported eagerly. Recipe factory
- * modules (which import Tone.js) are loaded on demand via dynamic import()
- * when the factory is actually needed (browser/interactive contexts).
+ * Each recipe provides deterministic duration and an offline graph builder.
  */
 
 import type { OfflineAudioContext } from "node-web-audio-api";
-import { RecipeRegistry } from "../core/recipe.js";
+import { RecipeRegistry, discoverFileBackedRecipes } from "../core/recipe.js";
 import type { Rng } from "../core/rng.js";
-import { getUiSciFiConfirmParams } from "./ui-scifi-confirm-params.js";
-import { getWeaponLaserZapParams } from "./weapon-laser-zap-params.js";
 import { getFootstepStoneParams } from "./footstep-stone-params.js";
 import { getUiNotificationChimeParams } from "./ui-notification-chime-params.js";
-import { getAmbientWindGustParams } from "./ambient-wind-gust-params.js";
-import { getFootstepGravelParams } from "./footstep-gravel-params.js";
 import { getCreatureVocalParams } from "./creature-vocal-params.js";
 import { getVehicleEngineParams } from "./vehicle-engine-params.js";
 import { getCharacterJumpStep1Params } from "./character-jump-step1-params.js";
@@ -61,7 +49,6 @@ import { getCardPowerDownParams } from "./card-power-down-params.js";
 import { getCardLockParams } from "./card-lock-params.js";
 import { getCardUnlockParams } from "./card-unlock-params.js";
 import { getCardGlowParams } from "./card-glow-params.js";
-import { getCardTransformParams } from "./card-transform-params.js";
 import { getCardComboHitParams } from "./card-combo-hit-params.js";
 import { getCardComboBreakParams } from "./card-combo-break-params.js";
 import { getCardMultiplierUpParams } from "./card-multiplier-up-params.js";
@@ -73,179 +60,7 @@ import { getCardTimerWarningParams } from "./card-timer-warning-params.js";
 
 /** The global recipe registry instance with all built-in recipes registered. */
 export const registry = new RecipeRegistry();
-
-// ── ui-scifi-confirm ──────────────────────────────────────────────
-
-function uiSciFiConfirmDuration(rng: Rng): number {
-  const params = getUiSciFiConfirmParams(rng);
-  return params.attack + params.decay;
-}
-
-function uiSciFiConfirmOfflineGraph(
-  rng: Rng,
-  ctx: OfflineAudioContext,
-  duration: number,
-): void {
-  const params = getUiSciFiConfirmParams(rng);
-
-  // Create oscillator
-  const osc = ctx.createOscillator();
-  osc.type = "sine";
-  osc.frequency.value = params.frequency;
-
-  // Create lowpass filter
-  const filter = ctx.createBiquadFilter();
-  filter.type = "lowpass";
-  filter.frequency.value = params.filterCutoff;
-
-  // Create gain node for amplitude envelope
-  const gain = ctx.createGain();
-  gain.gain.setValueAtTime(0, 0);
-  // Attack: ramp up
-  gain.gain.linearRampToValueAtTime(1, params.attack);
-  // Decay: ramp down
-  gain.gain.linearRampToValueAtTime(0, params.attack + params.decay);
-
-  // Connect: osc -> filter -> gain -> destination
-  osc.connect(filter);
-  filter.connect(gain);
-  gain.connect(ctx.destination);
-
-  // Schedule
-  osc.start(0);
-  osc.stop(duration);
-}
-
-registry.register("ui-scifi-confirm", {
-  factoryLoader: async () => (await import("./ui-scifi-confirm.js")).createUiSciFiConfirm,
-  getDuration: uiSciFiConfirmDuration,
-  buildOfflineGraph: uiSciFiConfirmOfflineGraph,
-  description: "Short sci-fi confirmation tone using sine synthesis with a filtered sweep.",
-  category: "UI",
-  tags: ["sci-fi", "confirm", "ui"],
-  signalChain: "Sine Oscillator -> Lowpass Filter -> Amplitude Envelope -> Destination",
-  params: [
-    { name: "frequency", min: 400, max: 1200, unit: "Hz" },
-    { name: "attack", min: 0.001, max: 0.01, unit: "s" },
-    { name: "decay", min: 0.05, max: 0.3, unit: "s" },
-    { name: "filterCutoff", min: 800, max: 4000, unit: "Hz" },
-  ],
-  getParams: (rng) => {
-    const p = getUiSciFiConfirmParams(rng);
-    return { frequency: p.frequency, attack: p.attack, decay: p.decay, filterCutoff: p.filterCutoff };
-  },
-});
-
-// ── weapon-laser-zap ──────────────────────────────────────────────
-
-function weaponLaserZapDuration(rng: Rng): number {
-  const params = getWeaponLaserZapParams(rng);
-  return params.attack + params.decay;
-}
-
-function weaponLaserZapOfflineGraph(
-  rng: Rng,
-  ctx: OfflineAudioContext,
-  duration: number,
-): void {
-  const params = getWeaponLaserZapParams(rng);
-
-  // FM carrier oscillator
-  const carrier = ctx.createOscillator();
-  carrier.type = "sine";
-  carrier.frequency.value = params.carrierFreq;
-
-  // FM modulator oscillator
-  const modulator = ctx.createOscillator();
-  modulator.type = "sine";
-  modulator.frequency.value = params.modulatorFreq;
-
-  // Modulation depth: modIndex * modulatorFreq
-  const modGain = ctx.createGain();
-  modGain.gain.value = params.modIndex * params.modulatorFreq;
-
-  // Connect modulator -> modGain -> carrier.frequency (FM)
-  modulator.connect(modGain);
-  modGain.connect(carrier.frequency);
-
-  // Carrier amplitude envelope
-  const carrierGain = ctx.createGain();
-  carrierGain.gain.setValueAtTime(0, 0);
-  carrierGain.gain.linearRampToValueAtTime(1, params.attack);
-  carrierGain.gain.linearRampToValueAtTime(0, params.attack + params.decay);
-
-  carrier.connect(carrierGain);
-  carrierGain.connect(ctx.destination);
-
-  // Noise burst for texture
-  const noiseBufferSize = Math.ceil(ctx.sampleRate * duration);
-  const noiseBuffer = ctx.createBuffer(1, noiseBufferSize, ctx.sampleRate);
-  const noiseData = noiseBuffer.getChannelData(0);
-
-  // Use a simple deterministic noise fill. The RNG has already been advanced
-  // by getWeaponLaserZapParams, so subsequent calls produce deterministic
-  // values unique to this seed.
-  for (let i = 0; i < noiseData.length; i++) {
-    noiseData[i] = rng() * 2 - 1;
-  }
-
-  const noiseSrc = ctx.createBufferSource();
-  noiseSrc.buffer = noiseBuffer;
-
-  // Bandpass filter centred at 2x carrier frequency
-  const noiseFilter = ctx.createBiquadFilter();
-  noiseFilter.type = "bandpass";
-  noiseFilter.frequency.value = params.carrierFreq * 2;
-
-  // Noise level
-  const noiseLevel = ctx.createGain();
-  noiseLevel.gain.value = params.noiseBurstLevel;
-
-  // Noise amplitude envelope (shorter than carrier)
-  const noiseAmpGain = ctx.createGain();
-  noiseAmpGain.gain.setValueAtTime(0, 0);
-  noiseAmpGain.gain.linearRampToValueAtTime(1, params.attack);
-  noiseAmpGain.gain.linearRampToValueAtTime(0, params.attack + params.decay * 0.5);
-
-  noiseSrc.connect(noiseFilter);
-  noiseFilter.connect(noiseLevel);
-  noiseLevel.connect(noiseAmpGain);
-  noiseAmpGain.connect(ctx.destination);
-
-  // Schedule
-  modulator.start(0);
-  carrier.start(0);
-  noiseSrc.start(0);
-  modulator.stop(duration);
-  carrier.stop(duration);
-  noiseSrc.stop(duration);
-}
-
-registry.register("weapon-laser-zap", {
-  factoryLoader: async () => (await import("./weapon-laser-zap.js")).createWeaponLaserZap,
-  getDuration: weaponLaserZapDuration,
-  buildOfflineGraph: weaponLaserZapOfflineGraph,
-  description: "Punchy laser zap using FM synthesis with a bandpass-filtered noise burst.",
-  category: "Weapon",
-  tags: ["laser", "zap", "sci-fi", "weapon"],
-  signalChain: "FM Oscillator (Carrier + Modulator) + Bandpass Noise Burst -> Amplitude Envelope -> Destination",
-  params: [
-    { name: "carrierFreq", min: 200, max: 2000, unit: "Hz" },
-    { name: "modulatorFreq", min: 50, max: 500, unit: "Hz" },
-    { name: "modIndex", min: 1, max: 10, unit: "ratio" },
-    { name: "noiseBurstLevel", min: 0.1, max: 0.5, unit: "amplitude" },
-    { name: "attack", min: 0.001, max: 0.005, unit: "s" },
-    { name: "decay", min: 0.03, max: 0.25, unit: "s" },
-  ],
-  getParams: (rng) => {
-    const p = getWeaponLaserZapParams(rng);
-    return {
-      carrierFreq: p.carrierFreq, modulatorFreq: p.modulatorFreq,
-      modIndex: p.modIndex, noiseBurstLevel: p.noiseBurstLevel,
-      attack: p.attack, decay: p.decay,
-    };
-  },
-});
+await discoverFileBackedRecipes(registry);
 
 // ── footstep-stone ────────────────────────────────────────────────
 
@@ -332,7 +147,6 @@ function footstepStoneOfflineGraph(
 }
 
 registry.register("footstep-stone", {
-  factoryLoader: async () => (await import("./footstep-stone.js")).createFootstepStone,
   getDuration: footstepStoneDuration,
   buildOfflineGraph: footstepStoneOfflineGraph,
   description: "Percussive stone footstep impact using bandpass-filtered noise with transient shaping.",
@@ -358,127 +172,6 @@ registry.register("footstep-stone", {
   },
 });
 
-// ── footstep-gravel (sample-hybrid) ───────────────────────────────
-
-function footstepGravelDuration(rng: Rng): number {
-  const params = getFootstepGravelParams(rng);
-  return params.transientAttack + Math.max(params.bodyDecay, params.tailDecay);
-}
-
-async function footstepGravelOfflineGraph(
-  rng: Rng,
-  ctx: OfflineAudioContext,
-  duration: number,
-): Promise<void> {
-  const params = getFootstepGravelParams(rng);
-
-  // Load the CC0 impact sample
-  const sampleBuffer = await loadSample("footstep-gravel/impact.wav", ctx);
-
-  // Sample layer: play the impact transient identically every render
-  const sampleSrc = ctx.createBufferSource();
-  sampleSrc.buffer = sampleBuffer;
-
-  const sampleGain = ctx.createGain();
-  sampleGain.gain.value = params.mixLevel;
-
-  sampleSrc.connect(sampleGain);
-  sampleGain.connect(ctx.destination);
-
-  // Procedural body layer: bandpass-filtered white noise for gravel crunch
-  const bufferSize = Math.ceil(ctx.sampleRate * duration);
-
-  const bodyBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-  const bodyData = bodyBuffer.getChannelData(0);
-  for (let i = 0; i < bodyData.length; i++) {
-    bodyData[i] = rng() * 2 - 1; // white noise
-  }
-
-  const bodySrc = ctx.createBufferSource();
-  bodySrc.buffer = bodyBuffer;
-
-  const bodyFilter = ctx.createBiquadFilter();
-  bodyFilter.type = "bandpass";
-  bodyFilter.frequency.value = params.filterFreq;
-
-  const bodyGain = ctx.createGain();
-  bodyGain.gain.value = params.bodyLevel;
-
-  const bodyEnv = ctx.createGain();
-  bodyEnv.gain.setValueAtTime(0, 0);
-  bodyEnv.gain.linearRampToValueAtTime(1, params.transientAttack);
-  bodyEnv.gain.linearRampToValueAtTime(0, params.transientAttack + params.bodyDecay);
-
-  bodySrc.connect(bodyFilter);
-  bodyFilter.connect(bodyGain);
-  bodyGain.connect(bodyEnv);
-  bodyEnv.connect(ctx.destination);
-
-  // Procedural tail layer: lowpass-filtered brown noise for scatter
-  const tailBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-  const tailData = tailBuffer.getChannelData(0);
-  let brownState = 0;
-  for (let i = 0; i < tailData.length; i++) {
-    brownState += rng() * 2 - 1;
-    brownState *= 0.998; // leaky integrator to prevent drift
-    tailData[i] = brownState * 0.1;
-  }
-
-  const tailSrc = ctx.createBufferSource();
-  tailSrc.buffer = tailBuffer;
-
-  const tailFilter = ctx.createBiquadFilter();
-  tailFilter.type = "lowpass";
-  tailFilter.frequency.value = params.filterFreq * 0.5;
-
-  const tailGain = ctx.createGain();
-  tailGain.gain.value = params.tailLevel;
-
-  const tailEnv = ctx.createGain();
-  tailEnv.gain.setValueAtTime(0, 0);
-  tailEnv.gain.linearRampToValueAtTime(1, params.transientAttack);
-  tailEnv.gain.linearRampToValueAtTime(0, params.transientAttack + params.tailDecay);
-
-  tailSrc.connect(tailFilter);
-  tailFilter.connect(tailGain);
-  tailGain.connect(tailEnv);
-  tailEnv.connect(ctx.destination);
-
-  // Schedule all sources
-  sampleSrc.start(0);
-  bodySrc.start(0);
-  tailSrc.start(0);
-  sampleSrc.stop(duration);
-  bodySrc.stop(duration);
-  tailSrc.stop(duration);
-}
-
-registry.register("footstep-gravel", {
-  factoryLoader: async () => (await import("./footstep-gravel.js")).createFootstepGravel,
-  getDuration: footstepGravelDuration,
-  buildOfflineGraph: footstepGravelOfflineGraph,
-  description: "Sample-hybrid gravel footstep layering a CC0 impact transient with procedurally varied noise synthesis.",
-  category: "Footstep",
-  tags: ["footstep", "gravel", "impact", "foley", "sample-hybrid"],
-  signalChain: "CC0 Impact Sample + White Noise -> Bandpass Filter (Body) + Brown Noise -> Lowpass Filter (Tail) -> Amplitude Envelope -> Destination",
-  params: [
-    { name: "filterFreq", min: 300, max: 1800, unit: "Hz" },
-    { name: "transientAttack", min: 0.001, max: 0.005, unit: "s" },
-    { name: "bodyDecay", min: 0.05, max: 0.25, unit: "s" },
-    { name: "tailDecay", min: 0.04, max: 0.15, unit: "s" },
-    { name: "mixLevel", min: 0.3, max: 0.7, unit: "amplitude" },
-    { name: "bodyLevel", min: 0.4, max: 0.9, unit: "amplitude" },
-    { name: "tailLevel", min: 0.1, max: 0.4, unit: "amplitude" },
-  ],
-  getParams: (rng) => {
-    const p = getFootstepGravelParams(rng);
-    return {
-      filterFreq: p.filterFreq, transientAttack: p.transientAttack,
-      bodyDecay: p.bodyDecay, tailDecay: p.tailDecay,
-      mixLevel: p.mixLevel, bodyLevel: p.bodyLevel, tailLevel: p.tailLevel,
-    };
-  },
-});
 
 // ── creature-vocal (sample-hybrid) ────────────────────────────────
 
@@ -553,7 +246,6 @@ async function creatureVocalOfflineGraph(
 }
 
 registry.register("creature-vocal", {
-  factoryLoader: async () => (await import("./creature-vocal.js")).createCreatureVocal,
   getDuration: creatureVocalDuration,
   buildOfflineGraph: creatureVocalOfflineGraph,
   description: "Sample-hybrid creature vocalization layering a CC0 growl sample with FM synthesis and formant filtering.",
@@ -657,7 +349,6 @@ async function vehicleEngineOfflineGraph(
 }
 
 registry.register("vehicle-engine", {
-  factoryLoader: async () => (await import("./vehicle-engine.js")).createVehicleEngine,
   getDuration: vehicleEngineDuration,
   buildOfflineGraph: vehicleEngineOfflineGraph,
   description: "Sample-hybrid vehicle engine layering a CC0 engine loop with sawtooth oscillator and LFO-modulated lowpass filter.",
@@ -732,7 +423,6 @@ function uiNotificationChimeOfflineGraph(
 }
 
 registry.register("ui-notification-chime", {
-  factoryLoader: async () => (await import("./ui-notification-chime.js")).createUiNotificationChime,
   getDuration: uiNotificationChimeDuration,
   buildOfflineGraph: uiNotificationChimeOfflineGraph,
   description: "Pleasant musical chime using harmonic series synthesis with ADSR envelope.",
@@ -758,112 +448,6 @@ registry.register("ui-notification-chime", {
   },
 });
 
-// ── ambient-wind-gust ─────────────────────────────────────────────
-
-function ambientWindGustDuration(rng: Rng): number {
-  const params = getAmbientWindGustParams(rng);
-  return params.attack + params.sustain + params.release;
-}
-
-function ambientWindGustOfflineGraph(
-  rng: Rng,
-  ctx: OfflineAudioContext,
-  duration: number,
-): void {
-  const params = getAmbientWindGustParams(rng);
-
-  const bufferSize = Math.ceil(ctx.sampleRate * duration);
-
-  // Pink noise approximation: filter white noise with -3dB/octave slope
-  // Use a lowpass at a moderate frequency to approximate pink spectrum
-  const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-  const noiseData = noiseBuffer.getChannelData(0);
-  for (let i = 0; i < noiseData.length; i++) {
-    noiseData[i] = rng() * 2 - 1;
-  }
-
-  const noiseSrc = ctx.createBufferSource();
-  noiseSrc.buffer = noiseBuffer;
-
-  // Pink noise approximation filter (lowpass to roll off highs)
-  const pinkFilter = ctx.createBiquadFilter();
-  pinkFilter.type = "lowpass";
-  pinkFilter.frequency.value = 2000;
-
-  // Main bandpass filter
-  const filter = ctx.createBiquadFilter();
-  filter.type = "bandpass";
-  filter.frequency.value = params.filterFreq;
-  filter.Q.value = params.filterQ;
-
-  // LFO for filter cutoff modulation (manual via automation)
-  // Approximate sine LFO by scheduling value changes
-  const lfoMin = params.filterFreq - params.lfoDepth * 0.5;
-  const lfoMax = params.filterFreq + params.lfoDepth * 0.5;
-  const lfoSafeMin = Math.max(20, lfoMin); // prevent negative/zero freq
-  const lfoPeriod = 1 / params.lfoRate;
-  const lfoSteps = Math.ceil(duration / (lfoPeriod / 16)); // 16 steps per cycle
-  const lfoStepTime = duration / lfoSteps;
-
-  for (let i = 0; i <= lfoSteps; i++) {
-    const t = i * lfoStepTime;
-    const phase = (t * params.lfoRate * 2 * Math.PI);
-    const value = lfoSafeMin + (lfoMax - lfoSafeMin) * (0.5 + 0.5 * Math.sin(phase));
-    filter.frequency.setValueAtTime(value, t);
-  }
-
-  // Level control
-  const levelGain = ctx.createGain();
-  levelGain.gain.value = params.level;
-
-  // Amplitude envelope: swell, sustain, fade
-  const envGain = ctx.createGain();
-  envGain.gain.setValueAtTime(0, 0);
-  // Attack: swell up
-  envGain.gain.linearRampToValueAtTime(1, params.attack);
-  // Sustain: hold at 1
-  envGain.gain.setValueAtTime(1, params.attack + params.sustain);
-  // Release: fade out
-  envGain.gain.linearRampToValueAtTime(0, duration);
-
-  noiseSrc.connect(pinkFilter);
-  pinkFilter.connect(filter);
-  filter.connect(levelGain);
-  levelGain.connect(envGain);
-  envGain.connect(ctx.destination);
-
-  noiseSrc.start(0);
-  noiseSrc.stop(duration);
-}
-
-registry.register("ambient-wind-gust", {
-  factoryLoader: async () => (await import("./ambient-wind-gust.js")).createAmbientWindGust,
-  getDuration: ambientWindGustDuration,
-  buildOfflineGraph: ambientWindGustOfflineGraph,
-  description: "Environmental wind burst with filtered noise and LFO-modulated bandpass sweep.",
-  category: "Ambient",
-  tags: ["wind", "ambient", "environment", "nature"],
-  signalChain: "Pink Noise Approximation -> Bandpass Filter (LFO Modulated) -> Level Control -> Swell Envelope -> Destination",
-  params: [
-    { name: "filterFreq", min: 200, max: 1500, unit: "Hz" },
-    { name: "filterQ", min: 0.5, max: 3.0, unit: "Q" },
-    { name: "lfoRate", min: 0.5, max: 4.0, unit: "Hz" },
-    { name: "lfoDepth", min: 100, max: 800, unit: "Hz" },
-    { name: "attack", min: 0.1, max: 0.5, unit: "s" },
-    { name: "sustain", min: 0.2, max: 1.0, unit: "s" },
-    { name: "release", min: 0.2, max: 0.8, unit: "s" },
-    { name: "level", min: 0.3, max: 0.8, unit: "amplitude" },
-  ],
-  getParams: (rng) => {
-    const p = getAmbientWindGustParams(rng);
-    return {
-      filterFreq: p.filterFreq, filterQ: p.filterQ,
-      lfoRate: p.lfoRate, lfoDepth: p.lfoDepth,
-      attack: p.attack, sustain: p.sustain,
-      release: p.release, level: p.level,
-    };
-  },
-});
 
 // ── character-jump-step1 (oscillator only) ────────────────────────
 
@@ -896,7 +480,6 @@ function characterJumpStep1OfflineGraph(
 }
 
 registry.register("character-jump-step1", {
-  factoryLoader: async () => (await import("./character-jump-step1.js")).createCharacterJumpStep1,
   getDuration: characterJumpStep1Duration,
   buildOfflineGraph: characterJumpStep1OfflineGraph,
   description: "Raw sine oscillator at a seed-derived frequency. No envelope, fixed 0.2 s duration.",
@@ -945,7 +528,6 @@ function characterJumpStep2OfflineGraph(
 }
 
 registry.register("character-jump-step2", {
-  factoryLoader: async () => (await import("./character-jump-step2.js")).createCharacterJumpStep2,
   getDuration: characterJumpStep2Duration,
   buildOfflineGraph: characterJumpStep2OfflineGraph,
   description: "Sine oscillator with attack/decay amplitude envelope. Sound starts quickly and fades naturally.",
@@ -1000,7 +582,6 @@ function characterJumpStep3OfflineGraph(
 }
 
 registry.register("character-jump-step3", {
-  factoryLoader: async () => (await import("./character-jump-step3.js")).createCharacterJumpStep3,
   getDuration: characterJumpStep3Duration,
   buildOfflineGraph: characterJumpStep3OfflineGraph,
   description: "Sine oscillator with amplitude envelope and rising pitch sweep for upward motion.",
@@ -1089,7 +670,6 @@ function characterJumpStep4OfflineGraph(
 }
 
 registry.register("character-jump-step4", {
-  factoryLoader: async () => (await import("./character-jump-step4.js")).createCharacterJumpStep4,
   getDuration: characterJumpStep4Duration,
   buildOfflineGraph: characterJumpStep4OfflineGraph,
   description: "Sine oscillator with envelope, pitch sweep, and unfiltered white noise burst.",
@@ -1189,7 +769,6 @@ function characterJumpOfflineGraph(
 }
 
 registry.register("character-jump", {
-  factoryLoader: async () => (await import("./character-jump.js")).createCharacterJump,
   getDuration: characterJumpDuration,
   buildOfflineGraph: characterJumpOfflineGraph,
   description: "Springy jump sound using a rising pitch sweep with a filtered noise burst for impact.",
@@ -1271,7 +850,6 @@ function impactCrackOfflineGraph(
 }
 
 registry.register("impact-crack", {
-  factoryLoader: async () => (await import("./impact-crack.js")).createImpactCrack,
   getDuration: impactCrackDuration,
   buildOfflineGraph: impactCrackOfflineGraph,
   description: "Short, sharp transient crack for explosion attack layers using highpass-filtered noise with fast decay.",
@@ -1372,7 +950,6 @@ function rumbleBodyOfflineGraph(
 }
 
 registry.register("rumble-body", {
-  factoryLoader: async () => (await import("./rumble-body.js")).createRumbleBody,
   getDuration: rumbleBodyDuration,
   buildOfflineGraph: rumbleBodyOfflineGraph,
   description: "Low-frequency rumble body for explosion layers using filtered brown noise with sub-bass oscillator.",
@@ -1466,7 +1043,6 @@ function debrisTailOfflineGraph(
 }
 
 registry.register("debris-tail", {
-  factoryLoader: async () => (await import("./debris-tail.js")).createDebrisTail,
   getDuration: debrisTailDuration,
   buildOfflineGraph: debrisTailOfflineGraph,
   description: "Scattered debris crackle tail for explosion layers using granular noise bursts with decreasing density.",
@@ -1572,7 +1148,6 @@ function slamTransientOfflineGraph(
 }
 
 registry.register("slam-transient", {
-  factoryLoader: async () => (await import("./slam-transient.js")).createSlamTransient,
   getDuration: slamTransientDuration,
   buildOfflineGraph: slamTransientOfflineGraph,
   description: "Short door impact transient using bandpass-filtered noise thud with highpass click component.",
@@ -1655,7 +1230,6 @@ function resonanceBodyOfflineGraph(
 }
 
 registry.register("resonance-body", {
-  factoryLoader: async () => (await import("./resonance-body.js")).createResonanceBody,
   getDuration: resonanceBodyDuration,
   buildOfflineGraph: resonanceBodyOfflineGraph,
   description: "Woody/metallic resonance body for door slam layers using damped sine oscillators at harmonic frequencies.",
@@ -1746,7 +1320,6 @@ function rattleDecayOfflineGraph(
 }
 
 registry.register("rattle-decay", {
-  factoryLoader: async () => (await import("./rattle-decay.js")).createRattleDecay,
   getDuration: rattleDecayDuration,
   buildOfflineGraph: rattleDecayOfflineGraph,
   description: "Rattling/settling decay for door slam tail layers using granular noise bursts with irregular timing.",
@@ -1838,7 +1411,6 @@ function cardFlipOfflineGraph(
 }
 
 registry.register("card-flip", {
-  factoryLoader: async () => (await import("./card-flip.js")).createCardFlip,
   getDuration: cardFlipDuration,
   buildOfflineGraph: cardFlipOfflineGraph,
   description: "Stylized card flip sound using bandpass-filtered noise burst with a sine click transient.",
@@ -1940,7 +1512,6 @@ function cardSlideOfflineGraph(
 }
 
 registry.register("card-slide", {
-  factoryLoader: async () => (await import("./card-slide.js")).createCardSlide,
   getDuration: cardSlideDuration,
   buildOfflineGraph: cardSlideOfflineGraph,
   description: "Smooth card slide sound using sine sweep with filtered noise undertone for surface friction.",
@@ -2030,7 +1601,6 @@ function cardPlaceOfflineGraph(
 }
 
 registry.register("card-place", {
-  factoryLoader: async () => (await import("./card-place.js")).createCardPlace,
   getDuration: cardPlaceDuration,
   buildOfflineGraph: cardPlaceOfflineGraph,
   description: "Soft card placement thud using lowpass-filtered noise with a subtle sine tap accent.",
@@ -2127,7 +1697,6 @@ function cardDrawOfflineGraph(
 }
 
 registry.register("card-draw", {
-  factoryLoader: async () => (await import("./card-draw.js")).createCardDraw,
   getDuration: cardDrawDuration,
   buildOfflineGraph: cardDrawOfflineGraph,
   description: "Quick card draw sound with highpass-filtered noise swipe and ascending sine sweep accent.",
@@ -2229,7 +1798,6 @@ function cardShuffleOfflineGraph(
 }
 
 registry.register("card-shuffle", {
-  factoryLoader: async () => (await import("./card-shuffle.js")).createCardShuffle,
   getDuration: cardShuffleDuration,
   buildOfflineGraph: cardShuffleOfflineGraph,
   description: "Rapid card shuffle riffle using bandpass-filtered noise with amplitude-modulated grain flutter.",
@@ -2331,7 +1899,6 @@ function cardFanOfflineGraph(
 }
 
 registry.register("card-fan", {
-  factoryLoader: async () => (await import("./card-fan.js")).createCardFan,
   getDuration: cardFanDuration,
   buildOfflineGraph: cardFanOfflineGraph,
   description: "Smooth card fanning sound using ascending sine sweep with gentle filtered noise bed texture.",
@@ -2414,7 +1981,6 @@ function cardSuccessOfflineGraph(
 }
 
 registry.register("card-success", {
-  factoryLoader: async () => (await import("./card-success.js")).createCardSuccess,
   getDuration: cardSuccessDuration,
   buildOfflineGraph: cardSuccessOfflineGraph,
   description: "Bright ascending dual-tone confirmation for positive card game outcomes.",
@@ -2503,7 +2069,6 @@ function cardFailureOfflineGraph(
 }
 
 registry.register("card-failure", {
-  factoryLoader: async () => (await import("./card-failure.js")).createCardFailure,
   getDuration: cardFailureDuration,
   buildOfflineGraph: cardFailureOfflineGraph,
   description: "Descending dissonant tone for negative card game outcomes with detuned beating.",
@@ -2592,7 +2157,6 @@ function cardVictoryFanfareOfflineGraph(
 }
 
 registry.register("card-victory-fanfare", {
-  factoryLoader: async () => (await import("./card-victory-fanfare.js")).createCardVictoryFanfare,
   getDuration: cardVictoryFanfareDuration,
   buildOfflineGraph: cardVictoryFanfareOfflineGraph,
   description: "Ascending multi-note arpeggio fanfare with harmonic reinforcement for card game victories.",
@@ -2672,7 +2236,6 @@ function cardDefeatStingOfflineGraph(
 }
 
 registry.register("card-defeat-sting", {
-  factoryLoader: async () => (await import("./card-defeat-sting.js")).createCardDefeatSting,
   getDuration: cardDefeatStingDuration,
   buildOfflineGraph: cardDefeatStingOfflineGraph,
   description: "Descending minor-interval sting with lowpass filter sweep for card game defeat moments.",
@@ -2745,7 +2308,6 @@ function cardRoundCompleteOfflineGraph(
 }
 
 registry.register("card-round-complete", {
-  factoryLoader: async () => (await import("./card-round-complete.js")).createCardRoundComplete,
   getDuration: cardRoundCompleteDuration,
   buildOfflineGraph: cardRoundCompleteOfflineGraph,
   description: "Neutral completion tone for round/turn end events in card games.",
@@ -2857,7 +2419,6 @@ function cardCoinCollectOfflineGraph(
 }
 
 registry.register("card-coin-collect", {
-  factoryLoader: async () => (await import("./card-coin-collect.js")).createCardCoinCollect,
   getDuration: cardCoinCollectDuration,
   buildOfflineGraph: cardCoinCollectOfflineGraph,
   description: "Bright metallic ascending ping for coin/token collection events in card games.",
@@ -2966,7 +2527,6 @@ async function cardCoinCollectHybridOfflineGraph(
 }
 
 registry.register("card-coin-collect-hybrid", {
-  factoryLoader: async () => (await import("./card-coin-collect-hybrid.js")).createCardCoinCollectHybrid,
   getDuration: cardCoinCollectHybridDuration,
   buildOfflineGraph: cardCoinCollectHybridOfflineGraph,
   description: "Sample-hybrid metallic coin collect layering a CC0 coin clink sample with procedurally varied synthesis.",
@@ -3072,7 +2632,6 @@ function cardCoinSpendOfflineGraph(
 }
 
 registry.register("card-coin-spend", {
-  factoryLoader: async () => (await import("./card-coin-spend.js")).createCardCoinSpend,
   getDuration: cardCoinSpendDuration,
   buildOfflineGraph: cardCoinSpendOfflineGraph,
   description: "Muted descending tone for coin/token spend events in card games.",
@@ -3167,7 +2726,6 @@ function cardChipStackOfflineGraph(
 }
 
 registry.register("card-chip-stack", {
-  factoryLoader: async () => (await import("./card-chip-stack.js")).createCardChipStack,
   getDuration: cardChipStackDuration,
   buildOfflineGraph: cardChipStackOfflineGraph,
   description: "Percussive click with brief tonal ring for stacking chips/tokens in card games.",
@@ -3270,7 +2828,6 @@ function cardTokenEarnOfflineGraph(
 }
 
 registry.register("card-token-earn", {
-  factoryLoader: async () => (await import("./card-token-earn.js")).createCardTokenEarn,
   getDuration: cardTokenEarnDuration,
   buildOfflineGraph: cardTokenEarnOfflineGraph,
   description: "Bright ascending multi-harmonic chime for earning tokens/rewards in card games.",
@@ -3387,7 +2944,6 @@ function cardTreasureRevealOfflineGraph(
 }
 
 registry.register("card-treasure-reveal", {
-  factoryLoader: async () => (await import("./card-treasure-reveal.js")).createCardTreasureReveal,
   getDuration: cardTreasureRevealDuration,
   buildOfflineGraph: cardTreasureRevealOfflineGraph,
   description: "Dramatic shimmer-into-tone reveal sound for treasure/rare card reveals in card games.",
@@ -3484,7 +3040,6 @@ function cardDiscardOfflineGraph(
 }
 
 registry.register("card-discard", {
-  factoryLoader: async () => (await import("./card-discard.js")).createCardDiscard,
   getDuration: cardDiscardDuration,
   buildOfflineGraph: cardDiscardOfflineGraph,
   description: "Short noise burst with tonal thud for discarding a card — subtle, neutral removal action.",
@@ -3609,7 +3164,6 @@ function cardBurnOfflineGraph(
 }
 
 registry.register("card-burn", {
-  factoryLoader: async () => (await import("./card-burn.js")).createCardBurn,
   getDuration: cardBurnDuration,
   buildOfflineGraph: cardBurnOfflineGraph,
   description: "Destructive dissolve/fire effect with descending filter sweep, crackle, and rumble for permanently burning a card.",
@@ -3707,7 +3261,6 @@ function cardReturnToDeckOfflineGraph(
 }
 
 registry.register("card-return-to-deck", {
-  factoryLoader: async () => (await import("./card-return-to-deck.js")).createCardReturnToDeck,
   getDuration: cardReturnToDeckDuration,
   buildOfflineGraph: cardReturnToDeckOfflineGraph,
   description: "Subtle swoosh with ascending tonal accent for returning a card to the deck — conceptual inverse of card-draw.",
@@ -3793,7 +3346,6 @@ function cardPowerUpOfflineGraph(
 }
 
 registry.register("card-power-up", {
-  factoryLoader: async () => (await import("./card-power-up.js")).createCardPowerUp,
   getDuration: cardPowerUpDuration,
   buildOfflineGraph: cardPowerUpOfflineGraph,
   description: "Ascending pitch sweep with harmonic reinforcement for card ability activation or power gain.",
@@ -3893,7 +3445,6 @@ function cardPowerDownOfflineGraph(
 }
 
 registry.register("card-power-down", {
-  factoryLoader: async () => (await import("./card-power-down.js")).createCardPowerDown,
   getDuration: cardPowerDownDuration,
   buildOfflineGraph: cardPowerDownOfflineGraph,
   description: "Descending pitch sweep with lowpass filter decay and noise grit for card ability deactivation or power loss.",
@@ -3982,7 +3533,6 @@ function cardLockOfflineGraph(
 }
 
 registry.register("card-lock", {
-  factoryLoader: async () => (await import("./card-lock.js")).createCardLock,
   getDuration: cardLockDuration,
   buildOfflineGraph: cardLockOfflineGraph,
   description: "Mechanical click with descending lowpass filter sweep for locking or sealing a card.",
@@ -4071,7 +3621,6 @@ function cardUnlockOfflineGraph(
 }
 
 registry.register("card-unlock", {
-  factoryLoader: async () => (await import("./card-unlock.js")).createCardUnlock,
   getDuration: cardUnlockDuration,
   buildOfflineGraph: cardUnlockOfflineGraph,
   description: "Click transient with ascending highpass filter sweep for unlocking or releasing a card.",
@@ -4150,7 +3699,6 @@ function cardGlowOfflineGraph(
 }
 
 registry.register("card-glow", {
-  factoryLoader: async () => (await import("./card-glow.js")).createCardGlow,
   getDuration: cardGlowDuration,
   buildOfflineGraph: cardGlowOfflineGraph,
   description: "Sustained filtered oscillator with LFO vibrato shimmer for a card radiating energy or highlight state.",
@@ -4173,89 +3721,6 @@ registry.register("card-glow", {
     return {
       baseFreq: p.baseFreq, lfoRate: p.lfoRate, lfoDepth: p.lfoDepth,
       filterFreq: p.filterFreq, filterQ: p.filterQ,
-      attack: p.attack, sustain: p.sustain,
-      release: p.release, level: p.level,
-    };
-  },
-});
-
-// ── card-transform ───────────────────────────────────────────────
-
-function cardTransformDuration(rng: Rng): number {
-  const params = getCardTransformParams(rng);
-  return params.attack + params.sustain + params.release;
-}
-
-function cardTransformOfflineGraph(
-  rng: Rng,
-  ctx: OfflineAudioContext,
-  duration: number,
-): void {
-  const params = getCardTransformParams(rng);
-
-  // Modulator oscillator for FM synthesis
-  const modFreq = params.carrierFreq * params.modRatio;
-  const modulator = ctx.createOscillator();
-  modulator.type = "sine";
-  modulator.frequency.value = modFreq;
-
-  // FM depth sweep from start to end
-  const modGain = ctx.createGain();
-  modGain.gain.setValueAtTime(params.modDepthStart, 0);
-  modGain.gain.linearRampToValueAtTime(params.modDepthEnd, duration);
-
-  // Carrier oscillator
-  const carrier = ctx.createOscillator();
-  carrier.type = "sine";
-  carrier.frequency.value = params.carrierFreq;
-
-  modulator.connect(modGain);
-  modGain.connect(carrier.frequency);
-
-  const gain = ctx.createGain();
-  gain.gain.value = params.level;
-
-  // Envelope: attack -> sustain -> release
-  const env = ctx.createGain();
-  env.gain.setValueAtTime(0, 0);
-  env.gain.linearRampToValueAtTime(1, params.attack);
-  env.gain.setValueAtTime(1, params.attack + params.sustain);
-  env.gain.linearRampToValueAtTime(0, duration);
-
-  carrier.connect(gain);
-  gain.connect(env);
-  env.connect(ctx.destination);
-
-  // Schedule
-  modulator.start(0);
-  modulator.stop(duration);
-  carrier.start(0);
-  carrier.stop(duration);
-}
-
-registry.register("card-transform", {
-  factoryLoader: async () => (await import("./card-transform.js")).createCardTransform,
-  getDuration: cardTransformDuration,
-  buildOfflineGraph: cardTransformOfflineGraph,
-  description: "Morphing FM synthesis with modulation depth sweep for card transformation or shape-shifting.",
-  category: "Card Game",
-  tags: ["card", "transform", "card-game", "state", "fm", "arcade", "morphing", "dramatic"],
-  signalChain: "FM Synthesis: Modulator -> Depth Sweep -> Carrier Frequency + Carrier Sine -> Gain -> Envelope -> Destination",
-  params: [
-    { name: "carrierFreq", min: 300, max: 700, unit: "Hz" },
-    { name: "modRatio", min: 1, max: 4, unit: "ratio" },
-    { name: "modDepthStart", min: 50, max: 200, unit: "Hz" },
-    { name: "modDepthEnd", min: 300, max: 800, unit: "Hz" },
-    { name: "attack", min: 0.02, max: 0.08, unit: "s" },
-    { name: "sustain", min: 0.2, max: 0.5, unit: "s" },
-    { name: "release", min: 0.1, max: 0.3, unit: "s" },
-    { name: "level", min: 0.5, max: 0.9, unit: "amplitude" },
-  ],
-  getParams: (rng) => {
-    const p = getCardTransformParams(rng);
-    return {
-      carrierFreq: p.carrierFreq, modRatio: p.modRatio,
-      modDepthStart: p.modDepthStart, modDepthEnd: p.modDepthEnd,
       attack: p.attack, sustain: p.sustain,
       release: p.release, level: p.level,
     };
@@ -4349,7 +3814,6 @@ function cardComboHitOfflineGraph(
 }
 
 registry.register("card-combo-hit", {
-  factoryLoader: async () => (await import("./card-combo-hit.js")).createCardComboHit,
   getDuration: cardComboHitDuration,
   buildOfflineGraph: cardComboHitOfflineGraph,
   description: "Bright transient with harmonic reinforcement and highpass sparkle for successful combo hits.",
@@ -4460,7 +3924,6 @@ function cardComboBreakOfflineGraph(
 }
 
 registry.register("card-combo-break", {
-  factoryLoader: async () => (await import("./card-combo-break.js")).createCardComboBreak,
   getDuration: cardComboBreakDuration,
   buildOfflineGraph: cardComboBreakOfflineGraph,
   description: "Descending dissonant tone with noise burst for combo chain interruption feedback.",
@@ -4535,7 +3998,6 @@ function cardMultiplierUpOfflineGraph(
 }
 
 registry.register("card-multiplier-up", {
-  factoryLoader: async () => (await import("./card-multiplier-up.js")).createCardMultiplierUp,
   getDuration: cardMultiplierUpDuration,
   buildOfflineGraph: cardMultiplierUpOfflineGraph,
   description: "Rising arpeggio with ascending frequency steps for multiplier increase feedback.",
@@ -4617,7 +4079,6 @@ function cardMatchOfflineGraph(
 }
 
 registry.register("card-match", {
-  factoryLoader: async () => (await import("./card-match.js")).createCardMatch,
   getDuration: cardMatchDuration,
   buildOfflineGraph: cardMatchOfflineGraph,
   description: "Dual-tone confirmation sound with delayed second tone for satisfying card match feedback.",
@@ -4715,7 +4176,6 @@ function cardTableAmbienceOfflineGraph(
 }
 
 registry.register("card-table-ambience", {
-  factoryLoader: async () => (await import("./card-table-ambience.js")).createCardTableAmbience,
   getDuration: cardTableAmbienceDuration,
   buildOfflineGraph: cardTableAmbienceOfflineGraph,
   description: "Warm filtered noise bed with LFO modulation evoking a card table atmosphere.",
@@ -4808,7 +4268,6 @@ function cardDeckPresenceOfflineGraph(
 }
 
 registry.register("card-deck-presence", {
-  factoryLoader: async () => (await import("./card-deck-presence.js")).createCardDeckPresence,
   getDuration: cardDeckPresenceDuration,
   buildOfflineGraph: cardDeckPresenceOfflineGraph,
   description: "Quiet tonal hum with harmonic shimmer giving the card deck a subtle ambient presence.",
@@ -4904,7 +4363,6 @@ function cardTimerTickOfflineGraph(
 }
 
 registry.register("card-timer-tick", {
-  factoryLoader: async () => (await import("./card-timer-tick.js")).createCardTimerTick,
   getDuration: cardTimerTickDuration,
   buildOfflineGraph: cardTimerTickOfflineGraph,
   description: "Sharp, clean click/tick for metronome-like card game timer beats.",
@@ -4997,7 +4455,6 @@ function cardTimerWarningOfflineGraph(
 }
 
 registry.register("card-timer-warning", {
-  factoryLoader: async () => (await import("./card-timer-warning.js")).createCardTimerWarning,
   getDuration: cardTimerWarningDuration,
   buildOfflineGraph: cardTimerWarningOfflineGraph,
   description: "Escalating urgent tick with vibrato and dual-tone chord for timer warning feedback.",

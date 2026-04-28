@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "test:web:e2e": "npm run test:e2e:ci --prefix web",
     "test:watch": "vitest",
     "start": "./bin/dev-cli.js",
     "generate": "./bin/dev-cli.js generate",
@@ -40,6 +41,7 @@
     "node-web-audio-api": "^1.0.8",
     "remark-gfm": "^4.0.1",
     "remark-parse": "^11.0.0",
+    "js-yaml": "^4.1.0",
     "tone": "^15.1.22",
     "unified": "^11.0.5",
     "yargs": "^17.7.2"

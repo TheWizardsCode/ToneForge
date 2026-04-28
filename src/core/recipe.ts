@@ -1,374 +1,75 @@
 /**
- * Recipe Interface & Registry
+ * Recipe Registry
  *
- * A Recipe represents a Tone.js DSP graph that can be started, stopped,
- * and connected to a destination. Recipes are created by factory functions
- * that accept a seeded RNG for deterministic variation.
- *
- * The RecipeRegistry supports both simple factory registration (for
- * browser-only recipes) and full registration with offline rendering
- * capabilities (getDuration, buildOfflineGraph).
- *
- * Reference: docs/prd/CORE_PRD.md Section 4.1
+ * Stores recipe metadata plus deterministic offline graph builders.
  */
 
 import type { OfflineAudioContext } from "node-web-audio-api";
 import type { Rng } from "./rng.js";
-import fs from "fs";
-import path from "path";
-import yaml from "js-yaml";
-import { loadToneGraph } from "./tonegraph.js";
+import { normalizeCategory as normalizeCategoryFn } from "./normalize-category.js";
+import type { ToneGraphDocument } from "./tonegraph-schema.js";
 
-/**
- * Describes a single recipe parameter with its name, range, and unit.
- * Used by `tf show` to display parameter metadata.
- */
 export interface ParamDescriptor {
-  /** Parameter name (must match the key returned by getParams). */
   name: string;
-  /** Minimum value (inclusive). */
   min: number;
-  /** Maximum value (exclusive). */
   max: number;
-  /** Unit of measurement (e.g. "Hz", "s", "amplitude"). */
   unit: string;
 }
 
-/**
- * A constructed Tone.js DSP graph ready for rendering or playback.
- */
-export interface Recipe {
-  /** Start the recipe at the given time (seconds). */
-  start(time: number): void;
-
-  /** Stop the recipe at the given time (seconds). */
-  stop(time: number): void;
-
-  /** Connect the recipe output to the audio destination. */
-  toDestination(): void;
-
-  /** Duration of the recipe in seconds. */
-  readonly duration: number;
-}
-
-/**
- * A factory function that creates a Recipe instance from a seeded RNG.
- */
-export type RecipeFactory = (rng: Rng) => Recipe;
-
-/**
- * Full recipe registration entry with offline rendering capabilities.
- *
- * Recipes registered with this shape can be rendered offline by the
- * renderer without hardcoded per-recipe logic.
- */
 export interface RecipeRegistration {
-  /** Tone.js factory for browser/interactive playback. */
-  factory: RecipeFactory;
-
-  /**
-   * Compute the natural duration for this recipe from a seeded RNG.
-   * Called by the renderer to determine the offline buffer length.
-   */
   getDuration: (rng: Rng) => number;
-
-  /**
-   * Build the Web Audio API graph for offline rendering directly on
-   * an OfflineAudioContext. This avoids importing Tone.js in the
-   * Node.js offline render path.
-   *
-   * May return void (synchronous recipes) or Promise<void> (async
-   * recipes that need to load samples via decodeAudioData).
-   */
   buildOfflineGraph: (
     rng: Rng,
     ctx: OfflineAudioContext,
     duration: number,
   ) => void | Promise<void>;
-
-  /** One-line human summary of the recipe. */
   description: string;
-
-  /** Sound category (e.g. "UI", "Weapon", "Footstep", "Ambient"). */
   category: string;
-
-  /** Optional tags for filtering/search. */
   tags?: string[];
-
-  /**
-   * Human-readable signal chain summary.
-   * Example: "Sine Oscillator -> Lowpass Filter -> Amplitude Envelope -> Destination"
-   */
   signalChain: string;
-
-  /** Array of parameter descriptors with name, min, max, and unit. */
   params: ParamDescriptor[];
-
-  /**
-   * Extract seed-specific parameter values as a name-value map.
-   * The keys must match the `name` fields in `params`.
-   */
   getParams: (rng: Rng) => Record<string, number>;
 }
 
-/**
- * Lazy recipe registration entry.
- *
- * Stores all metadata and offline rendering capabilities eagerly, but
- * defers loading the Tone.js factory (which imports heavy dependencies)
- * until it is actually needed. This avoids importing all recipe modules
- * at startup when only one recipe is rendered.
- */
-export interface LazyRecipeRegistration {
-  /**
-   * Async loader that returns the Tone.js factory on demand.
-   * Called only when `getRecipe()` or `resolveFactory()` is used.
-   */
-  factoryLoader: () => Promise<RecipeFactory>;
-
-  /** @see RecipeRegistration.getDuration */
-  getDuration: (rng: Rng) => number;
-
-  /** @see RecipeRegistration.buildOfflineGraph */
-  buildOfflineGraph: (
-    rng: Rng,
-    ctx: OfflineAudioContext,
-    duration: number,
-  ) => void | Promise<void>;
-
-  /** @see RecipeRegistration.description */
-  description: string;
-
-  /** @see RecipeRegistration.category */
-  category: string;
-
-  /** @see RecipeRegistration.tags */
-  tags?: string[];
-
-  /** @see RecipeRegistration.signalChain */
-  signalChain: string;
-
-  /** @see RecipeRegistration.params */
-  params: ParamDescriptor[];
-
-  /** @see RecipeRegistration.getParams */
-  getParams: (rng: Rng) => Record<string, number>;
-}
-
-/**
- * Filter query for recipe search/filtering.
- *
- * All specified filters are combined with AND logic. Empty or
- * whitespace-only values are ignored (treated as if not provided).
- */
 export interface RecipeFilterQuery {
-  /**
-   * Case-insensitive substring match across name, description,
-   * category, and tag strings. A recipe matches if any field
-   * contains the search string.
-   */
   search?: string;
-
-  /**
-   * Exact category match after normalization. Both sides are
-   * lowercased and spaces are replaced with hyphens, so
-   * "Card Game", "card-game", and "card game" all match.
-   */
   category?: string;
-
-  /**
-   * Exact case-insensitive tag match with AND logic. All specified
-   * tags must be present on the recipe. "laser" matches tag "laser"
-   * but NOT "laser-beam".
-   */
   tags?: string[];
 }
 
-/**
- * Detailed recipe summary including category and tags.
- */
 export interface RecipeDetailedSummary {
   name: string;
   description: string;
   category: string;
   tags: string[];
-  /** Tags that contributed to the current filter match (empty when unfiltered). */
   matchedTags: string[];
 }
 
-/** Internal entry type: either a fully resolved registration or a lazy one. */
-type RegistryEntry =
-  | { kind: "eager"; registration: RecipeRegistration }
-  | { kind: "lazy"; lazy: LazyRecipeRegistration; resolved?: RecipeFactory };
-
-/**
- * Registry of named recipe registrations.
- * Maps recipe names to their registration entries.
- *
- * Supports both eager registrations (factory provided up-front) and
- * lazy registrations (factory loaded on demand via dynamic import).
- * Lazy registration avoids importing heavy Tone.js dependencies at
- * module load time, reducing CLI startup latency.
- */
 export class RecipeRegistry {
-  private readonly entries = new Map<string, RegistryEntry>();
+  private readonly entries = new Map<string, RecipeRegistration>();
 
-  /**
-   * Register a recipe under the given name.
-   *
-   * Accepts either a full RecipeRegistration object (with offline
-   * rendering capabilities), a bare RecipeFactory for backward
-   * compatibility (browser-only recipes without offline support),
-   * or a LazyRecipeRegistration for deferred factory loading.
-   *
-   * Overwrites any existing entry with the same name.
-   */
-  register(
-    name: string,
-    entry: RecipeRegistration | RecipeFactory | LazyRecipeRegistration,
-  ): void {
-    if (typeof entry === "function") {
-      // Bare factory — wrap in a registration without offline support.
-      // getDuration and buildOfflineGraph will throw if called.
-      this.entries.set(name, {
-        kind: "eager",
-        registration: {
-          factory: entry,
-          getDuration: () => {
-            throw new Error(
-              `Recipe "${name}" was registered without getDuration. ` +
-              `Use a full RecipeRegistration to enable offline rendering.`,
-            );
-          },
-          buildOfflineGraph: () => {
-            throw new Error(
-              `Recipe "${name}" was registered without buildOfflineGraph. ` +
-              `Use a full RecipeRegistration to enable offline rendering.`,
-            );
-          },
-          description: "",
-          category: "",
-          signalChain: "",
-          params: [],
-          getParams: () => ({}),
-        },
-      });
-    } else if ("factoryLoader" in entry) {
-      // Lazy registration — defer factory loading.
-      this.entries.set(name, { kind: "lazy", lazy: entry });
-    } else {
-      this.entries.set(name, { kind: "eager", registration: entry });
-    }
+  register(name: string, entry: RecipeRegistration): void {
+    this.entries.set(name, entry);
   }
 
-  /**
-   * Retrieve the Tone.js factory for a recipe by name (synchronous).
-   *
-   * For eager registrations, returns the factory immediately.
-   * For lazy registrations, returns undefined unless the factory has
-   * been previously resolved via `resolveFactory()`.
-   *
-   * Returns undefined if no recipe is registered under that name.
-   */
-  getRecipe(name: string): RecipeFactory | undefined {
-    const entry = this.entries.get(name);
-    if (!entry) return undefined;
-    if (entry.kind === "eager") return entry.registration.factory;
-    return entry.resolved;
-  }
-
-  /**
-   * Resolve and return the Tone.js factory for a recipe by name.
-   *
-   * For lazy registrations, this triggers the dynamic import on first
-   * call and caches the result for subsequent calls.
-   *
-   * Returns undefined if no recipe is registered under that name.
-   */
-  async resolveFactory(name: string): Promise<RecipeFactory | undefined> {
-    const entry = this.entries.get(name);
-    if (!entry) return undefined;
-    if (entry.kind === "eager") return entry.registration.factory;
-    if (entry.resolved) return entry.resolved;
-    entry.resolved = await entry.lazy.factoryLoader();
-    return entry.resolved;
-  }
-
-  /**
-   * Retrieve the full registration entry for a recipe by name.
-   *
-   * For lazy registrations, the returned object has all metadata and
-   * offline rendering fields populated. The `factory` field is a
-   * placeholder that throws; use `resolveFactory()` to get the
-   * actual Tone.js factory when needed.
-   *
-   * Returns undefined if no recipe is registered under that name.
-   */
   getRegistration(name: string): RecipeRegistration | undefined {
-    const entry = this.entries.get(name);
-    if (!entry) return undefined;
-    if (entry.kind === "eager") return entry.registration;
-
-    // Return a view of the lazy registration with a factory placeholder.
-    // The factory will throw if called directly — callers that need the
-    // factory should use resolveFactory() instead.
-    const lazy = entry.lazy;
-    return {
-      factory: entry.resolved ?? ((_rng: Rng) => {
-        throw new Error(
-          `Recipe "${name}" has a lazy factory. ` +
-          `Use registry.resolveFactory("${name}") to load it first.`,
-        );
-      }),
-      getDuration: lazy.getDuration,
-      buildOfflineGraph: lazy.buildOfflineGraph,
-      description: lazy.description,
-      category: lazy.category,
-      tags: lazy.tags,
-      signalChain: lazy.signalChain,
-      params: lazy.params,
-      getParams: lazy.getParams,
-    };
+    return this.entries.get(name);
   }
 
-  /**
-   * List all registered recipe names.
-   */
   list(): string[] {
     return [...this.entries.keys()];
   }
 
-  /**
-   * List all registered recipes with their one-line description.
-   */
   listSummaries(): Array<{ name: string; description: string }> {
     return [...this.entries.entries()].map(([name, entry]) => ({
       name,
-      description:
-        entry.kind === "eager"
-          ? entry.registration.description
-          : entry.lazy.description,
+      description: entry.description,
     }));
   }
 
-  /**
-   * List all registered recipes with detailed metadata (name, description,
-   * category, tags), optionally filtered by search, category, and/or tags.
-   *
-   * All filters combine with AND logic. Empty or whitespace-only filter
-   * values are ignored (treated as if not provided).
-   *
-   * Filter behavior:
-   * - search: case-insensitive substring match across name, description,
-   *   category, and tag strings (any field match = recipe included)
-   * - category: exact match after normalization (lowercase + spaces-to-hyphens)
-   * - tags: exact case-insensitive match with AND logic (all specified tags
-   *   must be present; "laser" matches "laser" but NOT "laser-beam")
-   */
   listDetailed(filter?: RecipeFilterQuery): RecipeDetailedSummary[] {
     const results: RecipeDetailedSummary[] = [];
 
-    // Pre-process filter values (ignore empty/whitespace-only)
     const searchTerm =
       filter?.search?.trim() ? filter.search.trim().toLowerCase() : undefined;
     const categoryTerm =
@@ -383,59 +84,42 @@ export class RecipeRegistry {
         : undefined;
 
     for (const [name, entry] of this.entries) {
-      const description =
-        entry.kind === "eager"
-          ? entry.registration.description
-          : entry.lazy.description;
-      const category =
-        entry.kind === "eager"
-          ? (entry.registration.category ?? "")
-          : (entry.lazy.category ?? "");
-      const tags =
-        entry.kind === "eager"
-          ? (entry.registration.tags ?? [])
-          : (entry.lazy.tags ?? []);
+      const description = entry.description;
+      const category = entry.category ?? "";
+      const tags = entry.tags ?? [];
 
-      // Apply search filter: case-insensitive substring across all fields
       if (searchTerm !== undefined) {
         const nameLower = name.toLowerCase();
         const descLower = description.toLowerCase();
         const catLower = category.toLowerCase();
         const tagsLower = tags.map((t) => t.toLowerCase());
         const matchesSearch =
-          nameLower.includes(searchTerm) ||
-          descLower.includes(searchTerm) ||
-          catLower.includes(searchTerm) ||
-          tagsLower.some((t) => t.includes(searchTerm));
+          nameLower.includes(searchTerm)
+          || descLower.includes(searchTerm)
+          || catLower.includes(searchTerm)
+          || tagsLower.some((t) => t.includes(searchTerm));
         if (!matchesSearch) continue;
       }
 
-      // Apply category filter: exact match after normalization
       if (categoryTerm !== undefined) {
         if (normalizeCategory(category) !== categoryTerm) continue;
       }
 
-      // Apply tags filter: exact case-insensitive AND logic
       if (tagTerms !== undefined) {
         const entryTagsLower = tags.map((t) => t.toLowerCase());
-        const allPresent = tagTerms.every((tag) =>
-          entryTagsLower.includes(tag),
-        );
+        const allPresent = tagTerms.every((tag) => entryTagsLower.includes(tag));
         if (!allPresent) continue;
       }
 
-      // Compute matchedTags: union of tags matching --tags and --search filters
       const matchedTags: string[] = [];
       if (searchTerm !== undefined || tagTerms !== undefined) {
         const seen = new Set<string>();
         for (const tag of tags) {
           const tagLower = tag.toLowerCase();
           let matched = false;
-          // --tags: exact case-insensitive match
           if (tagTerms !== undefined && tagTerms.includes(tagLower)) {
             matched = true;
           }
-          // --search: substring case-insensitive match
           if (searchTerm !== undefined && tagLower.includes(searchTerm)) {
             matched = true;
           }
@@ -453,125 +137,391 @@ export class RecipeRegistry {
   }
 }
 
-/**
- * Discover on-disk ToneGraph recipe files under `presets/recipes/` and
- * register them as lazy recipe entries. Files supported: .json, .yaml, .yml
- *
- * This function is idempotent and will not overwrite existing registry
- * entries. It is intentionally conservative: file-backed recipes provide
- * metadata (description, params) and a minimal `getDuration`. Offline
- * rendering support may be added later.
- */
-export function discoverFileBackedRecipes(registry: RecipeRegistry) {
-  const presetsDir = path.resolve(process.cwd(), "presets/recipes");
-  if (!fs.existsSync(presetsDir)) return;
+interface FileBackedRecipeParam {
+  name: string;
+  min: number;
+  max: number;
+  unit: string;
+  defaultValue?: number;
+  integer?: boolean;
+}
 
-  const entries = fs.readdirSync(presetsDir);
-  for (const file of entries) {
-    const ext = path.extname(file).toLowerCase();
-    if (![".json", ".yaml", ".yml"].includes(ext)) continue;
-    const full = path.join(presetsDir, file);
-    let doc: any;
-    try {
-      const txt = fs.readFileSync(full, "utf8");
-      doc = ext === ".json" ? JSON.parse(txt) : yaml.load(txt);
-    } catch (e) {
-      // skip malformed files
+interface DiscoverFileBackedRecipesOptions {
+  recipeDirectory?: string;
+  logger?: {
+    warn: (message: string) => void;
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function computeDurationHint(graph: ToneGraphDocument): number {
+  if (typeof graph.meta?.duration === "number" && Number.isFinite(graph.meta.duration) && graph.meta.duration > 0) {
+    return graph.meta.duration;
+  }
+
+  let duration = 0;
+  for (const def of Object.values(graph.nodes)) {
+    if (def.kind === "envelope") {
+      const attack = def.params?.attack ?? 0.01;
+      const decay = def.params?.decay ?? 0.1;
+      const release = def.params?.release ?? 0;
+      duration = Math.max(duration, attack + decay + release);
+    }
+  }
+
+  return duration > 0 ? duration : 1;
+}
+
+function extractParamsFromMeta(graph: ToneGraphDocument): FileBackedRecipeParam[] {
+  const declarations = graph.meta?.parameters ?? [];
+  const result: FileBackedRecipeParam[] = [];
+
+  for (const declaration of declarations) {
+    if ((declaration.type !== "number" && declaration.type !== "integer")
+      || typeof declaration.min !== "number"
+      || typeof declaration.max !== "number"
+      || declaration.max <= declaration.min) {
       continue;
     }
 
-    const name = (doc?.meta?.name as string) ?? path.basename(file, ext);
+    const defaultValue = typeof declaration.default === "number"
+      ? declaration.default
+      : undefined;
 
-    // Do not overwrite existing registration
-    if (registry.getRegistration(name)) continue;
-
-    const description = doc?.meta?.description ?? "";
-    const category = doc?.meta?.category ?? "";
-    const params = Array.isArray(doc?.params) ? doc.params : [];
-    const signalChain = doc?.meta?.signalChain ?? "";
-
-    // Minimal getDuration: prefer meta.duration, otherwise heuristic
-    const getDuration = (_rng: Rng) => {
-      if (typeof doc?.meta?.duration === "number") return doc.meta.duration;
-      // look for amplitude envelopes
-      let dur = 0;
-      for (const node of Object.values(doc.nodes ?? {}) as any[]) {
-        if ((node?.kind ?? "") === "tone/AmplitudeEnvelope") {
-          dur = Math.max(dur, (node.attack ?? 0) + (node.decay ?? 0) + (node.release ?? 0));
-        }
-      }
-      return dur > 0 ? dur : 1;
-    };
-
-    const lazy = {
-      factoryLoader: async () => {
-        // Return a factory that, when called, will import Tone and create
-        // a simple Recipe factory that uses the ToneGraph loader to build
-        // a runtime graph bound to Tone.
-        const ToneMod = await import("tone");
-        const Tone = (ToneMod as any).default ?? ToneMod;
-
-        return (rng: Rng) => {
-          // runtime binding — Tone is captured from the async import above
-          const handle = loadToneGraph(doc, { Tone, rng });
-
-          // Build a Recipe-compatible wrapper
-          const recipe: any = {
-            start(time: number) {
-              handle.start(time);
-            },
-            stop(time: number) {
-              handle.stop(time);
-            },
-            toDestination() {
-              // Attempt to connect any node named 'amp' or connect all nodes
-              // that expose toDestination/connect to Tone.Destination.
-              for (const node of Object.values(handle.nodes)) {
-                try {
-                  if (node && typeof node.toDestination === "function") {
-                    node.toDestination();
-                  } else if (node && typeof node.connect === "function") {
-                    node.connect(Tone.Destination);
-                  }
-                } catch (e) {
-                  // ignore
-                }
-              }
-            },
-            get duration() {
-              return handle.duration;
-            },
-            dispose() {
-              handle.dispose();
-            },
-          };
-
-          return recipe;
-        };
-      },
-      getDuration,
-      buildOfflineGraph: () => {
-        throw new Error("Offline rendering of file-backed ToneGraph recipes is not implemented yet.");
-      },
-      description,
-      category,
-      tags: doc?.meta?.tags ?? [],
-      signalChain,
-      params,
-      getParams: (_rng: Rng) => ({}),
-    };
-
-    registry.register(name, lazy);
+    result.push({
+      name: declaration.name,
+      min: declaration.min,
+      max: declaration.max,
+      unit: declaration.unit ?? (declaration.type === "integer" ? "int" : "value"),
+      defaultValue,
+      integer: declaration.type === "integer",
+    });
   }
+
+  return result;
 }
 
-/**
- * Normalize a category string for comparison: lowercase and
- * replace whitespace sequences with hyphens.
- *
- * e.g. "Card Game" -> "card-game", "card game" -> "card-game"
- */
-import { normalizeCategory as normalizeCategoryFn } from "./normalize-category.js";
+function parseNodeParamDeclaration(name: string, value: unknown): FileBackedRecipeParam | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const type = value.type;
+  if (type !== undefined && type !== "number" && type !== "integer") {
+    return undefined;
+  }
+
+  const min = value.min;
+  const max = value.max;
+  if (typeof min !== "number" || typeof max !== "number" || !Number.isFinite(min) || !Number.isFinite(max) || max <= min) {
+    return undefined;
+  }
+
+  const declaredName = typeof value.name === "string" && value.name.trim().length > 0
+    ? value.name
+    : name;
+  const unit = typeof value.unit === "string" && value.unit.trim().length > 0
+    ? value.unit
+    : (type === "integer" ? "int" : "value");
+  const defaultValue = typeof value.default === "number" && Number.isFinite(value.default)
+    ? value.default
+    : undefined;
+
+  return {
+    name: declaredName,
+    min,
+    max,
+    unit,
+    defaultValue,
+    integer: type === "integer",
+  };
+}
+
+function extractParamsFromNodeDeclarations(rawDoc: unknown): FileBackedRecipeParam[] {
+  if (!isRecord(rawDoc) || !isRecord(rawDoc.nodes)) {
+    return [];
+  }
+
+  const declarations: FileBackedRecipeParam[] = [];
+
+  for (const node of Object.values(rawDoc.nodes)) {
+    if (!isRecord(node)) {
+      continue;
+    }
+
+    const directParameters = node.parameters;
+    if (isRecord(directParameters)) {
+      for (const [name, value] of Object.entries(directParameters)) {
+        const parsed = parseNodeParamDeclaration(name, value);
+        if (parsed) {
+          declarations.push(parsed);
+        }
+      }
+    }
+
+    const nestedParameters = isRecord(node.params) ? node.params.parameters : undefined;
+    if (isRecord(nestedParameters)) {
+      for (const [name, value] of Object.entries(nestedParameters)) {
+        const parsed = parseNodeParamDeclaration(name, value);
+        if (parsed) {
+          declarations.push(parsed);
+        }
+      }
+    }
+  }
+
+  return declarations;
+}
+
+function extractFileBackedParams(graph: ToneGraphDocument, rawDoc: unknown): FileBackedRecipeParam[] {
+  const byName = new Map<string, FileBackedRecipeParam>();
+
+  for (const entry of extractParamsFromNodeDeclarations(rawDoc)) {
+    if (!byName.has(entry.name)) {
+      byName.set(entry.name, entry);
+    }
+  }
+
+  for (const entry of extractParamsFromMeta(graph)) {
+    if (!byName.has(entry.name)) {
+      byName.set(entry.name, entry);
+    }
+  }
+
+  return [...byName.values()];
+}
+
+function buildSignalChain(graph: ToneGraphDocument): string {
+  if (graph.routing.length === 0) {
+    return "ToneGraph (no routes)";
+  }
+
+  const parts = graph.routing.map((entry) => {
+    if ("chain" in entry) {
+      return entry.chain.join(" -> ");
+    }
+    return `${entry.from} -> ${entry.to}`;
+  });
+  return parts.join(" | ");
+}
+
+function createFileBackedRegistration(
+  recipeName: string,
+  graph: ToneGraphDocument,
+  rawDoc: unknown,
+): RecipeRegistration {
+  const extractedParams = extractFileBackedParams(graph, rawDoc);
+
+  return {
+    getDuration: () => computeDurationHint(graph),
+    buildOfflineGraph: async (rng, ctx, duration) => {
+      const { loadToneGraph } = await import("./tonegraph.js");
+
+      // Create a shallow-cloned graph to avoid mutating the canonical
+      // file-backed ToneGraph loaded from disk. We then inject RNG-derived
+      // parameter values into the cloned graph so that renders vary with
+      // the provided seed while keeping the on-disk representation stable.
+      // JSON round-trip is acceptable here since ToneGraph is JSON-compatible
+      // (numbers and simple objects).
+      const cloned = JSON.parse(JSON.stringify(graph)) as ToneGraphDocument;
+
+      // Derive parameter values from the provided RNG. The extractedParams
+      // list describes parameter names and ranges discovered from the file.
+      const derived = {} as Record<string, number>;
+      for (const p of extractedParams) {
+        // Use rng to derive a value within declared min/max.
+        const value = p.min + ((p.max - p.min) * rng());
+        derived[p.name] = p.integer ? Math.round(value) : value;
+      }
+
+      // Apply derived parameters to node params.
+      // Strategy:
+      // 1) If a node.params key exactly matches a declared parameter name, set it.
+      // 2) Otherwise, if the declared parameter included a defaultValue and a node
+      //    param currently equals that defaultValue, assume they're the same logical
+      //    parameter and replace it.
+      for (const node of Object.values(cloned.nodes)) {
+        if (!node.params || typeof node.params !== "object") continue;
+        for (const [k, v] of Object.entries(node.params)) {
+          let applied = false;
+
+          // Prefer mapping by matching defaultValue where available. This
+          // disambiguates nodes that share a generic param name like
+          // "frequency" (oscillator vs filter) by using the default values
+          // declared in meta.parameters.
+          if (typeof v === "number") {
+            for (const p of extractedParams) {
+              if (p.defaultValue === undefined) continue;
+              if (Math.abs(v - p.defaultValue) < 1e-6) {
+                (node.params as Record<string, unknown>)[k] = derived[p.name];
+                applied = true;
+                break;
+              }
+            }
+          }
+
+          if (applied) continue;
+
+          // Fallback: exact name match between node param key and declared param name
+          if (Object.prototype.hasOwnProperty.call(derived, k)) {
+            (node.params as Record<string, unknown>)[k] = derived[k];
+            continue;
+          }
+        }
+      }
+
+      // Optional diagnostics: set TF_DIAG=1 to print derived params and
+      // cloned node parameter values before rendering. This is intentionally
+      // gated by an env var to avoid noisy output in normal runs.
+      if (process.env.TF_DIAG === "1") {
+        try {
+          // Print derived params mapping and example node param values
+          // (only a few common node ids are shown for readability).
+          // Also sample a few RNG values to show RNG is being consumed.
+          const sampleRngValues: number[] = [];
+          for (let i = 0; i < 5; i++) {
+            sampleRngValues.push(rng());
+          }
+
+          console.log("TF_DIAG: derivedParams=", derived);
+          const oscParams = (cloned.nodes as Record<string, any>)?.osc?.params;
+          const filterParams = (cloned.nodes as Record<string, any>)?.filter?.params;
+          const envParams = (cloned.nodes as Record<string, any>)?.env?.params;
+          console.log("TF_DIAG: cloned node params: osc=", oscParams, "filter=", filterParams, "env=", envParams);
+          console.log("TF_DIAG: sampled graphRng values (5):", sampleRngValues);
+        } catch (e) {
+          // swallow diagnostics errors to avoid affecting rendering
+          // in case of unexpected graph shapes
+          // eslint-disable-next-line no-console
+          console.warn("TF_DIAG: diagnostics error:", e);
+        }
+      }
+
+      const handle = await loadToneGraph(cloned, ctx as unknown as BaseAudioContext, rng);
+      const stopTime = duration > 0 ? duration : handle.duration;
+      handle.start(0);
+      handle.stop(stopTime);
+    },
+    description: graph.meta?.description
+      ?? `File-backed ToneGraph recipe loaded from ${recipeName}.`,
+    category: graph.meta?.category ?? "File-backed",
+    tags: graph.meta?.tags ?? ["file-backed"],
+    signalChain: buildSignalChain(graph),
+    params: extractedParams.map((param) => ({
+      name: param.name,
+      min: param.min,
+      max: param.max,
+      unit: param.unit,
+    })),
+    getParams: (rng) => {
+      const values: Record<string, number> = {};
+      for (const param of extractedParams) {
+        // Prefer the declared default value when present: getParams is
+        // primarily used by interactive UIs to show the recipe's suggested
+        // defaults. If no default is declared, derive a deterministic value
+        // from the provided RNG so the recipe can still vary by seed.
+        if (typeof param.defaultValue === "number") {
+          values[param.name] = param.defaultValue;
+        } else {
+          const value = param.min + ((param.max - param.min) * rng());
+          values[param.name] = param.integer ? Math.round(value) : value;
+        }
+      }
+      return values;
+    },
+  };
+}
+
+function isNodeRuntime(): boolean {
+  return typeof process !== "undefined"
+    && process.versions !== undefined
+    && typeof process.versions.node === "string";
+}
+
+export async function discoverFileBackedRecipes(
+  registry: RecipeRegistry,
+  options: DiscoverFileBackedRecipesOptions = {},
+): Promise<string[]> {
+  if (!isNodeRuntime()) {
+    return [];
+  }
+
+  const logger = options.logger ?? console;
+
+  const [{ readdir, readFile }, pathModule, urlModule, yamlModule, schemaModule] = await Promise.all([
+    import("node:fs/promises"),
+    import("node:path"),
+    import("node:url"),
+    import("js-yaml"),
+    import("./tonegraph-schema.js"),
+  ]);
+
+  const { resolve, dirname, extname, basename } = pathModule;
+  const { fileURLToPath } = urlModule;
+  const { validateToneGraph } = schemaModule;
+  const yamlLoad = (yamlModule as { load?: (input: string) => unknown; default?: { load?: (input: string) => unknown } }).load
+    ?? (yamlModule as { default?: { load?: (input: string) => unknown } }).default?.load;
+  if (yamlLoad === undefined) {
+    throw new Error("js-yaml load function is unavailable.");
+  }
+
+  const defaultRecipeDirectory = resolve(
+    dirname(fileURLToPath(import.meta.url)),
+    "..",
+    "..",
+    "presets",
+    "recipes",
+  );
+  const recipeDirectory = options.recipeDirectory ?? defaultRecipeDirectory;
+
+  let entries: Array<{ name: string; isFile: () => boolean }> = [];
+  try {
+    entries = await readdir(recipeDirectory, { withFileTypes: true });
+  } catch (error) {
+    const code = isRecord(error) && typeof error.code === "string" ? error.code : "";
+    if (code === "ENOENT") {
+      return [];
+    }
+    throw error;
+  }
+
+  const discovered: string[] = [];
+  for (const entry of entries) {
+    if (!entry.isFile()) {
+      continue;
+    }
+
+    const ext = extname(entry.name).toLowerCase();
+    if (ext !== ".json" && ext !== ".yaml" && ext !== ".yml") {
+      continue;
+    }
+
+    const filePath = resolve(recipeDirectory, entry.name);
+
+    try {
+      const source = await readFile(filePath, "utf-8");
+      const rawDoc = ext === ".json"
+        ? JSON.parse(source)
+        : yamlLoad(source);
+      const graph = validateToneGraph(rawDoc);
+
+      const recipeName = basename(entry.name, ext);
+      registry.register(
+        recipeName,
+        createFileBackedRegistration(recipeName, graph, rawDoc),
+      );
+      discovered.push(recipeName);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.warn(`Skipping invalid ToneGraph recipe file ${entry.name}: ${message}`);
+    }
+  }
+
+  return discovered;
+}
 
 function normalizeCategory(category: string): string {
   return normalizeCategoryFn(category);
