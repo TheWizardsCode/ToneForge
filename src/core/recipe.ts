@@ -4,7 +4,7 @@
  * Stores recipe metadata plus deterministic offline graph builders.
  */
 
-import type { OfflineAudioContext } from "node-web-audio-api";
+/* Avoid importing Node-only types at top-level so browser builds don't attempt to resolve node-only modules. Use BaseAudioContext in type positions where appropriate. */
 import type { Rng } from "./rng.js";
 import { normalizeCategory as normalizeCategoryFn } from "./normalize-category.js";
 import type { ToneGraphDocument } from "./tonegraph-schema.js";
@@ -20,7 +20,7 @@ export interface RecipeRegistration {
   getDuration: (rng: Rng) => number;
   buildOfflineGraph: (
     rng: Rng,
-    ctx: OfflineAudioContext,
+    ctx: BaseAudioContext,
     duration: number,
   ) => void | Promise<void>;
   description: string;

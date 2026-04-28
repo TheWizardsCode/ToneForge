@@ -5,7 +5,7 @@
  * Each recipe provides deterministic duration and an offline graph builder.
  */
 
-import type { OfflineAudioContext } from "node-web-audio-api";
+/* Avoid importing Node-only types at top-level to keep browser builds free of Node dependencies. Runtime discovery of file-backed recipes happens conditionally below. */
 import { RecipeRegistry, discoverFileBackedRecipes } from "../core/recipe.js";
 import type { Rng } from "../core/rng.js";
 import { getFootstepStoneParams } from "./footstep-stone-params.js";
@@ -60,7 +60,21 @@ import { getCardTimerWarningParams } from "./card-timer-warning-params.js";
 
 /** The global recipe registry instance with all built-in recipes registered. */
 export const registry = new RecipeRegistry();
-await discoverFileBackedRecipes(registry);
+
+// Discover file-backed recipes only when running in Node.js. This avoids
+// using top-level await (which can break some bundlers) and prevents Vite
+// from attempting to resolve Node-only modules during browser builds.
+if (typeof process !== "undefined" && process.versions && typeof process.versions.node === "string") {
+  void (async () => {
+    try {
+      await discoverFileBackedRecipes(registry);
+    } catch (e) {
+      // Log and continue — discovery is optional for browser runtime.
+      // eslint-disable-next-line no-console
+      console.warn("discoverFileBackedRecipes failed:", e);
+    }
+  })();
+}
 
 // ── footstep-stone ────────────────────────────────────────────────
 
