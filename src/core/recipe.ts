@@ -344,8 +344,15 @@ function createFileBackedRegistration(
       //    param currently equals that defaultValue, assume they're the same logical
       //    parameter and replace it.
       for (const node of Object.values(cloned.nodes)) {
-        if (!node.params || typeof node.params !== "object") continue;
-        for (const [k, v] of Object.entries(node.params)) {
+        // ToneGraphNodeDefinition is a discriminated union where not all
+        // variants declare a `params` field (e.g. destination). Use a
+        // runtime check and a narrow local `nodeParams` alias typed as any
+        // to avoid TypeScript union property errors while preserving the
+        // original runtime behavior.
+        const nodeParams = (node as any).params;
+        if (!nodeParams || typeof nodeParams !== "object") continue;
+
+        for (const [k, v] of Object.entries(nodeParams)) {
           let applied = false;
 
           // Prefer mapping by matching defaultValue where available. This
@@ -356,7 +363,7 @@ function createFileBackedRegistration(
             for (const p of extractedParams) {
               if (p.defaultValue === undefined) continue;
               if (Math.abs(v - p.defaultValue) < 1e-6) {
-                (node.params as Record<string, unknown>)[k] = derived[p.name];
+                (nodeParams as Record<string, unknown>)[k] = derived[p.name];
                 applied = true;
                 break;
               }
@@ -367,7 +374,7 @@ function createFileBackedRegistration(
 
           // Fallback: exact name match between node param key and declared param name
           if (Object.prototype.hasOwnProperty.call(derived, k)) {
-            (node.params as Record<string, unknown>)[k] = derived[k];
+            (nodeParams as Record<string, unknown>)[k] = derived[k];
             continue;
           }
         }
