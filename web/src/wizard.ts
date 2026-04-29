@@ -283,10 +283,15 @@ export function createWizard(
         for (const cmd of commands) {
           // Fire browser-side audio rendering (non-blocking).
           // Errors are logged but must not abort the CLI command sequence.
+          // eslint-disable-next-line no-console
+          console.debug(`[wizard] dispatching command: ${cmd}`);
           handleCommandAudio(cmd).catch((err) => {
+            // eslint-disable-next-line no-console
             console.error("Browser audio playback error:", err);
           });
           const result = await terminal.executeCommand(cmd);
+          // eslint-disable-next-line no-console
+          console.debug(`[wizard] command exitCode=${result.exitCode} cmd=${cmd}`);
           if (result.exitCode !== 0) {
             failed = true;
             break;
