@@ -69,6 +69,9 @@ export const registry = new RecipeRegistry();
 //
 // CLI code can await `discoveryReady` to ensure recipes are available before
 // dispatching commands.
+import { load as yamlLoad } from "js-yaml";
+import { validateToneGraph } from "../core/tonegraph-schema.js";
+
 export const discoveryReady = (async () => {
   // If Vite's globEager is available, use it to synchronously include recipe
   // sources in the browser build. This avoids Node-only imports during bundling.
@@ -76,42 +79,36 @@ export const discoveryReady = (async () => {
   if (meta && typeof meta.globEager !== "undefined") {
     try {
       // Match JSON/YAML recipe files under presets/recipes
-      const files: Record<string, { default: string } | string> = meta.globEager(
+      const files: Record<string, string> = meta.globEager(
         "../../presets/recipes/*.{json,yml,yaml}",
         { as: "raw" },
       );
 
-      // Lazy load the validator and YAML parser in this branch.
-      const schemaModule = await import("../core/tonegraph-schema.js");
-      const { validateToneGraph } = schemaModule;
-      const { load: yamlLoad } = await import("js-yaml");
-
       for (const [filePath, source] of Object.entries(files)) {
         try {
-          const ext = filePath.split(".").pop() || "";
-          const raw = ext === "json" ? JSON.parse(source as string) : yamlLoad(source as string);
-          const graph = validateToneGraph(raw);
+          const ext = (filePath.split(".").pop() || "").toLowerCase();
+          const rawDoc = ext === "json" ? JSON.parse(source as string) : yamlLoad(source as string);
+          const graph = validateToneGraph(rawDoc);
           const name = filePath.replace(/^.*\/(.+?)\.(json|ya?ml)$/, "$1");
+
           try {
-            const reg = await (async (regName, g, rawDoc) => {
-              const duration = typeof g.meta?.duration === "number" && g.meta.duration > 0 ? g.meta.duration : 1;
-              return {
-                getDuration: () => duration,
-                buildOfflineGraph: async (rng, ctx, dur) => {
-                  const tonegraph = await import("../core/tonegraph.js");
-                  const handle = await tonegraph.default(g as any, ctx as any, rng);
-                  const stopTime = dur > 0 ? dur : (handle.duration ?? duration);
-                  handle.start(0);
-                  handle.stop(stopTime);
-                },
-                description: g.meta?.description ?? `File-backed ToneGraph recipe loaded from ${regName}.`,
-                category: g.meta?.category ?? "File-backed",
-                tags: g.meta?.tags ?? ["file-backed"],
-                signalChain: Array.isArray(g.routing) ? g.routing.map((r: any) => ("chain" in r ? r.chain.join(" -> ") : `${r.from} -> ${r.to}`)).join(" | ") : "ToneGraph (no routes)",
-                params: [],
-                getParams: () => ({}),
-              } as any;
-            })(name, graph, raw);
+            const duration = typeof graph.meta?.duration === "number" && graph.meta.duration > 0 ? graph.meta.duration : 1;
+            const reg = {
+              getDuration: () => duration,
+              buildOfflineGraph: async (rng: any, ctx: any, dur: number) => {
+                const tonegraph = await import("../core/tonegraph.js");
+                const handle = await tonegraph.default(graph as any, ctx as any, rng);
+                const stopTime = dur > 0 ? dur : (handle.duration ?? duration);
+                handle.start(0);
+                handle.stop(stopTime);
+              },
+              description: graph.meta?.description ?? `File-backed ToneGraph recipe loaded from ${name}.`,
+              category: graph.meta?.category ?? "File-backed",
+              tags: graph.meta?.tags ?? ["file-backed"],
+              signalChain: Array.isArray(graph.routing) ? graph.routing.map((r: any) => ("chain" in r ? r.chain.join(" -> ") : `${r.from} -> ${r.to}`)).join(" | ") : "ToneGraph (no routes)",
+              params: [],
+              getParams: () => ({}),
+            } as any;
 
             registry.register(name, reg);
           } catch (e) {
