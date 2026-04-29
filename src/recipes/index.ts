@@ -61,21 +61,86 @@ import { getCardTimerWarningParams } from "./card-timer-warning-params.js";
 /** The global recipe registry instance with all built-in recipes registered. */
 export const registry = new RecipeRegistry();
 
-// Discover file-backed recipes only when running in Node.js. This avoids
-// using top-level await (which can break some bundlers) and prevents Vite
-// from attempting to resolve Node-only modules during browser builds.
-if (typeof process !== "undefined" && process.versions && typeof process.versions.node === "string") {
-  void (async () => {
+// discoveryReady is a Promise that resolves when any file-backed recipes
+// have been discovered and registered. We support two discovery modes:
+// 1) Build-time/browser: Vite's import.meta.globEager to include recipe files
+//    in the bundle and register them synchronously during module init.
+// 2) Node runtime: call discoverFileBackedRecipes to read files from disk.
+//
+// CLI code can await `discoveryReady` to ensure recipes are available before
+// dispatching commands.
+export const discoveryReady = (async () => {
+  // If Vite's globEager is available, use it to synchronously include recipe
+  // sources in the browser build. This avoids Node-only imports during bundling.
+  const meta: any = import.meta as any;
+  if (meta && typeof meta.globEager !== "undefined") {
+    try {
+      // Match JSON/YAML recipe files under presets/recipes
+      const files: Record<string, { default: string } | string> = meta.globEager(
+        "../../presets/recipes/*.{json,yml,yaml}",
+        { as: "raw" },
+      );
+
+      // Lazy load the validator and YAML parser in this branch.
+      const schemaModule = await import("./tonegraph-schema.js");
+      const { validateToneGraph } = schemaModule;
+      const { load: yamlLoad } = await import("js-yaml");
+
+      for (const [filePath, source] of Object.entries(files)) {
+        try {
+          const ext = filePath.split(".").pop() || "";
+          const raw = ext === "json" ? JSON.parse(source as string) : yamlLoad(source as string);
+          const graph = validateToneGraph(raw);
+          const name = filePath.replace(/^.*\/(.+?)\.(json|ya?ml)$/, "$1");
+          try {
+            const reg = await (async (regName, g, rawDoc) => {
+              const duration = typeof g.meta?.duration === "number" && g.meta.duration > 0 ? g.meta.duration : 1;
+              return {
+                getDuration: () => duration,
+                buildOfflineGraph: async (rng, ctx, dur) => {
+                  const tonegraph = await import("../core/tonegraph.js");
+                  const handle = await tonegraph.default(g as any, ctx as any, rng);
+                  const stopTime = dur > 0 ? dur : (handle.duration ?? duration);
+                  handle.start(0);
+                  handle.stop(stopTime);
+                },
+                description: g.meta?.description ?? `File-backed ToneGraph recipe loaded from ${regName}.`,
+                category: g.meta?.category ?? "File-backed",
+                tags: g.meta?.tags ?? ["file-backed"],
+                signalChain: Array.isArray(g.routing) ? g.routing.map((r: any) => ("chain" in r ? r.chain.join(" -> ") : `${r.from} -> ${r.to}`)).join(" | ") : "ToneGraph (no routes)",
+                params: [],
+                getParams: () => ({}),
+              } as any;
+            })(name, graph, raw);
+
+            registry.register(name, reg);
+          } catch (e) {
+            // eslint-disable-next-line no-console
+            console.warn(`Failed to register recipe ${name}:`, e);
+          }
+        } catch (e) {
+          // eslint-disable-next-line no-console
+          console.warn(`Skipping invalid ToneGraph recipe file ${filePath}:`, e instanceof Error ? e.message : e);
+        }
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn("File-backed recipe glob/parse failed:", e);
+    }
+
+    return;
+  }
+
+  // Fallback: Node runtime discovery using async helper.
+  if (typeof process !== "undefined" && process.versions && typeof process.versions.node === "string") {
     try {
       await discoverFileBackedRecipes(registry);
     } catch (e) {
-      // Log and continue — discovery is optional for browser runtime.
       // eslint-disable-next-line no-console
       console.warn("discoverFileBackedRecipes failed:", e);
     }
-  })();
-}
-
+  }
+})();
 // ── footstep-stone ────────────────────────────────────────────────
 
 function footstepStoneDuration(rng: Rng): number {
