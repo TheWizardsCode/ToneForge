@@ -78,10 +78,69 @@ async function ensureAudioContext(): Promise<AudioContext> {
  * Render and play a recipe with the given seed in the browser.
  */
 export async function renderAndPlay(recipeName: string, seed: number): Promise<void> {
-  const registration = registry.getRegistration(recipeName);
+  let registration = registry.getRegistration(recipeName);
   if (!registration) {
-    console.warn(`Unknown recipe "${recipeName}" - skipping audio playback.`);
-    return;
+    // Try to fetch a file-backed recipe from the server as a fallback so the
+    // browser can render file-backed recipes even when import-time bundling
+    // didn't include the presets. This is best-effort.
+    try {
+      // Attempt YAML then JSON
+      const tryNames = [
+        `/presets/recipes/${recipeName}.yaml`,
+        `/presets/recipes/${recipeName}.yml`,
+        `/presets/recipes/${recipeName}.json`,
+      ];
+      let fetched: { url: string; text: string } | null = null;
+      for (const url of tryNames) {
+        // eslint-disable-next-line no-await-in-loop
+        const resp = await fetch(url);
+        if (!resp.ok) continue;
+        // eslint-disable-next-line no-await-in-loop
+        const text = await resp.text();
+        fetched = { url, text };
+        break;
+      }
+
+      if (fetched) {
+        // Validate and register client-side
+        const jsYaml = await import("js-yaml");
+        const schema = await import("@toneforge/core/tonegraph-schema.js");
+        let raw: unknown;
+        if (fetched.url.endsWith('.json')) raw = JSON.parse(fetched.text);
+        else raw = (jsYaml as any).load(fetched.text);
+        const graph = (schema as any).validateToneGraph(raw);
+        const duration = typeof graph.meta?.duration === 'number' && graph.meta.duration > 0 ? graph.meta.duration : 1;
+        const dynamicReg = {
+          getDuration: () => duration,
+          buildOfflineGraph: async (rng: any, ctx: any, dur: number) => {
+            const tonegraph = await import('@toneforge/core/tonegraph.js');
+            const handle = await (tonegraph as any).default(graph as any, ctx as any, rng);
+            const stopTime = dur > 0 ? dur : (handle.duration ?? duration);
+            handle.start(0);
+            handle.stop(stopTime);
+          },
+          description: graph.meta?.description ?? `File-backed ToneGraph recipe loaded from ${recipeName}.`,
+          category: graph.meta?.category ?? 'File-backed',
+          tags: graph.meta?.tags ?? ['file-backed'],
+          signalChain: Array.isArray(graph.routing) ? graph.routing.map((r: any) => ('chain' in r ? r.chain.join(' -> ') : `${r.from} -> ${r.to}`)).join(' | ') : 'ToneGraph (no routes)',
+          params: [],
+          getParams: () => ({}),
+        } as any;
+        registry.register(recipeName, dynamicReg);
+        // now retrieve registration
+        registration = registry.getRegistration(recipeName)!;
+        // eslint-disable-next-line no-console
+        console.debug(`[audio] dynamic recipe registered: ${recipeName}`);
+      } else {
+        // eslint-disable-next-line no-console
+        console.warn(`Unknown recipe "${recipeName}" - skipping audio playback.`);
+        return;
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn(`Unknown recipe "${recipeName}" - skipping audio playback. Fetch/register failed:`, e);
+      return;
+    }
   }
 
   const durationRng = createRng(seed);
