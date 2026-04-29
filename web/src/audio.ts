@@ -134,6 +134,11 @@ export async function renderAndPlay(recipeName: string, seed: number): Promise<v
  * Returns true if audio was played, false otherwise.
  */
 export async function handleCommandAudio(command: string): Promise<boolean> {
+  // Diagnostic log for E2E: make it easy to see when the browser attempted
+  // to handle a command for audio playback.
+  // eslint-disable-next-line no-console
+  console.debug(`[audio] handleCommandAudio called with: ${command}`);
+
   if (isStackRenderCommand(command)) {
     console.info(
       "Stack render detected - browser audio playback for stacked presets is not yet supported. "
@@ -143,17 +148,26 @@ export async function handleCommandAudio(command: string): Promise<boolean> {
   }
 
   if (!isGenerateCommand(command)) {
+    // eslint-disable-next-line no-console
+    console.debug("[audio] command is not a generate command or missing recipe/seed");
     return false;
   }
 
   const recipeName = extractRecipeName(command);
   const seed = extractSeed(command);
   if (recipeName === null || seed === null) {
+    // eslint-disable-next-line no-console
+    console.debug("[audio] recipe or seed could not be extracted from command");
     return false;
   }
 
+  // eslint-disable-next-line no-console
+  console.debug(`[audio] will render recipe=${recipeName} seed=${seed}`);
+
   try {
     await renderAndPlay(recipeName, seed);
+    // eslint-disable-next-line no-console
+    console.debug(`[audio] renderAndPlay completed for recipe=${recipeName} seed=${seed}`);
     return true;
   } catch (err) {
     console.error("Browser audio playback failed:", err);
