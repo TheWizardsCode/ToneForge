@@ -1,6 +1,10 @@
 import { createRng } from "@toneforge/core/rng.js";
 import { registry } from "@toneforge/recipes/index.js";
 
+// Log available recipes at module init for E2E debugging.
+// eslint-disable-next-line no-console
+console.debug("[audio] registry available recipes:", registry.list());
+
 let realtimeCtx: AudioContext | null = null;
 
 /**
