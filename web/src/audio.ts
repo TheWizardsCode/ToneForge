@@ -85,14 +85,44 @@ export async function renderAndPlay(recipeName: string, seed: number): Promise<v
   const sampleRate = 44100;
   const length = Math.ceil(sampleRate * duration);
 
+  // Diagnostic logging to help E2E debugging when running in headless browsers
+  // The Playwright tests capture console messages; these logs help trace where
+  // the render path may be failing.
+  // eslint-disable-next-line no-console
+  console.debug(`[audio] renderAndPlay: recipe=${recipeName} seed=${seed} duration=${duration} length=${length}`);
+
   const offlineCtx = new OfflineAudioContext(1, length, sampleRate);
   const graphRng = createRng(seed);
-  await registration.buildOfflineGraph(graphRng, offlineCtx as unknown as import("node-web-audio-api").OfflineAudioContext, duration);
-  const renderedBuffer = await offlineCtx.startRendering();
+  try {
+    await registration.buildOfflineGraph(graphRng, offlineCtx as unknown as import("node-web-audio-api").OfflineAudioContext, duration);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error("[audio] buildOfflineGraph failed:", err);
+    throw err;
+  }
+
+  let renderedBuffer: AudioBuffer | null = null;
+  try {
+    // eslint-disable-next-line no-console
+    console.debug("[audio] starting offlineCtx.startRendering()");
+    renderedBuffer = await offlineCtx.startRendering();
+    // eslint-disable-next-line no-console
+    console.debug("[audio] startRendering resolved: length=", (renderedBuffer && (renderedBuffer as any).length) || (renderedBuffer && (renderedBuffer as any).duration) || null);
+    // Expose rendered length for E2E tests (the smoke test patches startRendering to set this)
+    try {
+      (globalThis as any).__tfLastRenderedLength = (renderedBuffer as any).length ?? 0;
+    } catch (e) {
+      // ignore assignment errors
+    }
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error("[audio] startRendering failed:", err);
+    throw err;
+  }
 
   const ctx = await ensureAudioContext();
   const source = ctx.createBufferSource();
-  source.buffer = renderedBuffer;
+  source.buffer = renderedBuffer as AudioBuffer;
   source.connect(ctx.destination);
   source.start(0);
 }
