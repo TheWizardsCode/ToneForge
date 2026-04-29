@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && tsc -p tsconfig.server.json",
+    "prebuild": "node scripts/copy-presets.js", "build": "vite build && tsc -p tsconfig.server.json",
     "start": "node dist-server/index.js",
     "test": "vitest run",
     "test:e2e": "playwright test",

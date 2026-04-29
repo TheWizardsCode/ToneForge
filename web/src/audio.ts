@@ -1,6 +1,10 @@
 import { createRng } from "@toneforge/core/rng.js";
 import { registry } from "@toneforge/recipes/index.js";
 
+// Log available recipes at module init for E2E debugging.
+// eslint-disable-next-line no-console
+console.debug("[audio] registry available recipes:", registry.list());
+
 let realtimeCtx: AudioContext | null = null;
 
 /**
@@ -74,10 +78,69 @@ async function ensureAudioContext(): Promise<AudioContext> {
  * Render and play a recipe with the given seed in the browser.
  */
 export async function renderAndPlay(recipeName: string, seed: number): Promise<void> {
-  const registration = registry.getRegistration(recipeName);
+  let registration = registry.getRegistration(recipeName);
   if (!registration) {
-    console.warn(`Unknown recipe "${recipeName}" - skipping audio playback.`);
-    return;
+    // Try to fetch a file-backed recipe from the server as a fallback so the
+    // browser can render file-backed recipes even when import-time bundling
+    // didn't include the presets. This is best-effort.
+    try {
+      // Attempt YAML then JSON
+      const tryNames = [
+        `/presets/recipes/${recipeName}.yaml`,
+        `/presets/recipes/${recipeName}.yml`,
+        `/presets/recipes/${recipeName}.json`,
+      ];
+      let fetched: { url: string; text: string } | null = null;
+      for (const url of tryNames) {
+        // eslint-disable-next-line no-await-in-loop
+        const resp = await fetch(url);
+        if (!resp.ok) continue;
+        // eslint-disable-next-line no-await-in-loop
+        const text = await resp.text();
+        fetched = { url, text };
+        break;
+      }
+
+      if (fetched) {
+        // Validate and register client-side
+        const jsYaml = await import("js-yaml");
+        const schema = await import("@toneforge/core/tonegraph-schema.js");
+        let raw: unknown;
+        if (fetched.url.endsWith('.json')) raw = JSON.parse(fetched.text);
+        else raw = (jsYaml as any).load(fetched.text);
+        const graph = (schema as any).validateToneGraph(raw);
+        const duration = typeof graph.meta?.duration === 'number' && graph.meta.duration > 0 ? graph.meta.duration : 1;
+        const dynamicReg = {
+          getDuration: () => duration,
+          buildOfflineGraph: async (rng: any, ctx: any, dur: number) => {
+            const tonegraph = await import('@toneforge/core/tonegraph.js');
+            const handle = await (tonegraph as any).default(graph as any, ctx as any, rng);
+            const stopTime = dur > 0 ? dur : (handle.duration ?? duration);
+            handle.start(0);
+            handle.stop(stopTime);
+          },
+          description: graph.meta?.description ?? `File-backed ToneGraph recipe loaded from ${recipeName}.`,
+          category: graph.meta?.category ?? 'File-backed',
+          tags: graph.meta?.tags ?? ['file-backed'],
+          signalChain: Array.isArray(graph.routing) ? graph.routing.map((r: any) => ('chain' in r ? r.chain.join(' -> ') : `${r.from} -> ${r.to}`)).join(' | ') : 'ToneGraph (no routes)',
+          params: [],
+          getParams: () => ({}),
+        } as any;
+        registry.register(recipeName, dynamicReg);
+        // now retrieve registration
+        registration = registry.getRegistration(recipeName)!;
+        // eslint-disable-next-line no-console
+        console.debug(`[audio] dynamic recipe registered: ${recipeName}`);
+      } else {
+        // eslint-disable-next-line no-console
+        console.warn(`Unknown recipe "${recipeName}" - skipping audio playback.`);
+        return;
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn(`Unknown recipe "${recipeName}" - skipping audio playback. Fetch/register failed:`, e);
+      return;
+    }
   }
 
   const durationRng = createRng(seed);
@@ -85,14 +148,44 @@ export async function renderAndPlay(recipeName: string, seed: number): Promise<v
   const sampleRate = 44100;
   const length = Math.ceil(sampleRate * duration);
 
+  // Diagnostic logging to help E2E debugging when running in headless browsers
+  // The Playwright tests capture console messages; these logs help trace where
+  // the render path may be failing.
+  // eslint-disable-next-line no-console
+  console.debug(`[audio] renderAndPlay: recipe=${recipeName} seed=${seed} duration=${duration} length=${length}`);
+
   const offlineCtx = new OfflineAudioContext(1, length, sampleRate);
   const graphRng = createRng(seed);
-  await registration.buildOfflineGraph(graphRng, offlineCtx as unknown as import("node-web-audio-api").OfflineAudioContext, duration);
-  const renderedBuffer = await offlineCtx.startRendering();
+  try {
+    await registration.buildOfflineGraph(graphRng, offlineCtx as unknown as import("node-web-audio-api").OfflineAudioContext, duration);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error("[audio] buildOfflineGraph failed:", err);
+    throw err;
+  }
+
+  let renderedBuffer: AudioBuffer | null = null;
+  try {
+    // eslint-disable-next-line no-console
+    console.debug("[audio] starting offlineCtx.startRendering()");
+    renderedBuffer = await offlineCtx.startRendering();
+    // eslint-disable-next-line no-console
+    console.debug("[audio] startRendering resolved: length=", (renderedBuffer && (renderedBuffer as any).length) || (renderedBuffer && (renderedBuffer as any).duration) || null);
+    // Expose rendered length for E2E tests (the smoke test patches startRendering to set this)
+    try {
+      (globalThis as any).__tfLastRenderedLength = (renderedBuffer as any).length ?? 0;
+    } catch (e) {
+      // ignore assignment errors
+    }
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error("[audio] startRendering failed:", err);
+    throw err;
+  }
 
   const ctx = await ensureAudioContext();
   const source = ctx.createBufferSource();
-  source.buffer = renderedBuffer;
+  source.buffer = renderedBuffer as AudioBuffer;
   source.connect(ctx.destination);
   source.start(0);
 }
@@ -104,6 +197,11 @@ export async function renderAndPlay(recipeName: string, seed: number): Promise<v
  * Returns true if audio was played, false otherwise.
  */
 export async function handleCommandAudio(command: string): Promise<boolean> {
+  // Diagnostic log for E2E: make it easy to see when the browser attempted
+  // to handle a command for audio playback.
+  // eslint-disable-next-line no-console
+  console.debug(`[audio] handleCommandAudio called with: ${command}`);
+
   if (isStackRenderCommand(command)) {
     console.info(
       "Stack render detected - browser audio playback for stacked presets is not yet supported. "
@@ -113,17 +211,26 @@ export async function handleCommandAudio(command: string): Promise<boolean> {
   }
 
   if (!isGenerateCommand(command)) {
+    // eslint-disable-next-line no-console
+    console.debug("[audio] command is not a generate command or missing recipe/seed");
     return false;
   }
 
   const recipeName = extractRecipeName(command);
   const seed = extractSeed(command);
   if (recipeName === null || seed === null) {
+    // eslint-disable-next-line no-console
+    console.debug("[audio] recipe or seed could not be extracted from command");
     return false;
   }
 
+  // eslint-disable-next-line no-console
+  console.debug(`[audio] will render recipe=${recipeName} seed=${seed}`);
+
   try {
     await renderAndPlay(recipeName, seed);
+    // eslint-disable-next-line no-console
+    console.debug(`[audio] renderAndPlay completed for recipe=${recipeName} seed=${seed}`);
     return true;
   } catch (err) {
     console.error("Browser audio playback failed:", err);

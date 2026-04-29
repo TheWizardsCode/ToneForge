@@ -4,7 +4,7 @@
  * Stores recipe metadata plus deterministic offline graph builders.
  */
 
-import type { OfflineAudioContext } from "node-web-audio-api";
+/* Avoid importing Node-only types at top-level so browser builds don't attempt to resolve node-only modules. Use BaseAudioContext in type positions where appropriate. */
 import type { Rng } from "./rng.js";
 import { normalizeCategory as normalizeCategoryFn } from "./normalize-category.js";
 import type { ToneGraphDocument } from "./tonegraph-schema.js";
@@ -20,7 +20,7 @@ export interface RecipeRegistration {
   getDuration: (rng: Rng) => number;
   buildOfflineGraph: (
     rng: Rng,
-    ctx: OfflineAudioContext,
+    ctx: BaseAudioContext,
     duration: number,
   ) => void | Promise<void>;
   description: string;
@@ -383,7 +383,7 @@ function createFileBackedRegistration(
       // Optional diagnostics: set TF_DIAG=1 to print derived params and
       // cloned node parameter values before rendering. This is intentionally
       // gated by an env var to avoid noisy output in normal runs.
-      if (process.env.TF_DIAG === "1") {
+      if (typeof process !== "undefined" && (process as any).env?.TF_DIAG === "1") {
         try {
           // Print derived params mapping and example node param values
           // (only a few common node ids are shown for readability).
