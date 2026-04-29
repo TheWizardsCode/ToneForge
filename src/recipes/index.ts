@@ -84,6 +84,10 @@ export const discoveryReady = (async () => {
         { as: "raw" },
       );
 
+      // Debug: log discovered file keys so we can verify glob resolution under Vite
+      // eslint-disable-next-line no-console
+      console.debug('[recipes] import.meta.globEager files:', Object.keys(files));
+
       for (const [filePath, source] of Object.entries(files)) {
         try {
           const ext = (filePath.split(".").pop() || "").toLowerCase();
