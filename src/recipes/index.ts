@@ -82,7 +82,7 @@ export const discoveryReady = (async () => {
       );
 
       // Lazy load the validator and YAML parser in this branch.
-      const schemaModule = await import("./tonegraph-schema.js");
+      const schemaModule = await import("../core/tonegraph-schema.js");
       const { validateToneGraph } = schemaModule;
       const { load: yamlLoad } = await import("js-yaml");
 
