@@ -236,6 +236,9 @@ wss.on("connection", (ws: WebSocket) => {
         // Execute a command with exit-code capture.
         const cmd = msg.data.replace(/\n$/, "");
 
+        // Debug: log exec commands received by server
+        console.log('[ws.exec]', cmd);
+
         // Intercept heavy test runs in the demo and simulate fast output so the
         // web demo remains snappy in CI/E2E environments. This is a harmless
         // shortcut for the demo flow only.
