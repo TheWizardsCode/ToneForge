@@ -262,6 +262,22 @@ wss.on("connection", (ws: WebSocket) => {
   });
 });
 
+// ── Serve presets/recipes from project root for browser discovery fallback ──
+
+app.get('/presets/recipes/:file', (req, res) => {
+  const allowed = typeof req.params.file === 'string' && /^[a-z0-9_\-]+\.(json|ya?ml)$/.test(req.params.file);
+  if (!allowed) {
+    res.status(404).send('Not found');
+    return;
+  }
+  const filePath = resolve(PROJECT_ROOT, 'presets', 'recipes', req.params.file);
+  try {
+    res.sendFile(filePath);
+  } catch (e) {
+    res.status(404).send('Not found');
+  }
+});
+
 // ── Static file serving ────────────────────────────────────────────
 
 const distDir = resolve(__dirname, "..", "dist");
