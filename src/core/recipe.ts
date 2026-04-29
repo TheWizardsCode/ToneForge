@@ -383,7 +383,7 @@ function createFileBackedRegistration(
       // Optional diagnostics: set TF_DIAG=1 to print derived params and
       // cloned node parameter values before rendering. This is intentionally
       // gated by an env var to avoid noisy output in normal runs.
-      if (process.env.TF_DIAG === "1") {
+      if (typeof process !== "undefined" && (process as any).env?.TF_DIAG === "1") {
         try {
           // Print derived params mapping and example node param values
           // (only a few common node ids are shown for readability).
