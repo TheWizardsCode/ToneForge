@@ -87,6 +87,10 @@ test.describe("ToneGraph browser smoke", () => {
 
     const consoleErrors: string[] = [];
     page.on("console", (msg) => {
+      // Forward browser console messages to the test runner stdout for debugging
+      // so we can see diagnostic logs added to web/src/audio.ts during e2e runs.
+      // eslint-disable-next-line no-console
+      console.log(`[PW-${msg.type()}] ${msg.text()}`);
       if (msg.type() === "error") {
         consoleErrors.push(msg.text());
       }
