@@ -5,7 +5,7 @@
  * Each recipe provides deterministic duration and an offline graph builder.
  */
 
-import type { OfflineAudioContext } from "node-web-audio-api";
+/* Avoid importing Node-only types at top-level to keep browser builds free of Node dependencies. Runtime discovery of file-backed recipes happens conditionally below. */
 import { RecipeRegistry, discoverFileBackedRecipes } from "../core/recipe.js";
 import type { Rng } from "../core/rng.js";
 import { getFootstepStoneParams } from "./footstep-stone-params.js";
@@ -60,8 +60,88 @@ import { getCardTimerWarningParams } from "./card-timer-warning-params.js";
 
 /** The global recipe registry instance with all built-in recipes registered. */
 export const registry = new RecipeRegistry();
-await discoverFileBackedRecipes(registry);
 
+// discoveryReady is a Promise that resolves when any file-backed recipes
+// have been discovered and registered. We support two discovery modes:
+// 1) Build-time/browser: Vite's import.meta.globEager to include recipe files
+//    in the bundle and register them synchronously during module init.
+// 2) Node runtime: call discoverFileBackedRecipes to read files from disk.
+//
+// CLI code can await `discoveryReady` to ensure recipes are available before
+// dispatching commands.
+import { load as yamlLoad } from "js-yaml";
+import { validateToneGraph } from "../core/tonegraph-schema.js";
+
+export const discoveryReady = (async () => {
+  // If Vite's globEager is available, use it to synchronously include recipe
+  // sources in the browser build. This avoids Node-only imports during bundling.
+  const meta: any = import.meta as any;
+  if (meta && typeof meta.globEager !== "undefined") {
+    try {
+      // Match JSON/YAML recipe files under presets/recipes
+      const files: Record<string, string> = meta.globEager(
+        "../../presets/recipes/*.{json,yml,yaml}",
+        { as: "raw" },
+      );
+
+      // Debug: log discovered file keys so we can verify glob resolution under Vite
+      // eslint-disable-next-line no-console
+      console.debug('[recipes] import.meta.globEager files:', Object.keys(files));
+
+      for (const [filePath, source] of Object.entries(files)) {
+        try {
+          const ext = (filePath.split(".").pop() || "").toLowerCase();
+          const rawDoc = ext === "json" ? JSON.parse(source as string) : yamlLoad(source as string);
+          const graph = validateToneGraph(rawDoc);
+          const name = filePath.replace(/^.*\/(.+?)\.(json|ya?ml)$/, "$1");
+
+          try {
+            const duration = typeof graph.meta?.duration === "number" && graph.meta.duration > 0 ? graph.meta.duration : 1;
+            const reg = {
+              getDuration: () => duration,
+              buildOfflineGraph: async (rng: any, ctx: any, dur: number) => {
+                const tonegraph = await import("../core/tonegraph.js");
+                const handle = await tonegraph.default(graph as any, ctx as any, rng);
+                const stopTime = dur > 0 ? dur : (handle.duration ?? duration);
+                handle.start(0);
+                handle.stop(stopTime);
+              },
+              description: graph.meta?.description ?? `File-backed ToneGraph recipe loaded from ${name}.`,
+              category: graph.meta?.category ?? "File-backed",
+              tags: graph.meta?.tags ?? ["file-backed"],
+              signalChain: Array.isArray(graph.routing) ? graph.routing.map((r: any) => ("chain" in r ? r.chain.join(" -> ") : `${r.from} -> ${r.to}`)).join(" | ") : "ToneGraph (no routes)",
+              params: [],
+              getParams: () => ({}),
+            } as any;
+
+            registry.register(name, reg);
+          } catch (e) {
+            // eslint-disable-next-line no-console
+            console.warn(`Failed to register recipe ${name}:`, e);
+          }
+        } catch (e) {
+          // eslint-disable-next-line no-console
+          console.warn(`Skipping invalid ToneGraph recipe file ${filePath}:`, e instanceof Error ? e.message : e);
+        }
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn("File-backed recipe glob/parse failed:", e);
+    }
+
+    return;
+  }
+
+  // Fallback: Node runtime discovery using async helper.
+  if (typeof process !== "undefined" && process.versions && typeof process.versions.node === "string") {
+    try {
+      await discoverFileBackedRecipes(registry);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn("discoverFileBackedRecipes failed:", e);
+    }
+  }
+})();
 // ── footstep-stone ────────────────────────────────────────────────
 
 function footstepStoneDuration(rng: Rng): number {

@@ -80,6 +80,21 @@ export async function yargsMain(argv: string[] = process.argv): Promise<number> 
   y.help(false);
   y.fail((_msg, _err) => { /* noop */ });
 
+  // Ensure file-backed recipes are discovered before handling commands.
+  try {
+    // Importing the recipes module may be a no-op when not present; discoveryReady
+    // is a Promise exported by the recipes module that resolves when discovery completes.
+    // We only await it when available to avoid adding unnecessary startup latency in
+    // contexts that don't load the recipes module.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const recipes = await import("./../src/recipes/index.js").catch(() => null);
+    if (recipes && typeof recipes.discoveryReady?.then === "function") {
+      await recipes.discoveryReady;
+    }
+  } catch (e) {
+    // swallow — discovery is best-effort
+  }
+
   // ── generate ──────────────────────────────────────────────────────────────
   y.command(generateCmd.command, generateCmd.desc, generateCmd.builder, async (argv) => {
     exitCode = await dispatchCommand("generate", undefined, buildFlags(argv, {

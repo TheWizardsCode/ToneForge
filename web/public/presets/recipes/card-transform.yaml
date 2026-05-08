@@ -1,0 +1,106 @@
+# Migration note: hand-translated from src/recipes/index.ts cardTransformOfflineGraph().
+version: "0.1"
+meta:
+  name: card-transform
+  description: Morphing FM synthesis with modulation depth sweep for card transformation or shape-shifting.
+  category: Card Game
+  tags:
+    - card
+    - transform
+    - card-game
+    - state
+    - fm
+    - arcade
+    - morphing
+    - dramatic
+  duration: 0.6461314290310561
+  parameters:
+    - name: carrierFreq
+      type: number
+      min: 300
+      max: 700
+      unit: Hz
+      default: 301.05755701685734
+    - name: modRatio
+      type: number
+      min: 1
+      max: 4
+      unit: ratio
+      default: 2.9809359325982947
+    - name: modDepthStart
+      type: number
+      min: 50
+      max: 200
+      unit: Hz
+      default: 66.6435630215899
+    - name: modDepthEnd
+      type: number
+      min: 300
+      max: 800
+      unit: Hz
+      default: 724.6884510909879
+    - name: attack
+      type: number
+      min: 0.02
+      max: 0.08
+      unit: s
+      default: 0.07252636350051647
+    - name: sustain
+      type: number
+      min: 0.2
+      max: 0.5
+      unit: s
+      default: 0.300683290581378
+    - name: release
+      type: number
+      min: 0.1
+      max: 0.3
+      unit: s
+      default: 0.2729217749491617
+    - name: level
+      type: number
+      min: 0.5
+      max: 0.9
+      unit: amplitude
+      default: 0.72646452622173
+nodes:
+  modulator:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 897.4332894918099
+  modDepth:
+    kind: gain
+    params:
+      gain: 66.6435630215899
+    automation:
+      gain:
+        - kind: set
+          time: 0
+          value: 66.6435630215899
+        - kind: linearRamp
+          time: 0.6461314290310561
+          value: 724.6884510909879
+  carrier:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 301.05755701685734
+  level:
+    kind: gain
+    params:
+      gain: 0.72646452622173
+  env:
+    kind: envelope
+    params:
+      attack: 0.07252636350051647
+      decay: 0.300683290581378
+      sustain: 1
+      release: 0.2729217749491617
+  out:
+    kind: destination
+routing:
+  - chain: [modulator, modDepth]
+  - from: modDepth
+    to: carrier.frequency
+  - chain: [carrier, level, env, out]
