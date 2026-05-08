@@ -1,0 +1,26 @@
+version: "0.1"
+meta:
+  name: "MVP 1"
+  description: "Minimal demo recipe for browser smoke test"
+  duration: 0.5
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 440
+  env:
+    kind: envelope
+    params:
+      attack: 0.001
+      decay: 0.2
+      sustain: 0
+      release: 0.01
+  gain:
+    kind: gain
+    params:
+      gain: 1
+  dest:
+    kind: destination
+routing:
+  - chain: [osc, env, gain, dest]

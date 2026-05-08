@@ -31,6 +31,13 @@ jobs:
       - name: Build web
         working-directory: web
         run: npm run build
+      - name: Debug: list Playwright cache and binaries
+        run: |
+          echo "PLAYWRIGHT_BROWSERS_PATH=/home/runner/.cache/ms-playwright"
+          ls -la /home/runner/.cache/ms-playwright || true
+          ls -la /home/runner/.cache/ms-playwright/* || true
+          node -e "console.log('node', process.version)"
+          npx playwright --version || true
       - name: Run Playwright tests
         working-directory: web
         run: npx playwright test --reporter=list --output=../web-test-results

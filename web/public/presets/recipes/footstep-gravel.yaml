@@ -1,0 +1,113 @@
+# Migration note: hand-translated from src/recipes/index.ts footstepGravelOfflineGraph().
+version: "0.1"
+meta:
+  name: footstep-gravel
+  description: Sample-hybrid gravel footstep layering a CC0 impact transient with procedurally varied noise synthesis.
+  category: Footstep
+  tags:
+    - footstep
+    - gravel
+    - impact
+    - foley
+    - sample-hybrid
+  duration: 0.13707270715014837
+  parameters:
+    - name: filterFreq
+      type: number
+      min: 300
+      max: 1800
+      unit: Hz
+      default: 303.965838813215
+    - name: transientAttack
+      type: number
+      min: 0.001
+      max: 0.005
+      unit: s
+      default: 0.0036412479101310597
+    - name: bodyDecay
+      type: number
+      min: 0.05
+      max: 0.25
+      unit: s
+      default: 0.07219141736211987
+    - name: tailDecay
+      type: number
+      min: 0.04
+      max: 0.15
+      unit: s
+      default: 0.1334314592400173
+    - name: mixLevel
+      type: number
+      min: 0.3
+      max: 0.7
+      unit: amplitude
+      default: 0.6501757566701099
+    - name: bodyLevel
+      type: number
+      min: 0.4
+      max: 0.9
+      unit: amplitude
+      default: 0.5678054843022966
+    - name: tailLevel
+      type: number
+      min: 0.1
+      max: 0.4
+      unit: amplitude
+      default: 0.3593826624237426
+nodes:
+  sample:
+    kind: bufferSource
+    params:
+      sample: footstep-gravel/impact.wav
+  sampleGain:
+    kind: gain
+    params:
+      gain: 0.6501757566701099
+  bodyNoise:
+    kind: noise
+    params:
+      color: white
+      level: 1
+  bodyFilter:
+    kind: biquadFilter
+    params:
+      type: bandpass
+      frequency: 303.965838813215
+  bodyGain:
+    kind: gain
+    params:
+      gain: 0.5678054843022966
+  bodyEnv:
+    kind: envelope
+    params:
+      attack: 0.0036412479101310597
+      decay: 0.07219141736211987
+      sustain: 0
+      release: 0
+  tailNoise:
+    kind: noise
+    params:
+      color: brown
+      level: 1
+  tailFilter:
+    kind: biquadFilter
+    params:
+      type: lowpass
+      frequency: 151.9829194066075
+  tailGain:
+    kind: gain
+    params:
+      gain: 0.3593826624237426
+  tailEnv:
+    kind: envelope
+    params:
+      attack: 0.0036412479101310597
+      decay: 0.1334314592400173
+      sustain: 0
+      release: 0
+  out:
+    kind: destination
+routing:
+  - chain: [sample, sampleGain, out]
+  - chain: [bodyNoise, bodyFilter, bodyGain, bodyEnv, out]
+  - chain: [tailNoise, tailFilter, tailGain, tailEnv, out]
