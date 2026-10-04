@@ -11,6 +11,33 @@ ToneGraph v0.1 targets standard Web Audio API graph construction. This spec is t
 - In scope: static graph declaration, node parameters, deterministic randomness metadata, flat routing links, `chain()` shorthand
 - Out of scope in v0.1: advanced routing patterns, complex automation DSLs, and sequence scheduling
 
+## Discovery and Loading
+
+ToneGraph recipes reach the shared registry (`src/recipes/index.ts`) in two stages:
+
+1. **Built-in recipes** are registered synchronously when the registry module is
+evaluated. This is safe in every runtime, including browsers.
+1. **File-backed recipes** (`.json`/`.yaml`/`.yml` files under `presets/recipes/`)
+are discovered asynchronously from disk through `initializeRecipeRegistry()`.
+
+File-backed discovery is deliberately **not** performed with a top-level
+`await`: browser build targets (Vite/esbuild) reject top-level await, and
+filesystem access is Node-only. `initializeRecipeRegistry()` is therefore:
+
+- **Explicit** — Node call sites (the CLI, the offline renderer, and Node test
+  setup) `await` it before reading the registry.
+- **Idempotent** — discovery runs once; later calls reuse the same result and do
+  not re-register recipes.
+- **Portable** — in non-Node runtimes it resolves to an empty array, so a
+  browser sees only the synchronously-registered built-in recipes.
+
+```ts
+import { registry, initializeRecipeRegistry } from "./recipes/index.js";
+
+await initializeRecipeRegistry();
+const recipe = registry.getRegistration("ui-scifi-confirm");
+```
+
 ## Version Compatibility
 
 - `version` is required and must equal `"0.1"`.

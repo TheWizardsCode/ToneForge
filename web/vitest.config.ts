@@ -12,6 +12,7 @@ export default defineConfig({
   },
   test: {
     include: ["test/**/*.test.ts"],
+    setupFiles: ["test/setup-init-recipes.ts"],
     testTimeout: 15_000,
   },
 });

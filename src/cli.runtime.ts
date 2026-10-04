@@ -25,7 +25,7 @@ import { existsSync, realpathSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { execFile } from "node:child_process";
 import { renderRecipe } from "./core/renderer.js";
-import { registry } from "./recipes/index.js";
+import { registry, initializeRecipeRegistry } from "./recipes/index.js";
 import { playAudio, getPlayerCommand } from "./audio/player.js";
 import { encodeWav } from "./audio/wav-encoder.js";
 import { VERSION } from "./index.js";
@@ -1225,6 +1225,10 @@ export async function dispatchCommand(
   flags: Record<string, string | boolean>,
   layers: string[],
 ): Promise<number> {
+  // Load file-backed ToneGraph recipes before any command runs. Discovery is
+  // Node-only and idempotent; in non-Node runtimes it resolves to a no-op.
+  await initializeRecipeRegistry();
+
   const jsonMode = flags["json"] === true;
 
   // Enable profiling when --profile flag is set

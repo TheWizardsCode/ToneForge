@@ -13,7 +13,7 @@
 
 import { OfflineAudioContext } from "node-web-audio-api";
 import { createRng } from "./rng.js";
-import { registry } from "../recipes/index.js";
+import { registry, initializeRecipeRegistry } from "../recipes/index.js";
 import { profiler } from "./profiler.js";
 
 /** Result of an offline render containing sample data. */
@@ -50,6 +50,10 @@ export async function renderRecipe(
   seed: number,
   duration?: number,
 ): Promise<RenderResult> {
+  // File-backed recipes are discovered asynchronously; ensure they are
+  // registered before resolving the recipe. Idempotent and cached.
+  await initializeRecipeRegistry();
+
   const registration = registry.getRegistration(recipeName);
   if (!registration) {
     throw new Error(`Recipe not found: ${recipeName}`);

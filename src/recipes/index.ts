@@ -60,7 +60,40 @@ import { getCardTimerWarningParams } from "./card-timer-warning-params.js";
 
 /** The global recipe registry instance with all built-in recipes registered. */
 export const registry = new RecipeRegistry();
-await discoverFileBackedRecipes(registry);
+
+/**
+ * Cached promise for the one-time file-backed recipe discovery pass.
+ *
+ * Kept module-scoped so repeated calls to {@link initializeRecipeRegistry}
+ * reuse the same discovery result (idempotent, no duplicate registration).
+ */
+let fileBackedRecipesPromise: Promise<string[]> | undefined;
+
+/**
+ * Register file-backed ToneGraph recipes into the shared registry.
+ *
+ * Built-in recipes are registered synchronously when this module is
+ * evaluated. File-backed recipes live on disk and are discovered
+ * asynchronously, so they cannot be registered with a top-level `await` —
+ * browser build targets (Vite/esbuild) reject top-level await, which
+ * previously broke `npm run build --prefix web`.
+ *
+ * Node callers that need file-backed recipes (the CLI, the offline renderer,
+ * and Node test setup) `await` this function before using the registry.
+ * Discovery is a no-op in non-Node runtimes, where the promise resolves to an
+ * empty array — the browser sees only the synchronously-registered built-ins.
+ *
+ * The result is cached, so calling this multiple times performs discovery only
+ * once and returns the same discovered recipe names.
+ *
+ * @returns The names of the file-backed recipes that were discovered.
+ */
+export function initializeRecipeRegistry(): Promise<string[]> {
+  if (fileBackedRecipesPromise === undefined) {
+    fileBackedRecipesPromise = discoverFileBackedRecipes(registry);
+  }
+  return fileBackedRecipesPromise;
+}
 
 // ── footstep-stone ────────────────────────────────────────────────
 
