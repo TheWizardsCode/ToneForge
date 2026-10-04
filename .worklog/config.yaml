@@ -2,3 +2,13 @@ projectName: ToneForge
 prefix: TF
 autoExport: true
 autoSync: false
+# Worklog sync author-identity gate (WL-0MSOYWWS4009HTCB).
+# This store's canonical author identity is `pi@local` (set via `git config
+# user.email`). The legacy authors below are whitelisted so the existing
+# shared worklog history can be merged; any other foreign author is rejected.
+syncAllowedAuthors:
+  - pi@local
+  - ross.gardler@microsoft.com
+  - sorra@thewizardscode.com
+  - rgardler@users.noreply.github.com
+  - 250240+SorraTheOrc@users.noreply.github.com
