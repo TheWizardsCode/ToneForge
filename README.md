@@ -116,4 +116,4 @@ toneforge library add --input sound.wav --tags "weapon,laser"
 
 ## License
 
-TBD
+ToneForge is released under the [MIT License](LICENSE).
