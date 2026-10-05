@@ -140,6 +140,36 @@ toneforge show card-coin-collect --seed 42
 
 ## Step 3 — Inspect Existing Presets
 
+Before diving into a specific preset, discover what sequences and stacks ship
+with ToneForge. The `list` command scans the `presets/sequences/` and
+`presets/stacks/` directories and prints each preset's name and description:
+
+```bash
+# List every sequence preset
+toneforge list sequences
+
+# List every stack preset
+toneforge list stacks
+```
+
+Narrow the list with a case-insensitive keyword search over names and
+descriptions:
+
+```bash
+# Find sequence presets related to card handling
+toneforge list sequences --search card
+
+# Find stack presets for victory moments
+toneforge list stacks --search victory
+```
+
+For scripting or piping into build tools, request JSON output:
+
+```bash
+toneforge list sequences --json
+toneforge list stacks --search victory --json
+```
+
 Two relevant presets ship with ToneForge that you will use as worked examples.
 
 ### Sequence preset: `tableau_play_card`
@@ -462,6 +492,8 @@ headlessly and is safe to use in CI.
 |---|---|---|
 | Discover | `toneforge list recipes --category card-game` | List all 34 card-game recipes |
 | Search | `toneforge list recipes --search coin` | Keyword search across all fields |
+| List sequences | `toneforge list sequences [--search <kw>]` | Discover sequence presets by name/description |
+| List stacks | `toneforge list stacks [--search <kw>]` | Discover stack presets by name/description |
 | Preview | `toneforge generate --recipe <name> --seed <n>` | Play through speakers instantly |
 | Inspect | `toneforge show <recipe> --seed <n>` | View metadata and parameter values |
 | Inspect preset | `toneforge sequence inspect --preset <file>` | View sequence structure |
