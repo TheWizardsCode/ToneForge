@@ -23,6 +23,13 @@ export {
   type AuditionSource,
 } from "./audition.js";
 export {
+  PresetExportError,
+  createWavDownload,
+  exportWav,
+  wavFilename,
+  type WavExport,
+} from "./export.js";
+export {
   DEFAULT_XY_PAIRS,
   buildParameterMapping,
   chooseWidgetKind,

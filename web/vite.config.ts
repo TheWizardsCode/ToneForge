@@ -166,6 +166,9 @@ export default defineConfig({
       "@toneforge": resolve(projectRoot, "src"),
       // Allow importing demo markdown files from the repo-root demos/ directory
       "@demos": resolve(projectRoot, "demos"),
+      // Node's `buffer` builtin is unavailable in the browser; resolve to the
+      // npm polyfill so the reused WAV encoder runs in-browser too.
+      buffer: resolve(projectRoot, "node_modules/buffer/index.js"),
     },
   },
   plugins: [dynamicBackendProxy()],

@@ -68,6 +68,29 @@ interface SoundPreset {
 - **Graceful degradation** — the shell depends only on DOM APIs and does not
   throw when Web Audio is unavailable.
 
+## WAV export
+
+The editor renders offline (no live `AudioContext` required) and encodes with
+the existing ToneForge WAV encoder:
+
+```ts
+const bytes: Uint8Array = await editor.exportWav();      // current preset
+const other = await editor.exportWav(otherPreset);        // explicit preset
+```
+
+Hosts can build a download with the exported helper:
+
+```ts
+import { createWavDownload } from "./components/SoundEditor/index.js";
+
+const wav = await createWavDownload(preset); // { bytes, filename, blob, download() }
+wav.download(); // triggers a browser download (filename: <recipe>-seed-<seed>.wav)
+```
+
+Export is deterministic: the same preset always produces byte-identical WAV
+bytes, and the bytes match the samples returned by `renderPreset`. Unknown
+recipes throw a typed `PresetExportError`.
+
 ## Testing
 
 Component tests live in `__tests__/` and run under the shared happy-dom

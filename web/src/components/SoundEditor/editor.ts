@@ -18,6 +18,7 @@
 import { applyStyles } from "./styles.js";
 import { createControlPanel, type ControlPanel } from "./controls.js";
 import { createAudition, type Audition } from "./audition.js";
+import { exportWav as exportPresetWav } from "./export.js";
 import {
   SOUND_PRESET_VERSION,
   type SoundEditorController,
@@ -226,5 +227,11 @@ export function createSoundEditor(
     }
   }
 
-  return { mount, dispose, onChange, getPreset, setPreset };
+  async function exportWav(presetOverride?: SoundPreset): Promise<Uint8Array> {
+    assertUsable();
+    const target = clonePreset(presetOverride ?? preset);
+    return exportPresetWav(target);
+  }
+
+  return { mount, dispose, onChange, getPreset, setPreset, exportWav };
 }

@@ -53,4 +53,6 @@ export interface SoundEditorController {
   getPreset(): SoundPreset;
   /** Replace the current preset; notifies `onChange` listeners when it changes. */
   setPreset(preset: SoundPreset): void;
+  /** Render a preset (defaults to the current preset) to WAV bytes. */
+  exportWav(preset?: SoundPreset): Promise<Uint8Array>;
 }
