@@ -8,8 +8,8 @@ ToneGraph v0.1 targets standard Web Audio API graph construction. This spec is t
 
 - Target runtime: `BaseAudioContext` (`OfflineAudioContext` or `AudioContext`)
 - File formats: JSON and YAML
-- In scope: static graph declaration, node parameters, deterministic randomness metadata, flat routing links, `chain()` shorthand
-- Out of scope in v0.1: advanced routing patterns, complex automation DSLs, and sequence scheduling
+- In scope: static graph declaration, node parameters, deterministic randomness metadata, flat routing links, `chain()` shorthand, and bus routing (`buses` + `{ bus }` entries)
+- Out of scope in v0.1: complex automation DSLs and sequence scheduling
 
 ## Discovery and Loading
 
@@ -57,7 +57,8 @@ ToneGraph v0.1 documents must be an object with the following fields.
 | `random` | no | object | RNG metadata and optional seed hint. |
 | `transport` | no | object | Timing metadata (for future scheduling). |
 | `nodes` | yes | object map | Node definitions keyed by node id. |
-| `routing` | yes | array | Connection declarations (`link` or `chain`). |
+| `routing` | yes | array | Connection declarations (`link`, `chain`, or `bus`). |
+| `buses` | no | object map | Named mixer buses materialised as GainNodes and referenced as `bus:<id>`. |
 | `sequences` | no | any | Reserved for v0.2. Loaders must reject when present in strict mode. |
 | `namespaces` | no | any | Reserved for v0.2. Loaders must reject when present in strict mode. |
 
@@ -265,6 +266,78 @@ Semantics:
 Validation rules:
 - `chain` length must be at least 2.
 - Every id in `chain` must exist in `nodes`.
+
+## Buses
+
+`buses` is an optional object map of named mixer buses. Each bus is
+materialised by the loader as a `GainNode`, addressed from routing by the
+reserved reference `bus:<id>` (for example bus `mix` becomes `bus:mix`). Buses
+are the explicit construct for **fan-in** (many sources into one bus) and
+**fan-out** (one bus to many destinations).
+
+### Bus Definition
+
+```json
+"buses": {
+  "mix": { "gain": 0.5 }
+}
+```
+
+Fields:
+- `gain` (number, default `1.0`) — the bus mix level.
+
+Validation rules:
+- Bus ids must be non-empty and unique.
+- A bus id must not collide with a node id.
+- A node id must not collide with a generated `bus:<id>` reference.
+- `gain`, when present, must be a finite number.
+
+### Bus Routing Entry
+
+A routing entry may instead fan signals through a declared bus:
+
+```json
+{ "bus": "mix", "from": ["osc", "noise"], "to": ["filter"] }
+```
+
+Fields:
+- `bus` (string, required) — the id of a declared bus.
+- `from` (string or array of strings, optional) — one or more node output
+  endpoints to connect **into** the bus (fan-in). May not reference an
+  AudioParam endpoint.
+- `to` (string or array of strings, optional) — one or more destination
+  endpoints to connect **from** the bus (fan-out). May target either a node or
+  a `node.param` AudioParam endpoint.
+
+Semantics: each `from` input is linked to the bus, and the bus is linked to
+ each `to` output. An entry may declare `from`, `to`, or both, enabling pure
+ fan-in, pure fan-out, or a combined Y-shape.
+
+Validation rules:
+- `bus` must reference a bus declared in `buses`.
+- At least one of `from` / `to` must be present.
+- A present `from` / `to` must be a string or a non-empty array of strings.
+- Every referenced node id must exist in `nodes`.
+- `from` endpoints must not reference an AudioParam.
+
+### Bus Routing Example
+
+```json
+{
+  "version": "0.1",
+  "buses": { "mix": { "gain": 0.5 } },
+  "nodes": {
+    "osc": { "kind": "oscillator", "params": { "frequency": 220 } },
+    "noise": { "kind": "noise", "params": { "color": "white", "level": 0.2 } },
+    "amp": { "kind": "gain", "params": { "gain": 0.4 } },
+    "out": { "kind": "destination" }
+  },
+  "routing": [
+    { "chain": ["osc", "amp"] },
+    { "bus": "mix", "from": ["amp", "noise"], "to": ["out"] }
+  ]
+}
+```
 
 ## Reserved v0.2 Fields
 

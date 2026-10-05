@@ -165,6 +165,96 @@ describe("loadToneGraph", () => {
     expect(samples.some((sample) => sample !== 0)).toBe(true);
   });
 
+  it("supports bus routing fan-in and fan-out", async () => {
+    const graph: ToneGraphDocument = {
+      version: "0.1",
+      meta: { duration: 0.2 },
+      buses: { mix: { gain: 0.5 } },
+      nodes: {
+        oscA: { kind: "oscillator", params: { type: "sine", frequency: 330 } },
+        oscB: { kind: "oscillator", params: { type: "sine", frequency: 550 } },
+        out: { kind: "destination" },
+      },
+      routing: [{ bus: "mix", from: ["oscA", "oscB"], to: ["out"] }],
+    };
+
+    const samples = await renderGraph(graph, 7);
+    expect(samples.some((sample) => sample !== 0)).toBe(true);
+  });
+
+  it("creates a gain node for each declared bus and applies its gain", async () => {
+    const graph: ToneGraphDocument = {
+      version: "0.1",
+      meta: { duration: 0.2 },
+      buses: { mix: { gain: 0.5 } },
+      nodes: {
+        osc: { kind: "oscillator", params: { type: "sine", frequency: 440 } },
+        out: { kind: "destination" },
+      },
+      routing: [{ bus: "mix", from: "osc", to: "out" }],
+    };
+
+    const ctx = new OfflineAudioContext(1, 4410, 44100);
+    const handle = await loadToneGraph(graph, ctx, createRng(7));
+
+    const busNode = handle.nodes["bus:mix"] as GainNode | undefined;
+    expect(busNode).toBeDefined();
+    expect(busNode!.gain.value).toBeCloseTo(0.5, 6);
+  });
+
+  it("mixes flat links, chain routing and bus routing together", async () => {
+    const graph: ToneGraphDocument = {
+      version: "0.1",
+      meta: { duration: 0.2 },
+      buses: { mix: { gain: 0.4 } },
+      nodes: {
+        osc: { kind: "oscillator", params: { type: "sawtooth", frequency: 220 } },
+        filter: { kind: "biquadFilter", params: { type: "lowpass", frequency: 900 } },
+        noise: { kind: "noise", params: { color: "white", level: 0.2 } },
+        amp: { kind: "gain", params: { gain: 0.3 } },
+        out: { kind: "destination" },
+      },
+      routing: [
+        { chain: ["osc", "filter"] },
+        { from: "noise", to: "amp" },
+        { bus: "mix", from: ["filter", "amp"], to: "out" },
+      ],
+    };
+
+    const samples = await renderGraph(graph, 8);
+    expect(samples.some((sample) => sample !== 0)).toBe(true);
+  });
+
+  it("scales bus output by the declared bus gain", async () => {
+    const makeGraph = (gain: number): ToneGraphDocument => ({
+      version: "0.1",
+      meta: { duration: 0.1 },
+      buses: { mix: { gain } },
+      nodes: {
+        osc: { kind: "oscillator", params: { type: "sine", frequency: 440 } },
+        out: { kind: "destination" },
+      },
+      routing: [{ bus: "mix", from: "osc", to: "out" }],
+    });
+
+    const full = await renderGraph(makeGraph(1), 9);
+    const quiet = await renderGraph(makeGraph(0.25), 9);
+
+    const peak = (samples: Float32Array): number => {
+      let max = 0;
+      for (const sample of samples) {
+        const abs = Math.abs(sample);
+        if (abs > max) {
+          max = abs;
+        }
+      }
+      return max;
+    };
+
+    expect(peak(full)).toBeGreaterThan(0);
+    expect(peak(quiet) / peak(full)).toBeCloseTo(0.25, 2);
+  });
+
   it("throws for unsupported node kind values", async () => {
     const graph = {
       version: "0.1",

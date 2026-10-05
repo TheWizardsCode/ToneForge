@@ -35,6 +35,15 @@ export interface ToneGraphTransport {
   timeSignature?: [number, number];
 }
 
+/**
+ * A named mixer bus declared at the document level. The loader materialises
+ * each bus as a GainNode in the Web Audio graph, addressed by the reserved
+ * reference `bus:<id>` from routing entries.
+ */
+export interface ToneGraphBusDefinition {
+  gain?: number;
+}
+
 export interface ToneGraphDestinationNode {
   kind: "destination";
 }
@@ -139,7 +148,21 @@ export interface ToneGraphRoutingChain {
   chain: [string, string, ...string[]];
 }
 
-export type ToneGraphRoutingEntry = ToneGraphRoutingLink | ToneGraphRoutingChain;
+/**
+ * Bus routing entry: fans `from` inputs into the named bus and fans the bus
+ * out to `to` outputs. `from`/`to` accept either a single endpoint reference
+ * or a list, enabling fan-in (`from` array) and fan-out (`to` array).
+ */
+export interface ToneGraphRoutingBus {
+  bus: string;
+  from?: string | string[];
+  to?: string | string[];
+}
+
+export type ToneGraphRoutingEntry =
+  | ToneGraphRoutingLink
+  | ToneGraphRoutingChain
+  | ToneGraphRoutingBus;
 
 export interface ToneGraphDocument {
   version: ToneGraphVersion;
@@ -149,6 +172,7 @@ export interface ToneGraphDocument {
   transport?: ToneGraphTransport;
   nodes: Record<string, ToneGraphNodeDefinition>;
   routing: ToneGraphRoutingEntry[];
+  buses?: Record<string, ToneGraphBusDefinition>;
 }
 
 type UnknownRecord = Record<string, unknown>;
@@ -416,6 +440,13 @@ function validateNodeDefinition(nodeId: string, value: unknown): ToneGraphNodeDe
   }
 }
 
+function isEndpointList(value: unknown): value is string | string[] {
+  if (typeof value === "string") {
+    return true;
+  }
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
 function validateRoutingEntry(value: unknown, index: number): ToneGraphRoutingEntry {
   const path = `routing[${index}]`;
   assertRecord(value, path);
@@ -423,6 +454,50 @@ function validateRoutingEntry(value: unknown, index: number): ToneGraphRoutingEn
   const hasFrom = Object.prototype.hasOwnProperty.call(value, "from");
   const hasTo = Object.prototype.hasOwnProperty.call(value, "to");
   const hasChain = Object.prototype.hasOwnProperty.call(value, "chain");
+  const hasBus = Object.prototype.hasOwnProperty.call(value, "bus");
+
+  if (hasBus) {
+    if (hasChain) {
+      throw new Error(`${path} must not combine "bus" with "chain".`);
+    }
+
+    const bus = value.bus;
+    assertString(bus, `${path}.bus`);
+    if (bus.trim().length === 0) {
+      throw new Error(`${path}.bus must not be empty.`);
+    }
+
+    const from = value.from;
+    const to = value.to;
+
+    if (from === undefined && to === undefined) {
+      throw new Error(`${path} must declare at least one input or output.`);
+    }
+
+    if (from !== undefined) {
+      if (!isEndpointList(from)) {
+        throw new Error(`${path}.from must be a string or an array of strings.`);
+      }
+      if (Array.isArray(from) && from.length === 0) {
+        throw new Error(`${path}.from must not be empty.`);
+      }
+    }
+
+    if (to !== undefined) {
+      if (!isEndpointList(to)) {
+        throw new Error(`${path}.to must be a string or an array of strings.`);
+      }
+      if (Array.isArray(to) && to.length === 0) {
+        throw new Error(`${path}.to must not be empty.`);
+      }
+    }
+
+    return {
+      bus,
+      from: from as string | string[] | undefined,
+      to: to as string | string[] | undefined,
+    };
+  }
 
   if (hasChain) {
     if (hasFrom || hasTo) {
@@ -581,12 +656,62 @@ export function validateToneGraph(doc: unknown): ToneGraphDocument {
   const routing = doc.routing.map((entry, index) => validateRoutingEntry(entry, index));
 
   const nodeIds = new Set(Object.keys(nodes));
+
+  const buses: Record<string, ToneGraphBusDefinition> = {};
+  if (doc.buses !== undefined) {
+    assertRecord(doc.buses, "buses");
+    for (const [busId, busDef] of Object.entries(doc.buses)) {
+      if (busId.trim().length === 0) {
+        throw new Error("buses contains an empty bus id.");
+      }
+      if (nodeIds.has(busId)) {
+        throw new Error(`Bus id "${busId}" collides with a node id.`);
+      }
+      if (nodeIds.has(`bus:${busId}`)) {
+        throw new Error(`Node id "bus:${busId}" conflicts with bus reference for bus "${busId}".`);
+      }
+      assertRecord(busDef, `buses.${busId}`);
+      if (busDef.gain !== undefined) {
+        assertNumber(busDef.gain, `buses.${busId}.gain`);
+      }
+      buses[busId] = { gain: busDef.gain as number | undefined };
+    }
+  }
+
+  const busIds = new Set(Object.keys(buses));
+
+  const toEndpointList = (value: string | string[] | undefined): string[] =>
+    value === undefined ? [] : Array.isArray(value) ? value : [value];
+
+  const assertNodeEndpoint = (ref: string, path: string, allowParam: boolean): void => {
+    const endpoint = parseEndpointReference(ref);
+    if (endpoint.param !== undefined && !allowParam) {
+      throw new Error(`${path} cannot reference AudioParam endpoint "${ref}".`);
+    }
+    if (!nodeIds.has(endpoint.nodeId)) {
+      throw new Error(`${path} references unknown node "${ref}".`);
+    }
+  };
+
   routing.forEach((entry, index) => {
     if ("chain" in entry) {
       entry.chain.forEach((nodeId, chainIndex) => {
         if (!nodeIds.has(nodeId)) {
           throw new Error(`routing[${index}].chain[${chainIndex}] references unknown node \"${nodeId}\".`);
         }
+      });
+      return;
+    }
+
+    if ("bus" in entry) {
+      if (!busIds.has(entry.bus)) {
+        throw new Error(`routing[${index}].bus references unknown bus "${entry.bus}".`);
+      }
+      toEndpointList(entry.from).forEach((ref, refIndex) => {
+        assertNodeEndpoint(ref, `routing[${index}].from[${refIndex}]`, false);
+      });
+      toEndpointList(entry.to).forEach((ref, refIndex) => {
+        assertNodeEndpoint(ref, `routing[${index}].to[${refIndex}]`, true);
       });
       return;
     }
@@ -610,6 +735,10 @@ export function validateToneGraph(doc: unknown): ToneGraphDocument {
     nodes,
     routing,
   };
+
+  if (doc.buses !== undefined) {
+    validated.buses = buses;
+  }
 
   if (doc.engine !== undefined) {
     validated.engine = { backend: doc.engine.backend as ToneGraphEngine["backend"] };

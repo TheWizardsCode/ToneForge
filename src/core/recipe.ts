@@ -299,9 +299,17 @@ function buildSignalChain(graph: ToneGraphDocument): string {
     return "ToneGraph (no routes)";
   }
 
+  const toEndpointList = (value: string | string[] | undefined): string[] =>
+    value === undefined ? [] : Array.isArray(value) ? value : [value];
+
   const parts = graph.routing.map((entry) => {
     if ("chain" in entry) {
       return entry.chain.join(" -> ");
+    }
+    if ("bus" in entry) {
+      const inputs = toEndpointList(entry.from);
+      const outputs = toEndpointList(entry.to);
+      return `[${inputs.join(", ")}] -> bus:${entry.bus} -> [${outputs.join(", ")}]`;
     }
     return `${entry.from} -> ${entry.to}`;
   });

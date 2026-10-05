@@ -501,6 +501,10 @@ async function createRuntimeNode(
 
 function expandRouting(entries: ToneGraphRoutingEntry[]): Array<{ from: string; to: string }> {
   const links: Array<{ from: string; to: string }> = [];
+
+  const toEndpointList = (value: string | string[] | undefined): string[] =>
+    value === undefined ? [] : Array.isArray(value) ? value : [value];
+
   for (const entry of entries) {
     if ("chain" in entry) {
       for (let i = 0; i < entry.chain.length - 1; i += 1) {
@@ -508,6 +512,18 @@ function expandRouting(entries: ToneGraphRoutingEntry[]): Array<{ from: string; 
       }
       continue;
     }
+
+    if ("bus" in entry) {
+      const busRef = `bus:${entry.bus}`;
+      for (const input of toEndpointList(entry.from)) {
+        links.push({ from: input, to: busRef });
+      }
+      for (const output of toEndpointList(entry.to)) {
+        links.push({ from: busRef, to: output });
+      }
+      continue;
+    }
+
     links.push(entry);
   }
   return links;
@@ -524,6 +540,21 @@ export async function loadToneGraph(
   const runtimeNodes = new Map<string, RuntimeNode>();
   for (const [id, def] of Object.entries(graph.nodes)) {
     runtimeNodes.set(id, await createRuntimeNode(ctx, id, def, activeRng, duration));
+  }
+
+  // Materialise each declared bus as a GainNode addressed by the reserved
+  // reference `bus:<id>`. Validation guarantees bus ids do not collide with
+  // node ids or generated `bus:` references.
+  for (const [busId, busDef] of Object.entries(graph.buses ?? {})) {
+    const gainNode = ctx.createGain();
+    gainNode.gain.value = busDef.gain ?? 1;
+    runtimeNodes.set(`bus:${busId}`, {
+      output: gainNode,
+      params: { gain: gainNode.gain },
+      startables: [],
+      stoppables: [],
+      internals: [gainNode],
+    });
   }
 
   for (const route of expandRouting(graph.routing)) {

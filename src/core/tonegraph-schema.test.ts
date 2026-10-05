@@ -156,6 +156,154 @@ describe("validateToneGraph", () => {
     expect(() => validateToneGraph(doc)).toThrow("reserved for v0.2");
   });
 
+  it("accepts bus routing with declared buses", () => {
+    const doc = {
+      version: "0.1",
+      buses: {
+        mix: { gain: 0.5 },
+      },
+      nodes: {
+        osc: { kind: "oscillator" },
+        noise: { kind: "noise" },
+        filter: { kind: "biquadFilter" },
+        out: { kind: "destination" },
+      },
+      routing: [
+        { bus: "mix", from: ["osc", "noise"], to: ["filter"] },
+        { from: "filter", to: "out" },
+      ],
+    };
+
+    const validated = validateToneGraph(doc);
+
+    expect(validated.buses).toEqual({ mix: { gain: 0.5 } });
+    expect(validated.routing).toHaveLength(2);
+  });
+
+  it("accepts a bus entry with a single string input and output", () => {
+    const doc = {
+      version: "0.1",
+      buses: { mix: {} },
+      nodes: {
+        osc: { kind: "oscillator" },
+        out: { kind: "destination" },
+      },
+      routing: [{ bus: "mix", from: "osc", to: "out" }],
+    };
+
+    const validated = validateToneGraph(doc);
+
+    expect(validated.routing).toEqual([{ bus: "mix", from: "osc", to: "out" }]);
+  });
+
+  it("rejects bus routing that references an undeclared bus", () => {
+    const doc = {
+      version: "0.1",
+      nodes: {
+        osc: { kind: "oscillator" },
+        out: { kind: "destination" },
+      },
+      routing: [{ bus: "missing", from: "osc", to: "out" }],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow('unknown bus "missing"');
+  });
+
+  it("rejects a bus entry with neither inputs nor outputs", () => {
+    const doc = {
+      version: "0.1",
+      buses: { mix: {} },
+      nodes: {
+        osc: { kind: "oscillator" },
+      },
+      routing: [{ bus: "mix" }],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow("must declare at least one input or output");
+  });
+
+  it("rejects a bus entry with an empty input list", () => {
+    const doc = {
+      version: "0.1",
+      buses: { mix: {} },
+      nodes: {
+        out: { kind: "destination" },
+      },
+      routing: [{ bus: "mix", from: [], to: "out" }],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow("must not be empty");
+  });
+
+  it("rejects a bus definition with a non-numeric gain", () => {
+    const doc = {
+      version: "0.1",
+      buses: { mix: { gain: "loud" } },
+      nodes: {
+        out: { kind: "destination" },
+      },
+      routing: [],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow("buses.mix.gain must be a finite number");
+  });
+
+  it("rejects a bus id that collides with a node id", () => {
+    const doc = {
+      version: "0.1",
+      buses: { mix: {} },
+      nodes: {
+        mix: { kind: "gain" },
+        out: { kind: "destination" },
+      },
+      routing: [],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow("collides with a node id");
+  });
+
+  it("rejects a node id that collides with a generated bus reference", () => {
+    const doc = {
+      version: "0.1",
+      buses: { mix: {} },
+      nodes: {
+        "bus:mix": { kind: "gain" },
+        out: { kind: "destination" },
+      },
+      routing: [],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow("conflicts with bus reference");
+  });
+
+  it("rejects bus inputs that reference an AudioParam endpoint", () => {
+    const doc = {
+      version: "0.1",
+      buses: { mix: {} },
+      nodes: {
+        osc: { kind: "oscillator" },
+        out: { kind: "destination" },
+      },
+      routing: [{ bus: "mix", from: "osc.frequency", to: "out" }],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow("cannot reference AudioParam endpoint");
+  });
+
+  it("rejects bus routing that references an unknown node", () => {
+    const doc = {
+      version: "0.1",
+      buses: { mix: {} },
+      nodes: {
+        osc: { kind: "oscillator" },
+        out: { kind: "destination" },
+      },
+      routing: [{ bus: "mix", from: ["osc", "ghost"], to: "out" }],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow("unknown node");
+  });
+
   it("rejects invalid meta.parameters bounds", () => {
     const doc = {
       version: "0.1",
