@@ -67,6 +67,14 @@ dependency used only for offline rendering in Node.js and is never bundled into
 browser builds. See [Using ToneForge in the Browser](docs/browser-usage.md) for
 installation, the Runtime API, and recipe-rendering examples.
 
+### Web demo — CI-safe CLI in the PTY
+
+The web demo spawns a terminal PTY for the frontend to execute CLI commands.
+To make `toneforge` and `tf` resolvable inside that PTY without a global
+`npm link`, the server prepends a shim directory (`bin/tf-shim/`) to the
+PTY `PATH` at startup. The shim scripts delegate to `bin/dev-cli.js`, so the
+commands work in CI and on any machine.
+
 ### Troubleshooting
 
 In CI, the postinstall step skips linking automatically. If linking is unavailable locally (permissions/restricted environments), you'll see a non-failing message and can use the loader script directly:
