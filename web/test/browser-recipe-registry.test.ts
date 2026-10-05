@@ -35,6 +35,7 @@ const MIGRATED = [
   "footstep-gravel",
   "ambient-wind-gust",
   "card-transform",
+  "frequency-sweep-demo",
 ] as const;
 
 describe("registerBrowserRecipes", () => {

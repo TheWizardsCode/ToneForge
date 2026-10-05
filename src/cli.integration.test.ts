@@ -202,6 +202,37 @@ describe("CLI Integration — --output flag end-to-end", () => {
     expect(fileData.length).toBe(44 + dataSize);
   });
 
+  it("renders a file-backed frequency-sweep recipe to a non-empty WAV via --output (AC4)", async () => {
+    const outPath = join(tempDir, "frequency-sweep-demo.wav");
+    const { code } = await captureOutput(
+      () => main(argv("generate", "--recipe", "frequency-sweep-demo", "--seed", "42", "--output", outPath)),
+    );
+
+    expect(code).toBe(0);
+    expect(existsSync(outPath)).toBe(true);
+
+    const data = readFileSync(outPath);
+    expect(data.toString("ascii", 0, 4)).toBe("RIFF");
+    expect(data.toString("ascii", 8, 12)).toBe("WAVE");
+    const dataSize = data.readUInt32LE(40);
+    expect(dataSize).toBeGreaterThan(0);
+    expect(data.length).toBe(44 + dataSize);
+  });
+
+  it("frequency-sweep recipe renders byte-identically for the same seed (AC5)", async () => {
+    const outA = join(tempDir, "sweep-a.wav");
+    const outB = join(tempDir, "sweep-b.wav");
+
+    await captureOutput(
+      () => main(argv("generate", "--recipe", "frequency-sweep-demo", "--seed", "7", "--output", outA)),
+    );
+    await captureOutput(
+      () => main(argv("generate", "--recipe", "frequency-sweep-demo", "--seed", "7", "--output", outB)),
+    );
+
+    expect(readFileSync(outA).equals(readFileSync(outB))).toBe(true);
+  });
+
   it("--seed-range batch generates correct number of valid WAV files", async () => {
     const outDir = tempDir + "/";
     const { code } = await captureOutput(

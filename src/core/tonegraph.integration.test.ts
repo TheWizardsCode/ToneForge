@@ -20,6 +20,7 @@ const MIGRATED = [
   "footstep-gravel",
   "ambient-wind-gust",
   "card-transform",
+  "frequency-sweep-demo",
 ] as const;
 
 interface RenderResult {
@@ -75,6 +76,60 @@ describe("ToneGraph integration parity", () => {
           `${recipeName} run ${i + 1} diverged from run 1:\n${formatCompareResult(comparison)}`,
         ).toBe(true);
       }
+    }
+  });
+
+  it("preserves node automation through the file-backed path so it changes output", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "tonegraph-automation-"));
+    try {
+      const baseGraph = {
+        version: "0.1",
+        meta: { name: "automation-fixture", duration: 0.3 },
+        nodes: {
+          osc: { kind: "oscillator", params: { type: "sine", frequency: 220 } },
+          gain: { kind: "gain", params: { gain: 0.2 } },
+          out: { kind: "destination" },
+        },
+        routing: [{ chain: ["osc", "gain", "out"] }],
+      };
+
+      const automationGraph = JSON.parse(JSON.stringify(baseGraph)) as typeof baseGraph;
+      (automationGraph.nodes.osc as Record<string, unknown>).automation = {
+        frequency: [
+          { kind: "set", time: 0, value: 220 },
+          { kind: "linearRamp", time: 0.15, value: 880 },
+          { kind: "exponentialRamp", time: 0.3, value: 60 },
+        ],
+      };
+
+      await writeFile(join(tempDir, "automation-fixture.json"), JSON.stringify(automationGraph));
+      await writeFile(join(tempDir, "static-fixture.json"), JSON.stringify(baseGraph));
+
+      const registry = new RecipeRegistry();
+      const discovered = await discoverFileBackedRecipes(registry, { recipeDirectory: tempDir });
+      expect(discovered).toContain("automation-fixture");
+      expect(discovered).toContain("static-fixture");
+
+      const automated = registry.getRegistration("automation-fixture")!;
+      const statically = registry.getRegistration("static-fixture")!;
+
+      const automatedFirst = await renderRegistration(automated, SEED);
+      const automatedSecond = await renderRegistration(automated, SEED);
+      const staticRender = await renderRegistration(statically, SEED);
+
+      // AC5: same recipe + seed twice is byte-identical.
+      expect(compareBuffers(automatedFirst.samples, automatedSecond.samples).identical).toBe(true);
+      expect(automatedFirst.peak).toBeGreaterThan(PEAK_FLOOR);
+
+      // AC1/AC2: automation survives validation, so the swept render differs
+      // from a static-frequency render of the same graph.
+      expect(automatedFirst.samples.length).toBe(staticRender.samples.length);
+      const identical = automatedFirst.samples.every(
+        (sample, index) => sample === staticRender.samples[index],
+      );
+      expect(identical).toBe(false);
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
     }
   });
 

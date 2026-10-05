@@ -8,7 +8,7 @@ ToneGraph v0.1 targets standard Web Audio API graph construction. This spec is t
 
 - Target runtime: `BaseAudioContext` (`OfflineAudioContext` or `AudioContext`)
 - File formats: JSON and YAML
-- In scope: static graph declaration, node parameters, deterministic randomness metadata, flat routing links, `chain()` shorthand, bus routing (`buses` + `{ bus }` entries), and deterministic sequence scheduling (`sequences`)
+- In scope: static graph declaration, node parameters, per-node `automation` (one-shot parameter ramps and stepped LFOs), deterministic randomness metadata, flat routing links, `chain()` shorthand, bus routing (`buses` + `{ bus }` entries), and deterministic sequence scheduling (`sequences`)
 - Out of scope in v0.1: complex automation DSLs beyond the documented event kinds
 
 ## Discovery and Loading
@@ -144,6 +144,8 @@ Each node object uses this structure:
 Rules:
 - `kind` is required.
 - `params` is optional; omitted params use kind-specific defaults.
+- `automation` is optional; it declares timed AudioParam events on the node
+  (see [Node Automation](#node-automation)).
 - Node ids must be unique in `nodes`.
 - `destination` kind is a special terminal node and should normally be declared once.
 
@@ -341,6 +343,98 @@ Validation rules:
 }
 ```
 
+## Node Automation
+
+`automation` is an optional per-node object map from an AudioParam name to an
+ordered list of events. It is the inline counterpart to document-level
+[`sequences`](#sequences) and uses the same event kinds. Unlike `sequences`,
+automation is declared directly on the node definition, which keeps one-shot
+pitch contours (laser zaps, explosion sweeps, whooshes) co-located with the
+node they modulate.
+
+```yaml
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 220
+    automation:
+      frequency:
+        - kind: set
+          time: 0
+          value: 220
+        - kind: linearRamp
+          time: 0.5
+          value: 880
+```
+
+### Automation Contract
+
+- `automation` must be an object (not an array, not `null`).
+- Each key is an AudioParam name on that node (for example `frequency` on an
+  `oscillator` or `biquadFilter`, or `gain` on a `gain` node). Keys must not be
+  empty.
+- Each value must be an array of events drawn from the same union as
+  `sequences` events: `set`, `linearRamp`, `exponentialRamp`, and `lfo`.
+- Events are validated at document load. A malformed event (unknown `kind`,
+  missing or non-finite `time`/`value`, non-array event list) fails validation
+  with a clear error.
+- An `exponentialRamp` whose `value` is `<= 0` is rejected at validation: the
+  Web Audio API only supports exponential ramps to strictly positive targets.
+- The validator **preserves** `automation` on the validated document, so the
+  loader can schedule the events.
+- Invalid param names (ones that do not resolve to a runtime AudioParam) fail
+  at load time with a descriptive error, exactly like `sequences`.
+
+### Worked Example: Frequency Sweeps
+
+The committed example recipe
+[`presets/recipes/frequency-sweep-demo.yaml`](../presets/recipes/frequency-sweep-demo.yaml)
+demonstrates a one-shot linear rise and an exponential fall:
+
+```yaml
+# rise: 220 Hz -> 880 Hz linear rise
+rise:
+  kind: oscillator
+  params:
+    type: sine
+    frequency: 220
+  automation:
+    frequency:
+      - kind: set
+        time: 0
+        value: 220
+      - kind: linearRamp
+        time: 0.5
+        value: 880
+
+# fall: 440 Hz -> 60 Hz exponential fall
+fall:
+  kind: oscillator
+  params:
+    type: sine
+    frequency: 440
+  automation:
+    frequency:
+      - kind: set
+        time: 0
+        value: 440
+      - kind: exponentialRamp
+        time: 0.5
+        value: 60
+```
+
+Render it with the CLI:
+
+```bash
+tf generate --recipe frequency-sweep-demo --seed 42 --output frequency-sweep-demo.wav
+```
+
+Because automation is part of the recipe file, this recipe renders through the
+same file-backed path as every other ToneGraph recipe; no TypeScript is
+required to author the sweep.
+
 ## Sequences
 
 `sequences` is an optional array of timed AudioParam event schedules. Each
@@ -375,6 +469,9 @@ Fields:
 - `{ "kind": "set", "time": <number>, "value": <number> }` — `setValueAtTime`.
 - `{ "kind": "linearRamp", "time": <number>, "value": <number> }` —
   `linearRampToValueAtTime`.
+- `{ "kind": "exponentialRamp", "time": <number>, "value": <number> }` —
+  `exponentialRampToValueAtTime`. `value` must be strictly greater than `0`;
+  a non-positive target is rejected at validation.
 - `{ "kind": "lfo", "rate": <number>, "depth": <number>, ... }` — a stepped
   LFO written as repeated `setValueAtTime` calls. Optional fields: `wave`
   (`sine`, `square`, `sawtooth`, `triangle`; default `sine`), `offset`,
@@ -387,11 +484,15 @@ Validation rules:
 - `sequences` must be an array.
 - Each entry must declare `node`, `param`, and `events`.
 - `node` must reference an existing node id; `param` must not be empty.
-- Each event `kind` must be one of `set`, `linearRamp`, `lfo`; every numeric
-  field must be a finite number.
+- Each event `kind` must be one of `set`, `linearRamp`, `exponentialRamp`,
+  `lfo`; every numeric field must be a finite number.
+- An `exponentialRamp` event must target a `value` greater than `0`.
 
 Invalid `node`/`param` pairs that cannot be resolved to a runtime AudioParam
 fail at load time with a descriptive error.
+
+The same event kinds are available on node-level `automation`; see
+[Node Automation](#node-automation).
 
 ## Reserved v0.2 Fields
 

@@ -107,6 +107,73 @@ describe("loadToneGraph", () => {
     expect(samples.some((sample) => sample !== 0)).toBe(true);
   });
 
+  it("applies exponentialRamp node automation to oscillator frequency", async () => {
+    const sweptGraph = {
+      version: "0.1",
+      meta: { duration: 0.2 },
+      nodes: {
+        osc: {
+          kind: "oscillator",
+          params: { type: "sine", frequency: 440 },
+          automation: {
+            frequency: [
+              { kind: "set", time: 0, value: 440 },
+              { kind: "exponentialRamp", time: 0.2, value: 60 },
+            ],
+          },
+        },
+        gain: { kind: "gain", params: { gain: 0.2 } },
+        out: { kind: "destination" },
+      },
+      routing: [{ chain: ["osc", "gain", "out"] }],
+    } as unknown as ToneGraphDocument;
+
+    const baselineGraph = {
+      version: "0.1",
+      meta: { duration: 0.2 },
+      nodes: {
+        osc: { kind: "oscillator", params: { type: "sine", frequency: 440 } },
+        gain: { kind: "gain", params: { gain: 0.2 } },
+        out: { kind: "destination" },
+      },
+      routing: [{ chain: ["osc", "gain", "out"] }],
+    } as ToneGraphDocument;
+
+    const swept = await renderGraph(sweptGraph, 4);
+    const baseline = await renderGraph(baselineGraph, 4);
+
+    expect(swept.some((sample) => sample !== 0)).toBe(true);
+    expect(swept.length).toBe(baseline.length);
+    const identical = swept.every((sample, index) => sample === baseline[index]);
+    expect(identical).toBe(false);
+
+    const repeat = await renderGraph(sweptGraph, 4);
+    for (let i = 0; i < swept.length; i += 1) {
+      expect(swept[i]).toBe(repeat[i]);
+    }
+  });
+
+  it("throws when exponentialRamp automation targets a non-positive value", async () => {
+    const graph = {
+      version: "0.1",
+      meta: { duration: 0.1 },
+      nodes: {
+        osc: {
+          kind: "oscillator",
+          params: { frequency: 440 },
+          automation: { frequency: [{ kind: "exponentialRamp", time: 0.1, value: 0 }] },
+        },
+        out: { kind: "destination" },
+      },
+      routing: [{ from: "osc", to: "out" }],
+    } as unknown as ToneGraphDocument;
+
+    const ctx = new OfflineAudioContext(1, 4410, 44100);
+    await expect(loadToneGraph(graph, ctx, createRng(1))).rejects.toThrow(
+      "value must be greater than 0",
+    );
+  });
+
   it("uses graph.random.seed deterministically for noise", async () => {
     const graph: ToneGraphDocument = {
       version: "0.1",

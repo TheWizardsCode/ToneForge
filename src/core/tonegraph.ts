@@ -20,6 +20,12 @@ interface AutomationLinearRampEvent {
   value: number;
 }
 
+interface AutomationExponentialRampEvent {
+  kind: "exponentialRamp";
+  time: number;
+  value: number;
+}
+
 interface AutomationLfoEvent {
   kind: "lfo";
   rate: number;
@@ -34,6 +40,7 @@ interface AutomationLfoEvent {
 type AutomationEvent =
   | AutomationSetEvent
   | AutomationLinearRampEvent
+  | AutomationExponentialRampEvent
   | AutomationLfoEvent;
 
 interface RuntimeNode {
@@ -177,6 +184,20 @@ function parseAutomationList(raw: unknown, nodeId: string, paramName: string): A
       };
     }
 
+    if (kindRaw === "exponentialRamp") {
+      const value = ensureNumber(event.value, `Node "${nodeId}" automation[${index}].value`);
+      if (value <= 0) {
+        throw new Error(
+          `Node "${nodeId}" automation[${index}] exponentialRamp value must be greater than 0.`,
+        );
+      }
+      return {
+        kind: "exponentialRamp",
+        time: ensureNumber(event.time, `Node "${nodeId}" automation[${index}].time`),
+        value,
+      };
+    }
+
     if (kindRaw === "lfo") {
       const waveRaw = event.wave;
       const wave: ModulationWave =
@@ -258,6 +279,14 @@ function applyAutomationEvents(
 
     if (event.kind === "linearRamp") {
       param.linearRampToValueAtTime(event.value, baseTime + event.time);
+      continue;
+    }
+
+    if (event.kind === "exponentialRamp") {
+      if (event.value <= 0) {
+        throw new Error("exponentialRamp value must be greater than 0.");
+      }
+      param.exponentialRampToValueAtTime(event.value, baseTime + event.time);
       continue;
     }
 

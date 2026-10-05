@@ -206,7 +206,177 @@ describe("validateToneGraph", () => {
       sequences: [{ node: "osc", param: "frequency", events: [{ kind: "explode", time: 0, value: 1 }] }],
     };
 
-    expect(() => validateToneGraph(doc)).toThrow('is invalid. Allowed kinds: set, linearRamp, lfo');
+    expect(() => validateToneGraph(doc)).toThrow('is invalid. Allowed kinds: set, linearRamp, exponentialRamp, lfo');
+  });
+
+  it("accepts and preserves node automation with all event kinds", () => {
+    const doc = {
+      version: "0.1",
+      nodes: {
+        osc: {
+          kind: "oscillator",
+          params: { type: "sine", frequency: 220 },
+          automation: {
+            frequency: [
+              { kind: "set", time: 0, value: 220 },
+              { kind: "linearRamp", time: 0.2, value: 880 },
+              { kind: "exponentialRamp", time: 0.4, value: 60 },
+              { kind: "lfo", rate: 4, depth: 20, offset: 440, wave: "sine" },
+            ],
+          },
+        },
+        out: { kind: "destination" },
+      },
+      routing: [{ from: "osc", to: "out" }],
+    };
+
+    const validated = validateToneGraph(doc);
+
+    expect(validated.nodes.osc?.automation).toEqual({
+      frequency: [
+        { kind: "set", time: 0, value: 220 },
+        { kind: "linearRamp", time: 0.2, value: 880 },
+        { kind: "exponentialRamp", time: 0.4, value: 60 },
+        { kind: "lfo", rate: 4, depth: 20, offset: 440, wave: "sine" },
+      ],
+    });
+  });
+
+  it("accepts node automation on a biquadFilter frequency", () => {
+    const doc = {
+      version: "0.1",
+      nodes: {
+        filter: {
+          kind: "biquadFilter",
+          params: { type: "bandpass", frequency: 1000 },
+          automation: {
+            frequency: [
+              { kind: "set", time: 0, value: 1000 },
+              { kind: "exponentialRamp", time: 0.3, value: 200 },
+            ],
+          },
+        },
+        out: { kind: "destination" },
+      },
+      routing: [{ from: "filter", to: "out" }],
+    };
+
+    const validated = validateToneGraph(doc);
+
+    expect(validated.nodes.filter?.automation?.frequency).toHaveLength(2);
+  });
+
+  it("rejects node automation that is not an object", () => {
+    const doc = {
+      version: "0.1",
+      nodes: {
+        osc: { kind: "oscillator", automation: [] },
+      },
+      routing: [],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow(
+      "must be an object mapping AudioParam names to event arrays",
+    );
+  });
+
+  it("rejects a node automation entry whose events are not an array", () => {
+    const doc = {
+      version: "0.1",
+      nodes: {
+        osc: { kind: "oscillator", automation: { frequency: { kind: "set" } } },
+      },
+      routing: [],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow("must be an array of events");
+  });
+
+  it("rejects node automation with an unsupported event kind", () => {
+    const doc = {
+      version: "0.1",
+      nodes: {
+        osc: { kind: "oscillator", automation: { frequency: [{ kind: "wobble", time: 0, value: 1 }] } },
+      },
+      routing: [],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow(
+      'Allowed kinds: set, linearRamp, exponentialRamp, lfo',
+    );
+  });
+
+  it("rejects node automation with a non-finite time or value", () => {
+    const doc = {
+      version: "0.1",
+      nodes: {
+        osc: { kind: "oscillator", automation: { frequency: [{ kind: "set", time: 0, value: Number.NaN }] } },
+      },
+      routing: [],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow("must be a finite number");
+  });
+
+  it("rejects an exponentialRamp node automation to a value <= 0", () => {
+    const doc = {
+      version: "0.1",
+      nodes: {
+        osc: {
+          kind: "oscillator",
+          automation: { frequency: [{ kind: "exponentialRamp", time: 0.2, value: 0 }] },
+        },
+      },
+      routing: [],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow("must be greater than 0 for an exponentialRamp");
+  });
+
+  it("accepts a sequence exponentialRamp event", () => {
+    const doc = {
+      version: "0.1",
+      nodes: {
+        osc: { kind: "oscillator", params: { frequency: 440 } },
+      },
+      routing: [],
+      sequences: [
+        {
+          node: "osc",
+          param: "frequency",
+          events: [
+            { kind: "set", time: 0, value: 440 },
+            { kind: "exponentialRamp", time: 0.2, value: 60 },
+          ],
+        },
+      ],
+    };
+
+    const validated = validateToneGraph(doc);
+
+    expect(validated.sequences?.[0]?.events).toEqual([
+      { kind: "set", time: 0, value: 440 },
+      { kind: "exponentialRamp", time: 0.2, value: 60 },
+    ]);
+  });
+
+  it("rejects a sequence exponentialRamp to a value <= 0", () => {
+    const doc = {
+      version: "0.1",
+      nodes: {
+        osc: { kind: "oscillator" },
+      },
+      routing: [],
+      sequences: [
+        {
+          node: "osc",
+          param: "frequency",
+          events: [{ kind: "exponentialRamp", time: 0.2, value: -1 }],
+        },
+      ],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow("must be greater than 0 for an exponentialRamp");
   });
 
   it("rejects a sequence that omits events", () => {

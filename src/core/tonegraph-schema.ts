@@ -46,6 +46,7 @@ export interface ToneGraphBusDefinition {
 
 export interface ToneGraphDestinationNode {
   kind: "destination";
+  automation?: ToneGraphNodeAutomation;
 }
 
 export interface ToneGraphGainNode {
@@ -53,6 +54,7 @@ export interface ToneGraphGainNode {
   params?: {
     gain?: number;
   };
+  automation?: ToneGraphNodeAutomation;
 }
 
 export interface ToneGraphOscillatorNode {
@@ -62,6 +64,7 @@ export interface ToneGraphOscillatorNode {
     frequency?: number;
     detune?: number;
   };
+  automation?: ToneGraphNodeAutomation;
 }
 
 export interface ToneGraphNoiseNode {
@@ -70,6 +73,7 @@ export interface ToneGraphNoiseNode {
     color?: "white" | "pink" | "brown";
     level?: number;
   };
+  automation?: ToneGraphNodeAutomation;
 }
 
 export interface ToneGraphBiquadFilterNode {
@@ -80,6 +84,7 @@ export interface ToneGraphBiquadFilterNode {
     Q?: number;
     gain?: number;
   };
+  automation?: ToneGraphNodeAutomation;
 }
 
 export interface ToneGraphBufferSourceNode {
@@ -89,6 +94,7 @@ export interface ToneGraphBufferSourceNode {
     loop?: boolean;
     playbackRate?: number;
   };
+  automation?: ToneGraphNodeAutomation;
 }
 
 export interface ToneGraphEnvelopeNode {
@@ -99,6 +105,7 @@ export interface ToneGraphEnvelopeNode {
     sustain?: number;
     release?: number;
   };
+  automation?: ToneGraphNodeAutomation;
 }
 
 export interface ToneGraphLfoNode {
@@ -109,6 +116,7 @@ export interface ToneGraphLfoNode {
     depth?: number;
     offset?: number;
   };
+  automation?: ToneGraphNodeAutomation;
 }
 
 export interface ToneGraphConstantNode {
@@ -116,6 +124,7 @@ export interface ToneGraphConstantNode {
   params?: {
     value?: number;
   };
+  automation?: ToneGraphNodeAutomation;
 }
 
 export interface ToneGraphFmPatternNode {
@@ -125,6 +134,7 @@ export interface ToneGraphFmPatternNode {
     modulatorFrequency?: number;
     modulationIndex?: number;
   };
+  automation?: ToneGraphNodeAutomation;
 }
 
 export type ToneGraphNodeDefinition =
@@ -159,7 +169,7 @@ export interface ToneGraphRoutingBus {
   to?: string | string[];
 }
 
-export type ToneGraphSequenceEventKind = "set" | "linearRamp" | "lfo";
+export type ToneGraphSequenceEventKind = "set" | "linearRamp" | "exponentialRamp" | "lfo";
 
 export interface ToneGraphSequenceSetEvent {
   kind: "set";
@@ -169,6 +179,12 @@ export interface ToneGraphSequenceSetEvent {
 
 export interface ToneGraphSequenceLinearRampEvent {
   kind: "linearRamp";
+  time: number;
+  value: number;
+}
+
+export interface ToneGraphSequenceExponentialRampEvent {
+  kind: "exponentialRamp";
   time: number;
   value: number;
 }
@@ -187,7 +203,15 @@ export interface ToneGraphSequenceLfoEvent {
 export type ToneGraphSequenceEvent =
   | ToneGraphSequenceSetEvent
   | ToneGraphSequenceLinearRampEvent
+  | ToneGraphSequenceExponentialRampEvent
   | ToneGraphSequenceLfoEvent;
+
+/**
+ * Per-node automation map: AudioParam name -> ordered event list. Uses the
+ * same event kinds as document-level `sequences` so authors only learn one
+ * contract. Preserved verbatim by the validator and consumed by the loader.
+ */
+export type ToneGraphNodeAutomation = Record<string, ToneGraphSequenceEvent[]>;
 
 export interface ToneGraphSequence {
   node: string;
@@ -363,15 +387,19 @@ function validateNodeDefinition(nodeId: string, value: unknown): ToneGraphNodeDe
   const paramsRaw = value.params;
   assertOptionalRecord(paramsRaw, `${path}.params`);
   const params = paramsRaw ?? undefined;
+  const automation = validateNodeAutomation(value.automation, `${path}.automation`);
 
+  let node: ToneGraphNodeDefinition;
   switch (kind) {
     case "destination":
-      return { kind };
+      node = { kind };
+      break;
     case "gain":
       if (params?.gain !== undefined) {
         assertNumber(params.gain, `${path}.params.gain`);
       }
-      return { kind, params: params as ToneGraphGainNode["params"] };
+      node = { kind, params: params as ToneGraphGainNode["params"] };
+      break;
     case "oscillator":
       if (params?.type !== undefined) {
         assertString(params.type, `${path}.params.type`);
@@ -385,7 +413,8 @@ function validateNodeDefinition(nodeId: string, value: unknown): ToneGraphNodeDe
       if (params?.detune !== undefined) {
         assertNumber(params.detune, `${path}.params.detune`);
       }
-      return { kind, params: params as ToneGraphOscillatorNode["params"] };
+      node = { kind, params: params as ToneGraphOscillatorNode["params"] };
+      break;
     case "noise":
       if (params?.color !== undefined) {
         assertString(params.color, `${path}.params.color`);
@@ -396,7 +425,8 @@ function validateNodeDefinition(nodeId: string, value: unknown): ToneGraphNodeDe
       if (params?.level !== undefined) {
         assertNumber(params.level, `${path}.params.level`);
       }
-      return { kind, params: params as ToneGraphNoiseNode["params"] };
+      node = { kind, params: params as ToneGraphNoiseNode["params"] };
+      break;
     case "biquadFilter":
       if (params?.type !== undefined) {
         assertString(params.type, `${path}.params.type`);
@@ -413,7 +443,8 @@ function validateNodeDefinition(nodeId: string, value: unknown): ToneGraphNodeDe
       if (params?.gain !== undefined) {
         assertNumber(params.gain, `${path}.params.gain`);
       }
-      return { kind, params: params as ToneGraphBiquadFilterNode["params"] };
+      node = { kind, params: params as ToneGraphBiquadFilterNode["params"] };
+      break;
     case "bufferSource":
       if (params?.sample !== undefined) {
         assertString(params.sample, `${path}.params.sample`);
@@ -424,7 +455,8 @@ function validateNodeDefinition(nodeId: string, value: unknown): ToneGraphNodeDe
       if (params?.playbackRate !== undefined) {
         assertNumber(params.playbackRate, `${path}.params.playbackRate`);
       }
-      return { kind, params: params as ToneGraphBufferSourceNode["params"] };
+      node = { kind, params: params as ToneGraphBufferSourceNode["params"] };
+      break;
     case "envelope":
       if (params?.attack !== undefined) {
         assertNumber(params.attack, `${path}.params.attack`);
@@ -438,7 +470,8 @@ function validateNodeDefinition(nodeId: string, value: unknown): ToneGraphNodeDe
       if (params?.release !== undefined) {
         assertNumber(params.release, `${path}.params.release`);
       }
-      return { kind, params: params as ToneGraphEnvelopeNode["params"] };
+      node = { kind, params: params as ToneGraphEnvelopeNode["params"] };
+      break;
     case "lfo":
       if (params?.type !== undefined) {
         assertString(params.type, `${path}.params.type`);
@@ -455,12 +488,14 @@ function validateNodeDefinition(nodeId: string, value: unknown): ToneGraphNodeDe
       if (params?.offset !== undefined) {
         assertNumber(params.offset, `${path}.params.offset`);
       }
-      return { kind, params: params as ToneGraphLfoNode["params"] };
+      node = { kind, params: params as ToneGraphLfoNode["params"] };
+      break;
     case "constant":
       if (params?.value !== undefined) {
         assertNumber(params.value, `${path}.params.value`);
       }
-      return { kind, params: params as ToneGraphConstantNode["params"] };
+      node = { kind, params: params as ToneGraphConstantNode["params"] };
+      break;
     case "fmPattern":
       if (params?.carrierFrequency !== undefined) {
         assertNumber(params.carrierFrequency, `${path}.params.carrierFrequency`);
@@ -471,10 +506,17 @@ function validateNodeDefinition(nodeId: string, value: unknown): ToneGraphNodeDe
       if (params?.modulationIndex !== undefined) {
         assertNumber(params.modulationIndex, `${path}.params.modulationIndex`);
       }
-      return { kind, params: params as ToneGraphFmPatternNode["params"] };
+      node = { kind, params: params as ToneGraphFmPatternNode["params"] };
+      break;
     default:
       throw new Error(`${path}.kind is unsupported.`);
   }
+
+  if (automation !== undefined) {
+    node.automation = automation;
+  }
+
+  return node;
 }
 
 function isEndpointList(value: unknown): value is string | string[] {
@@ -599,6 +641,18 @@ function validateSequenceEvent(
     };
   }
 
+  if (kind === "exponentialRamp") {
+    const value = ensureFiniteNumber(event.value, `${path}.value`);
+    if (value <= 0) {
+      throw new Error(`${path}.value must be greater than 0 for an exponentialRamp event.`);
+    }
+    return {
+      kind: "exponentialRamp",
+      time: ensureFiniteNumber(event.time, `${path}.time`),
+      value,
+    };
+  }
+
   if (kind === "lfo") {
     const lfoEvent: ToneGraphSequenceLfoEvent = {
       kind: "lfo",
@@ -630,8 +684,36 @@ function validateSequenceEvent(
   }
 
   throw new Error(
-    `${path}.kind "${kind}" is invalid. Allowed kinds: set, linearRamp, lfo.`,
+    `${path}.kind "${kind}" is invalid. Allowed kinds: set, linearRamp, exponentialRamp, lfo.`,
   );
+}
+
+function validateNodeAutomation(
+  raw: unknown,
+  path: string,
+): ToneGraphNodeAutomation | undefined {
+  if (raw === undefined) {
+    return undefined;
+  }
+
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    throw new Error(`${path} must be an object mapping AudioParam names to event arrays.`);
+  }
+
+  const automation: ToneGraphNodeAutomation = {};
+  for (const [paramName, events] of Object.entries(raw as UnknownRecord)) {
+    if (paramName.trim().length === 0) {
+      throw new Error(`${path} contains an empty AudioParam name.`);
+    }
+    if (!Array.isArray(events)) {
+      throw new Error(`${path}.${paramName} must be an array of events.`);
+    }
+    automation[paramName] = events.map((event, index) =>
+      validateSequenceEvent(event, `${path}.${paramName}[${index}]`),
+    );
+  }
+
+  return automation;
 }
 
 function validateSequences(value: unknown, path: string): ToneGraphSequence[] {

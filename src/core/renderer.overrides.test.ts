@@ -108,11 +108,9 @@ describe("renderPreset", () => {
 const KNOWN_UNWIRED: Record<string, string> = {
   "impact-crack.noiseColorMix": "declared but unused by the builder",
   "card-round-complete.sustain": "declared but unused by the builder",
-  "ambient-wind-gust.lfoRate": "file-backed automation mapping gap",
   "ambient-wind-gust.lfoDepth": "file-backed derived mapping",
   "ambient-wind-gust.release": "file-backed envelope mapping gap",
   "card-transform.modRatio": "file-backed derived mapping",
-  "card-transform.modDepthEnd": "file-backed automation mapping gap",
   "weapon-laser-zap.modIndex": "file-backed derived mapping",
 };
 
