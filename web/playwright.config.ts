@@ -27,5 +27,13 @@ export default defineConfig({
       name: "chromium",
       use: { browserName: "chromium" },
     },
+    {
+      // Cross-browser coverage for the Runtime/recipe browser tests.
+      // Scoped to runtime-recipes.spec.ts so the terminal-walkthrough specs
+      // keep their chromium-only assumptions.
+      name: "firefox",
+      testMatch: /runtime-recipes\.spec\.ts/,
+      use: { browserName: "firefox" },
+    },
   ],
 });
