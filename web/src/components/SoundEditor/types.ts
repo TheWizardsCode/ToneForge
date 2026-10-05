@@ -5,21 +5,12 @@
  * preset shape, never on ToneForge internals or a UI framework.
  */
 
-/** Current SoundPreset schema version. */
-export const SOUND_PRESET_VERSION = 1;
+import type { SoundPreset } from "../../models/preset.js";
 
-/**
- * Versioned, deterministic description of a single sound.
- *
- * `overrides` are parameter values applied on top of the seed-derived
- * defaults; an empty object means "use the seed exactly as generated".
- */
-export interface SoundPreset {
-  version: number;
-  recipe: string;
-  seed: number;
-  overrides: Record<string, number>;
-}
+// The canonical preset schema lives in the model package; re-export it here so
+// the component's public surface stays self-contained.
+export { SOUND_PRESET_VERSION } from "../../models/preset.js";
+export type { SoundPreset } from "../../models/preset.js";
 
 /** Callback invoked with the current preset whenever editor state changes. */
 export type SoundPresetListener = (preset: SoundPreset) => void;

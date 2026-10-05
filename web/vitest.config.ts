@@ -17,7 +17,7 @@ export default defineConfig({
     // environment (used by the existing web tests) is unchanged.
     include: [
       "test/**/*.test.ts",
-      "src/components/SoundEditor/**/*.test.ts",
+      "src/**/*.test.ts",
     ],
     setupFiles: ["test/setup-init-recipes.ts"],
     testTimeout: 15_000,
