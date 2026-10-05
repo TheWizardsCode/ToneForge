@@ -8,8 +8,8 @@ ToneGraph v0.1 targets standard Web Audio API graph construction. This spec is t
 
 - Target runtime: `BaseAudioContext` (`OfflineAudioContext` or `AudioContext`)
 - File formats: JSON and YAML
-- In scope: static graph declaration, node parameters, deterministic randomness metadata, flat routing links, `chain()` shorthand, and bus routing (`buses` + `{ bus }` entries)
-- Out of scope in v0.1: complex automation DSLs and sequence scheduling
+- In scope: static graph declaration, node parameters, deterministic randomness metadata, flat routing links, `chain()` shorthand, bus routing (`buses` + `{ bus }` entries), and deterministic sequence scheduling (`sequences`)
+- Out of scope in v0.1: complex automation DSLs beyond the documented event kinds
 
 ## Discovery and Loading
 
@@ -59,7 +59,7 @@ ToneGraph v0.1 documents must be an object with the following fields.
 | `nodes` | yes | object map | Node definitions keyed by node id. |
 | `routing` | yes | array | Connection declarations (`link`, `chain`, or `bus`). |
 | `buses` | no | object map | Named mixer buses materialised as GainNodes and referenced as `bus:<id>`. |
-| `sequences` | no | any | Reserved for v0.2. Loaders must reject when present in strict mode. |
+| `sequences` | no | array | Timed AudioParam event schedules (see [Sequences](#sequences)). |
 | `namespaces` | no | any | Reserved for v0.2. Loaders must reject when present in strict mode. |
 
 ### Top-Level Defaults
@@ -119,7 +119,9 @@ Supported keys in v0.1:
 - `tempo` (number, BPM, default `120`)
 - `timeSignature` (array `[numerator, denominator]`, default `[4, 4]`)
 
-Note: v0.1 does not define sequence scheduling behavior; transport is metadata only.
+Note: v0.1 sequences schedule AudioParam events only (see
+[Sequences](#sequences)); `transport` remains metadata and does not by itself
+drive sequence timing.
 
 ## Nodes
 
@@ -339,14 +341,66 @@ Validation rules:
 }
 ```
 
+## Sequences
+
+`sequences` is an optional array of timed AudioParam event schedules. Each
+sequence targets one node's AudioParam and applies its events deterministically
+when the graph is loaded. Sequences are the document-level counterpart to
+inline per-node `automation`, and use the same event kinds.
+
+### Sequence Definition
+
+```json
+{
+  "sequences": [
+    {
+      "node": "osc",
+      "param": "frequency",
+      "events": [
+        { "kind": "set", "time": 0, "value": 220 },
+        { "kind": "linearRamp", "time": 0.2, "value": 660 }
+      ]
+    }
+  ]
+}
+```
+
+Fields:
+- `node` (string, required) — the id of a node declared in `nodes`.
+- `param` (string, required) — the AudioParam name on that node.
+- `events` (array, required) — ordered event objects.
+
+### Sequence Events
+
+- `{ "kind": "set", "time": <number>, "value": <number> }` — `setValueAtTime`.
+- `{ "kind": "linearRamp", "time": <number>, "value": <number> }` —
+  `linearRampToValueAtTime`.
+- `{ "kind": "lfo", "rate": <number>, "depth": <number>, ... }` — a stepped
+  LFO written as repeated `setValueAtTime` calls. Optional fields: `wave`
+  (`sine`, `square`, `sawtooth`, `triangle`; default `sine`), `offset`,
+  `start`, `end`, `step`.
+
+`time`, `start` and `end` are absolute seconds within the rendered graph. Events
+are applied in declaration order.
+
+Validation rules:
+- `sequences` must be an array.
+- Each entry must declare `node`, `param`, and `events`.
+- `node` must reference an existing node id; `param` must not be empty.
+- Each event `kind` must be one of `set`, `linearRamp`, `lfo`; every numeric
+  field must be a finite number.
+
+Invalid `node`/`param` pairs that cannot be resolved to a runtime AudioParam
+fail at load time with a descriptive error.
+
 ## Reserved v0.2 Fields
 
-`sequences` and `namespaces` are reserved for v0.2.
+`namespaces` is reserved for v0.2.
 
 v0.1 behavior:
-- Producers should not emit these fields.
+- Producers should not emit this field.
 - Validators/loaders may run in either mode:
-  - strict: reject when either field is present
+  - strict: reject when present
   - permissive: ignore with warning
 - For implementation consistency, strict mode is recommended by default.
 

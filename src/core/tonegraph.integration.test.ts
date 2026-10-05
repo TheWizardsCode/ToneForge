@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { OfflineAudioContext } from "node-web-audio-api";
-import { resolve, dirname } from "node:path";
+import { resolve, dirname, join } from "node:path";
+import { tmpdir } from "node:os";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { createRng } from "./rng.js";
 import { compareBuffers, formatCompareResult } from "../test-utils/buffer-compare.js";
@@ -73,6 +75,55 @@ describe("ToneGraph integration parity", () => {
           `${recipeName} run ${i + 1} diverged from run 1:\n${formatCompareResult(comparison)}`,
         ).toBe(true);
       }
+    }
+  });
+
+  it("discovers a file-backed recipe that uses sequences and renders it deterministically", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "tonegraph-seq-"));
+    try {
+      const graph = {
+        version: "0.1",
+        meta: {
+          name: "sequence-fixture",
+          duration: 0.25,
+          parameters: [
+            { name: "frequency", type: "number", min: 200, max: 800, default: 220 },
+          ],
+        },
+        nodes: {
+          osc: { kind: "oscillator", params: { type: "sine", frequency: 220 } },
+          amp: { kind: "gain", params: { gain: 0.25 } },
+          out: { kind: "destination" },
+        },
+        routing: [{ chain: ["osc", "amp", "out"] }],
+        sequences: [
+          {
+            node: "osc",
+            param: "frequency",
+            events: [
+              { kind: "set", time: 0, value: 220 },
+              { kind: "linearRamp", time: 0.25, value: 660 },
+            ],
+          },
+        ],
+      };
+
+      await writeFile(join(tempDir, "sequence-fixture.json"), JSON.stringify(graph));
+
+      const registry = new RecipeRegistry();
+      const discovered = await discoverFileBackedRecipes(registry, { recipeDirectory: tempDir });
+      expect(discovered).toContain("sequence-fixture");
+
+      const registration = registry.getRegistration("sequence-fixture");
+      expect(registration).toBeDefined();
+
+      const first = await renderRegistration(registration!, SEED);
+      const second = await renderRegistration(registration!, SEED);
+
+      expect(compareBuffers(first.samples, second.samples).identical).toBe(true);
+      expect(first.peak).toBeGreaterThan(PEAK_FLOOR);
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
     }
   });
 

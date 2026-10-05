@@ -159,6 +159,42 @@ export interface ToneGraphRoutingBus {
   to?: string | string[];
 }
 
+export type ToneGraphSequenceEventKind = "set" | "linearRamp" | "lfo";
+
+export interface ToneGraphSequenceSetEvent {
+  kind: "set";
+  time: number;
+  value: number;
+}
+
+export interface ToneGraphSequenceLinearRampEvent {
+  kind: "linearRamp";
+  time: number;
+  value: number;
+}
+
+export interface ToneGraphSequenceLfoEvent {
+  kind: "lfo";
+  rate: number;
+  depth: number;
+  wave?: "sine" | "square" | "sawtooth" | "triangle";
+  offset?: number;
+  start?: number;
+  end?: number;
+  step?: number;
+}
+
+export type ToneGraphSequenceEvent =
+  | ToneGraphSequenceSetEvent
+  | ToneGraphSequenceLinearRampEvent
+  | ToneGraphSequenceLfoEvent;
+
+export interface ToneGraphSequence {
+  node: string;
+  param: string;
+  events: ToneGraphSequenceEvent[];
+}
+
 export type ToneGraphRoutingEntry =
   | ToneGraphRoutingLink
   | ToneGraphRoutingChain
@@ -173,6 +209,7 @@ export interface ToneGraphDocument {
   nodes: Record<string, ToneGraphNodeDefinition>;
   routing: ToneGraphRoutingEntry[];
   buses?: Record<string, ToneGraphBusDefinition>;
+  sequences?: ToneGraphSequence[];
 }
 
 type UnknownRecord = Record<string, unknown>;
@@ -543,12 +580,99 @@ function parseEndpointReference(ref: string): { nodeId: string; param?: string }
   return { nodeId, param };
 }
 
+const SUPPORTED_WAVES = new Set(["sine", "square", "sawtooth", "triangle"]);
+
+function validateSequenceEvent(
+  event: unknown,
+  path: string,
+): ToneGraphSequenceEvent {
+  assertRecord(event, path);
+
+  const kind = event.kind;
+  assertString(kind, `${path}.kind`);
+
+  if (kind === "set" || kind === "linearRamp") {
+    return {
+      kind,
+      time: ensureFiniteNumber(event.time, `${path}.time`),
+      value: ensureFiniteNumber(event.value, `${path}.value`),
+    };
+  }
+
+  if (kind === "lfo") {
+    const lfoEvent: ToneGraphSequenceLfoEvent = {
+      kind: "lfo",
+      rate: ensureFiniteNumber(event.rate, `${path}.rate`),
+      depth: ensureFiniteNumber(event.depth, `${path}.depth`),
+    };
+
+    if (event.wave !== undefined) {
+      assertString(event.wave, `${path}.wave`);
+      if (!SUPPORTED_WAVES.has(event.wave)) {
+        throw new Error(`${path}.wave must be one of: sine, square, sawtooth, triangle.`);
+      }
+      lfoEvent.wave = event.wave as ToneGraphSequenceLfoEvent["wave"];
+    }
+    if (event.offset !== undefined) {
+      lfoEvent.offset = ensureFiniteNumber(event.offset, `${path}.offset`);
+    }
+    if (event.start !== undefined) {
+      lfoEvent.start = ensureFiniteNumber(event.start, `${path}.start`);
+    }
+    if (event.end !== undefined) {
+      lfoEvent.end = ensureFiniteNumber(event.end, `${path}.end`);
+    }
+    if (event.step !== undefined) {
+      lfoEvent.step = ensureFiniteNumber(event.step, `${path}.step`);
+    }
+
+    return lfoEvent;
+  }
+
+  throw new Error(
+    `${path}.kind "${kind}" is invalid. Allowed kinds: set, linearRamp, lfo.`,
+  );
+}
+
+function validateSequences(value: unknown, path: string): ToneGraphSequence[] {
+  if (!Array.isArray(value)) {
+    throw new Error(`${path} must be an array.`);
+  }
+
+  return value.map((entry, index) => {
+    const entryPath = `${path}[${index}]`;
+    assertRecord(entry, entryPath);
+
+    const node = entry.node;
+    const param = entry.param;
+    assertString(node, `${entryPath}.node`);
+    assertString(param, `${entryPath}.param`);
+
+    const events = entry.events;
+    if (!Array.isArray(events)) {
+      throw new Error(`${entryPath}.events must be an array.`);
+    }
+
+    return {
+      node,
+      param,
+      events: events.map((event, eventIndex) =>
+        validateSequenceEvent(event, `${entryPath}.events[${eventIndex}]`),
+      ),
+    };
+  });
+}
+
+function ensureFiniteNumber(value: unknown, path: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`${path} must be a finite number.`);
+  }
+  return value;
+}
+
 export function validateToneGraph(doc: unknown): ToneGraphDocument {
   assertRecord(doc, "ToneGraph document");
 
-  if (Object.prototype.hasOwnProperty.call(doc, "sequences")) {
-    throw new Error("ToneGraph field \"sequences\" is reserved for v0.2 and is not allowed in v0.1.");
-  }
   if (Object.prototype.hasOwnProperty.call(doc, "namespaces")) {
     throw new Error("ToneGraph field \"namespaces\" is reserved for v0.2 and is not allowed in v0.1.");
   }
@@ -730,11 +854,27 @@ export function validateToneGraph(doc: unknown): ToneGraphDocument {
     }
   });
 
+  const sequences = doc.sequences !== undefined
+    ? validateSequences(doc.sequences, "sequences")
+    : undefined;
+  sequences?.forEach((sequence, index) => {
+    if (!nodeIds.has(sequence.node)) {
+      throw new Error(`sequences[${index}].node references unknown node "${sequence.node}".`);
+    }
+    if (sequence.param.trim().length === 0) {
+      throw new Error(`sequences[${index}].param must not be empty.`);
+    }
+  });
+
   const validated: ToneGraphDocument = {
     version: "0.1",
     nodes,
     routing,
   };
+
+  if (sequences !== undefined) {
+    validated.sequences = sequences;
+  }
 
   if (doc.buses !== undefined) {
     validated.buses = buses;

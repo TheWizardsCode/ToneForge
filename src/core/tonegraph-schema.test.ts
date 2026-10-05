@@ -130,17 +130,109 @@ describe("validateToneGraph", () => {
     expect(() => validateToneGraph(doc)).toThrow("Unsupported ToneGraph version");
   });
 
-  it("rejects sequences as reserved for v0.2", () => {
+  it("accepts sequences targeting a node AudioParam", () => {
+    const doc = {
+      version: "0.1",
+      nodes: {
+        osc: { kind: "oscillator", params: { frequency: 220 } },
+        out: { kind: "destination" },
+      },
+      routing: [{ from: "osc", to: "out" }],
+      sequences: [
+        {
+          node: "osc",
+          param: "frequency",
+          events: [
+            { kind: "set", time: 0, value: 220 },
+            { kind: "linearRamp", time: 0.2, value: 660 },
+          ],
+        },
+      ],
+    };
+
+    const validated = validateToneGraph(doc);
+
+    expect(validated.sequences).toHaveLength(1);
+    expect(validated.sequences?.[0]?.node).toBe("osc");
+    expect(validated.sequences?.[0]?.events).toEqual([
+      { kind: "set", time: 0, value: 220 },
+      { kind: "linearRamp", time: 0.2, value: 660 },
+    ]);
+  });
+
+  it("accepts a sequence lfo event with an optional wave", () => {
     const doc = {
       version: "0.1",
       nodes: {
         osc: { kind: "oscillator" },
       },
       routing: [],
-      sequences: [],
+      sequences: [
+        {
+          node: "osc",
+          param: "frequency",
+          events: [
+            { kind: "lfo", rate: 4, depth: 20, offset: 440, start: 0, end: 0.2, step: 1 / 64, wave: "square" },
+          ],
+        },
+      ],
     };
 
-    expect(() => validateToneGraph(doc)).toThrow("reserved for v0.2");
+    const validated = validateToneGraph(doc);
+
+    expect(validated.sequences?.[0]?.events[0]).toMatchObject({ kind: "lfo", rate: 4, depth: 20, wave: "square" });
+  });
+
+  it("rejects a sequence that references an unknown node", () => {
+    const doc = {
+      version: "0.1",
+      nodes: {
+        osc: { kind: "oscillator" },
+      },
+      routing: [],
+      sequences: [{ node: "ghost", param: "frequency", events: [{ kind: "set", time: 0, value: 1 }] }],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow('sequences[0].node references unknown node "ghost"');
+  });
+
+  it("rejects a sequence event with an unsupported kind", () => {
+    const doc = {
+      version: "0.1",
+      nodes: {
+        osc: { kind: "oscillator" },
+      },
+      routing: [],
+      sequences: [{ node: "osc", param: "frequency", events: [{ kind: "explode", time: 0, value: 1 }] }],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow('is invalid. Allowed kinds: set, linearRamp, lfo');
+  });
+
+  it("rejects a sequence that omits events", () => {
+    const doc = {
+      version: "0.1",
+      nodes: {
+        osc: { kind: "oscillator" },
+      },
+      routing: [],
+      sequences: [{ node: "osc", param: "frequency" }],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow(".events must be an array");
+  });
+
+  it("rejects a sequence event with a non-finite value", () => {
+    const doc = {
+      version: "0.1",
+      nodes: {
+        osc: { kind: "oscillator" },
+      },
+      routing: [],
+      sequences: [{ node: "osc", param: "frequency", events: [{ kind: "set", time: 0, value: Number.NaN }] }],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow("must be a finite number");
   });
 
   it("rejects namespaces as reserved for v0.2", () => {

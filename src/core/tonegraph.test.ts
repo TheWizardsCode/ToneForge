@@ -255,6 +255,113 @@ describe("loadToneGraph", () => {
     expect(peak(quiet) / peak(full)).toBeCloseTo(0.25, 2);
   });
 
+  it("applies sequence events deterministically", async () => {
+    const graph: ToneGraphDocument = {
+      version: "0.1",
+      meta: { duration: 0.25 },
+      nodes: {
+        osc: { kind: "oscillator", params: { type: "sine", frequency: 220 } },
+        amp: { kind: "gain", params: { gain: 0.25 } },
+        out: { kind: "destination" },
+      },
+      routing: [{ chain: ["osc", "amp", "out"] }],
+      sequences: [
+        {
+          node: "osc",
+          param: "frequency",
+          events: [
+            { kind: "set", time: 0, value: 220 },
+            { kind: "linearRamp", time: 0.25, value: 660 },
+          ],
+        },
+      ],
+    };
+
+    const first = await renderGraph(graph, 11);
+    const second = await renderGraph(graph, 11);
+
+    expect(first.length).toBe(second.length);
+    for (let i = 0; i < first.length; i += 1) {
+      expect(first[i]).toBe(second[i]);
+    }
+  });
+
+  it("sequence changes rendered output relative to an unsequenced baseline", async () => {
+    const baseNodes = {
+      osc: { kind: "oscillator", params: { type: "sine", frequency: 220 } },
+      amp: { kind: "gain", params: { gain: 0.25 } },
+      out: { kind: "destination" },
+    } as const;
+
+    const baseline: ToneGraphDocument = {
+      version: "0.1",
+      meta: { duration: 0.25 },
+      nodes: baseNodes,
+      routing: [{ chain: ["osc", "amp", "out"] }],
+    };
+
+    const sequenced: ToneGraphDocument = {
+      ...baseline,
+      nodes: {
+        ...baseNodes,
+        osc: { kind: "oscillator", params: { type: "sine", frequency: 220 } },
+      },
+      sequences: [
+        {
+          node: "osc",
+          param: "frequency",
+          events: [
+            { kind: "set", time: 0, value: 220 },
+            { kind: "set", time: 0.1, value: 880 },
+          ],
+        },
+      ],
+    };
+
+    const plainSamples = await renderGraph(baseline, 12);
+    const sequencedSamples = await renderGraph(sequenced, 12);
+
+    expect(plainSamples.length).toBe(sequencedSamples.length);
+    const identical = plainSamples.every((sample, index) => sample === sequencedSamples[index]);
+    expect(identical).toBe(false);
+  });
+
+  it("throws when a sequence targets an unknown AudioParam", async () => {
+    const graph: ToneGraphDocument = {
+      version: "0.1",
+      meta: { duration: 0.1 },
+      nodes: {
+        osc: { kind: "oscillator" },
+        out: { kind: "destination" },
+      },
+      routing: [{ from: "osc", to: "out" }],
+      sequences: [
+        { node: "osc", param: "notAParam", events: [{ kind: "set", time: 0, value: 1 }] },
+      ],
+    };
+
+    const ctx = new OfflineAudioContext(1, 4410, 44100);
+    await expect(loadToneGraph(graph, ctx, createRng(1))).rejects.toThrow('targets unknown AudioParam "notAParam"');
+  });
+
+  it("throws when a sequence references an unknown node", async () => {
+    const graph: ToneGraphDocument = {
+      version: "0.1",
+      meta: { duration: 0.1 },
+      nodes: {
+        osc: { kind: "oscillator" },
+        out: { kind: "destination" },
+      },
+      routing: [{ from: "osc", to: "out" }],
+      sequences: [
+        { node: "ghost", param: "frequency", events: [{ kind: "set", time: 0, value: 1 }] },
+      ],
+    };
+
+    const ctx = new OfflineAudioContext(1, 4410, 44100);
+    await expect(loadToneGraph(graph, ctx, createRng(1))).rejects.toThrow('references unknown node "ghost"');
+  });
+
   it("throws for unsupported node kind values", async () => {
     const graph = {
       version: "0.1",

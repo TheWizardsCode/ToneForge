@@ -594,6 +594,29 @@ export async function loadToneGraph(
     }
   }
 
+  // Sequences schedule timed events on an existing node's AudioParam. They are
+  // the document-level counterpart to inline node automation and are applied
+  // deterministically at load time (identical graphs produce identical
+  // schedules). `graph.random.seed` is resolved above so sequences that depend
+  // on noise buffers remain deterministic.
+  for (const [sequenceIndex, sequence] of (graph.sequences ?? []).entries()) {
+    const runtime = runtimeNodes.get(sequence.node);
+    if (!runtime) {
+      throw new Error(
+        `Sequence ${sequenceIndex} references unknown node "${sequence.node}".`,
+      );
+    }
+
+    const param = runtime.params[sequence.param];
+    if (!param) {
+      throw new Error(
+        `Sequence ${sequenceIndex} targets unknown AudioParam "${sequence.param}" on node "${sequence.node}".`,
+      );
+    }
+
+    applyAutomationEvents(param, sequence.events, duration);
+  }
+
   const started = new Set<AudioScheduledSourceNode>();
   const nodes: Record<string, AudioNode> = {};
   for (const [id, runtime] of runtimeNodes) {
