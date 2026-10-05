@@ -2,6 +2,12 @@ import { expect, test, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  captureConsole,
+  findUnknownRecipeWarnings,
+  waitForRenderedBufferLength,
+  waitForTerminalText,
+} from "./helpers/diagnostics";
 
 const NODE_ERROR_PATTERNS = [
   /require is not defined/i,
@@ -16,85 +22,39 @@ const CORE_BROWSER_FILES = [
   resolve(thisFileDir, "../../src/core/tonegraph.ts"),
 ];
 
-async function getTerminalText(page: Page): Promise<string> {
-  return page.evaluate(() => {
-    const rows = document.querySelectorAll(".xterm-accessibility .xterm-accessibility-tree div");
-    if (rows.length > 0) {
-      return Array.from(rows)
-        .map((row) => row.textContent ?? "")
-        .join("\n");
+/** Install the render probe the diagnostics helper reads. */
+async function installRenderedBufferProbe(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const proto = globalThis.OfflineAudioContext?.prototype as
+      | { startRendering?: (...args: unknown[]) => Promise<{ length: number }> }
+      | undefined;
+    if (!proto || typeof proto.startRendering !== "function") {
+      return;
     }
 
-    const fallbackRows = document.querySelectorAll(".xterm-rows > div");
-    return Array.from(fallbackRows)
-      .map((row) => row.textContent ?? "")
-      .join("\n");
+    const original = proto.startRendering;
+    proto.startRendering = async function patchedStartRendering(...args: unknown[]) {
+      const rendered = await original.apply(this, args);
+      (globalThis as { __tfLastRenderedLength?: number }).__tfLastRenderedLength =
+        rendered.length;
+      return rendered;
+    };
   });
-}
-
-async function waitForTerminalText(page: Page, expected: string, timeoutMs: number): Promise<string> {
-  const start = Date.now();
-  let last = "";
-  while (Date.now() - start < timeoutMs) {
-    last = await getTerminalText(page);
-    if (last.includes(expected)) {
-      return last;
-    }
-    await page.waitForTimeout(400);
-  }
-
-  throw new Error(
-    `Timed out after ${timeoutMs}ms waiting for terminal text: ${expected}.\n` +
-      `Last output:\n${last.slice(0, 2000)}`,
-  );
-}
-
-async function waitForRenderedBufferLength(page: Page, timeoutMs: number): Promise<number> {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    const length = await page.evaluate(() => {
-      const value = (globalThis as { __tfLastRenderedLength?: unknown }).__tfLastRenderedLength;
-      return typeof value === "number" ? value : 0;
-    });
-    if (length > 0) {
-      return length;
-    }
-    await page.waitForTimeout(200);
-  }
-
-  throw new Error(`Timed out after ${timeoutMs}ms waiting for non-zero rendered buffer length.`);
 }
 
 test.describe("ToneGraph browser smoke", () => {
   test("renders a recipe in browser without Node-only console errors", async ({ page }) => {
     test.setTimeout(120_000);
 
-    await page.addInitScript(() => {
-      const proto = globalThis.OfflineAudioContext?.prototype as
-        | { startRendering?: (...args: unknown[]) => Promise<{ length: number }> }
-        | undefined;
-      if (!proto || typeof proto.startRendering !== "function") {
-        return;
-      }
+    await installRenderedBufferProbe(page);
 
-      const original = proto.startRendering;
-      proto.startRendering = async function patchedStartRendering(...args: unknown[]) {
-        const rendered = await original.apply(this, args);
-        (globalThis as { __tfLastRenderedLength?: number }).__tfLastRenderedLength = rendered.length;
-        return rendered;
-      };
-    });
-
-    const consoleErrors: string[] = [];
-    page.on("console", (msg) => {
-      if (msg.type() === "error") {
-        consoleErrors.push(msg.text());
-      }
-    });
+    // Capture console messages up-front so a rendering timeout can report the
+    // real cause (e.g. an "Unknown recipe" warning) rather than a bare timeout.
+    const consoles = captureConsole(page);
 
     await page.goto("/");
     await page.waitForSelector(".xterm", { timeout: 10_000 });
-    await waitForTerminalText(page, "ToneForge Terminal", 20_000);
+    await waitForTerminalText(page, "ToneForge Terminal", 20_000, consoles);
 
     const demoSelect = page.locator("#demo-select");
     if (await demoSelect.count()) {
@@ -107,12 +67,22 @@ test.describe("ToneGraph browser smoke", () => {
     const runButton = page.locator(".wizard-btn-run");
     await expect(runButton).toBeVisible({ timeout: 5_000 });
 
-    consoleErrors.length = 0;
+    // Scope diagnostics to the Run interaction.
+    consoles.clear();
     await runButton.click();
 
-    const renderedBufferLength = await waitForRenderedBufferLength(page, 45_000);
+    const renderedBufferLength = await waitForRenderedBufferLength(page, 45_000, consoles);
     expect(renderedBufferLength).toBeGreaterThan(0);
 
+    // The render only happens when the browser recipe registry resolves
+    // "ui-scifi-confirm"; if it did not, web/src/audio.ts emits
+    // "Unknown recipe ..." and startRendering() is never called. Asserting the
+    // warning is absent is the observable proof of registry resolution.
+    expect(findUnknownRecipeWarnings(consoles.records)).toHaveLength(0);
+
+    const consoleErrors = consoles.records
+      .filter((record) => record.type === "error")
+      .map((record) => record.text);
     expect(consoleErrors).toHaveLength(0);
 
     for (const pattern of NODE_ERROR_PATTERNS) {

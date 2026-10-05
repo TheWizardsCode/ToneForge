@@ -13,7 +13,12 @@ export default defineConfig({
   use: {
     baseURL: `http://localhost:${port}`,
     headless: true,
-    trace: "retain-on-failure",
+    // Capture a trace on failure but skip DOM snapshots: the snapshot capture
+    // races xterm.js's DOM renderer and can drop the "ToneForge Terminal"
+    // banner (and other early terminal output) from the viewport, which
+    // previously made the banner assertion fail intermittently. Screenshots,
+    // sources, console and network activity are still recorded.
+    trace: { mode: "retain-on-failure", snapshots: false },
     screenshot: "only-on-failure",
   },
   webServer: {
