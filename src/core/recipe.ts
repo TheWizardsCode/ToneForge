@@ -17,11 +17,12 @@ export interface ParamDescriptor {
 }
 
 export interface RecipeRegistration {
-  getDuration: (rng: Rng) => number;
+  getDuration: (rng: Rng, overrides?: Record<string, number>) => number;
   buildOfflineGraph: (
     rng: Rng,
     ctx: OfflineAudioContext,
     duration: number,
+    overrides?: Record<string, number>,
   ) => void | Promise<void>;
   description: string;
   category: string;
@@ -29,6 +30,35 @@ export interface RecipeRegistration {
   signalChain: string;
   params: ParamDescriptor[];
   getParams: (rng: Rng) => Record<string, number>;
+}
+
+/**
+ * Merge preset overrides on top of seed-derived parameter values.
+ *
+ * Only keys already present in `params` are applied, so an override can never
+ * introduce a parameter the recipe does not declare; unknown or non-finite
+ * values are ignored. Returns `params` unchanged when there is nothing to
+ * apply, keeping the baseline path allocation-free and byte-identical.
+ */
+export function applyOverrides<T>(
+  params: T,
+  overrides?: Record<string, number>,
+): T {
+  if (!overrides) {
+    return params;
+  }
+  const keys = Object.keys(overrides);
+  if (keys.length === 0) {
+    return params;
+  }
+  const merged = { ...(params as Record<string, number>) };
+  for (const name of keys) {
+    const value = overrides[name];
+    if (name in merged && typeof value === "number" && Number.isFinite(value)) {
+      merged[name] = value;
+    }
+  }
+  return merged as T;
 }
 
 export interface RecipeFilterQuery {
@@ -325,7 +355,7 @@ export function createFileBackedRegistration(
 
   return {
     getDuration: () => computeDurationHint(graph),
-    buildOfflineGraph: async (rng, ctx, duration) => {
+    buildOfflineGraph: async (rng, ctx, duration, overrides) => {
       const { loadToneGraph } = await import("./tonegraph.js");
 
       // Create a shallow-cloned graph to avoid mutating the canonical
@@ -345,45 +375,80 @@ export function createFileBackedRegistration(
         derived[p.name] = p.integer ? Math.round(value) : value;
       }
 
-      // Apply derived parameters to node params.
+      // Apply preset overrides on top of the seed-derived values. Values for
+      // integer-declared parameters are rounded so the graph stays consistent
+      // with the declared parameter type.
+      if (overrides) {
+        for (const p of extractedParams) {
+          const value = overrides[p.name];
+          if (typeof value === "number" && Number.isFinite(value)) {
+            derived[p.name] = p.integer ? Math.round(value) : value;
+          }
+        }
+      }
+
+      // Apply derived parameters to node params and automation values.
       // Strategy:
-      // 1) If a node.params key exactly matches a declared parameter name, set it.
-      // 2) Otherwise, if the declared parameter included a defaultValue and a node
-      //    param currently equals that defaultValue, assume they're the same logical
-      //    parameter and replace it.
+      // 1) If a key exactly matches a declared parameter name, set it.
+      // 2) Otherwise, if the declared parameter included a defaultValue and the
+      //    current value equals that defaultValue, assume they're the same
+      //    logical parameter and replace it.
+      const applyDerived = (
+        container: Record<string, unknown>,
+        key: string,
+      ): boolean => {
+        const current = container[key];
+        if (typeof current !== "number") return false;
+        for (const p of extractedParams) {
+          if (p.defaultValue === undefined) continue;
+          if (Math.abs(current - p.defaultValue) < 1e-6) {
+            container[key] = derived[p.name];
+            return true;
+          }
+        }
+        if (Object.prototype.hasOwnProperty.call(derived, key)) {
+          container[key] = derived[key];
+          return true;
+        }
+        return false;
+      };
+
+      const automationFields = [
+        "value",
+        "rate",
+        "depth",
+        "offset",
+        "start",
+        "end",
+        "step",
+      ];
+
       for (const node of Object.values(cloned.nodes)) {
         // ToneGraphNodeDefinition is a discriminated union where not all
         // variants declare a `params` field (e.g. destination). Use a
-        // runtime check and a narrow local `nodeParams` alias typed as any
-        // to avoid TypeScript union property errors while preserving the
-        // original runtime behavior.
+        // runtime check and narrow aliases typed as any to avoid TypeScript
+        // union property errors while preserving runtime behavior.
         const nodeParams = (node as any).params;
-        if (!nodeParams || typeof nodeParams !== "object") continue;
+        if (nodeParams && typeof nodeParams === "object") {
+          for (const k of Object.keys(nodeParams)) {
+            applyDerived(nodeParams as Record<string, unknown>, k);
+          }
+        }
 
-        for (const [k, v] of Object.entries(nodeParams)) {
-          let applied = false;
-
-          // Prefer mapping by matching defaultValue where available. This
-          // disambiguates nodes that share a generic param name like
-          // "frequency" (oscillator vs filter) by using the default values
-          // declared in meta.parameters.
-          if (typeof v === "number") {
-            for (const p of extractedParams) {
-              if (p.defaultValue === undefined) continue;
-              if (Math.abs(v - p.defaultValue) < 1e-6) {
-                (nodeParams as Record<string, unknown>)[k] = derived[p.name];
-                applied = true;
-                break;
+        // Automation curves (LFO rate/depth, ramps) hold numeric values that
+        // declared parameters may map onto (e.g. modDepthEnd, lfoRate).
+        const automation = (node as any).automation;
+        if (automation && typeof automation === "object") {
+          for (const events of Object.values(automation)) {
+            if (!Array.isArray(events)) continue;
+            for (const event of events) {
+              if (!event || typeof event !== "object") continue;
+              for (const field of automationFields) {
+                if (field in (event as Record<string, unknown>)) {
+                  applyDerived(event as Record<string, unknown>, field);
+                }
               }
             }
-          }
-
-          if (applied) continue;
-
-          // Fallback: exact name match between node param key and declared param name
-          if (Object.prototype.hasOwnProperty.call(derived, k)) {
-            (nodeParams as Record<string, unknown>)[k] = derived[k];
-            continue;
           }
         }
       }

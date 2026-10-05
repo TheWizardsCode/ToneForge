@@ -2,17 +2,10 @@
  * Determinism helper for SoundEditor tests.
  *
  * Renders a preset-shaped input (`{ recipe, seed, overrides }`) twice through
- * the existing Node offline render path and reports (or asserts) that the two
+ * the override-aware offline render path and reports (or asserts) that the two
  * `Float32Array` outputs are byte-identical. This is the executable definition
  * of the editor's determinism guarantee (parent AC 3): the same preset must
  * always reproduce the same audio.
- *
- * Override-aware rendering is delivered by TF-0MUV11RXS003Y6JI. This helper
- * threads the `overrides` field through a forward-compatible render seam so
- * that landing the override path requires no change here. Until the base
- * render path accepts overrides the extra argument is ignored, so an input
- * with overrides still renders (and must still be byte-identical) — it is the
- * preset identity, not an override effect, that is being asserted here.
  */
 
 import type { RenderResult } from "../../../src/core/renderer.js";
@@ -51,18 +44,11 @@ export interface DeterminismResult {
 async function renderOnce(input: EditorRenderInput): Promise<RenderResult> {
   // Dynamic import keeps `node-web-audio-api` out of non-Node (happy-dom)
   // test modules that only import this helper for its types.
-  const { renderRecipe } = await import("../../../src/core/renderer.js");
-
-  // Forward-compatible seam: the 4th `overrides` argument is ignored by the
-  // current render path and will be honoured once TF-0MUV11RXS003Y6JI lands.
-  const render = renderRecipe as (
-    recipe: string,
-    seed: number,
-    duration?: number,
-    overrides?: Record<string, number>,
-  ) => Promise<RenderResult>;
-
-  return render(input.recipe, input.seed, input.duration, input.overrides);
+  const { renderPreset } = await import("../../../src/core/renderer.js");
+  return renderPreset(
+    { recipe: input.recipe, seed: input.seed, overrides: input.overrides },
+    input.duration,
+  );
 }
 
 /**

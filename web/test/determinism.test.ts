@@ -95,4 +95,21 @@ describe("assertDeterministic", () => {
     expect(first.samples).toBeInstanceOf(Float32Array);
     expect(comparison.identical).toBe(true);
   });
+
+  it("reflects a parameter override in the rendered audio", async () => {
+    const fixture = getEditorFixture("noise-filter-footstep");
+    const base = await assertDeterministic({
+      recipe: fixture.recipe,
+      seed: fixture.seed,
+    });
+    const overridden = await assertDeterministic({
+      recipe: fixture.recipe,
+      seed: fixture.seed,
+      overrides: { filterFreq: 1999 },
+    });
+
+    expect(compareSamples(base.samples, overridden.samples).identical).toBe(
+      false,
+    );
+  });
 });
