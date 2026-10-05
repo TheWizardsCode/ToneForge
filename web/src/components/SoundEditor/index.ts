@@ -30,6 +30,11 @@ export {
   type WavExport,
 } from "./export.js";
 export {
+  mountEnemyGymEditor,
+  type EnemyGymEditorHandle,
+  type EnemyGymEditorOptions,
+} from "./adapters/enemy-gym.js";
+export {
   DEFAULT_XY_PAIRS,
   buildParameterMapping,
   chooseWidgetKind,

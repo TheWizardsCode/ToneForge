@@ -4,8 +4,8 @@ Framework-agnostic, single-sound editor shell. It mounts into any host
 container, owns its own shadow DOM and lifecycle, and never leaks global CSS,
 listeners or symbols into the host page.
 
-> This slice delivers the **shell and lifecycle API**. Controls, audio
-> auditioning, mapping and WAV export are layered on by later work items.
+> The editor is **single-sound** by design. Stacking, sequencing and mixing
+> UIs are explicitly out of scope and belong to separate work items.
 
 ## Usage
 
@@ -90,6 +90,75 @@ wav.download(); // triggers a browser download (filename: <recipe>-seed-<seed>.w
 Export is deterministic: the same preset always produces byte-identical WAV
 bytes, and the bytes match the samples returned by `renderPreset`. Unknown
 recipes throw a typed `PresetExportError`.
+
+## Audition (play / stop / loop)
+
+The editor includes audition controls. Per browser autoplay policy, **no
+`AudioContext` is created until an explicit user gesture** — an "Enable audio"
+button is shown until then. After the gesture, Play renders the current preset
+and starts playback, Stop halts it, and Loop repeats until stopped. Edits made
+while playing are picked up on the **next render** (loop boundary or next Play),
+never by mutating live nodes. If Web Audio is unavailable the control disables
+itself with an accessible message and the rest of the editor keeps working.
+
+## Theming
+
+Theme the editor with CSS custom properties on (or above) the host container:
+
+| Property | Default | Purpose |
+| --- | --- | --- |
+| `--tf-editor-background` | `#16181d` | Editor background |
+| `--tf-editor-foreground` | `#f5f5f5` | Text colour |
+| `--tf-editor-accent` | `#6ea8fe` | Buttons / Loop active / focus accents |
+| `--tf-editor-font` | `system-ui, sans-serif` | Font family |
+
+```css
+#enemy-gym .tg-sound-editor {
+  --tf-editor-background: #101418;
+  --tf-editor-accent: #ff9f1c;
+}
+```
+
+## Accessibility
+
+- **Labelled** — every control has a name (`aria-label` / visible label) sourced
+  from the recipe parameter; the editor region is a labelled `role="group"`.
+- **Keyboard operable** — sliders/dials: Arrow keys (±1 step), PageUp/PageDown
+  (±10 steps), Home/End; XY pad: per-axis Arrow/Home/End; toggle/select: Arrow
+  keys, Home/End, Enter/Space. Audition buttons are native `<button>`s.
+- **Units & ranges exposed** — sliders/dials expose `aria-valuemin`,
+  `aria-valuemax`, `aria-valuenow` and a unit-bearing `aria-valuetext`.
+- **ARIA roles** — slider/rotary `role="slider"`; XY pad a labelled
+  `role="group"` of two `role="slider"` axes; toggle/select `role="listbox"`
+  with `role="option"` + `aria-selected`.
+- **Focus order** — controls are appended in descriptor order (XY pads occupy
+  the position of their first parameter), followed by the audition controls; the
+  Tab order follows DOM order.
+
+## Host integration
+
+For hosts without framework/bundler integration, use the plain-DOM adapter:
+
+```ts
+import { mountEnemyGymEditor } from "./components/SoundEditor/adapters/enemy-gym.js";
+
+const handle = mountEnemyGymEditor(panelElement, {
+  preset,
+  onChange: (next) => saveEnemySound(enemy, next),
+});
+
+// when the enemy panel is torn down:
+handle.dispose();
+```
+
+See [`docs/guides/enemy-gym-sound-editor.md`](../../../docs/guides/enemy-gym-sound-editor.md)
+for the full embedding guide and the AI_Hell parameter mapping.
+
+## Scope
+
+This component edits **one sound** (a recipe + seed + overrides). It does not
+provide stacking, sequencing, mixing, project management, server rendering or
+collaboration. Those are separate work items; keep the single-sound boundary.
 
 ## Testing
 

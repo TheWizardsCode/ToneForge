@@ -159,6 +159,12 @@ export default defineConfig({
   build: {
     outDir: resolve(__dirname, "dist"),
     emptyOutDir: true,
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, "src/index.html"),
+        editorDemo: resolve(__dirname, "src/editor-demo.html"),
+      },
+    },
   },
   resolve: {
     alias: {
