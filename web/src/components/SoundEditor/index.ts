@@ -15,6 +15,14 @@
 export { createSoundEditor } from "./editor.js";
 export { createControlPanel, type ControlPanel } from "./controls.js";
 export {
+  createAudition,
+  type Audition,
+  type AuditionBuffer,
+  type AuditionContext,
+  type AuditionOptions,
+  type AuditionSource,
+} from "./audition.js";
+export {
   DEFAULT_XY_PAIRS,
   buildParameterMapping,
   chooseWidgetKind,

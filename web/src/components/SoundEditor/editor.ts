@@ -17,6 +17,7 @@
 
 import { applyStyles } from "./styles.js";
 import { createControlPanel, type ControlPanel } from "./controls.js";
+import { createAudition, type Audition } from "./audition.js";
 import {
   SOUND_PRESET_VERSION,
   type SoundEditorController,
@@ -72,6 +73,7 @@ export function createSoundEditor(
   let root: HTMLElement | null = null;
   let recipeLabel: HTMLElement | null = null;
   let panel: ControlPanel | null = null;
+  let audition: Audition | null = null;
 
   if (options.audioEngine?.dispose) {
     const engine = options.audioEngine;
@@ -141,6 +143,11 @@ export function createSoundEditor(
 
     body.appendChild(header);
     body.appendChild(controls);
+
+    // Audition controls: lazily create audio only after an explicit gesture.
+    audition = createAudition({ getPreset: () => clonePreset(preset) });
+    body.appendChild(audition.element);
+
     shadow.appendChild(body);
 
     container.appendChild(root);
@@ -167,6 +174,10 @@ export function createSoundEditor(
     if (panel) {
       panel.dispose();
       panel = null;
+    }
+    if (audition) {
+      audition.dispose();
+      audition = null;
     }
     if (root?.parentNode) {
       root.parentNode.removeChild(root);

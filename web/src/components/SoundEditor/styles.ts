@@ -52,6 +52,40 @@ export const EDITOR_STYLES = `
     display: grid;
     gap: 0.75rem;
   }
+
+  .tf-audition {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .tf-audition__controls {
+    display: inline-flex;
+    gap: 0.4rem;
+  }
+
+  .tf-audition button {
+    font: inherit;
+    padding: 0.3rem 0.7rem;
+    border-radius: 0.35rem;
+    border: 1px solid var(--tf-editor-accent, #6ea8fe);
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+  }
+
+  .tf-audition__loop[aria-pressed="true"] {
+    background: var(--tf-editor-accent, #6ea8fe);
+    color: var(--tf-editor-background, #16181d);
+  }
+
+  .tf-audition__status {
+    margin: 0;
+    font-size: 0.8rem;
+    opacity: 0.85;
+    flex-basis: 100%;
+  }
 `;
 
 /**
