@@ -14,6 +14,7 @@
     "test": "vitest run",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "test:web:e2e": "npm run test:e2e:ci --prefix web",
+    "verify": "npm run typecheck && npm test && npm test --prefix web && npm run test:web:e2e",
     "test:watch": "vitest",
     "start": "./bin/dev-cli.js",
     "generate": "./bin/dev-cli.js generate",

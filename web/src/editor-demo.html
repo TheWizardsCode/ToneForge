@@ -93,18 +93,19 @@
     <div class="toolbar">
       <label>
         Recipe
-        <select id="recipe"></select>
+        <select id="recipe" data-testid="recipe-select"></select>
       </label>
       <label>
         Seed
-        <input id="seed" type="number" value="42" min="0" step="1" />
+        <input id="seed" data-testid="seed-input" type="number" value="42" min="0" step="1" />
       </label>
-      <button id="load" type="button">Load</button>
-      <button id="export" type="button">Export WAV</button>
+      <button id="load" data-testid="load-button" type="button">Load</button>
+      <button id="export" data-testid="export-button" type="button">Export WAV</button>
+      <button id="dispose" data-testid="dispose-button" type="button">Dispose</button>
     </div>
 
-    <div id="editor"></div>
-    <pre id="preset-out" aria-live="polite"></pre>
+    <div id="editor" data-testid="editor-container"></div>
+    <pre id="preset-out" data-testid="preset-output" aria-live="polite"></pre>
 
     <script type="module" src="./editor-demo.ts"></script>
   </body>

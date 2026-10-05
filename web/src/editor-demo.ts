@@ -16,6 +16,7 @@ const recipeSelect = document.querySelector<HTMLSelectElement>("#recipe")!;
 const seedInput = document.querySelector<HTMLInputElement>("#seed")!;
 const loadButton = document.querySelector<HTMLButtonElement>("#load")!;
 const exportButton = document.querySelector<HTMLButtonElement>("#export")!;
+const disposeButton = document.querySelector<HTMLButtonElement>("#dispose")!;
 const container = document.querySelector<HTMLElement>("#editor")!;
 const output = document.querySelector<HTMLElement>("#preset-out")!;
 
@@ -65,6 +66,11 @@ async function main(): Promise<void> {
 
   exportButton.addEventListener("click", () => {
     void createWavDownload(editor.getPreset()).then((wav) => wav.download());
+  });
+
+  disposeButton.addEventListener("click", () => {
+    editor.dispose();
+    output.textContent = "";
   });
 }
 
