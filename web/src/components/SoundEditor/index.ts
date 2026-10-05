@@ -13,6 +13,19 @@
  */
 
 export { createSoundEditor } from "./editor.js";
+export { createControlPanel, type ControlPanel } from "./controls.js";
+export {
+  DEFAULT_XY_PAIRS,
+  buildParameterMapping,
+  chooseWidgetKind,
+  isBooleanDescriptor,
+  isIntegerDescriptor,
+  stepForDescriptor,
+  type ParameterMapping,
+  type ScalarControlSpec,
+  type WidgetKind,
+  type XYControlSpec,
+} from "./parameter-map.js";
 export { EDITOR_STYLES, applyStyles } from "./styles.js";
 export {
   SOUND_PRESET_VERSION,

@@ -16,6 +16,7 @@
  */
 
 import { applyStyles } from "./styles.js";
+import { createControlPanel, type ControlPanel } from "./controls.js";
 import {
   SOUND_PRESET_VERSION,
   type SoundEditorController,
@@ -70,6 +71,7 @@ export function createSoundEditor(
 
   let root: HTMLElement | null = null;
   let recipeLabel: HTMLElement | null = null;
+  let panel: ControlPanel | null = null;
 
   if (options.audioEngine?.dispose) {
     const engine = options.audioEngine;
@@ -125,6 +127,18 @@ export function createSoundEditor(
     const controls = container.ownerDocument.createElement("div");
     controls.className = "toneforge-editor__controls";
 
+    // Data-driven controls: one widget per declared parameter of the preset's
+    // recipe. Widget changes write through to preset.overrides.
+    panel = createControlPanel(preset);
+    controls.appendChild(panel.element);
+    panel.onChange((nextOverrides) => {
+      preset = { ...preset, overrides: { ...nextOverrides } };
+      const snapshot = clonePreset(preset);
+      for (const listener of [...listeners]) {
+        listener(snapshot);
+      }
+    });
+
     body.appendChild(header);
     body.appendChild(controls);
     shadow.appendChild(body);
@@ -150,6 +164,10 @@ export function createSoundEditor(
   }
 
   function removeRoot(): void {
+    if (panel) {
+      panel.dispose();
+      panel = null;
+    }
     if (root?.parentNode) {
       root.parentNode.removeChild(root);
     }
@@ -190,6 +208,7 @@ export function createSoundEditor(
     }
     preset = clonePreset(next);
     renderRecipeLabel();
+    panel?.setPreset(preset);
     const snapshot = clonePreset(preset);
     for (const listener of [...listeners]) {
       listener(snapshot);
