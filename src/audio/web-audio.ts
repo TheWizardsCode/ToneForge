@@ -28,7 +28,6 @@
  * - docs/prd/CORE_PRD.md Section 5
  */
 
-import { createRequire } from "node:module";
 import type {
   AudioBuffer,
   OfflineAudioContext as OfflineAudioContextType,
@@ -92,11 +91,42 @@ export interface AudioContext extends AudioContextType {}
 let _nodeWebAudioModule: any;
 
 /**
+ * Build a CommonJS `require` for the current module in Node.js.
+ *
+ * `node:module` is resolved lazily through `process.getBuiltinModule` rather
+ * than a static `import { createRequire } from "node:module"`. A static import
+ * of a Node builtin makes this module un-bundleable for the browser (Rollup
+ * cannot resolve `node:module`), which breaks the web build as soon as a
+ * browser entry point imports the abstraction. `process.getBuiltinModule`
+ * exists only in Node.js, so the browser never reaches this code path.
+ *
+ * @throws If called outside a Node.js runtime that supports
+ *   `process.getBuiltinModule`.
+ */
+function getNodeRequire(): (id: string) => unknown {
+  const proc = (globalThis as {
+    process?: { getBuiltinModule?: (id: string) => unknown };
+  }).process;
+  const getBuiltinModule = proc?.getBuiltinModule;
+  if (typeof getBuiltinModule !== "function") {
+    throw new Error(
+      "Cannot load node-web-audio-api: process.getBuiltinModule is "
+      + "unavailable (requires Node.js >= 22.3). Use a browser runtime or "
+      + "upgrade Node.js.",
+    );
+  }
+  const nodeModule = getBuiltinModule("node:module") as {
+    createRequire: (url: string | URL) => (id: string) => unknown;
+  };
+  return nodeModule.createRequire(import.meta.url);
+}
+
+/**
  * Resolve the `node-web-audio-api` module in Node.js.
  *
- * Loaded lazily at runtime via `createRequire` so the package is never
- * statically imported and never appears in browser bundles. The module
- * specifier is held in a variable so bundlers cannot statically resolve it.
+ * Loaded lazily at runtime so the package is never statically imported and
+ * never appears in browser bundles. The module specifier is held in a
+ * variable so bundlers cannot statically resolve it.
  *
  * @throws If called outside Node.js or when the package is not installed.
  */
@@ -108,7 +138,7 @@ function resolveNodeWebAudio(): any {
     throw new Error("node-web-audio-api is only available in Node.js");
   }
 
-  const nodeRequire = createRequire(import.meta.url);
+  const nodeRequire = getNodeRequire();
   const moduleName = "node-web-audio-api";
   try {
     _nodeWebAudioModule = nodeRequire(moduleName);

@@ -1,5 +1,6 @@
 import { createRng } from "@toneforge/core/rng.js";
 import { registry } from "@toneforge/recipes/index.js";
+import { OfflineAudioContext } from "@toneforge/audio/web-audio.js";
 
 let realtimeCtx: AudioContext | null = null;
 
@@ -87,7 +88,7 @@ export async function renderAndPlay(recipeName: string, seed: number): Promise<v
 
   const offlineCtx = new OfflineAudioContext(1, length, sampleRate);
   const graphRng = createRng(seed);
-  await registration.buildOfflineGraph(graphRng, offlineCtx as unknown as import("node-web-audio-api").OfflineAudioContext, duration);
+  await registration.buildOfflineGraph(graphRng, offlineCtx, duration);
   const renderedBuffer = await offlineCtx.startRendering();
 
   const ctx = await ensureAudioContext();
