@@ -2,7 +2,9 @@
  * Offline Renderer
  *
  * Renders recipe audio to buffers using OfflineAudioContext.
- * Uses node-web-audio-api for Node.js compatibility.
+ * Uses the cross-platform OfflineAudioContext abstraction from
+ * `src/audio/web-audio.ts`: the browser-native Web Audio API in the browser
+ * and node-web-audio-api in Node.js.
  *
  * Recipes are discovered via the RecipeRegistry — adding a new recipe
  * requires only registering it in src/recipes/index.ts; no changes to
@@ -31,7 +33,7 @@ export interface RenderResult {
 /**
  * Renders a named recipe with the given seed to an audio buffer.
  *
- * Uses OfflineAudioContext (via node-web-audio-api) to produce
+ * Uses the cross-platform OfflineAudioContext abstraction to produce
  * deterministic output for the same recipe + seed combination.
  *
  * The recipe is looked up in the RecipeRegistry. Its `getDuration`
