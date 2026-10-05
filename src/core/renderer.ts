@@ -11,10 +11,10 @@
  * Reference: docs/prd/CORE_PRD.md Section 8
  */
 
-import { OfflineAudioContext } from "node-web-audio-api";
 import { createRng } from "./rng.js";
 import { registry, initializeRecipeRegistry } from "../recipes/index.js";
 import { profiler } from "./profiler.js";
+import { OfflineAudioContext } from "../audio/web-audio.js";
 
 /** Result of an offline render containing sample data. */
 export interface RenderResult {

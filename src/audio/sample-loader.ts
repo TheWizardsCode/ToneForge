@@ -14,7 +14,7 @@
  * Reference: docs/prd/CORE_PRD.md Section 5
  */
 
-import type { OfflineAudioContext, AudioBuffer } from "node-web-audio-api";
+import type { OfflineAudioContext, AudioBuffer } from "../audio/web-audio.js";
 
 /**
  * Detect whether we are running in a browser environment.

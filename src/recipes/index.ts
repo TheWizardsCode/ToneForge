@@ -5,7 +5,7 @@
  * Each recipe provides deterministic duration and an offline graph builder.
  */
 
-import type { OfflineAudioContext } from "node-web-audio-api";
+import type { OfflineAudioContext } from "../audio/web-audio.js";
 import { RecipeRegistry, discoverFileBackedRecipes } from "../core/recipe.js";
 import type { Rng } from "../core/rng.js";
 import { getFootstepStoneParams } from "./footstep-stone-params.js";

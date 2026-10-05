@@ -4,7 +4,7 @@
  * Stores recipe metadata plus deterministic offline graph builders.
  */
 
-import type { OfflineAudioContext } from "node-web-audio-api";
+import type { OfflineAudioContext } from "../audio/web-audio.js";
 import type { Rng } from "./rng.js";
 import { normalizeCategory as normalizeCategoryFn } from "./normalize-category.js";
 import type { ToneGraphDocument } from "./tonegraph-schema.js";
