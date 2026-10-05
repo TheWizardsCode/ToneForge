@@ -10,6 +10,7 @@ import {
   RecipeRegistry,
   applyOverrides,
   discoverFileBackedRecipes,
+  resolveExternalRecipeDirectory,
 } from "../core/recipe.js";
 import type { Rng } from "../core/rng.js";
 import { getFootstepStoneParams } from "./footstep-stone-params.js";
@@ -74,6 +75,23 @@ export const registry = new RecipeRegistry();
 let fileBackedRecipesPromise: Promise<string[]> | undefined;
 
 /**
+ * Discover the baked-in and externally registered recipes.
+ *
+ * The external directory is resolved from `TONEFORGE_RECIPE_DIR` (or the
+ * `~/.toneforge/recipes/` default). Resolution is best-effort: a non-Node
+ * runtime or an unresolvable home directory simply skips external discovery.
+ */
+async function discoverWithExternalRecipes(): Promise<string[]> {
+  let additionalRecipeDirectories: string[] = [];
+  try {
+    additionalRecipeDirectories = [await resolveExternalRecipeDirectory()];
+  } catch {
+    additionalRecipeDirectories = [];
+  }
+  return discoverFileBackedRecipes(registry, { additionalRecipeDirectories });
+}
+
+/**
  * Register file-backed ToneGraph recipes into the shared registry.
  *
  * Built-in recipes are registered synchronously when this module is
@@ -94,7 +112,7 @@ let fileBackedRecipesPromise: Promise<string[]> | undefined;
  */
 export function initializeRecipeRegistry(): Promise<string[]> {
   if (fileBackedRecipesPromise === undefined) {
-    fileBackedRecipesPromise = discoverFileBackedRecipes(registry);
+    fileBackedRecipesPromise = discoverWithExternalRecipes();
   }
   return fileBackedRecipesPromise;
 }

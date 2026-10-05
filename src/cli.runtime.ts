@@ -773,7 +773,7 @@ Browse, search, discover similar sounds, export WAVs, and regenerate entries fro
 | **similar** | Find entries similar to a given entry |
 | **export** | Export library entries as WAV files by category |
 | **regenerate** | Re-render an entry from its stored preset |
-| **add** | Register a new ToneGraph recipe from an external file |
+| **add** | Register a new ToneGraph recipe and persist it to an external directory |
 
 ## Usage
 
@@ -783,10 +783,27 @@ toneforge library search [--category <c>] [--intensity <i>] [--texture <t>] [--t
 toneforge library similar --id <id> [--limit <n>] [--json]
 toneforge library export --output <dir> [--category <c>] --format wav [--json]
 toneforge library regenerate --id <id> [--json]
-toneforge library add --file <path> [--name <override>] [--json]
-toneforge library add --inline <tonegraph> --name <name> [--json]
-toneforge library add --stdin --name <name> [--json]
+toneforge library add --file <path> [--destination <dir>] [--name <override>] [--json]
+toneforge library add --inline <tonegraph> --name <name> [--destination <dir>] [--json]
+toneforge library add --stdin --name <name> [--destination <dir>] [--json]
 \`\`\`
+
+## External recipe registration
+
+\`library add\` persists the recipe to an **external recipe directory** so a
+separate \`toneforge generate --recipe <name>\` process discovers it. The
+directory is resolved in this order:
+
+1. \`--destination <dir>\` (single-operation override)
+2. the \`TONEFORGE_RECIPE_DIR\` environment variable
+3. \`~/.toneforge/recipes/\` (platform-agnostic default)
+
+Relative paths for \`--file\`, \`--destination\` and \`TONEFORGE_RECIPE_DIR\` are
+resolved against the current working directory; absolute paths are used as-is.
+The recipe is written atomically (temp file + rename) and re-registering the
+same recipe is an idempotent overwrite. Externally registered recipes are
+discovered alongside the baked-in \`presets/recipes/\` recipes and are shown by
+\`library list\` with their source directory.
 
 ## Options
 
@@ -802,6 +819,7 @@ toneforge library add --stdin --name <name> [--json]
 - \`--inline <tonegraph>\` — Inline ToneGraph YAML/JSON definition (add subcommand)
 - \`--stdin\` — Read the ToneGraph definition from stdin (add subcommand)
 - \`--name <name>\` — Override recipe name (defaults to the filename without extension for \`--file\`; required for \`--inline\`/\`--stdin\`)
+- \`--destination <dir>\` — External directory to persist the recipe into (add subcommand; default: \`TONEFORGE_RECIPE_DIR\` or \`~/.toneforge/recipes/\`)
 - \`--json\` — Output results in JSON format
 - \`--help\`, \`-h\` — Show this help message
 
@@ -816,6 +834,11 @@ toneforge library export --output ./export --category creature --format wav
 toneforge library regenerate --id lib-creature-vocal_seed-04821 --json
 toneforge library add --file ./my-recipe.yaml
 toneforge library add --file ./my-recipe.yaml --name custom-name --json
+toneforge library add --file ./game-weapon.yaml --destination ./project-recipes
+
+# Persist to a custom location, then render it in a separate process
+TONEFORGE_RECIPE_DIR=./project-recipes toneforge library add --file ./game-weapon.yaml
+toneforge generate --recipe game-weapon --seed 42 --output ./game-weapon.wav
 \`\`\``;
   await outputMarkdown(md);
 }
@@ -3092,6 +3115,21 @@ export async function dispatchCommand(
         const filter = categoryFilter ? { category: categoryFilter } : undefined;
         const entries = await listEntries(filter);
 
+        // Recipe catalogue: baked-in + externally registered recipes (AC7).
+        // `sourceDirectory` is only set for file-backed recipes, so built-in
+        // TypeScript recipes are reported as `built-in`.
+        const recipeCatalog = registry.list().map((name) => {
+          const reg = registry.getRegistration(name);
+          return {
+            name,
+            category: reg?.category ?? "",
+            description: reg?.description ?? "",
+            source: reg?.sourceDirectory ?? null,
+            external: reg?.external === true,
+          };
+        });
+        const externalRecipeCount = recipeCatalog.filter((r) => r.external).length;
+
         if (jsonMode) {
           jsonOut({
             command: "library list",
@@ -3106,6 +3144,9 @@ export async function dispatchCommand(
               tags: e.tags,
               promotedAt: e.promotedAt,
             })),
+            recipeCount: recipeCatalog.length,
+            externalRecipeCount,
+            recipes: recipeCatalog,
           });
         } else if (entries.length === 0) {
           if (categoryFilter) {
@@ -3131,6 +3172,25 @@ export async function dispatchCommand(
             ]),
           );
           outputInfo(`${entries.length} entr${entries.length !== 1 ? "ies" : "y"} listed`);
+        }
+
+        if (!jsonMode && recipeCatalog.length > 0) {
+          outputInfo("");
+          outputInfo(`Recipes (${recipeCatalog.length} total, ${externalRecipeCount} external):`);
+          outputTable(
+            [
+              { header: "Recipe", width: 28 },
+              { header: "Category", width: 14 },
+              { header: "Kind", width: 10 },
+              { header: "Source", width: 36 },
+            ],
+            recipeCatalog.map((r) => [
+              r.name,
+              r.category || "\u2014",
+              r.source ? (r.external ? "external" : "baked-in") : "built-in",
+              r.source ?? "\u2014",
+            ]),
+          );
         }
         return 0;
       } catch (error) {
@@ -3398,6 +3458,7 @@ export async function dispatchCommand(
       const inlineFlag = typeof flags["inline"] === "string" ? flags["inline"] : undefined;
       const stdinFlag = flags["stdin"] === true;
       const nameOverride = typeof flags["name"] === "string" ? flags["name"] : undefined;
+      const destinationFlag = typeof flags["destination"] === "string" ? flags["destination"] : undefined;
 
       // Exactly one input source must be provided.
       const sourcesProvided = [fileFlag !== undefined, inlineFlag !== undefined, stdinFlag]
@@ -3429,6 +3490,11 @@ export async function dispatchCommand(
         let rawDoc: unknown;
         let recipeName: string | undefined;
         let sourceLabel: string;
+        let sourceText: string;
+        // Extension used when persisting the recipe to the external directory.
+        // File-backed recipes keep their on-disk extension; inline/stdin
+        // recipes are stored as YAML (a superset of JSON).
+        let persistExtension = ".yaml";
 
         if (fileFlag !== undefined) {
           const resolvedPath = resolve(fileFlag);
@@ -3440,6 +3506,7 @@ export async function dispatchCommand(
 
           const source = await readFile(resolvedPath, "utf-8");
           const ext = extname(resolvedPath).toLowerCase();
+          persistExtension = ext;
 
           if (ext === ".json") {
             rawDoc = JSON.parse(source);
@@ -3451,11 +3518,13 @@ export async function dispatchCommand(
             return 1;
           }
 
+          sourceText = source;
           // Derive the recipe name from the filename (basename without extension).
           recipeName = nameOverride ?? basename(resolvedPath, extname(resolvedPath));
           sourceLabel = fileFlag;
         } else if (inlineFlag !== undefined) {
           rawDoc = (await loadYaml())(inlineFlag);
+          sourceText = inlineFlag;
           sourceLabel = "inline";
         } else {
           // Read the ToneGraph definition from stdin.
@@ -3470,6 +3539,7 @@ export async function dispatchCommand(
             return 1;
           }
           rawDoc = (await loadYaml())(stdinSource);
+          sourceText = stdinSource;
           sourceLabel = "stdin";
         }
 
@@ -3485,12 +3555,38 @@ export async function dispatchCommand(
           return 1;
         }
 
+        const {
+          assertSafeRecipeName,
+          createFileBackedRegistration,
+          persistRecipeDocument,
+          resolveExternalRecipeDirectory,
+        } = await import("./core/recipe.js");
+
+        assertSafeRecipeName(recipeName);
+
+        // Persist the recipe to the external directory BEFORE registering so
+        // a failed write leaves the registry unchanged (AC4). The destination
+        // is `--destination`, else `TONEFORGE_RECIPE_DIR`, else
+        // `~/.toneforge/recipes/` (AC1, AC2, AC6).
+        const destinationDirectory = await resolveExternalRecipeDirectory({
+          destination: destinationFlag,
+        });
+        const persistResult = await persistRecipeDocument({
+          contents: sourceText,
+          destinationDirectory,
+          fileName: `${recipeName}${persistExtension}`,
+        });
+
         // Create a file-backed registration from the validated ToneGraph document.
-        const { createFileBackedRegistration } = await import("./core/recipe.js");
         const registration = createFileBackedRegistration(recipeName, graph, rawDoc);
 
-        // Register in the session registry.
-        registry.register(recipeName, registration);
+        // Register in the session registry, recording the external source so
+        // `library list` surfaces the recipe immediately as external (AC7).
+        registry.register(recipeName, {
+          ...registration,
+          sourceDirectory: persistResult.destinationDirectory,
+          external: true,
+        });
 
         if (jsonMode) {
           jsonOut({
@@ -3498,6 +3594,8 @@ export async function dispatchCommand(
             name: recipeName,
             file: fileFlag ?? null,
             source: sourceLabel,
+            destination: persistResult.destinationDirectory,
+            persistedFile: persistResult.destinationPath,
             category: registration.category,
             description: registration.description,
             params: registration.params,
@@ -3512,6 +3610,7 @@ export async function dispatchCommand(
           if (registration.tags && registration.tags.length > 0) {
             outputInfo(`  Tags: ${registration.tags.join(", ")}`);
           }
+          outputInfo(`  Persisted to: ${persistResult.destinationPath}`);
         }
         return 0;
       } catch (error) {

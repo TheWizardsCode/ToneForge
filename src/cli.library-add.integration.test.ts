@@ -149,12 +149,22 @@ function validToneGraphJson(name: string): string {
 }
 
 let tmpRoot: string;
+let originalRecipeDir: string | undefined;
 
 beforeEach(() => {
   tmpRoot = mkdtempSync(join(tmpdir(), "tf-library-add-"));
+  // Persist recipes into the per-test temp directory so these tests never
+  // write to the developer's real ~/.toneforge/recipes (AC1/AC5 isolation).
+  originalRecipeDir = process.env["TONEFORGE_RECIPE_DIR"];
+  process.env["TONEFORGE_RECIPE_DIR"] = join(tmpRoot, "external-recipes");
 });
 
 afterEach(() => {
+  if (originalRecipeDir === undefined) {
+    delete process.env["TONEFORGE_RECIPE_DIR"];
+  } else {
+    process.env["TONEFORGE_RECIPE_DIR"] = originalRecipeDir;
+  }
   try {
     rmSync(tmpRoot, { recursive: true, force: true });
   } catch {

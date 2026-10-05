@@ -34,6 +34,7 @@ export function builder(yargs: any) {
         .option("inline", { type: "string", describe: "Inline ToneGraph YAML/JSON definition" })
         .option("stdin", { type: "boolean", describe: "Read the ToneGraph definition from stdin" })
         .option("name", { type: "string", describe: "Override recipe name (defaults to filename without extension)" })
+        .option("destination", { type: "string", describe: "External directory to persist the recipe into (default: TONEFORGE_RECIPE_DIR or ~/.toneforge/recipes/)" })
         .option("json", { type: "boolean", describe: "Output JSON" });
     });
 }

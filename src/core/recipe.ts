@@ -30,6 +30,21 @@ export interface RecipeRegistration {
   signalChain: string;
   params: ParamDescriptor[];
   getParams: (rng: Rng) => Record<string, number>;
+  /**
+   * Absolute filesystem directory the recipe was discovered from.
+   *
+   * Only set for file-backed ToneGraph recipes loaded from disk; built-in
+   * TypeScript recipes leave this undefined. Used by `tf library list` to
+   * surface where an externally registered recipe lives.
+   */
+  sourceDirectory?: string;
+  /**
+   * True when the recipe was discovered from a directory outside the
+   * repository's baked-in `presets/recipes/` directory (i.e. an externally
+   * registered recipe). Built-in and baked-in recipes set this to false or
+   * leave it undefined.
+   */
+  external?: boolean;
 }
 
 /**
@@ -176,8 +191,20 @@ interface FileBackedRecipeParam {
   integer?: boolean;
 }
 
-interface DiscoverFileBackedRecipesOptions {
+export interface DiscoverFileBackedRecipesOptions {
+  /**
+   * Override the single directory to scan. When provided, the baked-in
+   * `presets/recipes/` directory and any `additionalRecipeDirectories` are
+   * not scanned (legacy single-directory behaviour).
+   */
   recipeDirectory?: string;
+  /**
+   * Extra directories to scan after the baked-in `presets/recipes/`
+   * directory (e.g. the persistent external recipe directory). Directories
+   * that do not exist are skipped silently; recipes from later directories
+   * override same-named recipes from earlier ones.
+   */
+  additionalRecipeDirectories?: string[];
   logger?: {
     warn: (message: string) => void;
   };
@@ -521,6 +548,168 @@ function isNodeRuntime(): boolean {
     && typeof process.versions.node === "string";
 }
 
+/**
+ * Options for {@link resolveExternalRecipeDirectory}.
+ */
+export interface ResolveExternalRecipeDirectoryOptions {
+  /** Explicit destination directory. Takes precedence over the env var. */
+  destination?: string;
+  /** Environment map to read `TONEFORGE_RECIPE_DIR` from (defaults to `process.env`). */
+  env?: Record<string, string | undefined>;
+  /** Home directory override (defaults to `os.homedir()`). */
+  homeDirectory?: string;
+}
+
+/** Default external recipe directory relative to the OS home directory. */
+const DEFAULT_EXTERNAL_RECIPE_SUBDIR = [".toneforge", "recipes"];
+
+/**
+ * Resolve the directory that holds externally registered recipes.
+ *
+ * Precedence (AC2, AC6):
+ * 1. `options.destination` (the CLI `--destination` flag).
+ * 2. The `TONEFORGE_RECIPE_DIR` environment variable.
+ * 3. `~/.toneforge/recipes/` (the platform-agnostic default).
+ *
+ * Relative paths are resolved against the current working directory and
+ * absolute paths are returned unchanged.
+ *
+ * Node-only: guarded by {@link isNodeRuntime}. Throws a clear error when
+ * called outside Node so callers never silently fall back to a wrong location.
+ */
+export async function resolveExternalRecipeDirectory(
+  options: ResolveExternalRecipeDirectoryOptions = {},
+): Promise<string> {
+  if (!isNodeRuntime()) {
+    throw new Error(
+      "External recipe directories are only supported in Node.js runtimes.",
+    );
+  }
+
+  const [{ resolve }, osModule] = await Promise.all([
+    import("node:path"),
+    import("node:os"),
+  ]);
+
+  const destination = options.destination?.trim();
+  if (destination) {
+    return resolve(destination);
+  }
+
+  const env = options.env ?? process.env;
+  const envDirectory = env["TONEFORGE_RECIPE_DIR"]?.trim();
+  if (envDirectory) {
+    return resolve(envDirectory);
+  }
+
+  const home = options.homeDirectory ?? osModule.homedir();
+  return resolve(home, ...DEFAULT_EXTERNAL_RECIPE_SUBDIR);
+}
+
+/**
+ * Validate that a recipe name is safe to use as a file name.
+ *
+ * Rejects empty names, path separators, parent-directory segments and NUL
+ * bytes so persistence can never escape the destination directory.
+ */
+export function assertSafeRecipeName(name: string): void {
+  const isUnsafe = name.length === 0
+    || name === "."
+    || name === ".."
+    || name.includes("/")
+    || name.includes("\\")
+    || name.includes("\0");
+  if (isUnsafe) {
+    throw new Error(
+      `Invalid recipe name '${name}': names must not be empty or contain path separators.`,
+    );
+  }
+}
+
+/**
+ * Options for {@link persistRecipeDocument}.
+ */
+export interface PersistRecipeDocumentOptions {
+  /** Raw recipe document text (YAML or JSON) to write. */
+  contents: string;
+  /** Destination directory (relative paths resolve against the CWD). */
+  destinationDirectory: string;
+  /** File name to store the recipe as (e.g. `game-weapon.yaml`). */
+  fileName: string;
+}
+
+/**
+ * Result of {@link persistRecipeDocument}.
+ */
+export interface PersistRecipeDocumentResult {
+  /** Absolute path of the written recipe file. */
+  destinationPath: string;
+  /** Absolute destination directory. */
+  destinationDirectory: string;
+  /** File name the recipe was written as. */
+  fileName: string;
+}
+
+/**
+ * Persist a recipe document to the external recipe directory.
+ *
+ * The write is atomic: the contents are written to a temporary file in the
+ * destination directory and then renamed into place, so a concurrent reader
+ * (e.g. a separate `tf generate` process) never observes a partial file
+ * (AC1, AC3). Re-persisting the same file overwrites it cleanly with no
+ * duplicate.
+ *
+ * The destination directory is created recursively when missing. A missing
+ * or unreadable source is the caller's responsibility; this function writes
+ * the supplied `contents` verbatim.
+ */
+export async function persistRecipeDocument(
+  options: PersistRecipeDocumentOptions,
+): Promise<PersistRecipeDocumentResult> {
+  if (!isNodeRuntime()) {
+    throw new Error(
+      "Persisting recipes is only supported in Node.js runtimes.",
+    );
+  }
+
+  if (options.fileName.includes("/") || options.fileName.includes("\\") || options.fileName.includes("\0")) {
+    throw new Error(
+      `Invalid recipe file name '${options.fileName}': names must not contain path separators.`,
+    );
+  }
+  assertSafeRecipeName(options.fileName.replace(/\.[^.]+$/, ""));
+
+  const [{ mkdir, writeFile, rename, rm }, { resolve, join }] = await Promise.all([
+    import("node:fs/promises"),
+    import("node:path"),
+  ]);
+
+  const destinationDirectory = resolve(options.destinationDirectory);
+  const destinationPath = join(destinationDirectory, options.fileName);
+  const tempPath = join(
+    destinationDirectory,
+    `.${options.fileName}.${process.pid}.${Date.now()}.tmp`,
+  );
+
+  await mkdir(destinationDirectory, { recursive: true });
+
+  try {
+    await writeFile(tempPath, options.contents, "utf-8");
+    await rename(tempPath, destinationPath);
+  } catch (error) {
+    await rm(tempPath, { force: true }).catch(() => {
+      /* best-effort cleanup */
+    });
+    throw error;
+  }
+
+  return {
+    destinationPath,
+    destinationDirectory,
+    fileName: options.fileName,
+  };
+}
+
 export async function discoverFileBackedRecipes(
   registry: RecipeRegistry,
   options: DiscoverFileBackedRecipesOptions = {},
@@ -555,48 +744,67 @@ export async function discoverFileBackedRecipes(
     "presets",
     "recipes",
   );
-  const recipeDirectory = options.recipeDirectory ?? defaultRecipeDirectory;
 
-  let entries: Array<{ name: string; isFile: () => boolean }> = [];
-  try {
-    entries = await readdir(recipeDirectory, { withFileTypes: true });
-  } catch (error) {
-    const code = isRecord(error) && typeof error.code === "string" ? error.code : "";
-    if (code === "ENOENT") {
-      return [];
-    }
-    throw error;
-  }
+  // When an explicit single directory is supplied, honour the legacy
+  // behaviour and ignore the baked-in directory and any additional dirs.
+  // Otherwise scan the baked-in presets directory first, followed by the
+  // externally registered directories, so externally registered recipes
+  // override same-named baked-in ones.
+  const recipeDirectories = options.recipeDirectory !== undefined
+    ? [options.recipeDirectory]
+    : [defaultRecipeDirectory, ...(options.additionalRecipeDirectories ?? [])];
 
   const discovered: string[] = [];
-  for (const entry of entries) {
-    if (!entry.isFile()) {
-      continue;
-    }
+  const seen = new Set<string>();
 
-    const ext = extname(entry.name).toLowerCase();
-    if (ext !== ".json" && ext !== ".yaml" && ext !== ".yml") {
-      continue;
-    }
+  for (const rawDirectory of recipeDirectories) {
+    const recipeDirectory = resolve(rawDirectory);
+    const isExternal = recipeDirectory !== defaultRecipeDirectory;
 
-    const filePath = resolve(recipeDirectory, entry.name);
-
+    let entries: Array<{ name: string; isFile: () => boolean }> = [];
     try {
-      const source = await readFile(filePath, "utf-8");
-      const rawDoc = ext === ".json"
-        ? JSON.parse(source)
-        : yamlLoad(source);
-      const graph = validateToneGraph(rawDoc);
-
-      const recipeName = basename(entry.name, ext);
-      registry.register(
-        recipeName,
-        createFileBackedRegistration(recipeName, graph, rawDoc),
-      );
-      discovered.push(recipeName);
+      entries = await readdir(recipeDirectory, { withFileTypes: true });
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      logger.warn(`Skipping invalid ToneGraph recipe file ${entry.name}: ${message}`);
+      const code = isRecord(error) && typeof error.code === "string" ? error.code : "";
+      if (code === "ENOENT") {
+        continue;
+      }
+      throw error;
+    }
+
+    for (const entry of entries) {
+      if (!entry.isFile()) {
+        continue;
+      }
+
+      const ext = extname(entry.name).toLowerCase();
+      if (ext !== ".json" && ext !== ".yaml" && ext !== ".yml") {
+        continue;
+      }
+
+      const filePath = resolve(recipeDirectory, entry.name);
+
+      try {
+        const source = await readFile(filePath, "utf-8");
+        const rawDoc = ext === ".json"
+          ? JSON.parse(source)
+          : yamlLoad(source);
+        const graph = validateToneGraph(rawDoc);
+
+        const recipeName = basename(entry.name, ext);
+        registry.register(recipeName, {
+          ...createFileBackedRegistration(recipeName, graph, rawDoc),
+          sourceDirectory: recipeDirectory,
+          external: isExternal,
+        });
+        if (!seen.has(recipeName)) {
+          seen.add(recipeName);
+          discovered.push(recipeName);
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        logger.warn(`Skipping invalid ToneGraph recipe file ${entry.name}: ${message}`);
+      }
     }
   }
 

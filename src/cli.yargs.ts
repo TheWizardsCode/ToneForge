@@ -395,6 +395,7 @@ export async function yargsMain(argv: string[] = process.argv): Promise<number> 
         ...(argv.inline !== undefined ? { inline: String(argv.inline) } : {}),
         ...(argv.stdin === true ? { stdin: true } : {}),
         ...(argv.name !== undefined ? { name: String(argv.name) } : {}),
+        ...(argv.destination !== undefined ? { destination: String(argv.destination) } : {}),
       }), []);
     });
   }, async (_argv) => {
