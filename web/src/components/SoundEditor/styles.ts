@@ -11,9 +11,9 @@ export const EDITOR_STYLES = `
   :host {
     display: block;
     box-sizing: border-box;
-    color: var(--tf-editor-foreground, #f5f5f5);
-    background: var(--tf-editor-background, #16181d);
-    font-family: var(--tf-editor-font, system-ui, sans-serif);
+    color: var(--tfe-foreground, var(--tf-editor-foreground, #f5f5f5));
+    background: var(--tfe-background, var(--tf-editor-background, #16181d));
+    font-family: var(--tfe-font, var(--tf-editor-font, system-ui, sans-serif));
   }
 
   *, *::before, *::after {
@@ -53,6 +53,19 @@ export const EDITOR_STYLES = `
     gap: 0.75rem;
   }
 
+  /* Container-adaptive layout (classes toggled by ResizeObserver). */
+  :host(.toneforge-editor--compact) .toneforge-editor__controls {
+    grid-template-columns: 1fr;
+  }
+
+  :host(.toneforge-editor--wide) .toneforge-editor__controls {
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  }
+
+  :host(.toneforge-editor--compact) .toneforge-editor__body {
+    padding: 0.5rem;
+  }
+
   .tf-audition {
     display: flex;
     flex-wrap: wrap;
@@ -69,15 +82,15 @@ export const EDITOR_STYLES = `
     font: inherit;
     padding: 0.3rem 0.7rem;
     border-radius: 0.35rem;
-    border: 1px solid var(--tf-editor-accent, #6ea8fe);
+    border: 1px solid var(--tfe-accent, var(--tf-editor-accent, #6ea8fe));
     background: transparent;
     color: inherit;
     cursor: pointer;
   }
 
   .tf-audition__loop[aria-pressed="true"] {
-    background: var(--tf-editor-accent, #6ea8fe);
-    color: var(--tf-editor-background, #16181d);
+    background: var(--tfe-accent, var(--tf-editor-accent, #6ea8fe));
+    color: var(--tfe-background, var(--tf-editor-background, #16181d));
   }
 
   .tf-audition__status {
@@ -104,14 +117,14 @@ export const EDITOR_STYLES = `
     width: 100%;
     height: 0.35rem;
     border-radius: 0.2rem;
-    background: color-mix(in srgb, var(--tf-editor-foreground, #f5f5f5) 20%, transparent);
+    background: color-mix(in srgb, var(--tfe-foreground, var(--tf-editor-foreground, #f5f5f5)) 20%, transparent);
   }
 
   .tf-slider__fill {
     position: absolute;
     inset: 0 auto 0 0;
     border-radius: inherit;
-    background: var(--tf-editor-accent, #6ea8fe);
+    background: var(--tfe-accent, var(--tf-editor-accent, #6ea8fe));
   }
 
   .tf-slider__thumb {
@@ -120,7 +133,7 @@ export const EDITOR_STYLES = `
     width: 1rem;
     height: 1rem;
     border-radius: 50%;
-    background: var(--tf-editor-accent, #6ea8fe);
+    background: var(--tfe-accent, var(--tf-editor-accent, #6ea8fe));
     transform: translate(-50%, -50%);
   }
 
@@ -134,7 +147,7 @@ export const EDITOR_STYLES = `
     width: 100%;
     height: 100%;
     border-radius: 50%;
-    border: 2px solid var(--tf-editor-accent, #6ea8fe);
+    border: 2px solid var(--tfe-accent, var(--tf-editor-accent, #6ea8fe));
   }
 
   .tf-rotary__indicator {
@@ -143,7 +156,7 @@ export const EDITOR_STYLES = `
     top: 25%;
     width: 2px;
     height: 50%;
-    background: var(--tf-editor-foreground, #f5f5f5);
+    background: var(--tfe-foreground, var(--tf-editor-foreground, #f5f5f5));
     transform-origin: bottom center;
     transform: translate(-50%, 0);
   }
@@ -152,7 +165,7 @@ export const EDITOR_STYLES = `
     position: relative;
     width: 8rem;
     height: 8rem;
-    border: 1px solid var(--tf-editor-accent, #6ea8fe);
+    border: 1px solid var(--tfe-accent, var(--tf-editor-accent, #6ea8fe));
     border-radius: 0.35rem;
   }
 
@@ -161,7 +174,7 @@ export const EDITOR_STYLES = `
     width: 0.75rem;
     height: 0.75rem;
     border-radius: 50%;
-    background: var(--tf-editor-accent, #6ea8fe);
+    background: var(--tfe-accent, var(--tf-editor-accent, #6ea8fe));
     transform: translate(-50%, -50%);
   }
 
@@ -172,18 +185,18 @@ export const EDITOR_STYLES = `
 
   .tf-toggle-select__option {
     padding: 0.25rem 0.5rem;
-    border: 1px solid var(--tf-editor-accent, #6ea8fe);
+    border: 1px solid var(--tfe-accent, var(--tf-editor-accent, #6ea8fe));
     border-radius: 0.25rem;
     cursor: pointer;
   }
 
   .tf-toggle-select__option.is-selected {
-    background: var(--tf-editor-accent, #6ea8fe);
-    color: var(--tf-editor-background, #16181d);
+    background: var(--tfe-accent, var(--tf-editor-accent, #6ea8fe));
+    color: var(--tfe-background, var(--tf-editor-background, #16181d));
   }
 
   .tf-widget:focus-visible {
-    outline: 2px solid var(--tf-editor-accent, #6ea8fe);
+    outline: 2px solid var(--tfe-accent, var(--tf-editor-accent, #6ea8fe));
     outline-offset: 2px;
   }
 `;

@@ -97,7 +97,7 @@ describe("mount", () => {
 
     expect(container.childElementCount).toBe(1);
     const root = container.firstElementChild as HTMLElement;
-    expect(root.className).toBe("toneforge-editor");
+    expect(root.classList.contains("toneforge-editor")).toBe(true);
     expect(root.shadowRoot).not.toBeNull();
     expect(root.shadowRoot?.querySelector('[data-toneforge-editor="styles"]')).not.toBeNull();
 

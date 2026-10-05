@@ -103,21 +103,41 @@ itself with an accessible message and the rest of the editor keeps working.
 
 ## Theming
 
-Theme the editor with CSS custom properties on (or above) the host container:
+Theme the editor with CSS custom properties set on (or above) the mount
+container. The `--tf-editor-*` names are still accepted as aliases.
 
 | Property | Default | Purpose |
 | --- | --- | --- |
-| `--tf-editor-background` | `#16181d` | Editor background |
-| `--tf-editor-foreground` | `#f5f5f5` | Text colour |
-| `--tf-editor-accent` | `#6ea8fe` | Buttons / Loop active / focus accents |
-| `--tf-editor-font` | `system-ui, sans-serif` | Font family |
+| `--tfe-background` | `#16181d` | Editor background |
+| `--tfe-foreground` | `#f5f5f5` | Text colour |
+| `--tfe-accent` | `#6ea8fe` | Buttons / Loop active / focus accents |
+| `--tfe-font` | `system-ui, sans-serif` | Font family |
 
 ```css
-#enemy-gym .tg-sound-editor {
-  --tf-editor-background: #101418;
-  --tf-editor-accent: #ff9f1c;
+#enemy-gym .enemy-gym-panel {
+  --tfe-background: #101418;
+  --tfe-foreground: #f5f5f5;
+  --tfe-accent: #ff9f1c;
 }
 ```
+
+A host can also pass the same values programmatically (they are written as CSS
+custom properties on the editor root):
+
+```ts
+const editor = createSoundEditor({
+  preset,
+  theme: { accent: "#ff9f1c", compactBreakpoint: 420 },
+});
+```
+
+## Responsive layout
+
+The editor adapts to the **container** width (not the window) via a
+`ResizeObserver`, toggling `toneforge-editor--compact` below the breakpoint
+(default 480px) and `toneforge-editor--wide` otherwise. The compact layout uses
+a single column; the wide layout uses an auto-fitting grid. The observer is
+disconnected on `dispose()`.
 
 ## Accessibility
 

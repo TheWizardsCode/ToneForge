@@ -6,6 +6,7 @@
  */
 
 import type { SoundPreset } from "../../models/preset.js";
+import type { SoundEditorTheme } from "./theme.js";
 
 // The canonical preset schema lives in the model package; re-export it here so
 // the component's public surface stays self-contained.
@@ -32,6 +33,8 @@ export interface SoundEditorOptions {
   preset?: SoundPreset;
   /** Optional audio engine to dispose with the editor. */
   audioEngine?: AudioEngine;
+  /** Optional theme (CSS custom properties) for the editor. */
+  theme?: SoundEditorTheme;
   /** Accessible label for the editor region. Defaults to "Sound editor". */
   label?: string;
 }

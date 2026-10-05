@@ -19,6 +19,7 @@ import { applyStyles } from "./styles.js";
 import { createControlPanel, type ControlPanel } from "./controls.js";
 import { createAudition, type Audition } from "./audition.js";
 import { exportWav as exportPresetWav } from "./export.js";
+import { applyResponsiveLayout, applyTheme } from "./theme.js";
 import {
   SOUND_PRESET_VERSION,
   type SoundEditorController,
@@ -106,6 +107,8 @@ export function createSoundEditor(
     root.className = "toneforge-editor";
     root.setAttribute("role", "group");
     root.setAttribute("aria-label", options.label ?? "Sound editor");
+    applyTheme(root, options.theme);
+    applyResponsiveLayout(root, root.getBoundingClientRect().width, options.theme?.compactBreakpoint);
 
     const shadow = root.attachShadow({ mode: "open" });
     applyStyles(shadow);
@@ -154,17 +157,14 @@ export function createSoundEditor(
     container.appendChild(root);
     mounted = true;
 
-    // Responsive layout foundation: expose the host width to scoped styles.
+    // Container-adaptive layout (uses the container width, not the window).
     if (typeof globalThis.ResizeObserver !== "undefined") {
       const observer = new globalThis.ResizeObserver((entries) => {
         const entry = entries[0];
         if (!entry || !root) {
           return;
         }
-        root.style.setProperty(
-          "--tf-host-width",
-          `${Math.round(entry.contentRect.width)}px`,
-        );
+        applyResponsiveLayout(root, entry.contentRect.width, options.theme?.compactBreakpoint);
       });
       observer.observe(root);
       disposables.push(() => observer.disconnect());

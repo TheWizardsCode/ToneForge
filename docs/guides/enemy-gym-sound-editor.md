@@ -92,10 +92,10 @@ Theme via CSS custom properties on (or above) the host container:
 
 ```css
 .enemy-gym-panel {
-  --tf-editor-background: #101418;
-  --tf-editor-foreground: #f5f5f5;
-  --tf-editor-accent: #ff9f1c;
-  --tf-editor-font: system-ui, sans-serif;
+  --tfe-background: #101418;
+  --tfe-foreground: #f5f5f5;
+  --tfe-accent: #ff9f1c;
+  --tfe-font: system-ui, sans-serif;
 }
 ```
 

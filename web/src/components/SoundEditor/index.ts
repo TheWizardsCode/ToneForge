@@ -35,6 +35,16 @@ export {
   type EnemyGymEditorOptions,
 } from "./adapters/enemy-gym.js";
 export {
+  COMPACT_CLASS,
+  DEFAULT_COMPACT_BREAKPOINT,
+  DEFAULT_THEME,
+  THEME_PROPERTIES,
+  WIDE_CLASS,
+  applyResponsiveLayout,
+  applyTheme,
+  type SoundEditorTheme,
+} from "./theme.js";
+export {
   DEFAULT_XY_PAIRS,
   buildParameterMapping,
   chooseWidgetKind,
