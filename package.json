@@ -41,7 +41,6 @@
     "marked-terminal": "^7.3.0",
     "remark-gfm": "^4.0.1",
     "remark-parse": "^11.0.0",
-    "tone": "^15.1.22",
     "unified": "^11.0.5",
     "yargs": "^17.7.2"
   },
