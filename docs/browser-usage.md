@@ -1,0 +1,216 @@
+# Browser Runtime Usage
+
+ToneForge is **Runtime-aware**: the Runtime engine, the recipe registry, and
+the offline renderer run unchanged in a browser using the **native Web Audio
+API**. Web Audio is provided by the browser itself — no polyfill is required,
+and the Node-only `node-web-audio-api` package is never loaded in the browser.
+
+`node-web-audio-api` is an **optional dependency** (see `package.json`). It is
+only needed when you render audio offline in Node.js (the CLI and the Node test
+suite). Browser builds omit it automatically: the cross-platform abstraction in
+`src/audio/web-audio.ts` loads it lazily, only when `isNodeRuntime()` is true.
+
+## Prerequisites
+
+- A modern browser with the Web Audio API (Chromium, Firefox, Safari, Edge).
+- For the Node.js path only: Node.js >= 22.3 (the abstraction resolves
+  `node:module` via `process.getBuiltinModule`).
+- No Web Audio polyfill. Do not bundle `node-web-audio-api` for the browser.
+
+## Installation
+
+```bash
+npm install toneforge
+```
+
+In a bundler (Vite, webpack, Next.js, Rollup) the abstraction is
+tree-shakeable and browser-safe — the Node-only dependency is resolved lazily
+inside a Node-guarded code path, so it never appears in the browser bundle.
+
+## Cross-runtime audio abstraction
+
+`src/audio/web-audio.ts` exposes the only audio entry points you need. Import
+from it instead of importing `node-web-audio-api` directly:
+
+| Export | Kind | Purpose |
+|---|---|---|
+| `OfflineAudioContext` | constructor | Offline rendering — native Web Audio in the browser, `node-web-audio-api` in Node.js |
+| `AudioContext` | constructor | Real-time playback (browser-native; `node-web-audio-api` in Node.js) |
+| `getAudioContext()` | function | Convenience factory returning a real-time `AudioContext` |
+| `getOfflineAudioContextCtor()` | function | Resolve the active `OfflineAudioContext` constructor |
+| `isNodeRuntime()` | function | `true` under Node.js, `false` in the browser |
+
+```ts
+import {
+  OfflineAudioContext,
+  getAudioContext,
+  isNodeRuntime,
+} from "@toneforge/audio/web-audio.js";
+
+if (!isNodeRuntime()) {
+  const ctx = getAudioContext();
+  await ctx.resume(); // browsers require a user gesture before playback
+}
+```
+
+> In the in-repo web demo the `@toneforge/*` alias maps to `src/*` (see
+> `web/vite.config.ts`). Published packages resolve the same modules from the
+> compiled `dist/` output.
+
+## Runtime API
+
+The Runtime is the deterministic playback engine that ties together State,
+Context, and Sequencer. See
+[docs/prd/RUNTIME_PRD.md](prd/RUNTIME_PRD.md) for the full specification.
+
+### `createRuntime(options?): Runtime`
+
+| Option | Type | Default | Purpose |
+|---|---|---|---|
+| `seed` | `number` | `42` | Base seed for deterministic event generation |
+| `stateMachine` | `StateMachine` | — | Attach a state machine for state-driven sequences |
+| `context` | `Context` | — | Attach a context for environment-driven recipe resolution |
+| `sequences` | `Record<string, SequenceDefinition>` | `{}` | State/sequencer-name to sequence definition |
+| `clock` | `() => number` | `Date.now` | Clock used for event timestamps |
+| `recipeResolver` | `(event, context) => string` | identity | Map an event + context to a recipe name |
+| `maxLogEntries` | `number` | `1000` | In-memory event-log retention |
+
+### `Runtime` interface
+
+| Method | Returns | Description |
+|---|---|---|
+| `start()` | `string` | Start a session; returns the session id |
+| `stop()` | `void` | Stop the current session |
+| `isRunning()` | `boolean` | Whether a session is active |
+| `setState(name)` | `TransitionRecord` | Transition the attached state machine |
+| `setContext(updates)` | `ContextChangeRecord[]` | Update context dimensions |
+| `inspect()` | `RuntimeInspection` | Snapshot of state, context, active sequences, event count |
+| `log(limit?)` | `readonly RuntimeLogEntry[]` | Inspect the event log |
+| `onEvent(listener)` | `() => void` | Subscribe to events; returns an unsubscribe |
+| `sessionId()` | `string \| null` | Current session id |
+| `simulateActive()` | `SimulationResult \| null` | Simulate the active sequence |
+| `reset()` | `void` | Clear state, context, and logs |
+
+### Example: a state-driven runtime in the browser
+
+```ts
+import { createRuntime } from "@toneforge/runtime/index.js";
+import { createStateMachine } from "@toneforge/state/state.js";
+import { createContext } from "@toneforge/context/context.js";
+import { parseSequencePreset } from "@toneforge/sequence/schema.js";
+
+const stateMachine = createStateMachine({
+  name: "movement",
+  initial: "idle",
+  states: [
+    { name: "idle" },
+    { name: "walk", sequencer: "footsteps_walk" },
+  ],
+  transitions: [
+    { from: "idle", to: "walk" },
+    { from: "walk", to: "idle" },
+  ],
+});
+
+const context = createContext({
+  dimensions: { surface: ["stone", "gravel"] },
+  initial: { surface: "stone" },
+});
+
+const footstepsWalk = parseSequencePreset(
+  {
+    version: "1.0",
+    name: "footsteps_walk",
+    events: [
+      { time: 0, event: "footstep", seedOffset: 0, gain: 0.7 },
+      { time: 0.6, event: "footstep", seedOffset: 1, gain: 0.65 },
+    ],
+  },
+  "footsteps_walk",
+);
+
+const runtime = createRuntime({
+  seed: 42,
+  stateMachine,
+  context,
+  sequences: { footsteps_walk: footstepsWalk },
+  // Context-driven recipe switching: "footstep" + surface:"gravel"
+  // resolves to "footstep-gravel".
+  recipeResolver: (event, ctx) =>
+    ctx.surface ? `${event}-${ctx.surface}` : event,
+});
+
+runtime.onEvent((entry) => {
+  // entry.event.type, entry.event.detail, entry.event.timestamp
+});
+
+runtime.start();
+runtime.setState("walk");
+runtime.setContext({ surface: "gravel" });
+runtime.stop();
+```
+
+## Recipe rendering in the browser
+
+`renderRecipe(recipeName, seed, duration?)` from `src/core/renderer.ts` uses the
+cross-platform `OfflineAudioContext`, so the same call works in Node.js and the
+browser:
+
+```ts
+import { renderRecipe } from "@toneforge/core/renderer.js";
+
+const result = await renderRecipe("footstep-stone", 42);
+// result.samples: Float32Array
+// result.sampleRate: 44100
+// result.duration: seconds
+// result.numberOfChannels: 1
+```
+
+To play the rendered buffer in the browser:
+
+```ts
+import { getAudioContext } from "@toneforge/audio/web-audio.js";
+
+const result = await renderRecipe("footstep-stone", 42);
+const ctx = getAudioContext();
+await ctx.resume();
+
+const buffer = ctx.createBuffer(1, result.samples.length, result.sampleRate);
+buffer.copyToChannel(result.samples, 0);
+const source = ctx.createBufferSource();
+source.buffer = buffer;
+source.connect(ctx.destination);
+source.start(0);
+```
+
+> Recipes are deterministic: the same recipe + seed produces identical samples
+> on every platform. File-backed ToneGraph recipes are discovered on disk and
+> are therefore only registered in Node.js; synchronously-registered built-in
+> recipes and recipe modules you import yourself are available in the browser.
+
+## Web demo
+
+The `web/` directory contains a browser demo that renders and plays recipes
+using the browser-native Web Audio API:
+
+```bash
+npm run dev:web
+```
+
+The demo runs the Terminal UI and wizard; when a `generate --recipe <name>
+--seed <n>` command completes, the wizard renders the recipe offline in the
+browser and plays the result. Browser playback is implemented in
+`web/src/audio.ts`.
+
+## Tests
+
+The browser behaviour is covered by Playwright end-to-end tests in
+`web/e2e/`:
+
+```bash
+npm run test:e2e:ci --prefix web   # builds the web demo and runs Playwright
+```
+
+`web/e2e/runtime-recipes.spec.ts` runs against Chromium and Firefox and verifies
+Runtime start/stop, state transitions, context changes, event-log determinism,
+and non-silent deterministic recipe rendering.

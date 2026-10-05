@@ -6,7 +6,7 @@ ToneForge lets developers generate placeholder sounds from recipes and seeds dur
 
 ## What It Does
 
-- **Generate** -- Procedural and sample-hybrid sound synthesis via Tone.js
+- **Generate** -- Procedural and sample-hybrid sound synthesis via the Web Audio API (browser-native, with optional offline rendering in Node.js)
 - **Compose** -- Layer multiple sounds into stacks with per-layer gain, pan, and sample-accurate timing
 - **Sequence** -- Schedule sounds into temporal patterns with state-driven transitions and probabilistic variation
 - **Analyze** -- Extract audio features (envelope, spectral, loudness, transient) in batch
@@ -59,6 +59,14 @@ Starts the backend server and Vite dev server:
 npm run dev:web
 ```
 
+### Browser support
+
+ToneForge is Runtime-aware: the Runtime, renderer, and recipe registry run in
+the browser using the native Web Audio API. `node-web-audio-api` is an optional
+dependency used only for offline rendering in Node.js and is never bundled into
+browser builds. See [Using ToneForge in the Browser](docs/browser-usage.md) for
+installation, the Runtime API, and recipe-rendering examples.
+
 ### Troubleshooting
 
 In CI, the postinstall step skips linking automatically. If linking is unavailable locally (permissions/restricted environments), you'll see a non-failing message and can use the loader script directly:
@@ -72,8 +80,8 @@ The `docs/prd/` directory contains detailed product requirements documents for p
 ## Planned Tech Stack
 
 - JavaScript / TypeScript
-- [Tone.js](https://tonejs.github.io/) (Web Audio API)
-- Offline rendering via `Tone.Offline`
+- Native [Web Audio API](https://developer.mozilla.org/docs/Web/API/Web_Audio_API) in the browser
+- Offline rendering via `OfflineAudioContext` (browser-native, or `node-web-audio-api` in Node.js)
 - WAV export
 - JSON configuration for presets, stacks, sequences, and library entries
 - npm distribution
@@ -112,6 +120,7 @@ toneforge library add --input sound.wav --tags "weapon,laser"
 - [System Architecture PRD](docs/prd/PRD.md)
 - [Core Module PRD](docs/prd/CORE_PRD.md)
 - [ToneGraph v0.1 Specification](docs/tonegraph.md)
+- [Browser Runtime Usage](docs/browser-usage.md)
 - [All Module PRDs](docs/prd/)
 - [Research Questions](docs/prd/BRAINSTORM_QUESTIONS.md)
 
