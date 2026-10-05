@@ -383,6 +383,20 @@ export async function yargsMain(argv: string[] = process.argv): Promise<number> 
         ...(argv.id !== undefined ? { id: String(argv.id) } : {}),
       }), []);
     });
+    y2.command("add", "Register a new ToneGraph recipe from an external file", (y3) => {
+      y3.option("file", { type: "string", describe: "Path to a ToneGraph YAML or JSON file" })
+        .option("inline", { type: "string", describe: "Inline ToneGraph YAML/JSON definition" })
+        .option("stdin", { type: "boolean", describe: "Read the ToneGraph definition from stdin" })
+        .option("name", { type: "string", describe: "Override recipe name (defaults to filename without extension)" })
+        .option("json", { type: "boolean", describe: "Output JSON" });
+    }, async (argv) => {
+      exitCode = await dispatchCommand("library", "add", buildFlags(argv, {
+        ...(argv.file !== undefined ? { file: String(argv.file) } : {}),
+        ...(argv.inline !== undefined ? { inline: String(argv.inline) } : {}),
+        ...(argv.stdin === true ? { stdin: true } : {}),
+        ...(argv.name !== undefined ? { name: String(argv.name) } : {}),
+      }), []);
+    });
   }, async (_argv) => {
     // Re-parse raw argv so dispatchCommand receives the unknown subcommand name
     // for proper error output. yargs only calls this handler when no subcommand

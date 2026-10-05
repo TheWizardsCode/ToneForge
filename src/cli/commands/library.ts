@@ -28,5 +28,12 @@ export function builder(yargs: any) {
     .command("regenerate", "Regenerate a library entry", (y: any) => {
       y.option("id", { type: "string", describe: "Entry ID to regenerate" })
         .option("json", { type: "boolean", describe: "Output JSON" });
+    })
+    .command("add", "Register a new ToneGraph recipe from an external file", (y: any) => {
+      y.option("file", { type: "string", describe: "Path to a ToneGraph YAML or JSON file" })
+        .option("inline", { type: "string", describe: "Inline ToneGraph YAML/JSON definition" })
+        .option("stdin", { type: "boolean", describe: "Read the ToneGraph definition from stdin" })
+        .option("name", { type: "string", describe: "Override recipe name (defaults to filename without extension)" })
+        .option("json", { type: "boolean", describe: "Output JSON" });
     });
 }

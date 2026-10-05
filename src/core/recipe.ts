@@ -308,7 +308,7 @@ function buildSignalChain(graph: ToneGraphDocument): string {
   return parts.join(" | ");
 }
 
-function createFileBackedRegistration(
+export function createFileBackedRegistration(
   recipeName: string,
   graph: ToneGraphDocument,
   rawDoc: unknown,
