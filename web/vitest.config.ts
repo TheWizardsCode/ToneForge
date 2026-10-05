@@ -1,9 +1,11 @@
 import { defineConfig } from "vitest/config";
 import { resolve } from "node:path";
+import { yamlRecipePlugin } from "./plugins/yaml-recipe-plugin.js";
 
 const projectRoot = resolve(__dirname, "..");
 
 export default defineConfig({
+  plugins: [yamlRecipePlugin(projectRoot)],
   resolve: {
     alias: {
       "@toneforge": resolve(projectRoot, "src"),

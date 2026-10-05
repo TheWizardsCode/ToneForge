@@ -6,6 +6,7 @@
  */
 
 import { initializeRecipeRegistry, registry } from "@toneforge/recipes/index.js";
+import { initializeBrowserRecipeRegistry } from "./browser-recipe-registry.js";
 import {
   createSoundEditor,
   createWavDownload,
@@ -30,9 +31,11 @@ function populateRecipes(): void {
 }
 
 async function main(): Promise<void> {
-  // File-backed recipes are a Node-only discovery path; in the browser this is
-  // a no-op and only the synchronously-registered built-ins are available.
+  // File-backed recipes are a Node-only discovery path; in the browser it is
+  // a no-op, so register the inlined recipe bundle instead. Both calls are
+  // idempotent.
   await initializeRecipeRegistry();
+  await initializeBrowserRecipeRegistry();
   populateRecipes();
 
   let preset: SoundPreset = {

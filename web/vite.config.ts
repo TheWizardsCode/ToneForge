@@ -4,6 +4,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Socket } from "node:net";
+import { yamlRecipePlugin } from "./plugins/yaml-recipe-plugin.js";
 
 const projectRoot = resolve(__dirname, "..");
 const PORT_FILE = resolve(__dirname, ".port");
@@ -177,7 +178,7 @@ export default defineConfig({
       buffer: resolve(projectRoot, "node_modules/buffer/index.js"),
     },
   },
-  plugins: [dynamicBackendProxy()],
+  plugins: [yamlRecipePlugin(projectRoot), dynamicBackendProxy()],
   server: {
     port: parseInt(process.env.VITE_PORT || "5173", 10),
     // Proxy is now handled dynamically by the toneforge-dynamic-backend-proxy

@@ -1,6 +1,23 @@
 import { createRng } from "@toneforge/core/rng.js";
 import { registry } from "@toneforge/recipes/index.js";
 import { OfflineAudioContext } from "@toneforge/audio/web-audio.js";
+import { registerBrowserRecipes } from "./browser-recipe-registry.js";
+
+/**
+ * Ensure the file-backed recipe registry is populated before a lookup.
+ *
+ * In the browser `discoverFileBackedRecipes()` is a no-op, so the inlined
+ * recipe bundle (see `browser-recipe-registry`) must be registered first.
+ * Registration is idempotent and cheap after the first call.
+ */
+let browserRecipesRegistered = false;
+function ensureBrowserRecipes(): void {
+  if (browserRecipesRegistered) {
+    return;
+  }
+  registerBrowserRecipes();
+  browserRecipesRegistered = true;
+}
 
 let realtimeCtx: AudioContext | null = null;
 
@@ -75,6 +92,10 @@ async function ensureAudioContext(): Promise<AudioContext> {
  * Render and play a recipe with the given seed in the browser.
  */
 export async function renderAndPlay(recipeName: string, seed: number): Promise<void> {
+  // File-backed recipes are inlined into the browser bundle rather than
+  // discovered from disk; make sure they are registered before the lookup.
+  ensureBrowserRecipes();
+
   const registration = registry.getRegistration(recipeName);
   if (!registration) {
     console.warn(`Unknown recipe "${recipeName}" - skipping audio playback.`);
