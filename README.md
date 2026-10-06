@@ -129,6 +129,7 @@ toneforge library add --input sound.wav --tags "weapon,laser"
 - [Core Module PRD](docs/prd/CORE_PRD.md)
 - [ToneGraph v0.1 Specification](docs/tonegraph.md)
 - [Browser Runtime Usage](docs/browser-usage.md)
+- [Mixer Rules](docs/mixer-rules.md)
 - [All Module PRDs](docs/prd/)
 - [Research Questions](docs/prd/BRAINSTORM_QUESTIONS.md)
 
