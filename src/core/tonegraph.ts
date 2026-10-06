@@ -313,10 +313,65 @@ function applyAutomationEvents(
   }
 }
 
+/**
+ * Parse a routing endpoint reference that may be namespace-qualified.
+ * Formats: "nodeId", "nodeId.param", "ns/<ns>/<nodeId>", "ns/<ns>/<nodeId>.param"
+ */
+function parseEndpointReference(ref: string): { nodeId: string; param?: string; ns?: string } {
+  const dotIndex = ref.indexOf(".");
+  let rawNodeId: string;
+  let param: string | undefined;
+
+  if (dotIndex < 0) {
+    rawNodeId = ref;
+  } else {
+    rawNodeId = ref.slice(0, dotIndex);
+    param = ref.slice(dotIndex + 1);
+  }
+
+  // Check for namespace prefix: ns/<namespace>/<nodeId>
+  if (rawNodeId.startsWith("ns/")) {
+    const nsMatch = rawNodeId.match(/^ns\/([^/]+)\/([^/]+)$/);
+    if (!nsMatch) {
+      throw new Error(`Invalid namespace reference "${ref}".`);
+    }
+    return { nodeId: nsMatch[2], param, ns: nsMatch[1] };
+  }
+
+  return { nodeId: rawNodeId, param };
+}
+
 function resolveEndpoint(
   ref: string,
   nodes: Map<string, RuntimeNode>,
+  namespaces?: Record<string, { nodes: string[] }>,
 ): { output?: AudioNode; param?: AudioParam } {
+  const parsed = parseEndpointReference(ref);
+
+  // Namespace-qualified reference: validate and resolve the actual node id.
+  if (parsed.ns !== undefined) {
+    const nsDef = namespaces?.[parsed.ns];
+    if (!nsDef) {
+      throw new Error(`Unknown namespace "${parsed.ns}" in endpoint reference "${ref}".`);
+    }
+    if (!nsDef.nodes.includes(parsed.nodeId)) {
+      throw new Error(
+        `Node "${parsed.nodeId}" is not declared in namespace "${parsed.ns}" (reference "${ref}").`,
+      );
+    }
+
+    const node = nodes.get(parsed.nodeId);
+    if (!node) {
+      throw new Error(
+        `Namespace "${parsed.ns}" references missing node "${parsed.nodeId}" (reference "${ref}").`,
+      );
+    }
+    if (parsed.param) {
+      return { param: node.params[parsed.param] };
+    }
+    return { output: node.output };
+  }
+
   const dotIndex = ref.indexOf(".");
   if (dotIndex < 0) {
     const node = nodes.get(ref);
@@ -596,8 +651,8 @@ export async function loadToneGraph(
   }
 
   for (const route of expandRouting(graph.routing)) {
-    const from = resolveEndpoint(route.from, runtimeNodes);
-    const to = resolveEndpoint(route.to, runtimeNodes);
+    const from = resolveEndpoint(route.from, runtimeNodes, graph.namespaces);
+    const to = resolveEndpoint(route.to, runtimeNodes, graph.namespaces);
 
     if (from.param) {
       throw new Error(`Invalid route ${route.from} -> ${route.to}: routing from AudioParam is not supported.`);

@@ -513,4 +513,157 @@ describe("loadToneGraph", () => {
     const ctx = new OfflineAudioContext(1, 4410, 44100);
     await expect(loadToneGraph(graph, ctx, createRng(1))).rejects.toThrow("Unsupported node kind");
   });
+
+  // --- Namespace resolution tests ---
+
+  it("resolves namespace-qualified chain routing", async () => {
+    const graph: ToneGraphDocument = {
+      version: "0.1",
+      namespaces: {
+        sfx: { nodes: ["osc", "filter", "env"] },
+      },
+      meta: { duration: 0.15 },
+      nodes: {
+        osc: { kind: "oscillator", params: { type: "sine", frequency: 440 } },
+        filter: { kind: "biquadFilter", params: { type: "lowpass", frequency: 2000 } },
+        env: { kind: "envelope", params: { attack: 0.005, decay: 0.1, sustain: 0 } },
+        out: { kind: "destination" },
+      },
+      routing: [
+        { chain: ["ns/sfx/osc", "ns/sfx/filter", "ns/sfx/env", "out"] },
+      ],
+    };
+
+    const samples = await renderGraph(graph, 1);
+    expect(samples.some((sample) => sample !== 0)).toBe(true);
+  });
+
+  it("resolves namespace-qualified flat routing links", async () => {
+    const graph: ToneGraphDocument = {
+      version: "0.1",
+      namespaces: {
+        mod: { nodes: ["lfo"] },
+        sfx: { nodes: ["osc"] },
+      },
+      meta: { duration: 0.1 },
+      nodes: {
+        lfo: { kind: "lfo", params: { rate: 5 } },
+        osc: { kind: "oscillator" },
+        out: { kind: "destination" },
+      },
+      routing: [
+        { from: "ns/mod/lfo", to: "ns/sfx/osc.frequency" },
+        { from: "ns/sfx/osc", to: "out" },
+      ],
+    };
+
+    const samples = await renderGraph(graph, 1);
+    expect(samples.some((sample) => sample !== 0)).toBe(true);
+  });
+
+  it("resolves namespace references in bus routing", async () => {
+    const graph: ToneGraphDocument = {
+      version: "0.1",
+      namespaces: {
+        sfx: { nodes: ["osc", "noise"] },
+      },
+      meta: { duration: 0.1 },
+      buses: { mix: { gain: 0.5 } },
+      nodes: {
+        osc: { kind: "oscillator", params: { type: "sine", frequency: 220 } },
+        noise: { kind: "noise", params: { color: "white", level: 0.3 } },
+        out: { kind: "destination" },
+      },
+      routing: [
+        { bus: "mix", from: ["ns/sfx/osc", "ns/sfx/noise"], to: "out" },
+      ],
+    };
+
+    const samples = await renderGraph(graph, 1);
+    expect(samples.some((sample) => sample !== 0)).toBe(true);
+  });
+
+  it("mixes namespace-qualified and plain references in chain", async () => {
+    const graph: ToneGraphDocument = {
+      version: "0.1",
+      namespaces: {
+        sfx: { nodes: ["osc", "filter"] },
+      },
+      meta: { duration: 0.15 },
+      nodes: {
+        osc: { kind: "oscillator", params: { type: "sine", frequency: 440 } },
+        filter: { kind: "biquadFilter", params: { type: "highpass", frequency: 800 } },
+        amp: { kind: "gain", params: { gain: 0.3 } },
+        out: { kind: "destination" },
+      },
+      routing: [
+        { chain: ["ns/sfx/osc", "ns/sfx/filter", "amp", "out"] },
+      ],
+    };
+
+    const samples = await renderGraph(graph, 1);
+    expect(samples.some((sample) => sample !== 0)).toBe(true);
+  });
+
+  it("preserves determinism with namespace references", async () => {
+    const graph: ToneGraphDocument = {
+      version: "0.1",
+      namespaces: {
+        sfx: { nodes: ["osc", "filter", "env"] },
+      },
+      meta: { duration: 0.15 },
+      nodes: {
+        osc: { kind: "oscillator", params: { type: "sine", frequency: 440 } },
+        filter: { kind: "biquadFilter", params: { type: "lowpass", frequency: 2000 } },
+        env: { kind: "envelope", params: { attack: 0.005, decay: 0.1, sustain: 0 } },
+        out: { kind: "destination" },
+      },
+      routing: [
+        { chain: ["ns/sfx/osc", "ns/sfx/filter", "ns/sfx/env", "out"] },
+      ],
+    };
+
+    const samplesA = await renderGraph(graph, 42);
+    const samplesB = await renderGraph(graph, 42);
+    expect(samplesA).toEqual(samplesB);
+  });
+
+  it("throws for namespace reference to unknown namespace", async () => {
+    const graph: ToneGraphDocument = {
+      version: "0.1",
+      namespaces: {
+        sfx: { nodes: ["osc"] },
+      },
+      meta: { duration: 0.1 },
+      nodes: {
+        osc: { kind: "oscillator" },
+        out: { kind: "destination" },
+      },
+      routing: [{ from: "ns/ghost/osc", to: "out" }],
+    };
+
+    const ctx = new OfflineAudioContext(1, 4410, 44100);
+    await expect(loadToneGraph(graph, ctx, createRng(1))).rejects.toThrow('Unknown namespace "ghost"');
+  });
+
+  it("throws for namespace reference to a node not declared in the namespace", async () => {
+    const graph: ToneGraphDocument = {
+      version: "0.1",
+      namespaces: {
+        sfx: { nodes: ["osc"] },
+      },
+      meta: { duration: 0.1 },
+      nodes: {
+        osc: { kind: "oscillator" },
+        filter: { kind: "biquadFilter" },
+        out: { kind: "destination" },
+      },
+      routing: [{ from: "ns/sfx/filter", to: "out" }],
+    };
+
+    const ctx = new OfflineAudioContext(1, 4410, 44100);
+    await expect(loadToneGraph(graph, ctx, createRng(1))).rejects.toThrow(
+      'Node "filter" is not declared in namespace "sfx"',
+    );
+  });
 });

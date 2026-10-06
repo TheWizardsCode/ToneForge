@@ -60,7 +60,7 @@ ToneGraph v0.1 documents must be an object with the following fields.
 | `routing` | yes | array | Connection declarations (`link`, `chain`, or `bus`). |
 | `buses` | no | object map | Named mixer buses materialised as GainNodes and referenced as `bus:<id>`. |
 | `sequences` | no | array | Timed AudioParam event schedules (see [Sequences](#sequences)). |
-| `namespaces` | no | any | Reserved for v0.2. Loaders must reject when present in strict mode. |
+| `namespaces` | no | object map | Declares node groups for namespace-qualified routing references (`ns/<ns>/<nodeId>`). See [Namespaces](#namespaces). |
 
 ### Top-Level Defaults
 
@@ -402,6 +402,64 @@ Validation rules:
 }
 ```
 
+## Namespaces
+
+`namespaces` is an optional object map that groups existing nodes under named
+prefixes. Routing entries may then reference nodes in a namespace using the
+`ns/<namespace>/<nodeId>` syntax. Namespaces enable recipe authors to refer
+to logically related node groups without hard-coding node ids.
+
+### Namespace Definition
+
+```json
+"namespaces": {
+  "sfx": { "nodes": ["osc1", "filter1", "env1"] },
+  "pad": { "nodes": ["osc2", "filter2", "amp2"] }
+}
+```
+
+Fields:
+- `nodes` (array of strings, required) — list of existing node ids that belong
+  to this namespace. Every node must exist in `nodes`.
+
+### Namespace Routing Reference
+
+Routing entries may use `ns/<namespace>/<nodeId>` anywhere a plain node id is
+expected:
+
+```json
+"routing": [
+  { "chain": ["ns/sfx/osc1", "ns/sfx/filter1", "ns/sfx/env1", "out"] }
+]
+```
+
+The loader resolves `ns/sfx/osc1` to the node `osc1` declared in the `sfx`
+namespace. Namespace references in routing are validated at load time:
+
+- The namespace name must exist in `namespaces`.
+- The referenced node id must be listed in that namespace's `nodes` array.
+- The namespace name must not collide with a node id.
+
+### Namespace Example
+
+```json
+{
+  "version": "0.1",
+  "namespaces": {
+    "sfx": { "nodes": ["osc", "filter", "env"] }
+  },
+  "nodes": {
+    "osc": { "kind": "oscillator", "params": { "frequency": 440 } },
+    "filter": { "kind": "biquadFilter", "params": { "type": "lowpass" } },
+    "env": { "kind": "envelope", "params": { "attack": 0.01 } },
+    "out": { "kind": "destination" }
+  },
+  "routing": [
+    { "chain": ["ns/sfx/osc", "ns/sfx/filter", "ns/sfx/env", "out"] }
+  ]
+}
+```
+
 ## Node Automation
 
 `automation` is an optional per-node object map from an AudioParam name to an
@@ -552,17 +610,6 @@ fail at load time with a descriptive error.
 
 The same event kinds are available on node-level `automation`; see
 [Node Automation](#node-automation).
-
-## Reserved v0.2 Fields
-
-`namespaces` is reserved for v0.2.
-
-v0.1 behavior:
-- Producers should not emit this field.
-- Validators/loaders may run in either mode:
-  - strict: reject when present
-  - permissive: ignore with warning
-- For implementation consistency, strict mode is recommended by default.
 
 ## Complete Example (JSON)
 

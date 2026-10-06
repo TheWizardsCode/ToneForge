@@ -44,6 +44,15 @@ export interface ToneGraphBusDefinition {
   gain?: number;
 }
 
+/**
+ * A namespace groups existing nodes under a named prefix. Routing entries
+ * may reference namespace-qualified nodes using the `ns/<namespace>/<name>`
+ * syntax, which resolves to the actual node id declared in the namespace.
+ */
+export interface ToneGraphNamespaceDefinition {
+  nodes: string[];
+}
+
 export interface ToneGraphDestinationNode {
   kind: "destination";
   automation?: ToneGraphNodeAutomation;
@@ -234,6 +243,7 @@ export interface ToneGraphDocument {
   routing: ToneGraphRoutingEntry[];
   buses?: Record<string, ToneGraphBusDefinition>;
   sequences?: ToneGraphSequence[];
+  namespaces?: Record<string, ToneGraphNamespaceDefinition>;
 }
 
 type UnknownRecord = Record<string, unknown>;
@@ -607,21 +617,6 @@ function validateRoutingEntry(value: unknown, index: number): ToneGraphRoutingEn
   return { from, to };
 }
 
-function parseEndpointReference(ref: string): { nodeId: string; param?: string } {
-  const dotIndex = ref.indexOf(".");
-  if (dotIndex < 0) {
-    return { nodeId: ref };
-  }
-
-  const nodeId = ref.slice(0, dotIndex);
-  const param = ref.slice(dotIndex + 1);
-  if (nodeId.length === 0 || param.length === 0) {
-    throw new Error(`Invalid endpoint reference "${ref}".`);
-  }
-
-  return { nodeId, param };
-}
-
 const SUPPORTED_WAVES = new Set(["sine", "square", "sawtooth", "triangle"]);
 
 function validateSequenceEvent(
@@ -755,10 +750,6 @@ function ensureFiniteNumber(value: unknown, path: string): number {
 export function validateToneGraph(doc: unknown): ToneGraphDocument {
   assertRecord(doc, "ToneGraph document");
 
-  if (Object.prototype.hasOwnProperty.call(doc, "namespaces")) {
-    throw new Error("ToneGraph field \"namespaces\" is reserved for v0.2 and is not allowed in v0.1.");
-  }
-
   const version = doc.version;
   assertString(version, "version");
   if (version !== "0.1") {
@@ -886,25 +877,87 @@ export function validateToneGraph(doc: unknown): ToneGraphDocument {
 
   const busIds = new Set(Object.keys(buses));
 
-  const toEndpointList = (value: string | string[] | undefined): string[] =>
-    value === undefined ? [] : Array.isArray(value) ? value : [value];
+  // --- Namespace validation ---
+  const namespaces: Record<string, ToneGraphNamespaceDefinition> = {};
+  if (doc.namespaces !== undefined) {
+    assertRecord(doc.namespaces, "namespaces");
+    for (const [nsName, nsDef] of Object.entries(doc.namespaces)) {
+      if (nsName.trim().length === 0) {
+        throw new Error("namespaces contains an empty namespace name.");
+      }
+      if (nodeIds.has(nsName)) {
+        throw new Error(`Namespace "${nsName}" collides with a node id.`);
+      }
+      if (!isRecord(nsDef)) {
+        throw new Error(`namespaces."${nsName}" must be an object.`);
+      }
+      const nodesRaw = nsDef.nodes;
+      if (!Array.isArray(nodesRaw)) {
+        throw new Error(`namespaces."${nsName}".nodes must be an array.`);
+      }
+      const nsNodeIds: string[] = [];
+      for (const nodeId of nodesRaw) {
+        assertString(nodeId, `namespaces."${nsName}".nodes`);
+        if (!nodeIds.has(nodeId)) {
+          throw new Error(`namespaces."${nsName}" references unknown node "${nodeId}".`);
+        }
+        nsNodeIds.push(nodeId);
+      }
+      namespaces[nsName] = { nodes: nsNodeIds };
+    }
+  }
 
-  const assertNodeEndpoint = (ref: string, path: string, allowParam: boolean): void => {
-    const endpoint = parseEndpointReference(ref);
-    if (endpoint.param !== undefined && !allowParam) {
+  const nsIds = new Set(Object.keys(namespaces));
+
+  // Namespace-aware endpoint reference parsing.
+  function parseNamespaceReference(ref: string): { nodeId: string; param?: string; ns?: string } {
+    const dotIndex = ref.indexOf(".");
+    const nodeId = dotIndex >= 0 ? ref.slice(0, dotIndex) : ref;
+    const param = dotIndex >= 0 ? ref.slice(dotIndex + 1) : undefined;
+
+    // Check for namespace prefix: ns/<namespace>/<nodeId>
+    if (nodeId.startsWith("ns/")) {
+      const parts = nodeId.slice(3).split("/");
+      if (parts.length !== 2 || parts[0].length === 0 || parts[1].length === 0) {
+        throw new Error(`Invalid namespace reference "${ref}".`);
+      }
+      return { nodeId: parts[1], param, ns: parts[0] };
+    }
+
+    return { nodeId, param };
+  }
+
+  function assertEndpointReference(ref: string, path: string, allowParam: boolean): void {
+    const parsed = parseNamespaceReference(ref);
+    if (parsed.ns !== undefined) {
+      if (parsed.param !== undefined && !allowParam) {
+        throw new Error(`${path} cannot reference AudioParam endpoint "${ref}".`);
+      }
+      if (!nsIds.has(parsed.ns)) {
+        throw new Error(`${path} references unknown namespace "${parsed.ns}".`);
+      }
+      const nsDef = namespaces[parsed.ns];
+      if (!nsDef.nodes.includes(parsed.nodeId)) {
+        throw new Error(`${path} references unknown node "${parsed.nodeId}" in namespace "${parsed.ns}".`);
+      }
+      return;
+    }
+
+    if (parsed.param !== undefined && !allowParam) {
       throw new Error(`${path} cannot reference AudioParam endpoint "${ref}".`);
     }
-    if (!nodeIds.has(endpoint.nodeId)) {
+    if (!nodeIds.has(parsed.nodeId)) {
       throw new Error(`${path} references unknown node "${ref}".`);
     }
-  };
+  }
+
+  const toEndpointList = (value: string | string[] | undefined): string[] =>
+    value === undefined ? [] : Array.isArray(value) ? value : [value];
 
   routing.forEach((entry, index) => {
     if ("chain" in entry) {
       entry.chain.forEach((nodeId, chainIndex) => {
-        if (!nodeIds.has(nodeId)) {
-          throw new Error(`routing[${index}].chain[${chainIndex}] references unknown node \"${nodeId}\".`);
-        }
+        assertEndpointReference(nodeId, `routing[${index}].chain[${chainIndex}]`, false);
       });
       return;
     }
@@ -914,26 +967,17 @@ export function validateToneGraph(doc: unknown): ToneGraphDocument {
         throw new Error(`routing[${index}].bus references unknown bus "${entry.bus}".`);
       }
       toEndpointList(entry.from).forEach((ref, refIndex) => {
-        assertNodeEndpoint(ref, `routing[${index}].from[${refIndex}]`, false);
+        assertEndpointReference(ref, `routing[${index}].from[${refIndex}]`, false);
       });
       toEndpointList(entry.to).forEach((ref, refIndex) => {
-        assertNodeEndpoint(ref, `routing[${index}].to[${refIndex}]`, true);
+        assertEndpointReference(ref, `routing[${index}].to[${refIndex}]`, true);
       });
       return;
     }
 
-    const fromEndpoint = parseEndpointReference(entry.from);
-    const toEndpoint = parseEndpointReference(entry.to);
-
-    if (fromEndpoint.param !== undefined) {
-      throw new Error(`routing[${index}].from cannot reference AudioParam endpoint \"${entry.from}\".`);
-    }
-    if (!nodeIds.has(fromEndpoint.nodeId)) {
-      throw new Error(`routing[${index}].from references unknown node \"${entry.from}\".`);
-    }
-    if (!nodeIds.has(toEndpoint.nodeId)) {
-      throw new Error(`routing[${index}].to references unknown node \"${entry.to}\".`);
-    }
+    // For flat links, reject AudioParam endpoints on "from".
+    assertEndpointReference(entry.from, `routing[${index}].from`, false);
+    assertEndpointReference(entry.to, `routing[${index}].to`, true);
   });
 
   const sequences = doc.sequences !== undefined
@@ -988,6 +1032,9 @@ export function validateToneGraph(doc: unknown): ToneGraphDocument {
       tempo: doc.transport.tempo as number | undefined,
       timeSignature: doc.transport.timeSignature as [number, number] | undefined,
     };
+  }
+  if (Object.keys(namespaces).length > 0) {
+    validated.namespaces = namespaces;
   }
 
   return validated;
