@@ -1,6 +1,51 @@
 import { defineConfig } from "@playwright/test";
+import { findFreePortSync } from "./scripts/select-port.js";
 
-const port = parseInt(process.env.PORT || "3000", 10);
+/** Env var used to share the selected port with Playwright worker processes. */
+const PORT_ENV = "TF_E2E_PORT";
+
+/**
+ * Resolve the port the e2e web server binds.
+ *
+ * `PORT` wins when set explicitly. Otherwise the first free port at or after
+ * 3000 is selected so a busy default port (for example another project's dev
+ * server) does not abort the run before a single test executes.
+ *
+ * Playwright evaluates this config in the main process *and* in every worker
+ * process; without a shared value the workers would probe different ports and
+ * navigate to a server that was never started. The main process evaluates
+ * first and caches its choice in `TF_E2E_PORT`, which worker processes inherit.
+ */
+function resolvePort(): number {
+  const requested = process.env.PORT
+    ? Number.parseInt(process.env.PORT, 10)
+    : undefined;
+  if (requested !== undefined && Number.isFinite(requested)) {
+    return requested;
+  }
+
+  const cached = process.env[PORT_ENV]
+    ? Number.parseInt(process.env[PORT_ENV] as string, 10)
+    : undefined;
+  if (cached !== undefined && Number.isFinite(cached)) {
+    return cached;
+  }
+
+  const selected = findFreePortSync(3000);
+  process.env[PORT_ENV] = String(selected);
+  return selected;
+}
+
+const port = resolvePort();
+
+/** Environment for the web server command, preserving the inherited env. */
+const webServerEnv: Record<string, string> = {};
+for (const [key, value] of Object.entries(process.env)) {
+  if (value !== undefined) {
+    webServerEnv[key] = value;
+  }
+}
+webServerEnv.PORT = String(port);
 
 export default defineConfig({
   testDir: "./e2e",
@@ -26,6 +71,7 @@ export default defineConfig({
     port,
     reuseExistingServer: false,
     timeout: 15_000,
+    env: webServerEnv,
   },
   projects: [
     {

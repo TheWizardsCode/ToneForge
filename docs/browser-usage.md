@@ -214,3 +214,11 @@ npm run test:e2e:ci --prefix web   # builds the web demo and runs Playwright
 `web/e2e/runtime-recipes.spec.ts` runs against Chromium and Firefox and verifies
 Runtime start/stop, state transitions, context changes, event-log determinism,
 and non-silent deterministic recipe rendering.
+
+`web/e2e/tonegraph-smoke.spec.ts` proves that at least one file-backed
+ToneGraph recipe (`ui-scifi-confirm`) is discoverable in the browser bundle,
+renders a non-zero buffer, and produces no Node-only console errors.
+
+The Playwright web server binds the first free port at or after 3000 so the
+suite still runs when the default port is occupied (for example by another
+dev server). Set `PORT=<n>` to pin a specific port.
