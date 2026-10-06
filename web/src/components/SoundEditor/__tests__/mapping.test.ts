@@ -120,6 +120,27 @@ describe("control panel write-through", () => {
 
     panel.dispose();
   });
+
+  it("exposes recipe descriptor units on XY pad axes", () => {
+    const panel = createControlPanel({
+      version: 1,
+      recipe: "weapon-laser-zap",
+      seed: 1234,
+      overrides: {},
+    });
+
+    const pad = panel.element.querySelector<HTMLElement>('[data-parameter="carrierFreq+modulatorFreq"]')!;
+    const xAxis = pad.querySelector<HTMLElement>(".tf-xy-pad__axis--x")!;
+    const yAxis = pad.querySelector<HTMLElement>(".tf-xy-pad__axis--y")!;
+
+    // weapon-laser-zap declares both carrierFreq and modulatorFreq in Hz.
+    expect(xAxis.getAttribute("aria-valuetext")).toMatch(/ Hz$/);
+    expect(yAxis.getAttribute("aria-valuetext")).toMatch(/ Hz$/);
+    expect(xAxis.getAttribute("aria-valuetext")).not.toContain("carrierFreq");
+    expect(yAxis.getAttribute("aria-valuetext")).not.toContain("modulatorFreq");
+
+    panel.dispose();
+  });
 });
 
 describe("preset → controls restoration", () => {

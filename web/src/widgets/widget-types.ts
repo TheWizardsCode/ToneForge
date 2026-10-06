@@ -28,6 +28,8 @@ export interface XYAxisBounds {
   max: number;
   /** Quantisation step. Defaults to 1/100th of the range when omitted. */
   step?: number;
+  /** Display unit, e.g. "Hz" or "s". */
+  unit?: string;
   /** Initial value. Defaults to `min`. */
   value?: number;
   /** Axis label, e.g. "X" or "Pitch". */

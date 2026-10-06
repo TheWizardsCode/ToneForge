@@ -171,6 +171,29 @@ describe("XY pad", () => {
     pad.dispose();
   });
 
+  it("exposes each axis unit in aria-valuetext", () => {
+    const pad = createXYPad({
+      label: "Tone",
+      x: { min: 200, max: 2000, step: 10, unit: "Hz", value: 500, label: "carrierFreq" },
+      y: { min: 50, max: 500, step: 10, unit: "Hz", value: 100, label: "modulatorFreq" },
+    });
+    expect(pad.element.querySelector('[aria-label="Tone X"]')?.getAttribute("aria-valuetext")).toBe("500 Hz");
+    expect(pad.element.querySelector('[aria-label="Tone Y"]')?.getAttribute("aria-valuetext")).toBe("100 Hz");
+    pad.dispose();
+  });
+
+  it("does not use the axis label as a pseudo-unit when no unit is given", () => {
+    const pad = createXYPad({
+      label: "Position",
+      x: { min: 0, max: 100, step: 10, value: 20, label: "carrierFreq" },
+      y: { min: 0, max: 100, step: 10, value: 80, label: "modulatorFreq" },
+    });
+    const valuetext = pad.element.querySelector('[aria-label="Position X"]')?.getAttribute("aria-valuetext");
+    expect(valuetext).toBe("20");
+    expect(valuetext).not.toContain("carrierFreq");
+    pad.dispose();
+  });
+
   it("changes each axis with the keyboard", () => {
     const pad = createXYPad({
       label: "Position",

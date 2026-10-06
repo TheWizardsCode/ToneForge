@@ -220,7 +220,7 @@ class XYPadWidgetImpl implements XYPadWidget {
     value: number,
   ): void {
     element.setAttribute("aria-valuenow", String(value));
-    element.setAttribute("aria-valuetext", formatValue(value, axis.label));
+    element.setAttribute("aria-valuetext", formatValue(value, axis.unit));
   }
 }
 

@@ -36,7 +36,9 @@ slider.dispose();               // removes listeners; emits nothing afterwards
   the value actually changes; `setValue` is programmatic and silent.
 - **Accessibility** — slider/rotary use `role="slider"` with
   `aria-label`/`aria-valuemin`/`aria-valuemax`/`aria-valuenow`/`aria-valuetext`.
-  The XY pad is a labelled `role="group"` containing two `role="slider"` axes.
+  The XY pad is a labelled `role="group"` containing two `role="slider"` axes,
+  each carrying its own `unit` (configured per axis via `x.unit`/`y.unit`) in
+  `aria-valuetext`.
   Toggle/select is a labelled `role="listbox"` of `role="option"` children with
   `aria-selected`.
 - **Keyboard** — Arrow keys (slider/rotary: ±1 step, Home/End; XY pad: per
