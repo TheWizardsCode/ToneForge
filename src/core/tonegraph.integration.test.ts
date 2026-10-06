@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { mkdtemp, rm, writeFile, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
-import { createRng } from "./rng.js";
+import { createRng, rr } from "./rng.js";
 import { compareBuffers, formatCompareResult } from "../test-utils/buffer-compare.js";
 import { RecipeRegistry, discoverFileBackedRecipes, type RecipeRegistration } from "./recipe.js";
 import { validateToneGraph, type ToneGraphDocument } from "./tonegraph-schema.js";
@@ -30,6 +30,53 @@ interface RenderResult {
   samples: Float32Array;
   duration: number;
   peak: number;
+}
+
+/**
+ * Frozen historical reference: the removed TypeScript `ui-scifi-confirm`
+ * graph builder (`uiSciFiConfirmOfflineGraph` in `src/recipes/index.ts`,
+ * deleted when the recipe was migrated to file-backed ToneGraph in
+ * TF-0MN0XQ1AN111ZB8F).
+ *
+ * This is a deliberate characterisation reference, not production logic: it
+ * is intentionally self-contained so the parity test can prove the migrated
+ * `presets/recipes/ui-scifi-confirm.yaml` reproduces the historical graph
+ * byte-for-byte. It uses the same seed-derived parameter ranges and the same
+ * Web Audio API calls as the original implementation.
+ */
+async function renderHistoricalUiSciFiConfirm(seed: number): Promise<Float32Array> {
+  const rng = createRng(seed);
+  const frequency = rr(rng, 400, 1200);
+  const attack = rr(rng, 0.001, 0.01);
+  const decay = rr(rng, 0.05, 0.3);
+  const filterCutoff = rr(rng, 800, 4000);
+  const duration = attack + decay;
+
+  const frameCount = Math.ceil(SAMPLE_RATE * duration);
+  const ctx = new OfflineAudioContext(1, frameCount, SAMPLE_RATE);
+
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.value = frequency;
+
+  const filter = ctx.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.value = filterCutoff;
+
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0, 0);
+  gain.gain.linearRampToValueAtTime(1, attack);
+  gain.gain.linearRampToValueAtTime(0, attack + decay);
+
+  osc.connect(filter);
+  filter.connect(gain);
+  gain.connect(ctx.destination);
+
+  osc.start(0);
+  osc.stop(duration);
+
+  const rendered = await ctx.startRendering();
+  return new Float32Array(rendered.getChannelData(0));
 }
 
 async function renderRegistration(registration: RecipeRegistration, seed: number): Promise<RenderResult> {
@@ -80,6 +127,44 @@ describe("ToneGraph integration parity", () => {
         ).toBe(true);
       }
     }
+  });
+
+  it("ui-scifi-confirm renders byte-identical to the historical TypeScript implementation at seed 42", async () => {
+    const fileBackedRegistry = new RecipeRegistry();
+    await discoverFileBackedRecipes(fileBackedRegistry, { recipeDirectory: PRESETS_DIR });
+
+    const fileBacked = fileBackedRegistry.getRegistration("ui-scifi-confirm");
+    expect(fileBacked, "ui-scifi-confirm should be discovered from presets/recipes").toBeDefined();
+
+    const reference = await renderHistoricalUiSciFiConfirm(SEED);
+    const migrated = (await renderRegistration(fileBacked!, SEED)).samples;
+
+    // AC1: raw samples must match byte-for-byte.
+    const comparison = compareBuffers(reference, migrated);
+    expect(
+      comparison.identical,
+      `ui-scifi-confirm ToneGraph output diverged from the historical TypeScript implementation at seed ${SEED}:\n${formatCompareResult(comparison)}`,
+    ).toBe(true);
+
+    // AC4: repeated runs on the same platform stay deterministic.
+    const referenceAgain = await renderHistoricalUiSciFiConfirm(SEED);
+    const migratedAgain = (await renderRegistration(fileBacked!, SEED)).samples;
+    expect(compareBuffers(reference, referenceAgain).identical).toBe(true);
+    expect(compareBuffers(migrated, migratedAgain).identical).toBe(true);
+  });
+
+  it("reports the first divergent sample when buffers differ", () => {
+    // AC2: a mismatch must produce actionable diagnostics — not a bare failure.
+    const expected = new Float32Array([0, 0.1, 0.2, 0.3]);
+    const actual = new Float32Array([0, 0.1, 0.9, 0.3]);
+
+    const comparison = compareBuffers(expected, actual);
+
+    expect(comparison.identical).toBe(false);
+    expect(comparison.firstDivergentIndex).toBe(2);
+    expect(comparison.valueA).toBeCloseTo(0.2);
+    expect(comparison.valueB).toBeCloseTo(0.9);
+    expect(formatCompareResult(comparison)).toContain("sample 2");
   });
 
   it("preserves node automation through the file-backed path so it changes output", async () => {
