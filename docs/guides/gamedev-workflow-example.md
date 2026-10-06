@@ -140,6 +140,36 @@ toneforge show card-coin-collect --seed 42
 
 ## Step 3 — Inspect Existing Presets
 
+Before diving into a specific preset, discover what sequences and stacks ship
+with ToneForge. The `list` command scans the `presets/sequences/` and
+`presets/stacks/` directories and prints each preset's name and description:
+
+```bash
+# List every sequence preset
+toneforge list sequences
+
+# List every stack preset
+toneforge list stacks
+```
+
+Narrow the list with a case-insensitive keyword search over names and
+descriptions:
+
+```bash
+# Find sequence presets related to card handling
+toneforge list sequences --search card
+
+# Find stack presets for victory moments
+toneforge list stacks --search victory
+```
+
+For scripting or piping into build tools, request JSON output:
+
+```bash
+toneforge list sequences --json
+toneforge list stacks --search victory --json
+```
+
 Two relevant presets ship with ToneForge that you will use as worked examples.
 
 ### Sequence preset: `tableau_play_card`
@@ -174,6 +204,124 @@ This stack layers:
 > single root seed. Stacks layer multiple recipes that play simultaneously (with
 > small offsets) into one mixed buffer. Use sequences for events that unfold over
 > time; use stacks for layered single-moment impacts.
+
+### Including a stack inside a sequence (recipe wrapper)
+
+Sequence events resolve **recipes only** — `renderSequence()` looks up a
+registered recipe and calls `renderRecipe()`. Stack presets are rendered by a
+separate `renderStack()` path, so you cannot reference a stack preset directly
+from a sequence event. To reuse a stack inside a timeline, wrap it as a thin
+**recipe wrapper**:
+
+1. **Implement the wrapper.** A factory builds a `RecipeRegistration` whose
+   `buildOfflineGraph()` derives a numeric seed from the recipe `Rng`, calls
+   `renderStack()`, and copies the resulting samples into the caller's
+   `OfflineAudioContext` as a buffer source. Its `getDuration()` mirrors the
+   stack's natural duration from the same seed derivative so `renderRecipe()`
+   does not truncate the wrapped audio.
+
+   ```ts
+   // src/recipes/stack-wrapper.ts (excerpt)
+   export function createStackWrapperRecipe(options: StackWrapperOptions): RecipeRegistration {
+     const stack = options.stack;
+     const params = options.params; // e.g. [{ name: "gain", min: 0.2, max: 1.0, unit: "amplitude" }]
+     return {
+       getDuration(rng, overrides) {
+         const { seed } = deriveInputs(rng, params, overrides);
+         return computeStackDuration(stack, seed);
+       },
+       async buildOfflineGraph(rng, ctx, duration, overrides) {
+         const { seed, params: derived } = deriveInputs(rng, params, overrides);
+         const gain = derived["gain"] ?? 1.0;
+         const result = await renderStack(stack, seed);
+
+         const audioBuffer = ctx.createBuffer(
+           result.numberOfChannels, result.samples.length, result.sampleRate,
+         );
+         for (let ch = 0; ch < result.numberOfChannels; ch++) {
+           const data = audioBuffer.getChannelData(ch);
+           for (let i = 0; i < result.samples.length; i++) {
+             data[i] = result.samples[i] * gain;
+           }
+         }
+
+         const source = ctx.createBufferSource();
+         source.buffer = audioBuffer;
+         source.connect(ctx.destination);
+         source.start(0);
+         source.stop(duration);
+       },
+       // ...description, category, tags, signalChain, params, getParams
+     };
+   }
+   ```
+
+   `deriveInputs()` takes the stack seed from the **first** `rng()` call, so
+   `getDuration()` and `buildOfflineGraph()` agree for the same event seed.
+
+2. **Register it.** In `src/recipes/index.ts`, after the shared `registry` is
+   created, register the wrapper with an in-memory `StackDefinition` (so the
+   browser build never touches `node:fs`):
+
+   ```ts
+   const cardPlayLandingStack: StackDefinition = {
+     name: "card_play_landing",
+     layers: [
+       { recipe: "card-slide", startTime: 0, gain: 1.0 },
+       { recipe: "card-place", startTime: 0.08, gain: 0.9 },
+       { recipe: "card-glow", startTime: 0.18, gain: 0.55 },
+     ],
+   };
+
+   registry.register("stack-card-play-landing", createStackWrapperRecipe({
+     name: "stack-card-play-landing",
+     stack: cardPlayLandingStack,
+     description: "Wraps the card_play_landing stack preset as a recipe.",
+     category: "Card Game",
+     tags: ["card", "stack", "wrapper", "landing"],
+     signalChain: "Stack(card_play_landing): card-slide -> card-place -> card-glow",
+     params: [
+       { name: "gain", min: 0.2, max: 1.0, unit: "amplitude" },
+     ],
+   }));
+   ```
+
+3. **Reference it from a sequence preset.** The `event` field names the wrapper
+   recipe exactly as registered. The shipped example
+   `presets/sequences/tableau_play_card_with_landing.json` mixes a plain
+   `card-slide` lead-in with the wrapped stack:
+
+   ```json
+   {
+     "version": "1.0",
+     "name": "tableau_play_card_with_landing",
+     "events": [
+       { "time": 0,    "event": "card-slide",              "seedOffset": 0, "gain": 0.7 },
+       { "time": 0.15, "event": "stack-card-play-landing", "seedOffset": 1, "gain": 1.0 }
+     ]
+   }
+   ```
+
+4. **Preview the composed sequence.** Omit `--output` to play it through your
+   speakers:
+
+   ```bash
+   toneforge sequence generate --preset presets/sequences/tableau_play_card_with_landing.json --seed 42
+   ```
+
+   Inspect and simulate the timeline first if you want to verify event timing:
+
+   ```bash
+   toneforge sequence inspect  --preset presets/sequences/tableau_play_card_with_landing.json
+   toneforge sequence simulate --preset presets/sequences/tableau_play_card_with_landing.json --seed 42
+   ```
+
+> **Why a wrapper instead of a native stack event?** The sequence schema
+documents `event` as resolving "recipe, stack preset, or library entry", but
+only recipes are resolved today. The wrapper keeps the stack reusable without
+re-authoring its layers, and the pattern is covered by automated tests in
+`src/recipes/stack-wrapper.test.ts`. Native stack events in the sequence schema
+are a future enhancement.
 
 ---
 
@@ -462,6 +610,8 @@ headlessly and is safe to use in CI.
 |---|---|---|
 | Discover | `toneforge list recipes --category card-game` | List all 34 card-game recipes |
 | Search | `toneforge list recipes --search coin` | Keyword search across all fields |
+| List sequences | `toneforge list sequences [--search <kw>]` | Discover sequence presets by name/description |
+| List stacks | `toneforge list stacks [--search <kw>]` | Discover stack presets by name/description |
 | Preview | `toneforge generate --recipe <name> --seed <n>` | Play through speakers instantly |
 | Inspect | `toneforge show <recipe> --seed <n>` | View metadata and parameter values |
 | Inspect preset | `toneforge sequence inspect --preset <file>` | View sequence structure |

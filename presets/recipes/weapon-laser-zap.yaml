@@ -17,18 +17,25 @@ meta:
       max: 2000
       unit: Hz
       default: 204.759006575858
+      overrides:
+        - target: carrier.frequency
     - name: modulatorFreq
       type: number
       min: 50
       max: 500
       unit: Hz
       default: 347.1403898897442
+      overrides:
+        - target: modulator.frequency
     - name: modIndex
       type: number
       min: 1
       max: 10
       unit: ratio
       default: 1.998613781295394
+      overrides:
+        - target: modDepth.gain
+          expression: "modIndex * modulator.frequency"
     - name: noiseBurstLevel
       type: number
       min: 0.1

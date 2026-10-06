@@ -4,6 +4,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Socket } from "node:net";
+import { yamlRecipePlugin } from "./plugins/yaml-recipe-plugin.js";
 
 const projectRoot = resolve(__dirname, "..");
 const PORT_FILE = resolve(__dirname, ".port");
@@ -159,6 +160,12 @@ export default defineConfig({
   build: {
     outDir: resolve(__dirname, "dist"),
     emptyOutDir: true,
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, "src/index.html"),
+        editorDemo: resolve(__dirname, "src/editor-demo.html"),
+      },
+    },
   },
   resolve: {
     alias: {
@@ -166,9 +173,12 @@ export default defineConfig({
       "@toneforge": resolve(projectRoot, "src"),
       // Allow importing demo markdown files from the repo-root demos/ directory
       "@demos": resolve(projectRoot, "demos"),
+      // Node's `buffer` builtin is unavailable in the browser; resolve to the
+      // npm polyfill so the reused WAV encoder runs in-browser too.
+      buffer: resolve(projectRoot, "node_modules/buffer/index.js"),
     },
   },
-  plugins: [dynamicBackendProxy()],
+  plugins: [yamlRecipePlugin(projectRoot), dynamicBackendProxy()],
   server: {
     port: parseInt(process.env.VITE_PORT || "5173", 10),
     // Proxy is now handled dynamically by the toneforge-dynamic-backend-proxy

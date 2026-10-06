@@ -1,0 +1,96 @@
+name: Web Playwright E2E
+
+# Runs the browser end-to-end suite (including the ToneGraph smoke test that
+# proves at least one file-backed recipe is discoverable in the web bundle).
+#
+# The web server is started by Playwright itself (`node dist-server/index.js`);
+# file-backed recipes are inlined into the client bundle at build time by the
+# Vite `yamlRecipePlugin` + `import.meta.glob` in
+# `web/src/browser-recipe-registry.ts`, so no separate static-asset copy step
+# is required.
+#
+# Work item: TF-0MOKJJN42008FARS.
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+    paths:
+      - "web/**"
+      - "presets/**"
+      - "src/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/web-playwright.yml"
+  pull_request:
+    paths:
+      - "web/**"
+      - "presets/**"
+      - "src/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/web-playwright.yml"
+  workflow_dispatch:
+
+# Cancel superseded runs for the same ref to keep CI minutes down.
+concurrency:
+  group: web-playwright-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web-e2e:
+    name: Web Playwright E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            web/package-lock.json
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install web dependencies
+        run: npm ci --prefix web
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium firefox
+        working-directory: web
+
+      - name: Build web demo
+        run: npm run build
+        working-directory: web
+
+      - name: Run Playwright e2e
+        run: npx playwright test
+        working-directory: web
+        env:
+          CI: "true"
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: web/playwright-report
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Upload Playwright test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: web/test-results
+          retention-days: 14
+          if-no-files-found: ignore

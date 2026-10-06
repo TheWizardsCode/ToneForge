@@ -1,0 +1,34 @@
+{
+  "version": "1.0",
+  "defaults": {
+    "maxVoices": 4,
+    "duckDepthDb": 6,
+    "uiDuckDurationMs": 200
+  },
+  "groups": {
+    "dialogue": { "priority": 100 },
+    "alerts": { "priority": 90 },
+    "ui": { "priority": 80 },
+    "combat": { "priority": 60 },
+    "footsteps": { "priority": 40 },
+    "ambience": { "priority": 20 }
+  },
+  "rules": [
+    {
+      "id": "combat-focus",
+      "when": { "state": "combat" },
+      "then": {
+        "duck": ["ambience"],
+        "boost": ["combat"],
+        "limit": ["ui"]
+      }
+    },
+    {
+      "id": "ui-clarity",
+      "when": { "state": "ui" },
+      "then": {
+        "duck": ["ambience", "footsteps"]
+      }
+    }
+  ]
+}

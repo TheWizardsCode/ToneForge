@@ -1,6 +1,14 @@
+import { describe, it, expect } from "vitest";
 import { getAmbientWindGustParams } from "./ambient-wind-gust-params.js";
-import { describeRecipe } from "../test-utils/recipe-test-helper.js";
+import {
+  assertOverrideChangesOutput,
+  describeRecipe,
+} from "../test-utils/recipe-test-helper.js";
+import { renderPreset, renderRecipe } from "../core/renderer.js";
+import { compareBuffers } from "../test-utils/buffer-compare.js";
 import type { Rng } from "../core/rng.js";
+
+const OVERRIDE_SEED = 4321;
 
 describeRecipe(
   "ambient-wind-gust",
@@ -15,4 +23,54 @@ describeRecipe(
     { name: "release", min: 0.2, max: 0.8 },
     { name: "level", min: 0.3, max: 0.8 },
   ],
+  () => {
+    // One explicit assertion per parameter that the declarative override
+    // mappings in ambient-wind-gust.yaml now honour (parent AC6).
+    it("honours the filterFreq override", async () => {
+      await assertOverrideChangesOutput("ambient-wind-gust", "filterFreq", 1500, OVERRIDE_SEED);
+    });
+
+    it("honours the lfoRate override", async () => {
+      await assertOverrideChangesOutput("ambient-wind-gust", "lfoRate", 4, OVERRIDE_SEED);
+    });
+
+    it("honours the lfoDepth override", async () => {
+      await assertOverrideChangesOutput("ambient-wind-gust", "lfoDepth", 100, OVERRIDE_SEED);
+    });
+
+    it("honours the release override and fades to silence", async () => {
+      // The envelope release must lie inside the render window, so overriding
+      // `release` changes the tail and reaches silence by the buffer end.
+      await assertOverrideChangesOutput("ambient-wind-gust", "release", 0.8, OVERRIDE_SEED);
+
+      const rendered = await renderPreset({
+        recipe: "ambient-wind-gust",
+        seed: OVERRIDE_SEED,
+        overrides: { release: 0.8 },
+      });
+
+      expect(Math.abs(rendered.samples[rendered.samples.length - 1]!)).toBeLessThan(0.05);
+    });
+
+    it("applies the lfoDepth mapping as half the declared depth", async () => {
+      // The YAML automation `depth` is `lfoDepth / 2`; verify the rendered
+      // output changes and stays deterministic and non-silent.
+      const overridden = await renderPreset({
+        recipe: "ambient-wind-gust",
+        seed: OVERRIDE_SEED,
+        overrides: { lfoDepth: 800 },
+      });
+      const repeat = await renderPreset({
+        recipe: "ambient-wind-gust",
+        seed: OVERRIDE_SEED,
+        overrides: { lfoDepth: 800 },
+      });
+
+      expect(compareBuffers(overridden.samples, repeat.samples).identical).toBe(true);
+      expect(overridden.samples.some((sample) => sample !== 0)).toBe(true);
+
+      const base = await renderRecipe("ambient-wind-gust", OVERRIDE_SEED);
+      expect(compareBuffers(base.samples, overridden.samples).identical).toBe(false);
+    });
+  },
 );

@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# CI-safe toneforge CLI shim.
+# Locates the project root relative to this script and delegates to
+# bin/dev-cli.js, preserving all arguments.
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+exec node "$PROJECT_ROOT/bin/dev-cli.js" "$@"

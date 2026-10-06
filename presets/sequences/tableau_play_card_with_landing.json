@@ -1,0 +1,20 @@
+{
+  "version": "1.0",
+  "name": "tableau_play_card_with_landing",
+  "description": "Player slides a card onto the tableau followed by the full card_play_landing stack (slide + place + glow) as a single wrapped event.",
+  "tempo": 120,
+  "events": [
+    {
+      "time": 0,
+      "event": "card-slide",
+      "seedOffset": 0,
+      "gain": 0.7
+    },
+    {
+      "time": 0.15,
+      "event": "stack-card-play-landing",
+      "seedOffset": 1,
+      "gain": 1.0
+    }
+  ]
+}

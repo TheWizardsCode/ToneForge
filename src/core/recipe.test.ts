@@ -1,10 +1,16 @@
 import { describe, it, expect } from "vitest";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { OfflineAudioContext } from "node-web-audio-api";
 import { createRng } from "./rng.js";
-import { RecipeRegistry, discoverFileBackedRecipes } from "./recipe.js";
+import {
+  RecipeRegistry,
+  assertSafeRecipeName,
+  discoverFileBackedRecipes,
+  persistRecipeDocument,
+  resolveExternalRecipeDirectory,
+} from "./recipe.js";
 
 function makeRegistration(overrides: Record<string, unknown> = {}) {
   return {
@@ -751,6 +757,250 @@ routing:
       expect(samples.some((sample) => sample !== 0)).toBe(true);
     } finally {
       await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("resolveExternalRecipeDirectory", () => {
+  it("prefers an explicit destination over the env var and home", async () => {
+    const dir = await resolveExternalRecipeDirectory({
+      destination: "relative-dest",
+      env: { TONEFORGE_RECIPE_DIR: "/env/recipes" },
+      homeDirectory: "/home/tester",
+    });
+    expect(dir).toBe(resolve("relative-dest"));
+  });
+
+  it("resolves an absolute destination unchanged", async () => {
+    const dir = await resolveExternalRecipeDirectory({
+      destination: "/absolute/recipes",
+      env: { TONEFORGE_RECIPE_DIR: "/env/recipes" },
+      homeDirectory: "/home/tester",
+    });
+    expect(dir).toBe(resolve("/absolute/recipes"));
+  });
+
+  it("falls back to TONEFORGE_RECIPE_DIR when no destination is given", async () => {
+    const dir = await resolveExternalRecipeDirectory({
+      env: { TONEFORGE_RECIPE_DIR: "/env/recipes" },
+      homeDirectory: "/home/tester",
+    });
+    expect(dir).toBe(resolve("/env/recipes"));
+  });
+
+  it("resolves a relative TONEFORGE_RECIPE_DIR against the CWD", async () => {
+    const dir = await resolveExternalRecipeDirectory({
+      env: { TONEFORGE_RECIPE_DIR: "relative/recipes" },
+      homeDirectory: "/home/tester",
+    });
+    expect(dir).toBe(resolve("relative/recipes"));
+  });
+
+  it("defaults to <home>/.toneforge/recipes", async () => {
+    const dir = await resolveExternalRecipeDirectory({
+      env: {},
+      homeDirectory: "/home/tester",
+    });
+    expect(dir).toBe(resolve("/home/tester", ".toneforge", "recipes"));
+  });
+
+  it("ignores blank destination and env values", async () => {
+    const dir = await resolveExternalRecipeDirectory({
+      destination: "   ",
+      env: { TONEFORGE_RECIPE_DIR: "  " },
+      homeDirectory: "/home/tester",
+    });
+    expect(dir).toBe(resolve("/home/tester", ".toneforge", "recipes"));
+  });
+});
+
+describe("assertSafeRecipeName", () => {
+  it("accepts ordinary recipe names", () => {
+    expect(() => assertSafeRecipeName("game-weapon")).not.toThrow();
+    expect(() => assertSafeRecipeName("recipe.v2")).not.toThrow();
+    expect(() => assertSafeRecipeName("Card_Coin_Collect-2")).not.toThrow();
+  });
+
+  it.each(["", ".", "..", "a/b", "a\\b", "nul\0byte"])(
+    "rejects unsafe name %j",
+    (name) => {
+      expect(() => assertSafeRecipeName(name)).toThrow(/Invalid recipe name/);
+    },
+  );
+});
+
+describe("persistRecipeDocument", () => {
+  it("creates nested destination directories and writes the document", async () => {
+    const root = await mkdtemp(join(tmpdir(), "toneforge-persist-"));
+    try {
+      const destinationDirectory = join(root, "nested", "recipes");
+      const result = await persistRecipeDocument({
+        contents: 'version: "0.1"\n',
+        destinationDirectory,
+        fileName: "my-recipe.yaml",
+      });
+
+      expect(result.destinationDirectory).toBe(resolve(destinationDirectory));
+      expect(result.destinationPath).toBe(
+        join(resolve(destinationDirectory), "my-recipe.yaml"),
+      );
+      expect(await readFile(result.destinationPath, "utf-8")).toBe(
+        'version: "0.1"\n',
+      );
+      // No leftover temp files.
+      expect(await readdir(resolve(destinationDirectory))).toEqual([
+        "my-recipe.yaml",
+      ]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("overwrites an existing recipe idempotently without duplicating", async () => {
+    const root = await mkdtemp(join(tmpdir(), "toneforge-persist-"));
+    try {
+      await persistRecipeDocument({
+        contents: "first",
+        destinationDirectory: root,
+        fileName: "same.yaml",
+      });
+      const second = await persistRecipeDocument({
+        contents: "second",
+        destinationDirectory: root,
+        fileName: "same.yaml",
+      });
+
+      expect(await readFile(second.destinationPath, "utf-8")).toBe("second");
+      expect(await readdir(root)).toEqual(["same.yaml"]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects file names that would escape the destination directory", async () => {
+    const root = await mkdtemp(join(tmpdir(), "toneforge-persist-"));
+    try {
+      await expect(
+        persistRecipeDocument({
+          contents: "x",
+          destinationDirectory: root,
+          fileName: "../escape.yaml",
+        }),
+      ).rejects.toThrow(/Invalid recipe file name/);
+      await expect(
+        persistRecipeDocument({
+          contents: "x",
+          destinationDirectory: root,
+          fileName: "nested/escape.yaml",
+        }),
+      ).rejects.toThrow(/Invalid recipe file name/);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("discoverFileBackedRecipes — additional directories", () => {
+  const bakedRecipe = `version: "0.1"
+meta:
+  description: Baked recipe
+  category: UI
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 440
+  out:
+    kind: destination
+routing:
+  - chain: [osc, out]
+`;
+
+  const externalRecipe = (description: string) => `version: "0.1"
+meta:
+  description: ${description}
+  category: External
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: triangle
+      frequency: 220
+  out:
+    kind: destination
+routing:
+  - chain: [osc, out]
+`;
+
+  it("discovers from the baked directory and marks additional dirs external", async () => {
+    const bakedDir = await mkdtemp(join(tmpdir(), "toneforge-baked-"));
+    const externalDir = await mkdtemp(join(tmpdir(), "toneforge-external-"));
+    try {
+      await writeFile(join(bakedDir, "baked-recipe.yaml"), bakedRecipe, "utf-8");
+      await writeFile(
+        join(externalDir, "external-recipe.yaml"),
+        externalRecipe("External recipe"),
+        "utf-8",
+      );
+
+      const reg = new RecipeRegistry();
+      const discovered = await discoverFileBackedRecipes(reg, {
+        recipeDirectory: bakedDir,
+        additionalRecipeDirectories: [externalDir],
+      });
+      // When recipeDirectory is supplied, only that directory is scanned.
+      expect(discovered).toEqual(["baked-recipe"]);
+      expect(reg.getRegistration("external-recipe")).toBeUndefined();
+
+      // Without an explicit override, the baked default dir is used and the
+      // additional directory is scanned alongside it.
+      const reg2 = new RecipeRegistry();
+      const discovered2 = await discoverFileBackedRecipes(reg2, {
+        additionalRecipeDirectories: [externalDir],
+      });
+      expect(discovered2).toContain("external-recipe");
+      const external = reg2.getRegistration("external-recipe");
+      expect(external).toBeDefined();
+      expect(external!.external).toBe(true);
+      expect(external!.sourceDirectory).toBe(resolve(externalDir));
+    } finally {
+      await rm(bakedDir, { recursive: true, force: true });
+      await rm(externalDir, { recursive: true, force: true });
+    }
+  });
+
+  it("skips a missing additional directory without throwing", async () => {
+    const reg = new RecipeRegistry();
+    const missing = join(tmpdir(), `toneforge-missing-${Date.now()}`);
+    const discovered = await discoverFileBackedRecipes(reg, {
+      additionalRecipeDirectories: [missing],
+    });
+    // Baked-in recipes are still discovered; the missing dir contributes none.
+    expect(discovered.length).toBeGreaterThan(0);
+    expect(reg.list().length).toBe(discovered.length);
+  });
+
+  it("lets a later external directory override a same-named baked recipe", async () => {
+    const externalDir = await mkdtemp(join(tmpdir(), "toneforge-override-"));
+    try {
+      await writeFile(
+        join(externalDir, "weapon-laser-zap.yaml"),
+        externalRecipe("External override"),
+        "utf-8",
+      );
+
+      const reg = new RecipeRegistry();
+      await discoverFileBackedRecipes(reg, {
+        additionalRecipeDirectories: [externalDir],
+      });
+
+      const overridden = reg.getRegistration("weapon-laser-zap");
+      expect(overridden).toBeDefined();
+      expect(overridden!.description).toBe("External override");
+      expect(overridden!.external).toBe(true);
+    } finally {
+      await rm(externalDir, { recursive: true, force: true });
     }
   });
 });

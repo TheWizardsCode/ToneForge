@@ -130,30 +130,427 @@ describe("validateToneGraph", () => {
     expect(() => validateToneGraph(doc)).toThrow("Unsupported ToneGraph version");
   });
 
-  it("rejects sequences as reserved for v0.2", () => {
+  it("accepts sequences targeting a node AudioParam", () => {
     const doc = {
       version: "0.1",
       nodes: {
-        osc: { kind: "oscillator" },
+        osc: { kind: "oscillator", params: { frequency: 220 } },
+        out: { kind: "destination" },
       },
-      routing: [],
-      sequences: [],
+      routing: [{ from: "osc", to: "out" }],
+      sequences: [
+        {
+          node: "osc",
+          param: "frequency",
+          events: [
+            { kind: "set", time: 0, value: 220 },
+            { kind: "linearRamp", time: 0.2, value: 660 },
+          ],
+        },
+      ],
     };
 
-    expect(() => validateToneGraph(doc)).toThrow("reserved for v0.2");
+    const validated = validateToneGraph(doc);
+
+    expect(validated.sequences).toHaveLength(1);
+    expect(validated.sequences?.[0]?.node).toBe("osc");
+    expect(validated.sequences?.[0]?.events).toEqual([
+      { kind: "set", time: 0, value: 220 },
+      { kind: "linearRamp", time: 0.2, value: 660 },
+    ]);
   });
 
-  it("rejects namespaces as reserved for v0.2", () => {
+  it("accepts a sequence lfo event with an optional wave", () => {
     const doc = {
       version: "0.1",
       nodes: {
         osc: { kind: "oscillator" },
       },
       routing: [],
-      namespaces: {},
+      sequences: [
+        {
+          node: "osc",
+          param: "frequency",
+          events: [
+            { kind: "lfo", rate: 4, depth: 20, offset: 440, start: 0, end: 0.2, step: 1 / 64, wave: "square" },
+          ],
+        },
+      ],
     };
 
-    expect(() => validateToneGraph(doc)).toThrow("reserved for v0.2");
+    const validated = validateToneGraph(doc);
+
+    expect(validated.sequences?.[0]?.events[0]).toMatchObject({ kind: "lfo", rate: 4, depth: 20, wave: "square" });
+  });
+
+  it("rejects a sequence that references an unknown node", () => {
+    const doc = {
+      version: "0.1",
+      nodes: {
+        osc: { kind: "oscillator" },
+      },
+      routing: [],
+      sequences: [{ node: "ghost", param: "frequency", events: [{ kind: "set", time: 0, value: 1 }] }],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow('sequences[0].node references unknown node "ghost"');
+  });
+
+  it("rejects a sequence event with an unsupported kind", () => {
+    const doc = {
+      version: "0.1",
+      nodes: {
+        osc: { kind: "oscillator" },
+      },
+      routing: [],
+      sequences: [{ node: "osc", param: "frequency", events: [{ kind: "explode", time: 0, value: 1 }] }],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow('is invalid. Allowed kinds: set, linearRamp, exponentialRamp, lfo');
+  });
+
+  it("accepts and preserves node automation with all event kinds", () => {
+    const doc = {
+      version: "0.1",
+      nodes: {
+        osc: {
+          kind: "oscillator",
+          params: { type: "sine", frequency: 220 },
+          automation: {
+            frequency: [
+              { kind: "set", time: 0, value: 220 },
+              { kind: "linearRamp", time: 0.2, value: 880 },
+              { kind: "exponentialRamp", time: 0.4, value: 60 },
+              { kind: "lfo", rate: 4, depth: 20, offset: 440, wave: "sine" },
+            ],
+          },
+        },
+        out: { kind: "destination" },
+      },
+      routing: [{ from: "osc", to: "out" }],
+    };
+
+    const validated = validateToneGraph(doc);
+
+    expect(validated.nodes.osc?.automation).toEqual({
+      frequency: [
+        { kind: "set", time: 0, value: 220 },
+        { kind: "linearRamp", time: 0.2, value: 880 },
+        { kind: "exponentialRamp", time: 0.4, value: 60 },
+        { kind: "lfo", rate: 4, depth: 20, offset: 440, wave: "sine" },
+      ],
+    });
+  });
+
+  it("accepts node automation on a biquadFilter frequency", () => {
+    const doc = {
+      version: "0.1",
+      nodes: {
+        filter: {
+          kind: "biquadFilter",
+          params: { type: "bandpass", frequency: 1000 },
+          automation: {
+            frequency: [
+              { kind: "set", time: 0, value: 1000 },
+              { kind: "exponentialRamp", time: 0.3, value: 200 },
+            ],
+          },
+        },
+        out: { kind: "destination" },
+      },
+      routing: [{ from: "filter", to: "out" }],
+    };
+
+    const validated = validateToneGraph(doc);
+
+    expect(validated.nodes.filter?.automation?.frequency).toHaveLength(2);
+  });
+
+  it("rejects node automation that is not an object", () => {
+    const doc = {
+      version: "0.1",
+      nodes: {
+        osc: { kind: "oscillator", automation: [] },
+      },
+      routing: [],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow(
+      "must be an object mapping AudioParam names to event arrays",
+    );
+  });
+
+  it("rejects a node automation entry whose events are not an array", () => {
+    const doc = {
+      version: "0.1",
+      nodes: {
+        osc: { kind: "oscillator", automation: { frequency: { kind: "set" } } },
+      },
+      routing: [],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow("must be an array of events");
+  });
+
+  it("rejects node automation with an unsupported event kind", () => {
+    const doc = {
+      version: "0.1",
+      nodes: {
+        osc: { kind: "oscillator", automation: { frequency: [{ kind: "wobble", time: 0, value: 1 }] } },
+      },
+      routing: [],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow(
+      'Allowed kinds: set, linearRamp, exponentialRamp, lfo',
+    );
+  });
+
+  it("rejects node automation with a non-finite time or value", () => {
+    const doc = {
+      version: "0.1",
+      nodes: {
+        osc: { kind: "oscillator", automation: { frequency: [{ kind: "set", time: 0, value: Number.NaN }] } },
+      },
+      routing: [],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow("must be a finite number");
+  });
+
+  it("rejects an exponentialRamp node automation to a value <= 0", () => {
+    const doc = {
+      version: "0.1",
+      nodes: {
+        osc: {
+          kind: "oscillator",
+          automation: { frequency: [{ kind: "exponentialRamp", time: 0.2, value: 0 }] },
+        },
+      },
+      routing: [],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow("must be greater than 0 for an exponentialRamp");
+  });
+
+  it("accepts a sequence exponentialRamp event", () => {
+    const doc = {
+      version: "0.1",
+      nodes: {
+        osc: { kind: "oscillator", params: { frequency: 440 } },
+      },
+      routing: [],
+      sequences: [
+        {
+          node: "osc",
+          param: "frequency",
+          events: [
+            { kind: "set", time: 0, value: 440 },
+            { kind: "exponentialRamp", time: 0.2, value: 60 },
+          ],
+        },
+      ],
+    };
+
+    const validated = validateToneGraph(doc);
+
+    expect(validated.sequences?.[0]?.events).toEqual([
+      { kind: "set", time: 0, value: 440 },
+      { kind: "exponentialRamp", time: 0.2, value: 60 },
+    ]);
+  });
+
+  it("rejects a sequence exponentialRamp to a value <= 0", () => {
+    const doc = {
+      version: "0.1",
+      nodes: {
+        osc: { kind: "oscillator" },
+      },
+      routing: [],
+      sequences: [
+        {
+          node: "osc",
+          param: "frequency",
+          events: [{ kind: "exponentialRamp", time: 0.2, value: -1 }],
+        },
+      ],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow("must be greater than 0 for an exponentialRamp");
+  });
+
+  it("rejects a sequence that omits events", () => {
+    const doc = {
+      version: "0.1",
+      nodes: {
+        osc: { kind: "oscillator" },
+      },
+      routing: [],
+      sequences: [{ node: "osc", param: "frequency" }],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow(".events must be an array");
+  });
+
+  it("rejects a sequence event with a non-finite value", () => {
+    const doc = {
+      version: "0.1",
+      nodes: {
+        osc: { kind: "oscillator" },
+      },
+      routing: [],
+      sequences: [{ node: "osc", param: "frequency", events: [{ kind: "set", time: 0, value: Number.NaN }] }],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow("must be a finite number");
+  });
+
+  it("accepts bus routing with declared buses", () => {
+    const doc = {
+      version: "0.1",
+      buses: {
+        mix: { gain: 0.5 },
+      },
+      nodes: {
+        osc: { kind: "oscillator" },
+        noise: { kind: "noise" },
+        filter: { kind: "biquadFilter" },
+        out: { kind: "destination" },
+      },
+      routing: [
+        { bus: "mix", from: ["osc", "noise"], to: ["filter"] },
+        { from: "filter", to: "out" },
+      ],
+    };
+
+    const validated = validateToneGraph(doc);
+
+    expect(validated.buses).toEqual({ mix: { gain: 0.5 } });
+    expect(validated.routing).toHaveLength(2);
+  });
+
+  it("accepts a bus entry with a single string input and output", () => {
+    const doc = {
+      version: "0.1",
+      buses: { mix: {} },
+      nodes: {
+        osc: { kind: "oscillator" },
+        out: { kind: "destination" },
+      },
+      routing: [{ bus: "mix", from: "osc", to: "out" }],
+    };
+
+    const validated = validateToneGraph(doc);
+
+    expect(validated.routing).toEqual([{ bus: "mix", from: "osc", to: "out" }]);
+  });
+
+  it("rejects bus routing that references an undeclared bus", () => {
+    const doc = {
+      version: "0.1",
+      nodes: {
+        osc: { kind: "oscillator" },
+        out: { kind: "destination" },
+      },
+      routing: [{ bus: "missing", from: "osc", to: "out" }],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow('unknown bus "missing"');
+  });
+
+  it("rejects a bus entry with neither inputs nor outputs", () => {
+    const doc = {
+      version: "0.1",
+      buses: { mix: {} },
+      nodes: {
+        osc: { kind: "oscillator" },
+      },
+      routing: [{ bus: "mix" }],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow("must declare at least one input or output");
+  });
+
+  it("rejects a bus entry with an empty input list", () => {
+    const doc = {
+      version: "0.1",
+      buses: { mix: {} },
+      nodes: {
+        out: { kind: "destination" },
+      },
+      routing: [{ bus: "mix", from: [], to: "out" }],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow("must not be empty");
+  });
+
+  it("rejects a bus definition with a non-numeric gain", () => {
+    const doc = {
+      version: "0.1",
+      buses: { mix: { gain: "loud" } },
+      nodes: {
+        out: { kind: "destination" },
+      },
+      routing: [],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow("buses.mix.gain must be a finite number");
+  });
+
+  it("rejects a bus id that collides with a node id", () => {
+    const doc = {
+      version: "0.1",
+      buses: { mix: {} },
+      nodes: {
+        mix: { kind: "gain" },
+        out: { kind: "destination" },
+      },
+      routing: [],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow("collides with a node id");
+  });
+
+  it("rejects a node id that collides with a generated bus reference", () => {
+    const doc = {
+      version: "0.1",
+      buses: { mix: {} },
+      nodes: {
+        "bus:mix": { kind: "gain" },
+        out: { kind: "destination" },
+      },
+      routing: [],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow("conflicts with bus reference");
+  });
+
+  it("rejects bus inputs that reference an AudioParam endpoint", () => {
+    const doc = {
+      version: "0.1",
+      buses: { mix: {} },
+      nodes: {
+        osc: { kind: "oscillator" },
+        out: { kind: "destination" },
+      },
+      routing: [{ bus: "mix", from: "osc.frequency", to: "out" }],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow("cannot reference AudioParam endpoint");
+  });
+
+  it("rejects bus routing that references an unknown node", () => {
+    const doc = {
+      version: "0.1",
+      buses: { mix: {} },
+      nodes: {
+        osc: { kind: "oscillator" },
+        out: { kind: "destination" },
+      },
+      routing: [{ bus: "mix", from: ["osc", "ghost"], to: "out" }],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow("unknown node");
   });
 
   it("rejects invalid meta.parameters bounds", () => {
@@ -171,5 +568,215 @@ describe("validateToneGraph", () => {
     };
 
     expect(() => validateToneGraph(doc)).toThrow("min must be <= max");
+  });
+
+  // --- Namespace tests ---
+
+  it("accepts a valid namespace declaration", () => {
+    const doc = {
+      version: "0.1",
+      namespaces: {
+        sfx: { nodes: ["osc", "filter"] },
+      },
+      nodes: {
+        osc: { kind: "oscillator" },
+        filter: { kind: "biquadFilter" },
+        out: { kind: "destination" },
+      },
+      routing: [{ chain: ["osc", "filter", "out"] }],
+    };
+
+    const validated = validateToneGraph(doc);
+
+    expect(validated.namespaces).toEqual({ sfx: { nodes: ["osc", "filter"] } });
+  });
+
+  it("accepts routing with namespace-qualified references in flat links", () => {
+    const doc = {
+      version: "0.1",
+      namespaces: {
+        sfx: { nodes: ["osc", "filter"] },
+      },
+      nodes: {
+        osc: { kind: "oscillator" },
+        filter: { kind: "biquadFilter" },
+        out: { kind: "destination" },
+      },
+      routing: [
+        { from: "ns/sfx/osc", to: "ns/sfx/filter" },
+        { from: "ns/sfx/filter", to: "out" },
+      ],
+    };
+
+    const validated = validateToneGraph(doc);
+
+    expect(validated.routing).toEqual([
+      { from: "ns/sfx/osc", to: "ns/sfx/filter" },
+      { from: "ns/sfx/filter", to: "out" },
+    ]);
+  });
+
+  it("accepts routing with namespace-qualified references in chains", () => {
+    const doc = {
+      version: "0.1",
+      namespaces: {
+        sfx: { nodes: ["osc", "filter", "env"] },
+      },
+      nodes: {
+        osc: { kind: "oscillator" },
+        filter: { kind: "biquadFilter" },
+        env: { kind: "envelope" },
+        out: { kind: "destination" },
+      },
+      routing: [{ chain: ["ns/sfx/osc", "ns/sfx/filter", "ns/sfx/env", "out"] }],
+    };
+
+    const validated = validateToneGraph(doc);
+
+    expect(validated.routing).toEqual([
+      { chain: ["ns/sfx/osc", "ns/sfx/filter", "ns/sfx/env", "out"] },
+    ]);
+  });
+
+  it("accepts namespace-qualified references in bus routing", () => {
+    const doc = {
+      version: "0.1",
+      namespaces: {
+        sfx: { nodes: ["osc", "noise"] },
+      },
+      buses: { mix: {} },
+      nodes: {
+        osc: { kind: "oscillator" },
+        noise: { kind: "noise" },
+        out: { kind: "destination" },
+      },
+      routing: [{ bus: "mix", from: ["ns/sfx/osc", "ns/sfx/noise"], to: "out" }],
+    };
+
+    const validated = validateToneGraph(doc);
+
+    expect(validated.routing).toEqual([
+      { bus: "mix", from: ["ns/sfx/osc", "ns/sfx/noise"], to: "out" },
+    ]);
+  });
+
+  it("accepts namespace references with AudioParam endpoints", () => {
+    const doc = {
+      version: "0.1",
+      namespaces: {
+        mod: { nodes: ["lfo"] },
+        sfx: { nodes: ["osc"] },
+      },
+      nodes: {
+        lfo: { kind: "lfo" },
+        osc: { kind: "oscillator" },
+        out: { kind: "destination" },
+      },
+      routing: [
+        { from: "ns/mod/lfo", to: "ns/sfx/osc.frequency" },
+        { from: "ns/sfx/osc", to: "out" },
+      ],
+    };
+
+    const validated = validateToneGraph(doc);
+
+    expect(validated.routing).toHaveLength(2);
+  });
+
+  it("rejects a namespace reference to an AudioParam endpoint on \"from\"", () => {
+    const doc = {
+      version: "0.1",
+      namespaces: {
+        sfx: { nodes: ["osc"] },
+      },
+      nodes: {
+        osc: { kind: "oscillator" },
+        out: { kind: "destination" },
+      },
+      routing: [{ from: "ns/sfx/osc.frequency", to: "out" }],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow("cannot reference AudioParam endpoint");
+  });
+
+  it("rejects a namespace that references an unknown node", () => {
+    const doc = {
+      version: "0.1",
+      namespaces: {
+        sfx: { nodes: ["osc", "ghost"] },
+      },
+      nodes: {
+        osc: { kind: "oscillator" },
+        out: { kind: "destination" },
+      },
+      routing: [{ from: "osc", to: "out" }],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow('references unknown node "ghost"');
+  });
+
+  it("rejects routing that references an unknown namespace", () => {
+    const doc = {
+      version: "0.1",
+      namespaces: {
+        sfx: { nodes: ["osc"] },
+      },
+      nodes: {
+        osc: { kind: "oscillator" },
+        out: { kind: "destination" },
+      },
+      routing: [{ from: "ns/ghost/osc", to: "out" }],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow('references unknown namespace "ghost"');
+  });
+
+  it("rejects routing that references a node not in the namespace", () => {
+    const doc = {
+      version: "0.1",
+      namespaces: {
+        sfx: { nodes: ["osc"] },
+      },
+      nodes: {
+        osc: { kind: "oscillator" },
+        filter: { kind: "biquadFilter" },
+        out: { kind: "destination" },
+      },
+      routing: [{ from: "ns/sfx/filter", to: "out" }],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow('references unknown node "filter" in namespace "sfx"');
+  });
+
+  it("rejects a namespace that collides with a node id", () => {
+    const doc = {
+      version: "0.1",
+      namespaces: {
+        osc: { nodes: ["osc"] },
+      },
+      nodes: {
+        osc: { kind: "oscillator" },
+        out: { kind: "destination" },
+      },
+      routing: [{ from: "osc", to: "out" }],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow('collides with a node id');
+  });
+
+  it("rejects an empty namespace name", () => {
+    const doc = {
+      version: "0.1",
+      namespaces: {
+        "": { nodes: ["osc"] },
+      },
+      nodes: {
+        osc: { kind: "oscillator" },
+        out: { kind: "destination" },
+      },
+      routing: [{ from: "osc", to: "out" }],
+    };
+
+    expect(() => validateToneGraph(doc)).toThrow("contains an empty namespace name");
   });
 });

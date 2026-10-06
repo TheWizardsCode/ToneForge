@@ -1,8 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { runCli } from "../test/run-yargs-child.js";
+
+/** Preset directory relative to the repository root. */
+const PROJECT_ROOT = join(import.meta.dirname, "..");
 
 describe("yargs CLI entrypoint integration", () => {
   let tempDir: string;
@@ -227,5 +230,119 @@ describe("yargs CLI entrypoint integration", () => {
     const { code, stderr } = await runCli(["tui"]);
     expect(code).toBe(1);
     expect(stderr).toContain("requires an interactive terminal");
+  });
+
+  // -----------------------------------------------------------------
+  // New resource types: sequences
+  // -----------------------------------------------------------------
+
+  it("supports list sequences --json via yargs entrypoint", async () => {
+    const { code, stdout } = await runCli(["list", "sequences", "--json"]);
+    expect(code).toBe(0);
+    const data = JSON.parse(stdout);
+    expect(data.command).toBe("list");
+    expect(data.resource).toBe("sequences");
+    expect(typeof data.total).toBe("number");
+    expect(data.total).toBeGreaterThan(0);
+    expect(Array.isArray(data.presets)).toBe(true);
+    expect(data.presets.length).toBe(data.total);
+    expect(data.presets[0]).toHaveProperty("name");
+    expect(data.presets[0]).toHaveProperty("description");
+  });
+
+  it("supports list sequences text output via yargs entrypoint", async () => {
+    const { code, stdout } = await runCli(["list", "sequences"]);
+    expect(code).toBe(0);
+    expect(stdout).toContain("Sequence");
+    expect(stdout).toContain("Description");
+  });
+
+  it("supports list sequences --search filter via yargs entrypoint", async () => {
+    const { code, stdout } = await runCli(["list", "sequences", "--search", "combo", "--json"]);
+    expect(code).toBe(0);
+    const data = JSON.parse(stdout);
+    expect(data.resource).toBe("sequences");
+    expect(data.presets.every((p: { name: string }) =>
+      p.name.toLowerCase().includes("combo") || p.description.toLowerCase().includes("combo"),
+    )).toBe(true);
+    expect(data.presets.length).toBeGreaterThan(0);
+  });
+
+  it("supports list sequences --search with no results", async () => {
+    const { code, stdout } = await runCli(["list", "sequences", "--search", "zzzznotfound", "--json"]);
+    expect(code).toBe(0);
+    const data = JSON.parse(stdout);
+    expect(data.total).toBeGreaterThan(0);
+    expect(data.presets.length).toBe(0);
+  });
+
+  it("returns non-zero for unknown resource", async () => {
+    const { code, stderr } = await runCli(["list", "nonexistent_resource", "--json"]);
+    expect(code).toBe(1);
+    const data = JSON.parse(stderr);
+    expect(typeof data.error).toBe("string");
+    expect(data.error).toContain("Unknown resource");
+  });
+
+  // -----------------------------------------------------------------
+  // New resource types: stacks
+  // -----------------------------------------------------------------
+
+  it("supports list stacks --json via yargs entrypoint", async () => {
+    const { code, stdout } = await runCli(["list", "stacks", "--json"]);
+    expect(code).toBe(0);
+    const data = JSON.parse(stdout);
+    expect(data.command).toBe("list");
+    expect(data.resource).toBe("stacks");
+    expect(typeof data.total).toBe("number");
+    expect(data.total).toBeGreaterThan(0);
+    expect(Array.isArray(data.presets)).toBe(true);
+    expect(data.presets.length).toBe(data.total);
+    expect(data.presets[0]).toHaveProperty("name");
+    expect(data.presets[0]).toHaveProperty("description");
+  });
+
+  it("supports list stacks text output via yargs entrypoint", async () => {
+    const { code, stdout } = await runCli(["list", "stacks"]);
+    expect(code).toBe(0);
+    expect(stdout).toContain("Stack");
+    expect(stdout).toContain("Description");
+  });
+
+  it("supports list stacks --search filter via yargs entrypoint", async () => {
+    const { code, stdout } = await runCli(["list", "stacks", "--search", "victory", "--json"]);
+    expect(code).toBe(0);
+    const data = JSON.parse(stdout);
+    expect(data.resource).toBe("stacks");
+    expect(data.presets.every((p: { name: string }) =>
+      p.name.toLowerCase().includes("victory") || p.description.toLowerCase().includes("victory"),
+    )).toBe(true);
+    expect(data.presets.length).toBeGreaterThan(0);
+  });
+
+  it("supports list stacks --search with no results", async () => {
+    const { code, stdout } = await runCli(["list", "stacks", "--search", "zzzznotfound", "--json"]);
+    expect(code).toBe(0);
+    const data = JSON.parse(stdout);
+    expect(data.total).toBeGreaterThan(0);
+    expect(data.presets.length).toBe(0);
+  });
+
+  it("returns non-zero for a malformed preset file", async () => {
+    const malformedPath = join(PROJECT_ROOT, "presets", "sequences", "__malformed_test__.json");
+    writeFileSync(malformedPath, "{ this is not valid json");
+    try {
+      const { code, stderr } = await runCli(["list", "sequences", "--json"]);
+      expect(code).toBe(1);
+      const data = JSON.parse(stderr);
+      expect(data.error).toContain("Malformed");
+      expect(data.error).toContain("__malformed_test__.json");
+    } finally {
+      try {
+        unlinkSync(malformedPath);
+      } catch {
+        // best-effort cleanup
+      }
+    }
   });
 });

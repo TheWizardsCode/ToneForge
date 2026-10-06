@@ -1,0 +1,101 @@
+# Worked example for the ToneGraph node `automation` contract.
+#
+# Demonstrates two one-shot frequency contours on oscillator AudioParams:
+#   - `rise`  : 220 Hz -> 880 Hz linear rise
+#   - `fall`  : 440 Hz -> 60 Hz exponential fall (exponential ramps require
+#               a strictly positive target, hence the 60 Hz endpoint)
+#
+# See docs/tonegraph.md#node-automation for the full contract.
+version: "0.1"
+meta:
+  name: frequency-sweep-demo
+  description: Two-oscillator demo of a 220->880 Hz linear rise and a 440->60 Hz exponential fall.
+  category: Demo
+  tags:
+    - demo
+    - sweep
+    - automation
+  duration: 0.6
+  parameters:
+    - name: riseStart
+      type: number
+      min: 150
+      max: 330
+      unit: Hz
+      default: 220
+    - name: riseEnd
+      type: number
+      min: 600
+      max: 1200
+      unit: Hz
+      default: 880
+    - name: fallStart
+      type: number
+      min: 300
+      max: 600
+      unit: Hz
+      default: 440
+    - name: fallEnd
+      type: number
+      min: 40
+      max: 120
+      unit: Hz
+      default: 60
+    - name: mixLevel
+      type: number
+      min: 0.1
+      max: 0.4
+      unit: amplitude
+      default: 0.2
+nodes:
+  rise:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 220
+    automation:
+      frequency:
+        - kind: set
+          time: 0
+          value: 220
+        - kind: linearRamp
+          time: 0.5
+          value: 880
+  riseEnv:
+    kind: envelope
+    params:
+      attack: 0.01
+      decay: 0.05
+      sustain: 0.8
+      release: 0.05
+  fall:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 440
+    automation:
+      frequency:
+        - kind: set
+          time: 0
+          value: 440
+        - kind: exponentialRamp
+          time: 0.5
+          value: 60
+  fallEnv:
+    kind: envelope
+    params:
+      attack: 0.01
+      decay: 0.05
+      sustain: 0.8
+      release: 0.05
+  mix:
+    kind: gain
+    params:
+      gain: 0.2
+  out:
+    kind: destination
+routing:
+  - chain: [rise, riseEnv, mix]
+  - chain: [fall, fallEnv, mix]
+  - from: mix
+    to: out

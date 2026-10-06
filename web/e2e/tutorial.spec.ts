@@ -5,94 +5,48 @@
  * through every wizard step clicking Run buttons and verifying that the
  * terminal receives and executes each command successfully.
  *
+ * Timeouts report the true root cause via the shared diagnostics helper
+ * (`./helpers/diagnostics`), so a missing `toneforge` binary surfaces
+ * "command not found" rather than a generic "Timed out waiting for terminal
+ * text". Work item: TF-0MUVK0K230013UC3.
+ *
  * Prerequisites (handled by playwright.config.ts webServer):
  *   - Root project built:  npm run build       (in project root)
  *   - Web project built:   npm run build       (in web/)
  *   - Server started:      node dist-server/index.js  (in web/)
  */
 import { test, expect, type Page } from "@playwright/test";
+import {
+  captureConsole,
+  waitForTerminalText,
+  type ConsoleCapture,
+} from "./helpers/diagnostics";
 
 // -- Helpers ----------------------------------------------------------
 
 /**
- * Read the visible text content from the xterm.js terminal buffer.
- * xterm.js v5 uses canvas rendering, so we can't just read DOM text.
- * Instead we access the Terminal instance's buffer API via the global.
+ * Wait until the terminal shows the output that means a command finished.
  *
- * Falls back to reading .xterm-rows textContent if the API is unavailable.
- */
-async function getTerminalText(page: Page): Promise<string> {
-  // xterm renders rows as a series of <div> elements inside .xterm-rows
-  // Even with canvas renderer, there's a DOM-based accessibility tree.
-  // We'll also try reading from the serialized buffer via evaluate.
-  const text = await page.evaluate(() => {
-    // Try the xterm accessibility rows first (screen reader text)
-    const rows = document.querySelectorAll(".xterm-accessibility .xterm-accessibility-tree div");
-    if (rows.length > 0) {
-      return Array.from(rows)
-        .map((r) => r.textContent ?? "")
-        .join("\n");
-    }
-    // Fallback: try .xterm-rows
-    const xtermRows = document.querySelectorAll(".xterm-rows > div");
-    if (xtermRows.length > 0) {
-      return Array.from(xtermRows)
-        .map((r) => r.textContent ?? "")
-        .join("\n");
-    }
-    return "";
-  });
-  return text;
-}
-
-/**
- * Wait until the terminal contains the expected text.
- * Polls the terminal buffer at intervals.
- */
-async function waitForTerminalText(
-  page: Page,
-  expected: string,
-  timeoutMs = 30_000,
-): Promise<string> {
-  const start = Date.now();
-  let lastText = "";
-  while (Date.now() - start < timeoutMs) {
-    lastText = await getTerminalText(page);
-    if (lastText.includes(expected)) {
-      return lastText;
-    }
-    await page.waitForTimeout(500);
-  }
-  throw new Error(
-    `Timed out after ${timeoutMs}ms waiting for terminal to contain "${expected}".\n` +
-      `Last terminal text (${lastText.length} chars):\n${lastText.slice(0, 2000)}`,
-  );
-}
-
-/**
- * Wait until the terminal shows a shell prompt after a command finishes.
- * We detect the prompt by waiting for a `$` character to appear after the
- * last known output, indicating the shell is ready for the next command.
- *
- * For vitest commands (act-4) we wait for the test result output instead.
+ * For vitest commands (act-4) we wait for the test summary; for generate
+ * commands we wait for the rendered output; otherwise we wait for the next
+ * shell prompt. All waits go through the diagnostics helper so a shell error
+ * is reported explicitly.
  */
 async function waitForCommandCompletion(
   page: Page,
   command: string,
   timeoutMs = 60_000,
+  capture?: ConsoleCapture,
 ): Promise<string> {
-  // For vitest commands, wait for the test summary line
   if (command.includes("vitest")) {
-    return waitForTerminalText(page, "Tests", timeoutMs);
+    return waitForTerminalText(page, "Tests", timeoutMs, capture);
   }
 
-  // For generate commands, wait for the "Playing..." or "Rendered" output
   if (command.includes("generate")) {
-    return waitForTerminalText(page, "Rendered", timeoutMs);
+    return waitForTerminalText(page, "Rendered", timeoutMs, capture);
   }
 
-  // Generic: wait for the next shell prompt
-  return waitForTerminalText(page, "$", timeoutMs);
+  return waitForTerminalText(page, "$", timeoutMs, capture);
 }
 
 // -- Tests ------------------------------------------------------------
@@ -116,10 +70,7 @@ test.describe("Tutorial walkthrough", () => {
 
   test("terminal connects and shows banner", async ({ page }) => {
     // Collect browser console messages to verify connection logging
-    const consoleMessages: { type: string; text: string }[] = [];
-    page.on("console", (msg) => {
-      consoleMessages.push({ type: msg.type(), text: msg.text() });
-    });
+    const consoles = captureConsole(page);
 
     await page.goto("/");
 
@@ -127,37 +78,64 @@ test.describe("Tutorial walkthrough", () => {
     await page.waitForSelector(".xterm", { timeout: 10_000 });
 
     // The terminal should show the "ToneForge Terminal" banner on connect
-    await waitForTerminalText(page, "ToneForge Terminal", 15_000);
+    await waitForTerminalText(page, "ToneForge Terminal", 15_000, consoles);
 
     // Verify console shows connection logs (no silent failures)
-    const toneForgeMessages = consoleMessages.filter((m) => m.text.includes("[ToneForge]"));
+    const toneForgeMessages = consoles.records.filter((record) =>
+      record.text.includes("[ToneForge]"),
+    );
     expect(toneForgeMessages.length).toBeGreaterThan(0);
-    expect(toneForgeMessages.some((m) => m.text.includes("WebSocket connected"))).toBe(true);
+    expect(
+      toneForgeMessages.some((record) => record.text.includes("WebSocket connected")),
+    ).toBe(true);
 
     // No AudioContext errors on page load
-    const audioContextErrors = consoleMessages.filter(
-      (m) => m.type === "error" && m.text.includes("AudioContext"),
+    const audioContextErrors = consoles.records.filter(
+      (record) => record.type === "error" && record.text.includes("AudioContext"),
     );
     expect(audioContextErrors).toHaveLength(0);
+  });
+
+  test("PTY environment exposes a resolvable toneforge command", async ({ page }) => {
+    const consoles = captureConsole(page);
+
+    await page.goto("/");
+    await page.waitForSelector(".xterm", { timeout: 10_000 });
+    await waitForTerminalText(page, "ToneForge Terminal", 15_000, consoles);
+
+    // Drive the PTY directly through xterm's hidden input textarea. The marker
+    // is computed at runtime so the shell's command echo cannot satisfy the
+    // wait before the command actually runs.
+    const terminalInput = page.locator(".xterm-helper-textarea");
+    await terminalInput.click();
+    await page.keyboard.type("toneforge version >/dev/null && echo TONEFORGE_READY_$((6*7))");
+    await page.keyboard.press("Enter");
+
+    // If `toneforge` is missing, bash prints "toneforge: command not found"
+    // and the diagnostics helper fails naming that error.
+    const terminalText = await waitForTerminalText(
+      page,
+      "TONEFORGE_READY_42",
+      20_000,
+      consoles,
+    );
+    expect(terminalText).toContain("TONEFORGE_READY_42");
   });
 
   test("full tutorial: click Run on every step and verify terminal output", async ({ page }) => {
     test.setTimeout(180_000); // 3 minutes for the full walkthrough
 
     // Collect console messages to verify commands are sent
-    const consoleMessages: { type: string; text: string }[] = [];
-    page.on("console", (msg) => {
-      consoleMessages.push({ type: msg.type(), text: msg.text() });
-    });
+    const consoles = captureConsole(page);
 
     await page.goto("/");
 
     // Wait for terminal to connect
     await page.waitForSelector(".xterm", { timeout: 10_000 });
-    await waitForTerminalText(page, "ToneForge Terminal", 15_000);
+    await waitForTerminalText(page, "ToneForge Terminal", 15_000, consoles);
 
-    // Wait a moment for the shell prompt to appear
-    await page.waitForTimeout(2000);
+    // Wait for the shell prompt to appear
+    await waitForTerminalText(page, "$", 15_000, consoles);
 
     // Step definitions: map step button labels to expected behaviour
     const steps = [
@@ -170,7 +148,7 @@ test.describe("Tutorial walkthrough", () => {
         label: "1/4",
         hasRun: true,
         title: "Unblock your build on day one",
-        // Command: tf generate --recipe ui-scifi-confirm --seed 42
+        // Command: toneforge generate --recipe ui-scifi-confirm --seed 42
         expectInTerminal: "Rendered",
       },
       {
@@ -225,28 +203,33 @@ test.describe("Tutorial walkthrough", () => {
           page,
           step.label === "4/4" ? "vitest" : "generate",
           step.label === "4/4" ? 90_000 : 30_000, // vitest takes longer
+          consoles,
         );
 
         // Basic sanity: terminal should have some output
         expect(termText.length).toBeGreaterThan(0);
 
-        // Wait for the command to finish before proceeding to next step
-        // Give the shell a moment to return to prompt
-        await page.waitForTimeout(1000);
+        // Wait for the wizard's global run guard to clear before the next
+        // step — the Run button is disabled and re-labelled while a command
+        // is executing. This replaces a fixed sleep with an explicit wait.
+        await expect(runBtn).toBeEnabled({ timeout: 15_000 });
+        await expect(runBtn).not.toHaveClass(/wizard-btn-running/, {
+          timeout: 15_000,
+        });
       }
     }
 
     // After the full walkthrough, verify that commands were actually sent
     // (not silently swallowed by a disconnected WebSocket)
-    const sendMessages = consoleMessages.filter(
-      (m) => m.text.includes("[ToneForge] Executing command:"),
+    const sendMessages = consoles.records.filter((record) =>
+      record.text.includes("[ToneForge] Executing command:"),
     );
     // Acts 1-4 send commands: 1 + 3 + 1 + 1 = 6 commands total
     expect(sendMessages.length).toBe(6);
 
     // No AudioContext errors during the walkthrough
-    const audioContextErrors = consoleMessages.filter(
-      (m) => m.type === "error" && m.text.includes("AudioContext"),
+    const audioContextErrors = consoles.records.filter(
+      (record) => record.type === "error" && record.text.includes("AudioContext"),
     );
     expect(audioContextErrors).toHaveLength(0);
   });

@@ -35,8 +35,27 @@ export interface ToneGraphTransport {
   timeSignature?: [number, number];
 }
 
+/**
+ * A named mixer bus declared at the document level. The loader materialises
+ * each bus as a GainNode in the Web Audio graph, addressed by the reserved
+ * reference `bus:<id>` from routing entries.
+ */
+export interface ToneGraphBusDefinition {
+  gain?: number;
+}
+
+/**
+ * A namespace groups existing nodes under a named prefix. Routing entries
+ * may reference namespace-qualified nodes using the `ns/<namespace>/<name>`
+ * syntax, which resolves to the actual node id declared in the namespace.
+ */
+export interface ToneGraphNamespaceDefinition {
+  nodes: string[];
+}
+
 export interface ToneGraphDestinationNode {
   kind: "destination";
+  automation?: ToneGraphNodeAutomation;
 }
 
 export interface ToneGraphGainNode {
@@ -44,6 +63,7 @@ export interface ToneGraphGainNode {
   params?: {
     gain?: number;
   };
+  automation?: ToneGraphNodeAutomation;
 }
 
 export interface ToneGraphOscillatorNode {
@@ -53,6 +73,7 @@ export interface ToneGraphOscillatorNode {
     frequency?: number;
     detune?: number;
   };
+  automation?: ToneGraphNodeAutomation;
 }
 
 export interface ToneGraphNoiseNode {
@@ -61,6 +82,7 @@ export interface ToneGraphNoiseNode {
     color?: "white" | "pink" | "brown";
     level?: number;
   };
+  automation?: ToneGraphNodeAutomation;
 }
 
 export interface ToneGraphBiquadFilterNode {
@@ -71,6 +93,7 @@ export interface ToneGraphBiquadFilterNode {
     Q?: number;
     gain?: number;
   };
+  automation?: ToneGraphNodeAutomation;
 }
 
 export interface ToneGraphBufferSourceNode {
@@ -80,6 +103,7 @@ export interface ToneGraphBufferSourceNode {
     loop?: boolean;
     playbackRate?: number;
   };
+  automation?: ToneGraphNodeAutomation;
 }
 
 export interface ToneGraphEnvelopeNode {
@@ -90,6 +114,7 @@ export interface ToneGraphEnvelopeNode {
     sustain?: number;
     release?: number;
   };
+  automation?: ToneGraphNodeAutomation;
 }
 
 export interface ToneGraphLfoNode {
@@ -100,6 +125,7 @@ export interface ToneGraphLfoNode {
     depth?: number;
     offset?: number;
   };
+  automation?: ToneGraphNodeAutomation;
 }
 
 export interface ToneGraphConstantNode {
@@ -107,6 +133,7 @@ export interface ToneGraphConstantNode {
   params?: {
     value?: number;
   };
+  automation?: ToneGraphNodeAutomation;
 }
 
 export interface ToneGraphFmPatternNode {
@@ -116,6 +143,7 @@ export interface ToneGraphFmPatternNode {
     modulatorFrequency?: number;
     modulationIndex?: number;
   };
+  automation?: ToneGraphNodeAutomation;
 }
 
 export type ToneGraphNodeDefinition =
@@ -139,7 +167,71 @@ export interface ToneGraphRoutingChain {
   chain: [string, string, ...string[]];
 }
 
-export type ToneGraphRoutingEntry = ToneGraphRoutingLink | ToneGraphRoutingChain;
+/**
+ * Bus routing entry: fans `from` inputs into the named bus and fans the bus
+ * out to `to` outputs. `from`/`to` accept either a single endpoint reference
+ * or a list, enabling fan-in (`from` array) and fan-out (`to` array).
+ */
+export interface ToneGraphRoutingBus {
+  bus: string;
+  from?: string | string[];
+  to?: string | string[];
+}
+
+export type ToneGraphSequenceEventKind = "set" | "linearRamp" | "exponentialRamp" | "lfo";
+
+export interface ToneGraphSequenceSetEvent {
+  kind: "set";
+  time: number;
+  value: number;
+}
+
+export interface ToneGraphSequenceLinearRampEvent {
+  kind: "linearRamp";
+  time: number;
+  value: number;
+}
+
+export interface ToneGraphSequenceExponentialRampEvent {
+  kind: "exponentialRamp";
+  time: number;
+  value: number;
+}
+
+export interface ToneGraphSequenceLfoEvent {
+  kind: "lfo";
+  rate: number;
+  depth: number;
+  wave?: "sine" | "square" | "sawtooth" | "triangle";
+  offset?: number;
+  start?: number;
+  end?: number;
+  step?: number;
+}
+
+export type ToneGraphSequenceEvent =
+  | ToneGraphSequenceSetEvent
+  | ToneGraphSequenceLinearRampEvent
+  | ToneGraphSequenceExponentialRampEvent
+  | ToneGraphSequenceLfoEvent;
+
+/**
+ * Per-node automation map: AudioParam name -> ordered event list. Uses the
+ * same event kinds as document-level `sequences` so authors only learn one
+ * contract. Preserved verbatim by the validator and consumed by the loader.
+ */
+export type ToneGraphNodeAutomation = Record<string, ToneGraphSequenceEvent[]>;
+
+export interface ToneGraphSequence {
+  node: string;
+  param: string;
+  events: ToneGraphSequenceEvent[];
+}
+
+export type ToneGraphRoutingEntry =
+  | ToneGraphRoutingLink
+  | ToneGraphRoutingChain
+  | ToneGraphRoutingBus;
 
 export interface ToneGraphDocument {
   version: ToneGraphVersion;
@@ -149,6 +241,9 @@ export interface ToneGraphDocument {
   transport?: ToneGraphTransport;
   nodes: Record<string, ToneGraphNodeDefinition>;
   routing: ToneGraphRoutingEntry[];
+  buses?: Record<string, ToneGraphBusDefinition>;
+  sequences?: ToneGraphSequence[];
+  namespaces?: Record<string, ToneGraphNamespaceDefinition>;
 }
 
 type UnknownRecord = Record<string, unknown>;
@@ -302,15 +397,19 @@ function validateNodeDefinition(nodeId: string, value: unknown): ToneGraphNodeDe
   const paramsRaw = value.params;
   assertOptionalRecord(paramsRaw, `${path}.params`);
   const params = paramsRaw ?? undefined;
+  const automation = validateNodeAutomation(value.automation, `${path}.automation`);
 
+  let node: ToneGraphNodeDefinition;
   switch (kind) {
     case "destination":
-      return { kind };
+      node = { kind };
+      break;
     case "gain":
       if (params?.gain !== undefined) {
         assertNumber(params.gain, `${path}.params.gain`);
       }
-      return { kind, params: params as ToneGraphGainNode["params"] };
+      node = { kind, params: params as ToneGraphGainNode["params"] };
+      break;
     case "oscillator":
       if (params?.type !== undefined) {
         assertString(params.type, `${path}.params.type`);
@@ -324,7 +423,8 @@ function validateNodeDefinition(nodeId: string, value: unknown): ToneGraphNodeDe
       if (params?.detune !== undefined) {
         assertNumber(params.detune, `${path}.params.detune`);
       }
-      return { kind, params: params as ToneGraphOscillatorNode["params"] };
+      node = { kind, params: params as ToneGraphOscillatorNode["params"] };
+      break;
     case "noise":
       if (params?.color !== undefined) {
         assertString(params.color, `${path}.params.color`);
@@ -335,7 +435,8 @@ function validateNodeDefinition(nodeId: string, value: unknown): ToneGraphNodeDe
       if (params?.level !== undefined) {
         assertNumber(params.level, `${path}.params.level`);
       }
-      return { kind, params: params as ToneGraphNoiseNode["params"] };
+      node = { kind, params: params as ToneGraphNoiseNode["params"] };
+      break;
     case "biquadFilter":
       if (params?.type !== undefined) {
         assertString(params.type, `${path}.params.type`);
@@ -352,7 +453,8 @@ function validateNodeDefinition(nodeId: string, value: unknown): ToneGraphNodeDe
       if (params?.gain !== undefined) {
         assertNumber(params.gain, `${path}.params.gain`);
       }
-      return { kind, params: params as ToneGraphBiquadFilterNode["params"] };
+      node = { kind, params: params as ToneGraphBiquadFilterNode["params"] };
+      break;
     case "bufferSource":
       if (params?.sample !== undefined) {
         assertString(params.sample, `${path}.params.sample`);
@@ -363,7 +465,8 @@ function validateNodeDefinition(nodeId: string, value: unknown): ToneGraphNodeDe
       if (params?.playbackRate !== undefined) {
         assertNumber(params.playbackRate, `${path}.params.playbackRate`);
       }
-      return { kind, params: params as ToneGraphBufferSourceNode["params"] };
+      node = { kind, params: params as ToneGraphBufferSourceNode["params"] };
+      break;
     case "envelope":
       if (params?.attack !== undefined) {
         assertNumber(params.attack, `${path}.params.attack`);
@@ -377,7 +480,8 @@ function validateNodeDefinition(nodeId: string, value: unknown): ToneGraphNodeDe
       if (params?.release !== undefined) {
         assertNumber(params.release, `${path}.params.release`);
       }
-      return { kind, params: params as ToneGraphEnvelopeNode["params"] };
+      node = { kind, params: params as ToneGraphEnvelopeNode["params"] };
+      break;
     case "lfo":
       if (params?.type !== undefined) {
         assertString(params.type, `${path}.params.type`);
@@ -394,12 +498,14 @@ function validateNodeDefinition(nodeId: string, value: unknown): ToneGraphNodeDe
       if (params?.offset !== undefined) {
         assertNumber(params.offset, `${path}.params.offset`);
       }
-      return { kind, params: params as ToneGraphLfoNode["params"] };
+      node = { kind, params: params as ToneGraphLfoNode["params"] };
+      break;
     case "constant":
       if (params?.value !== undefined) {
         assertNumber(params.value, `${path}.params.value`);
       }
-      return { kind, params: params as ToneGraphConstantNode["params"] };
+      node = { kind, params: params as ToneGraphConstantNode["params"] };
+      break;
     case "fmPattern":
       if (params?.carrierFrequency !== undefined) {
         assertNumber(params.carrierFrequency, `${path}.params.carrierFrequency`);
@@ -410,10 +516,24 @@ function validateNodeDefinition(nodeId: string, value: unknown): ToneGraphNodeDe
       if (params?.modulationIndex !== undefined) {
         assertNumber(params.modulationIndex, `${path}.params.modulationIndex`);
       }
-      return { kind, params: params as ToneGraphFmPatternNode["params"] };
+      node = { kind, params: params as ToneGraphFmPatternNode["params"] };
+      break;
     default:
       throw new Error(`${path}.kind is unsupported.`);
   }
+
+  if (automation !== undefined) {
+    node.automation = automation;
+  }
+
+  return node;
+}
+
+function isEndpointList(value: unknown): value is string | string[] {
+  if (typeof value === "string") {
+    return true;
+  }
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
 function validateRoutingEntry(value: unknown, index: number): ToneGraphRoutingEntry {
@@ -423,6 +543,50 @@ function validateRoutingEntry(value: unknown, index: number): ToneGraphRoutingEn
   const hasFrom = Object.prototype.hasOwnProperty.call(value, "from");
   const hasTo = Object.prototype.hasOwnProperty.call(value, "to");
   const hasChain = Object.prototype.hasOwnProperty.call(value, "chain");
+  const hasBus = Object.prototype.hasOwnProperty.call(value, "bus");
+
+  if (hasBus) {
+    if (hasChain) {
+      throw new Error(`${path} must not combine "bus" with "chain".`);
+    }
+
+    const bus = value.bus;
+    assertString(bus, `${path}.bus`);
+    if (bus.trim().length === 0) {
+      throw new Error(`${path}.bus must not be empty.`);
+    }
+
+    const from = value.from;
+    const to = value.to;
+
+    if (from === undefined && to === undefined) {
+      throw new Error(`${path} must declare at least one input or output.`);
+    }
+
+    if (from !== undefined) {
+      if (!isEndpointList(from)) {
+        throw new Error(`${path}.from must be a string or an array of strings.`);
+      }
+      if (Array.isArray(from) && from.length === 0) {
+        throw new Error(`${path}.from must not be empty.`);
+      }
+    }
+
+    if (to !== undefined) {
+      if (!isEndpointList(to)) {
+        throw new Error(`${path}.to must be a string or an array of strings.`);
+      }
+      if (Array.isArray(to) && to.length === 0) {
+        throw new Error(`${path}.to must not be empty.`);
+      }
+    }
+
+    return {
+      bus,
+      from: from as string | string[] | undefined,
+      to: to as string | string[] | undefined,
+    };
+  }
 
   if (hasChain) {
     if (hasFrom || hasTo) {
@@ -453,30 +617,138 @@ function validateRoutingEntry(value: unknown, index: number): ToneGraphRoutingEn
   return { from, to };
 }
 
-function parseEndpointReference(ref: string): { nodeId: string; param?: string } {
-  const dotIndex = ref.indexOf(".");
-  if (dotIndex < 0) {
-    return { nodeId: ref };
+const SUPPORTED_WAVES = new Set(["sine", "square", "sawtooth", "triangle"]);
+
+function validateSequenceEvent(
+  event: unknown,
+  path: string,
+): ToneGraphSequenceEvent {
+  assertRecord(event, path);
+
+  const kind = event.kind;
+  assertString(kind, `${path}.kind`);
+
+  if (kind === "set" || kind === "linearRamp") {
+    return {
+      kind,
+      time: ensureFiniteNumber(event.time, `${path}.time`),
+      value: ensureFiniteNumber(event.value, `${path}.value`),
+    };
   }
 
-  const nodeId = ref.slice(0, dotIndex);
-  const param = ref.slice(dotIndex + 1);
-  if (nodeId.length === 0 || param.length === 0) {
-    throw new Error(`Invalid endpoint reference "${ref}".`);
+  if (kind === "exponentialRamp") {
+    const value = ensureFiniteNumber(event.value, `${path}.value`);
+    if (value <= 0) {
+      throw new Error(`${path}.value must be greater than 0 for an exponentialRamp event.`);
+    }
+    return {
+      kind: "exponentialRamp",
+      time: ensureFiniteNumber(event.time, `${path}.time`),
+      value,
+    };
   }
 
-  return { nodeId, param };
+  if (kind === "lfo") {
+    const lfoEvent: ToneGraphSequenceLfoEvent = {
+      kind: "lfo",
+      rate: ensureFiniteNumber(event.rate, `${path}.rate`),
+      depth: ensureFiniteNumber(event.depth, `${path}.depth`),
+    };
+
+    if (event.wave !== undefined) {
+      assertString(event.wave, `${path}.wave`);
+      if (!SUPPORTED_WAVES.has(event.wave)) {
+        throw new Error(`${path}.wave must be one of: sine, square, sawtooth, triangle.`);
+      }
+      lfoEvent.wave = event.wave as ToneGraphSequenceLfoEvent["wave"];
+    }
+    if (event.offset !== undefined) {
+      lfoEvent.offset = ensureFiniteNumber(event.offset, `${path}.offset`);
+    }
+    if (event.start !== undefined) {
+      lfoEvent.start = ensureFiniteNumber(event.start, `${path}.start`);
+    }
+    if (event.end !== undefined) {
+      lfoEvent.end = ensureFiniteNumber(event.end, `${path}.end`);
+    }
+    if (event.step !== undefined) {
+      lfoEvent.step = ensureFiniteNumber(event.step, `${path}.step`);
+    }
+
+    return lfoEvent;
+  }
+
+  throw new Error(
+    `${path}.kind "${kind}" is invalid. Allowed kinds: set, linearRamp, exponentialRamp, lfo.`,
+  );
+}
+
+function validateNodeAutomation(
+  raw: unknown,
+  path: string,
+): ToneGraphNodeAutomation | undefined {
+  if (raw === undefined) {
+    return undefined;
+  }
+
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    throw new Error(`${path} must be an object mapping AudioParam names to event arrays.`);
+  }
+
+  const automation: ToneGraphNodeAutomation = {};
+  for (const [paramName, events] of Object.entries(raw as UnknownRecord)) {
+    if (paramName.trim().length === 0) {
+      throw new Error(`${path} contains an empty AudioParam name.`);
+    }
+    if (!Array.isArray(events)) {
+      throw new Error(`${path}.${paramName} must be an array of events.`);
+    }
+    automation[paramName] = events.map((event, index) =>
+      validateSequenceEvent(event, `${path}.${paramName}[${index}]`),
+    );
+  }
+
+  return automation;
+}
+
+function validateSequences(value: unknown, path: string): ToneGraphSequence[] {
+  if (!Array.isArray(value)) {
+    throw new Error(`${path} must be an array.`);
+  }
+
+  return value.map((entry, index) => {
+    const entryPath = `${path}[${index}]`;
+    assertRecord(entry, entryPath);
+
+    const node = entry.node;
+    const param = entry.param;
+    assertString(node, `${entryPath}.node`);
+    assertString(param, `${entryPath}.param`);
+
+    const events = entry.events;
+    if (!Array.isArray(events)) {
+      throw new Error(`${entryPath}.events must be an array.`);
+    }
+
+    return {
+      node,
+      param,
+      events: events.map((event, eventIndex) =>
+        validateSequenceEvent(event, `${entryPath}.events[${eventIndex}]`),
+      ),
+    };
+  });
+}
+
+function ensureFiniteNumber(value: unknown, path: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`${path} must be a finite number.`);
+  }
+  return value;
 }
 
 export function validateToneGraph(doc: unknown): ToneGraphDocument {
   assertRecord(doc, "ToneGraph document");
-
-  if (Object.prototype.hasOwnProperty.call(doc, "sequences")) {
-    throw new Error("ToneGraph field \"sequences\" is reserved for v0.2 and is not allowed in v0.1.");
-  }
-  if (Object.prototype.hasOwnProperty.call(doc, "namespaces")) {
-    throw new Error("ToneGraph field \"namespaces\" is reserved for v0.2 and is not allowed in v0.1.");
-  }
 
   const version = doc.version;
   assertString(version, "version");
@@ -581,27 +853,142 @@ export function validateToneGraph(doc: unknown): ToneGraphDocument {
   const routing = doc.routing.map((entry, index) => validateRoutingEntry(entry, index));
 
   const nodeIds = new Set(Object.keys(nodes));
+
+  const buses: Record<string, ToneGraphBusDefinition> = {};
+  if (doc.buses !== undefined) {
+    assertRecord(doc.buses, "buses");
+    for (const [busId, busDef] of Object.entries(doc.buses)) {
+      if (busId.trim().length === 0) {
+        throw new Error("buses contains an empty bus id.");
+      }
+      if (nodeIds.has(busId)) {
+        throw new Error(`Bus id "${busId}" collides with a node id.`);
+      }
+      if (nodeIds.has(`bus:${busId}`)) {
+        throw new Error(`Node id "bus:${busId}" conflicts with bus reference for bus "${busId}".`);
+      }
+      assertRecord(busDef, `buses.${busId}`);
+      if (busDef.gain !== undefined) {
+        assertNumber(busDef.gain, `buses.${busId}.gain`);
+      }
+      buses[busId] = { gain: busDef.gain as number | undefined };
+    }
+  }
+
+  const busIds = new Set(Object.keys(buses));
+
+  // --- Namespace validation ---
+  const namespaces: Record<string, ToneGraphNamespaceDefinition> = {};
+  if (doc.namespaces !== undefined) {
+    assertRecord(doc.namespaces, "namespaces");
+    for (const [nsName, nsDef] of Object.entries(doc.namespaces)) {
+      if (nsName.trim().length === 0) {
+        throw new Error("namespaces contains an empty namespace name.");
+      }
+      if (nodeIds.has(nsName)) {
+        throw new Error(`Namespace "${nsName}" collides with a node id.`);
+      }
+      if (!isRecord(nsDef)) {
+        throw new Error(`namespaces."${nsName}" must be an object.`);
+      }
+      const nodesRaw = nsDef.nodes;
+      if (!Array.isArray(nodesRaw)) {
+        throw new Error(`namespaces."${nsName}".nodes must be an array.`);
+      }
+      const nsNodeIds: string[] = [];
+      for (const nodeId of nodesRaw) {
+        assertString(nodeId, `namespaces."${nsName}".nodes`);
+        if (!nodeIds.has(nodeId)) {
+          throw new Error(`namespaces."${nsName}" references unknown node "${nodeId}".`);
+        }
+        nsNodeIds.push(nodeId);
+      }
+      namespaces[nsName] = { nodes: nsNodeIds };
+    }
+  }
+
+  const nsIds = new Set(Object.keys(namespaces));
+
+  // Namespace-aware endpoint reference parsing.
+  function parseNamespaceReference(ref: string): { nodeId: string; param?: string; ns?: string } {
+    const dotIndex = ref.indexOf(".");
+    const nodeId = dotIndex >= 0 ? ref.slice(0, dotIndex) : ref;
+    const param = dotIndex >= 0 ? ref.slice(dotIndex + 1) : undefined;
+
+    // Check for namespace prefix: ns/<namespace>/<nodeId>
+    if (nodeId.startsWith("ns/")) {
+      const parts = nodeId.slice(3).split("/");
+      if (parts.length !== 2 || parts[0].length === 0 || parts[1].length === 0) {
+        throw new Error(`Invalid namespace reference "${ref}".`);
+      }
+      return { nodeId: parts[1], param, ns: parts[0] };
+    }
+
+    return { nodeId, param };
+  }
+
+  function assertEndpointReference(ref: string, path: string, allowParam: boolean): void {
+    const parsed = parseNamespaceReference(ref);
+    if (parsed.ns !== undefined) {
+      if (parsed.param !== undefined && !allowParam) {
+        throw new Error(`${path} cannot reference AudioParam endpoint "${ref}".`);
+      }
+      if (!nsIds.has(parsed.ns)) {
+        throw new Error(`${path} references unknown namespace "${parsed.ns}".`);
+      }
+      const nsDef = namespaces[parsed.ns];
+      if (!nsDef.nodes.includes(parsed.nodeId)) {
+        throw new Error(`${path} references unknown node "${parsed.nodeId}" in namespace "${parsed.ns}".`);
+      }
+      return;
+    }
+
+    if (parsed.param !== undefined && !allowParam) {
+      throw new Error(`${path} cannot reference AudioParam endpoint "${ref}".`);
+    }
+    if (!nodeIds.has(parsed.nodeId)) {
+      throw new Error(`${path} references unknown node "${ref}".`);
+    }
+  }
+
+  const toEndpointList = (value: string | string[] | undefined): string[] =>
+    value === undefined ? [] : Array.isArray(value) ? value : [value];
+
   routing.forEach((entry, index) => {
     if ("chain" in entry) {
       entry.chain.forEach((nodeId, chainIndex) => {
-        if (!nodeIds.has(nodeId)) {
-          throw new Error(`routing[${index}].chain[${chainIndex}] references unknown node \"${nodeId}\".`);
-        }
+        assertEndpointReference(nodeId, `routing[${index}].chain[${chainIndex}]`, false);
       });
       return;
     }
 
-    const fromEndpoint = parseEndpointReference(entry.from);
-    const toEndpoint = parseEndpointReference(entry.to);
+    if ("bus" in entry) {
+      if (!busIds.has(entry.bus)) {
+        throw new Error(`routing[${index}].bus references unknown bus "${entry.bus}".`);
+      }
+      toEndpointList(entry.from).forEach((ref, refIndex) => {
+        assertEndpointReference(ref, `routing[${index}].from[${refIndex}]`, false);
+      });
+      toEndpointList(entry.to).forEach((ref, refIndex) => {
+        assertEndpointReference(ref, `routing[${index}].to[${refIndex}]`, true);
+      });
+      return;
+    }
 
-    if (fromEndpoint.param !== undefined) {
-      throw new Error(`routing[${index}].from cannot reference AudioParam endpoint \"${entry.from}\".`);
+    // For flat links, reject AudioParam endpoints on "from".
+    assertEndpointReference(entry.from, `routing[${index}].from`, false);
+    assertEndpointReference(entry.to, `routing[${index}].to`, true);
+  });
+
+  const sequences = doc.sequences !== undefined
+    ? validateSequences(doc.sequences, "sequences")
+    : undefined;
+  sequences?.forEach((sequence, index) => {
+    if (!nodeIds.has(sequence.node)) {
+      throw new Error(`sequences[${index}].node references unknown node "${sequence.node}".`);
     }
-    if (!nodeIds.has(fromEndpoint.nodeId)) {
-      throw new Error(`routing[${index}].from references unknown node \"${entry.from}\".`);
-    }
-    if (!nodeIds.has(toEndpoint.nodeId)) {
-      throw new Error(`routing[${index}].to references unknown node \"${entry.to}\".`);
+    if (sequence.param.trim().length === 0) {
+      throw new Error(`sequences[${index}].param must not be empty.`);
     }
   });
 
@@ -610,6 +997,14 @@ export function validateToneGraph(doc: unknown): ToneGraphDocument {
     nodes,
     routing,
   };
+
+  if (sequences !== undefined) {
+    validated.sequences = sequences;
+  }
+
+  if (doc.buses !== undefined) {
+    validated.buses = buses;
+  }
 
   if (doc.engine !== undefined) {
     validated.engine = { backend: doc.engine.backend as ToneGraphEngine["backend"] };
@@ -637,6 +1032,9 @@ export function validateToneGraph(doc: unknown): ToneGraphDocument {
       tempo: doc.transport.tempo as number | undefined,
       timeSignature: doc.transport.timeSignature as [number, number] | undefined,
     };
+  }
+  if (Object.keys(namespaces).length > 0) {
+    validated.namespaces = namespaces;
   }
 
   return validated;

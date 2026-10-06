@@ -8,8 +8,35 @@ ToneGraph v0.1 targets standard Web Audio API graph construction. This spec is t
 
 - Target runtime: `BaseAudioContext` (`OfflineAudioContext` or `AudioContext`)
 - File formats: JSON and YAML
-- In scope: static graph declaration, node parameters, deterministic randomness metadata, flat routing links, `chain()` shorthand
-- Out of scope in v0.1: advanced routing patterns, complex automation DSLs, and sequence scheduling
+- In scope: static graph declaration, node parameters, per-node `automation` (one-shot parameter ramps and stepped LFOs), deterministic randomness metadata, flat routing links, `chain()` shorthand, bus routing (`buses` + `{ bus }` entries), and deterministic sequence scheduling (`sequences`)
+- Out of scope in v0.1: complex automation DSLs beyond the documented event kinds
+
+## Discovery and Loading
+
+ToneGraph recipes reach the shared registry (`src/recipes/index.ts`) in two stages:
+
+1. **Built-in recipes** are registered synchronously when the registry module is
+evaluated. This is safe in every runtime, including browsers.
+1. **File-backed recipes** (`.json`/`.yaml`/`.yml` files under `presets/recipes/`)
+are discovered asynchronously from disk through `initializeRecipeRegistry()`.
+
+File-backed discovery is deliberately **not** performed with a top-level
+`await`: browser build targets (Vite/esbuild) reject top-level await, and
+filesystem access is Node-only. `initializeRecipeRegistry()` is therefore:
+
+- **Explicit** — Node call sites (the CLI, the offline renderer, and Node test
+  setup) `await` it before reading the registry.
+- **Idempotent** — discovery runs once; later calls reuse the same result and do
+  not re-register recipes.
+- **Portable** — in non-Node runtimes it resolves to an empty array, so a
+  browser sees only the synchronously-registered built-in recipes.
+
+```ts
+import { registry, initializeRecipeRegistry } from "./recipes/index.js";
+
+await initializeRecipeRegistry();
+const recipe = registry.getRegistration("ui-scifi-confirm");
+```
 
 ## Version Compatibility
 
@@ -30,9 +57,10 @@ ToneGraph v0.1 documents must be an object with the following fields.
 | `random` | no | object | RNG metadata and optional seed hint. |
 | `transport` | no | object | Timing metadata (for future scheduling). |
 | `nodes` | yes | object map | Node definitions keyed by node id. |
-| `routing` | yes | array | Connection declarations (`link` or `chain`). |
-| `sequences` | no | any | Reserved for v0.2. Loaders must reject when present in strict mode. |
-| `namespaces` | no | any | Reserved for v0.2. Loaders must reject when present in strict mode. |
+| `routing` | yes | array | Connection declarations (`link`, `chain`, or `bus`). |
+| `buses` | no | object map | Named mixer buses materialised as GainNodes and referenced as `bus:<id>`. |
+| `sequences` | no | array | Timed AudioParam event schedules (see [Sequences](#sequences)). |
+| `namespaces` | no | object map | Declares node groups for namespace-qualified routing references (`ns/<ns>/<nodeId>`). See [Namespaces](#namespaces). |
 
 ### Top-Level Defaults
 
@@ -91,7 +119,9 @@ Supported keys in v0.1:
 - `tempo` (number, BPM, default `120`)
 - `timeSignature` (array `[numerator, denominator]`, default `[4, 4]`)
 
-Note: v0.1 does not define sequence scheduling behavior; transport is metadata only.
+Note: v0.1 sequences schedule AudioParam events only (see
+[Sequences](#sequences)); `transport` remains metadata and does not by itself
+drive sequence timing.
 
 ## Nodes
 
@@ -114,6 +144,8 @@ Each node object uses this structure:
 Rules:
 - `kind` is required.
 - `params` is optional; omitted params use kind-specific defaults.
+- `automation` is optional; it declares timed AudioParam events on the node
+  (see [Node Automation](#node-automation)).
 - Node ids must be unique in `nodes`.
 - `destination` kind is a special terminal node and should normally be declared once.
 
@@ -166,6 +198,14 @@ Implementations may internally expand helper kinds, but validators/loaders must 
 - `sustain` (0..1, default `0`)
 - `release` (seconds, default `0`)
 
+Envelope timing: the amplitude ramps `0 -> 1` over `attack`, `-> sustain`
+over `decay`, holds `sustain`, then ramps `-> 0` over `release`. The release
+ramp is scheduled **inside** the render window: `handle.stop(t)` ramps from
+the sustain level to silence over `[t - release, t]` (clamped at `0`), and the
+underlying sources stop at `t`. File-backed recipes that author
+`duration = attack + decay + release` therefore use the full release ramp;
+an explicit `release = 0` drops to silence at the stop boundary.
+
 #### `lfo`
 - `type` (`sine`, `square`, `sawtooth`, `triangle`; default `sine`)
 - `rate` (Hz, default `1`)
@@ -209,6 +249,57 @@ Validation rules:
 - If both `min` and `max` are present, `min <= max`.
 - `default` must match `type` and be inside declared bounds when bounds exist.
 
+### File-Backed Override Mappings
+
+When a recipe is loaded from a file, a declared parameter is normally injected
+into the graph by matching node-param keys or automation fields by exact name,
+or by equality with the declared `default`. That heuristic cannot express
+computed relationships (for example `modulator.frequency = carrier.frequency *
+modRatio`).
+
+For those cases a parameter descriptor may carry an explicit `overrides` list:
+
+```yaml
+meta:
+  parameters:
+    - name: modRatio
+      type: number
+      min: 1
+      max: 4
+      default: 2
+      overrides:
+        - target: modulator.frequency
+          expression: "carrier.frequency * modRatio"
+    - name: modDepthEnd
+      type: number
+      min: 300
+      max: 800
+      overrides:
+        - target: modDepth.automation.gain.linearRamp.value
+```
+
+Each entry in `overrides` has:
+
+- `target` (string, required) — a dotted path to a node field:
+  - `<node>.<field>` writes a node `params` field.
+  - `<node>.automation.<param>.<index|kind>.<field>` writes an automation
+    event field, selected by zero-based `index` or by event `kind`.
+- `expression` (string, optional) — a small arithmetic expression evaluated
+  against resolved parameter values and node fields. Supported operators are
+  `*` and `/`; operands are numeric literals, declared parameter names, or
+  `<node>.<field>` references. When omitted, the parameter's resolved value is
+  written directly.
+
+Resolution order: seed-derived values, then base overrides, then the generic
+name/default heuristic, then explicit mappings. Computed mappings therefore see
+the post-override value of every parameter they reference, regardless of
+declaration order, and explicit mappings win over a heuristic match for the
+same field. An unknown parameter, node, field, automation param, event or
+reference fails loudly when the recipe is registered.
+
+Recipes that declare no `overrides` are unaffected: the mapping mechanism is a
+no-op for them.
+
 ## Routing
 
 `routing` is a required array of connection entries.
@@ -239,16 +330,286 @@ Validation rules:
 - `chain` length must be at least 2.
 - Every id in `chain` must exist in `nodes`.
 
-## Reserved v0.2 Fields
+## Buses
 
-`sequences` and `namespaces` are reserved for v0.2.
+`buses` is an optional object map of named mixer buses. Each bus is
+materialised by the loader as a `GainNode`, addressed from routing by the
+reserved reference `bus:<id>` (for example bus `mix` becomes `bus:mix`). Buses
+are the explicit construct for **fan-in** (many sources into one bus) and
+**fan-out** (one bus to many destinations).
 
-v0.1 behavior:
-- Producers should not emit these fields.
-- Validators/loaders may run in either mode:
-  - strict: reject when either field is present
-  - permissive: ignore with warning
-- For implementation consistency, strict mode is recommended by default.
+### Bus Definition
+
+```json
+"buses": {
+  "mix": { "gain": 0.5 }
+}
+```
+
+Fields:
+- `gain` (number, default `1.0`) — the bus mix level.
+
+Validation rules:
+- Bus ids must be non-empty and unique.
+- A bus id must not collide with a node id.
+- A node id must not collide with a generated `bus:<id>` reference.
+- `gain`, when present, must be a finite number.
+
+### Bus Routing Entry
+
+A routing entry may instead fan signals through a declared bus:
+
+```json
+{ "bus": "mix", "from": ["osc", "noise"], "to": ["filter"] }
+```
+
+Fields:
+- `bus` (string, required) — the id of a declared bus.
+- `from` (string or array of strings, optional) — one or more node output
+  endpoints to connect **into** the bus (fan-in). May not reference an
+  AudioParam endpoint.
+- `to` (string or array of strings, optional) — one or more destination
+  endpoints to connect **from** the bus (fan-out). May target either a node or
+  a `node.param` AudioParam endpoint.
+
+Semantics: each `from` input is linked to the bus, and the bus is linked to
+ each `to` output. An entry may declare `from`, `to`, or both, enabling pure
+ fan-in, pure fan-out, or a combined Y-shape.
+
+Validation rules:
+- `bus` must reference a bus declared in `buses`.
+- At least one of `from` / `to` must be present.
+- A present `from` / `to` must be a string or a non-empty array of strings.
+- Every referenced node id must exist in `nodes`.
+- `from` endpoints must not reference an AudioParam.
+
+### Bus Routing Example
+
+```json
+{
+  "version": "0.1",
+  "buses": { "mix": { "gain": 0.5 } },
+  "nodes": {
+    "osc": { "kind": "oscillator", "params": { "frequency": 220 } },
+    "noise": { "kind": "noise", "params": { "color": "white", "level": 0.2 } },
+    "amp": { "kind": "gain", "params": { "gain": 0.4 } },
+    "out": { "kind": "destination" }
+  },
+  "routing": [
+    { "chain": ["osc", "amp"] },
+    { "bus": "mix", "from": ["amp", "noise"], "to": ["out"] }
+  ]
+}
+```
+
+## Namespaces
+
+`namespaces` is an optional object map that groups existing nodes under named
+prefixes. Routing entries may then reference nodes in a namespace using the
+`ns/<namespace>/<nodeId>` syntax. Namespaces enable recipe authors to refer
+to logically related node groups without hard-coding node ids.
+
+### Namespace Definition
+
+```json
+"namespaces": {
+  "sfx": { "nodes": ["osc1", "filter1", "env1"] },
+  "pad": { "nodes": ["osc2", "filter2", "amp2"] }
+}
+```
+
+Fields:
+- `nodes` (array of strings, required) — list of existing node ids that belong
+  to this namespace. Every node must exist in `nodes`.
+
+### Namespace Routing Reference
+
+Routing entries may use `ns/<namespace>/<nodeId>` anywhere a plain node id is
+expected:
+
+```json
+"routing": [
+  { "chain": ["ns/sfx/osc1", "ns/sfx/filter1", "ns/sfx/env1", "out"] }
+]
+```
+
+The loader resolves `ns/sfx/osc1` to the node `osc1` declared in the `sfx`
+namespace. Namespace references in routing are validated at load time:
+
+- The namespace name must exist in `namespaces`.
+- The referenced node id must be listed in that namespace's `nodes` array.
+- The namespace name must not collide with a node id.
+
+### Namespace Example
+
+```json
+{
+  "version": "0.1",
+  "namespaces": {
+    "sfx": { "nodes": ["osc", "filter", "env"] }
+  },
+  "nodes": {
+    "osc": { "kind": "oscillator", "params": { "frequency": 440 } },
+    "filter": { "kind": "biquadFilter", "params": { "type": "lowpass" } },
+    "env": { "kind": "envelope", "params": { "attack": 0.01 } },
+    "out": { "kind": "destination" }
+  },
+  "routing": [
+    { "chain": ["ns/sfx/osc", "ns/sfx/filter", "ns/sfx/env", "out"] }
+  ]
+}
+```
+
+## Node Automation
+
+`automation` is an optional per-node object map from an AudioParam name to an
+ordered list of events. It is the inline counterpart to document-level
+[`sequences`](#sequences) and uses the same event kinds. Unlike `sequences`,
+automation is declared directly on the node definition, which keeps one-shot
+pitch contours (laser zaps, explosion sweeps, whooshes) co-located with the
+node they modulate.
+
+```yaml
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 220
+    automation:
+      frequency:
+        - kind: set
+          time: 0
+          value: 220
+        - kind: linearRamp
+          time: 0.5
+          value: 880
+```
+
+### Automation Contract
+
+- `automation` must be an object (not an array, not `null`).
+- Each key is an AudioParam name on that node (for example `frequency` on an
+  `oscillator` or `biquadFilter`, or `gain` on a `gain` node). Keys must not be
+  empty.
+- Each value must be an array of events drawn from the same union as
+  `sequences` events: `set`, `linearRamp`, `exponentialRamp`, and `lfo`.
+- Events are validated at document load. A malformed event (unknown `kind`,
+  missing or non-finite `time`/`value`, non-array event list) fails validation
+  with a clear error.
+- An `exponentialRamp` whose `value` is `<= 0` is rejected at validation: the
+  Web Audio API only supports exponential ramps to strictly positive targets.
+- The validator **preserves** `automation` on the validated document, so the
+  loader can schedule the events.
+- Invalid param names (ones that do not resolve to a runtime AudioParam) fail
+  at load time with a descriptive error, exactly like `sequences`.
+
+### Worked Example: Frequency Sweeps
+
+The committed example recipe
+[`presets/recipes/frequency-sweep-demo.yaml`](../presets/recipes/frequency-sweep-demo.yaml)
+demonstrates a one-shot linear rise and an exponential fall:
+
+```yaml
+# rise: 220 Hz -> 880 Hz linear rise
+rise:
+  kind: oscillator
+  params:
+    type: sine
+    frequency: 220
+  automation:
+    frequency:
+      - kind: set
+        time: 0
+        value: 220
+      - kind: linearRamp
+        time: 0.5
+        value: 880
+
+# fall: 440 Hz -> 60 Hz exponential fall
+fall:
+  kind: oscillator
+  params:
+    type: sine
+    frequency: 440
+  automation:
+    frequency:
+      - kind: set
+        time: 0
+        value: 440
+      - kind: exponentialRamp
+        time: 0.5
+        value: 60
+```
+
+Render it with the CLI:
+
+```bash
+tf generate --recipe frequency-sweep-demo --seed 42 --output frequency-sweep-demo.wav
+```
+
+Because automation is part of the recipe file, this recipe renders through the
+same file-backed path as every other ToneGraph recipe; no TypeScript is
+required to author the sweep.
+
+## Sequences
+
+`sequences` is an optional array of timed AudioParam event schedules. Each
+sequence targets one node's AudioParam and applies its events deterministically
+when the graph is loaded. Sequences are the document-level counterpart to
+inline per-node `automation`, and use the same event kinds.
+
+### Sequence Definition
+
+```json
+{
+  "sequences": [
+    {
+      "node": "osc",
+      "param": "frequency",
+      "events": [
+        { "kind": "set", "time": 0, "value": 220 },
+        { "kind": "linearRamp", "time": 0.2, "value": 660 }
+      ]
+    }
+  ]
+}
+```
+
+Fields:
+- `node` (string, required) — the id of a node declared in `nodes`.
+- `param` (string, required) — the AudioParam name on that node.
+- `events` (array, required) — ordered event objects.
+
+### Sequence Events
+
+- `{ "kind": "set", "time": <number>, "value": <number> }` — `setValueAtTime`.
+- `{ "kind": "linearRamp", "time": <number>, "value": <number> }` —
+  `linearRampToValueAtTime`.
+- `{ "kind": "exponentialRamp", "time": <number>, "value": <number> }` —
+  `exponentialRampToValueAtTime`. `value` must be strictly greater than `0`;
+  a non-positive target is rejected at validation.
+- `{ "kind": "lfo", "rate": <number>, "depth": <number>, ... }` — a stepped
+  LFO written as repeated `setValueAtTime` calls. Optional fields: `wave`
+  (`sine`, `square`, `sawtooth`, `triangle`; default `sine`), `offset`,
+  `start`, `end`, `step`.
+
+`time`, `start` and `end` are absolute seconds within the rendered graph. Events
+are applied in declaration order.
+
+Validation rules:
+- `sequences` must be an array.
+- Each entry must declare `node`, `param`, and `events`.
+- `node` must reference an existing node id; `param` must not be empty.
+- Each event `kind` must be one of `set`, `linearRamp`, `exponentialRamp`,
+  `lfo`; every numeric field must be a finite number.
+- An `exponentialRamp` event must target a `value` greater than `0`.
+
+Invalid `node`/`param` pairs that cannot be resolved to a runtime AudioParam
+fail at load time with a descriptive error.
+
+The same event kinds are available on node-level `automation`; see
+[Node Automation](#node-automation).
 
 ## Complete Example (JSON)
 

@@ -32,9 +32,11 @@ import {
   detectSessionFile,
   deleteSessionFile,
   DEFAULT_SESSION_FILE,
+  defaultSessionStore,
   SessionVersionMismatchError,
   SessionCorruptedError,
 } from "./session-persistence.js";
+import type { SessionStore } from "./session-store.js";
 
 /** Stage display names for user-facing output. */
 const STAGE_NAMES: Record<WizardStage, string> = {
@@ -53,6 +55,12 @@ export interface LaunchWizardOptions {
 
   /** Custom path for the auto-save session file. */
   sessionFile?: string;
+
+  /**
+   * Injectable persistence store. Defaults to the `node:fs/promises`-backed
+   * `NodeFsSessionStore`; tests inject an in-memory store for hermetic runs.
+   */
+  store?: SessionStore;
 }
 
 /**
@@ -81,21 +89,22 @@ export async function launchWizard(
   // Install Ctrl+C cleanup handler
   installCleanupHandler();
 
-  // Determine session file path
+  // Determine session file path and persistence store
   const sessionFilePath = options.resume ?? options.sessionFile ?? DEFAULT_SESSION_FILE;
+  const store = options.store ?? defaultSessionStore;
 
   // Session resume or fresh start
   let session: WizardSession;
 
   if (options.resume) {
     // Explicit --resume flag: load from specified path
-    const resumeResult = await tryResumeSession(options.resume);
+    const resumeResult = await tryResumeSession(options.resume, store);
     if (resumeResult.exitCode !== undefined) return resumeResult.exitCode;
     session = resumeResult.session!;
     outputInfo(`\nResumed session from ${options.resume}\n`);
-  } else if (detectSessionFile(sessionFilePath)) {
+  } else if (await detectSessionFile(sessionFilePath, store)) {
     // Auto-detect existing session file
-    const resumeResult = await handleExistingSession(sessionFilePath);
+    const resumeResult = await handleExistingSession(sessionFilePath, store);
     if (resumeResult.exitCode !== undefined) return resumeResult.exitCode;
     session = resumeResult.session!;
   } else {
@@ -140,7 +149,7 @@ export async function launchWizard(
             return 0;
           }
           session.advance();
-          await autoSave(session, sessionFilePath);
+          await autoSave(session, sessionFilePath, store);
           break;
         }
 
@@ -148,11 +157,11 @@ export async function launchWizard(
           const exploreResult = await runExploreStage(session);
           if (exploreResult === "back") {
             session.goBack();
-            await autoSave(session, sessionFilePath);
+            await autoSave(session, sessionFilePath, store);
             break;
           }
           session.advance();
-          await autoSave(session, sessionFilePath);
+          await autoSave(session, sessionFilePath, store);
           break;
         }
 
@@ -160,11 +169,11 @@ export async function launchWizard(
           const reviewResult = await runReviewStage(session);
           if (reviewResult === "back") {
             session.goBack();
-            await autoSave(session, sessionFilePath);
+            await autoSave(session, sessionFilePath, store);
             break;
           }
           session.advance();
-          await autoSave(session, sessionFilePath);
+          await autoSave(session, sessionFilePath, store);
           break;
         }
 
@@ -172,11 +181,11 @@ export async function launchWizard(
           const exportResult = await runExportStage(session);
           if (exportResult === "back") {
             session.goBack();
-            await autoSave(session, sessionFilePath);
+            await autoSave(session, sessionFilePath, store);
             break;
           }
           // Export complete -- prompt to delete session file
-          await promptDeleteSession(sessionFilePath);
+          await promptDeleteSession(sessionFilePath, store);
           outputInfo("\nThank you for using ToneForge Sound Palette Builder!\n");
           return 0;
         }
@@ -209,14 +218,17 @@ interface ResumeResult {
  * Attempt to load a session from a file path.
  * Returns the restored session or an exit code on failure.
  */
-async function tryResumeSession(filePath: string): Promise<ResumeResult> {
-  if (!detectSessionFile(filePath)) {
+async function tryResumeSession(
+  filePath: string,
+  store: SessionStore,
+): Promise<ResumeResult> {
+  if (!(await detectSessionFile(filePath, store))) {
     outputError(`Session file not found: ${filePath}\n`);
     return { exitCode: 1 };
   }
 
   try {
-    const data = await loadSession(filePath);
+    const data = await loadSession(filePath, store);
     const session = WizardSession.fromData(data);
     return { session };
   } catch (err) {
@@ -240,12 +252,13 @@ async function tryResumeSession(filePath: string): Promise<ResumeResult> {
  */
 async function handleExistingSession(
   filePath: string,
+  store: SessionStore,
 ): Promise<ResumeResult> {
   outputInfo(`\nExisting session file detected: ${filePath}\n`);
 
   let data;
   try {
-    data = await loadSession(filePath);
+    data = await loadSession(filePath, store);
   } catch (err) {
     if (err instanceof SessionVersionMismatchError) {
       outputWarning(`\n${err.message}\n`);
@@ -284,7 +297,7 @@ async function handleExistingSession(
   // Starting fresh -- back up the old file via saveSession (which creates a backup)
   outputInfo("Archiving existing session and starting fresh.\n");
   const freshSession = new WizardSession();
-  await saveSession(freshSession.toData(), filePath);
+  await saveSession(freshSession.toData(), filePath, store);
   return { session: freshSession };
 }
 
@@ -299,9 +312,10 @@ async function handleExistingSession(
 async function autoSave(
   session: WizardSession,
   filePath: string,
+  store: SessionStore,
 ): Promise<void> {
   try {
-    await saveSession(session.toData(), filePath);
+    await saveSession(session.toData(), filePath, store);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     outputWarning(`Warning: Failed to auto-save session: ${message}\n`);
@@ -311,8 +325,11 @@ async function autoSave(
 /**
  * After successful export, prompt the user to delete the session file.
  */
-async function promptDeleteSession(filePath: string): Promise<void> {
-  if (!detectSessionFile(filePath)) return;
+async function promptDeleteSession(
+  filePath: string,
+  store: SessionStore,
+): Promise<void> {
+  if (!(await detectSessionFile(filePath, store))) return;
 
   try {
     const shouldDelete = await confirm({
@@ -321,7 +338,7 @@ async function promptDeleteSession(filePath: string): Promise<void> {
     });
 
     if (shouldDelete) {
-      await deleteSessionFile(filePath);
+      await deleteSessionFile(filePath, store);
       outputInfo("Session file and backups deleted.\n");
     } else {
       outputInfo("Session file retained.\n");
