@@ -38,6 +38,9 @@ function resolvePort(): number {
 
 const port = resolvePort();
 
+/** True when running under a CI provider (GitHub Actions sets `CI=true`). */
+const isCI = process.env.CI === "true" || process.env.CI === "1";
+
 /** Environment for the web server command, preserving the inherited env. */
 const webServerEnv: Record<string, string> = {};
 for (const [key, value] of Object.entries(process.env)) {
@@ -54,7 +57,13 @@ export default defineConfig({
     timeout: 30_000,
   },
   fullyParallel: false, // tests share a single server
-  retries: 0,
+  // Retry on CI only: the terminal-walkthrough specs drive a PTY and are the
+  // most sensitive to cold-start timing; a retry absorbs that without hiding
+  // genuine failures locally.
+  retries: isCI ? 2 : 0,
+  // CI emits both a list (for the job log) and an HTML report (uploaded as an
+  // artifact); local runs keep the concise list output.
+  reporter: isCI ? [["list"], ["html", { open: "never" }]] : "list",
   use: {
     baseURL: `http://localhost:${port}`,
     headless: true,
