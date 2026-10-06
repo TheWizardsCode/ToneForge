@@ -53,7 +53,14 @@ export interface RenderPresetInput {
   recipe: string;
   /** Deterministic integer seed. */
   seed: number;
-  /** Parameter overrides applied on top of the seed-derived baseline. */
+  /**
+   * Parameter overrides applied on top of the seed-derived baseline.
+   *
+   * Only declared parameters are honoured. File-backed recipes apply their
+   * explicit declarative mappings after the base overrides, so a computed
+   * mapping (for example `modulator.frequency = carrier.frequency *
+   * modRatio`) sees the overridden value of every parameter it references.
+   */
   overrides?: Record<string, number>;
 }
 

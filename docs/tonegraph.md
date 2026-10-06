@@ -198,6 +198,14 @@ Implementations may internally expand helper kinds, but validators/loaders must 
 - `sustain` (0..1, default `0`)
 - `release` (seconds, default `0`)
 
+Envelope timing: the amplitude ramps `0 -> 1` over `attack`, `-> sustain`
+over `decay`, holds `sustain`, then ramps `-> 0` over `release`. The release
+ramp is scheduled **inside** the render window: `handle.stop(t)` ramps from
+the sustain level to silence over `[t - release, t]` (clamped at `0`), and the
+underlying sources stop at `t`. File-backed recipes that author
+`duration = attack + decay + release` therefore use the full release ramp;
+an explicit `release = 0` drops to silence at the stop boundary.
+
 #### `lfo`
 - `type` (`sine`, `square`, `sawtooth`, `triangle`; default `sine`)
 - `rate` (Hz, default `1`)

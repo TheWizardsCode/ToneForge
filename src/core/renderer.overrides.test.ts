@@ -93,15 +93,53 @@ export async function assertOverrideChangesOutput(
 }
 
 /**
- * KNOWN_UNWIRED: declared parameters whose override does not (yet) change
- * rendered output.
+ * KNOWN_UNWIRED: declared parameters whose override does not change rendered
+ * output.
  *
- * These are pre-existing recipe/graph gaps tracked by TF-0MUV9U9QU001SORH:
- * declared-but-unused params and file-backed mappings that cannot be expressed
- * by the generic injection heuristic. The test below fails if a listed param
- * starts working (stale entry) or if an unlisted param stops working.
+ * TF-0MUV9U9QU001SORH closed every entry: every declared parameter of every
+ * registered recipe is now honoured, so the allowlist is intentionally empty.
+ * It (and its guard helper below) is retained as the self-updating guard: if a
+ * future change makes a declared parameter's override a no-op, the
+ * registry-wide coverage test fails; if a listed parameter starts working it is
+ * reported stale; if a listed key no longer names a declared parameter it is
+ * reported missing. See {@link evaluateAllowlist} for the guard logic.
  */
 const KNOWN_UNWIRED: Record<string, string> = {};
+
+/**
+ * Evaluate the KNOWN_UNWIRED allowlist against observed override results.
+ *
+ * Keeps the guard honest:
+ * - an allowlisted key whose override now changes output is **stale**;
+ * - an allowlisted key with no matching declared parameter is **missing**.
+ *
+ * Both are returned so the caller can fail the suite rather than silently
+ * accepting a weakened guard.
+ *
+ * @param allowlist     - Allowlist mapping parameter key -> reason.
+ * @param declaredKeys  - Every declared `recipe.param` key discovered.
+ * @param observations  - Whether each evaluated key's override changed output.
+ */
+export function evaluateAllowlist(
+  allowlist: Record<string, string>,
+  declaredKeys: Set<string>,
+  observations: Map<string, boolean>,
+): { stale: string[]; missing: string[] } {
+  const stale: string[] = [];
+  const missing: string[] = [];
+
+  for (const [key, reason] of Object.entries(allowlist)) {
+    if (!declaredKeys.has(key)) {
+      missing.push(key);
+      continue;
+    }
+    if (observations.get(key) === true) {
+      stale.push(`${key}: now honoured — remove from KNOWN_UNWIRED (${reason})`);
+    }
+  }
+
+  return { stale, missing };
+}
 
 // ---------------------------------------------------------------------------
 // renderPreset baseline assertions
@@ -198,8 +236,8 @@ describe("registry-wide override coverage", () => {
       expect(recipes.length).toBeGreaterThan(0);
 
       const failures: string[] = [];
-      const staleExceptions: string[] = [];
-      const seenExceptions = new Set<string>();
+      const declaredKeys = new Set<string>();
+      const observations = new Map<string, boolean>();
 
       for (const recipe of recipes) {
         const registration = registry.getRegistration(recipe)!;
@@ -208,17 +246,14 @@ describe("registry-wide override coverage", () => {
 
         for (const descriptor of registration.params) {
           const key = `${recipe}.${descriptor.name}`;
+          declaredKeys.add(key);
 
           if (!(descriptor.name in baseParams)) {
             failures.push(`${key}: no baseline value from getParams`);
             continue;
           }
 
-          const isKnownUnwired = key in KNOWN_UNWIRED;
-          const expectedChange = !isKnownUnwired;
-
-          // Track that we actually checked this exception key.
-          if (isKnownUnwired) seenExceptions.add(key);
+          const expectedChange = !(key in KNOWN_UNWIRED);
 
           try {
             await assertOverrideChangesOutput(
@@ -227,53 +262,83 @@ describe("registry-wide override coverage", () => {
               seed,
               expectedChange,
             );
+            observations.set(key, expectedChange);
           } catch (err) {
             const message = (err as Error).message;
             if (expectedChange) {
               failures.push(`${key}: ${message}`);
             } else {
-              staleExceptions.push(`${key}: ${message}`);
+              // Allowlisted, but the override now changes output: stale.
+              observations.set(key, true);
             }
           }
         }
       }
 
-      const missingExceptions = Object.keys(KNOWN_UNWIRED).filter(
-        (key) => !seenExceptions.has(key),
+      const { stale, missing } = evaluateAllowlist(
+        KNOWN_UNWIRED,
+        declaredKeys,
+        observations,
       );
 
       expect(failures, `Override failures:\n${failures.join("\n")}`).toEqual([]);
       expect(
-        staleExceptions,
-        `Stale KNOWN_UNWIRED entries:\n${staleExceptions.join("\n")}`,
+        stale,
+        `Stale KNOWN_UNWIRED entries:\n${stale.join("\n")}`,
       ).toEqual([]);
       expect(
-        missingExceptions,
-        `KNOWN_UNWIRED entries with no matching declared parameter:\n${missingExceptions.join("\n")}`,
+        missing,
+        `KNOWN_UNWIRED entries with no matching declared parameter:\n${missing.join("\n")}`,
       ).toEqual([]);
     },
     180_000,
   );
 
   /**
-   * Unit test of the override-check helper:
-   * - Verify the helper correctly detects a real change (non-allowlisted param).
+   * Unit tests of the override-check helper and the allowlist guard.
+   *
+   * The real allowlist is empty, so these tests exercise the guard machinery
+   * with synthetic entries to prove it still fails on a weakened guard.
    */
-  describe("assertOverrideChangesOutput guard correctness", () => {
-    it("detects a real change (non-allowlisted param changes output)", async () => {
-      await assertOverrideChangesOutput(
-        "weapon-laser-zap",
-        "carrierFreq",
-        4321,
-        true, // expected to change
-      );
+  describe("override guard correctness", () => {
+    it("fails when a non-allowlisted parameter's override changes output", async () => {
+      // weapon-laser-zap.carrierFreq is wired, so `expectedChange = true`
+      // passes. Passing `false` must throw (stale detection).
+      await expect(
+        assertOverrideChangesOutput("weapon-laser-zap", "carrierFreq", 4321, false),
+      ).rejects.toThrow(/now changes output/);
     });
 
-    it("detects a missing entry (parameter not declared)", () => {
-      const testEntry = "nonexistent-recipe.fakeParam";
-      const [recipeName] = testEntry.split(".");
-      const registration = registry.getRegistration(recipeName);
-      expect(registration).toBeUndefined();
+    it("flags an allowlisted parameter that now changes output as stale", () => {
+      const result = evaluateAllowlist(
+        { "recipe.param": "legacy gap" },
+        new Set(["recipe.param"]),
+        new Map([["recipe.param", true]]),
+      );
+      expect(result.stale).toEqual([
+        "recipe.param: now honoured — remove from KNOWN_UNWIRED (legacy gap)",
+      ]);
+      expect(result.missing).toEqual([]);
+    });
+
+    it("flags an allowlisted key with no declared parameter as missing", () => {
+      const result = evaluateAllowlist(
+        { "recipe.ghost": "legacy gap" },
+        new Set(["recipe.param"]),
+        new Map(),
+      );
+      expect(result.stale).toEqual([]);
+      expect(result.missing).toEqual(["recipe.ghost"]);
+    });
+
+    it("accepts an allowlisted parameter whose override still has no effect", () => {
+      const result = evaluateAllowlist(
+        { "recipe.param": "legacy gap" },
+        new Set(["recipe.param"]),
+        new Map([["recipe.param", false]]),
+      );
+      expect(result.stale).toEqual([]);
+      expect(result.missing).toEqual([]);
     });
   });
 });

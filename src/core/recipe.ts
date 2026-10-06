@@ -23,6 +23,17 @@ export interface ParamDescriptor {
 
 export interface RecipeRegistration {
   getDuration: (rng: Rng, overrides?: Record<string, number>) => number;
+  /**
+   * Build the recipe's offline audio graph.
+   *
+   * `overrides` replace the seed-derived value for named declared parameters.
+   * File-backed recipes resolve them in this order: seed-derived values, base
+   * overrides, the generic name/default-value injection heuristic, then any
+   * explicit declarative mappings declared in `meta.parameters[].overrides`
+   * (see `recipe-overrides.ts`). Mappings therefore win over the heuristic and
+   * can express computed relationships such as
+   * `modulator.frequency = carrier.frequency * modRatio`.
+   */
   buildOfflineGraph: (
     rng: Rng,
     ctx: OfflineAudioContext,
