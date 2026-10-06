@@ -1,6 +1,6 @@
 {
   "name": "toneforge",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Generate placeholder sound effects instantly so development never stalls waiting for final audio assets.",
   "type": "module",
   "main": "dist/index.js",
