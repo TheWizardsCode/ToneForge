@@ -4,7 +4,6 @@ import {
   assertOverrideChangesOutput,
   describeRecipe,
 } from "../test-utils/recipe-test-helper.js";
-import { createRng } from "../core/rng.js";
 import { renderPreset, renderRecipe } from "../core/renderer.js";
 import { compareBuffers } from "../test-utils/buffer-compare.js";
 import type { Rng } from "../core/rng.js";
@@ -37,6 +36,20 @@ describeRecipe(
 
     it("honours the lfoDepth override", async () => {
       await assertOverrideChangesOutput("ambient-wind-gust", "lfoDepth", 100, OVERRIDE_SEED);
+    });
+
+    it("honours the release override and fades to silence", async () => {
+      // The envelope release must lie inside the render window, so overriding
+      // `release` changes the tail and reaches silence by the buffer end.
+      await assertOverrideChangesOutput("ambient-wind-gust", "release", 0.8, OVERRIDE_SEED);
+
+      const rendered = await renderPreset({
+        recipe: "ambient-wind-gust",
+        seed: OVERRIDE_SEED,
+        overrides: { release: 0.8 },
+      });
+
+      expect(Math.abs(rendered.samples[rendered.samples.length - 1]!)).toBeLessThan(0.05);
     });
 
     it("applies the lfoDepth mapping as half the declared depth", async () => {

@@ -63,6 +63,15 @@ export interface ToneGraphHandle {
   nodes: Record<string, AudioNode>;
   duration: number;
   start: (time?: number) => void;
+  /**
+   * Schedule the end of playback at `time` (defaults to {@link duration}).
+   *
+   * Envelope nodes hold their sustain level from the end of the decay phase
+   * and ramp to silence over the final `release` seconds *inside* the render
+   * window — i.e. the ramp spans `[time - release, time]` (clamped at `0`).
+   * This matches the authored convention `duration = attack + decay +
+   * release`. Sources stop at `time`.
+   */
   stop: (time?: number) => void;
   dispose: () => void;
 }
@@ -676,10 +685,16 @@ export async function loadToneGraph(
   const stop = (time = duration): void => {
     for (const runtime of runtimeNodes.values()) {
       if (runtime.envelope) {
-        const releaseEnd = time + runtime.envelope.release;
-        runtime.envelope.gain.cancelScheduledValues(time);
-        runtime.envelope.gain.setValueAtTime(runtime.envelope.sustain, time);
-        runtime.envelope.gain.linearRampToValueAtTime(0, releaseEnd);
+        // The authored duration is `attack + decay + release`, so the release
+        // ramp is intended to occupy the final `release` seconds of the render
+        // window: [time - release, time]. Clamp at 0 so short buffers never
+        // schedule events before the render window. `cancelScheduledValues`
+        // starts at the release so the attack/decay schedule is preserved and
+        // the sustain plateau is re-asserted up to the release.
+        const releaseStart = Math.max(0, time - runtime.envelope.release);
+        runtime.envelope.gain.cancelScheduledValues(releaseStart);
+        runtime.envelope.gain.setValueAtTime(runtime.envelope.sustain, releaseStart);
+        runtime.envelope.gain.linearRampToValueAtTime(0, time);
       }
 
       for (const source of runtime.stoppables) {

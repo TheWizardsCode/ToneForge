@@ -174,6 +174,77 @@ describe("loadToneGraph", () => {
     );
   });
 
+  it("schedules the envelope release inside the render window", async () => {
+    const graph: ToneGraphDocument = {
+      version: "0.1",
+      meta: { duration: 0.22 },
+      nodes: {
+        dc: { kind: "constant", params: { value: 1 } },
+        env: {
+          kind: "envelope",
+          params: { attack: 0.01, decay: 0.01, sustain: 1, release: 0.1 },
+        },
+        out: { kind: "destination" },
+      },
+      routing: [{ chain: ["dc", "env", "out"] }],
+    };
+
+    const duration = graph.meta!.duration!;
+    const sampleRate = 44100;
+    const ctx = new OfflineAudioContext(1, Math.ceil(sampleRate * duration), sampleRate);
+    const handle = await loadToneGraph(graph, ctx, createRng(1));
+    handle.start(0);
+    handle.stop(handle.duration);
+    const rendered = await ctx.startRendering();
+    const samples = new Float32Array(rendered.getChannelData(0));
+    const at = (seconds: number): number =>
+      samples[Math.min(samples.length - 1, Math.floor(seconds * sampleRate))]!;
+
+    // Sustain plateau is held before the release window.
+    expect(at(0.1)).toBeCloseTo(1, 2);
+
+    // The release ramp lies inside the buffer: half-way through it the
+    // envelope is non-zero and still below the sustain level.
+    const midRelease = at(duration - 0.05);
+    expect(midRelease).toBeGreaterThan(0);
+    expect(midRelease).toBeLessThan(1);
+
+    // The envelope reaches silence by the end of the render window.
+    expect(Math.abs(samples[samples.length - 1]!)).toBeLessThan(0.05);
+  });
+
+  it("holds a release = 0 envelope at sustain until the stop time", async () => {
+    const graph: ToneGraphDocument = {
+      version: "0.1",
+      meta: { duration: 0.2 },
+      nodes: {
+        dc: { kind: "constant", params: { value: 1 } },
+        env: {
+          kind: "envelope",
+          params: { attack: 0.01, decay: 0.01, sustain: 0.75, release: 0 },
+        },
+        out: { kind: "destination" },
+      },
+      routing: [{ chain: ["dc", "env", "out"] }],
+    };
+
+    const sampleRate = 44100;
+    const ctx = new OfflineAudioContext(1, Math.ceil(sampleRate * 0.2), sampleRate);
+    const handle = await loadToneGraph(graph, ctx, createRng(1));
+    handle.start(0);
+    handle.stop(handle.duration);
+    const rendered = await ctx.startRendering();
+    const samples = new Float32Array(rendered.getChannelData(0));
+    const at = (seconds: number): number =>
+      samples[Math.min(samples.length - 1, Math.floor(seconds * sampleRate))]!;
+
+    // Release = 0 keeps the original behaviour: the sustain plateau holds
+    // through the whole render window and the drop to silence happens at the
+    // stop boundary (outside the buffer).
+    expect(at(0.15)).toBeCloseTo(0.75, 2);
+    expect(samples[samples.length - 1]!).toBeCloseTo(0.75, 2);
+  });
+
   it("uses graph.random.seed deterministically for noise", async () => {
     const graph: ToneGraphDocument = {
       version: "0.1",

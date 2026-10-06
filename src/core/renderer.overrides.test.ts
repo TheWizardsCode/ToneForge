@@ -101,9 +101,7 @@ export async function assertOverrideChangesOutput(
  * by the generic injection heuristic. The test below fails if a listed param
  * starts working (stale entry) or if an unlisted param stops working.
  */
-const KNOWN_UNWIRED: Record<string, string> = {
-  "ambient-wind-gust.release": "file-backed envelope mapping gap",
-};
+const KNOWN_UNWIRED: Record<string, string> = {};
 
 // ---------------------------------------------------------------------------
 // renderPreset baseline assertions
