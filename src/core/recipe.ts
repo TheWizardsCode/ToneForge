@@ -8,6 +8,11 @@ import type { OfflineAudioContext } from "../audio/web-audio.js";
 import type { Rng } from "./rng.js";
 import { normalizeCategory as normalizeCategoryFn } from "./normalize-category.js";
 import type { ToneGraphDocument } from "./tonegraph-schema.js";
+import {
+  applyFileBackedMappings,
+  parseFileBackedMappings,
+  validateFileBackedMappings,
+} from "./recipe-overrides.js";
 
 export interface ParamDescriptor {
   name: string;
@@ -379,6 +384,15 @@ export function createFileBackedRegistration(
   rawDoc: unknown,
 ): RecipeRegistration {
   const extractedParams = extractFileBackedParams(graph, rawDoc);
+  const overrideMappings = parseFileBackedMappings(rawDoc);
+
+  // Validate the declarative mappings once, at registration/discovery time, so
+  // an invalid recipe is skipped with a warning instead of failing a render.
+  validateFileBackedMappings(
+    overrideMappings,
+    new Set(extractedParams.map((param) => param.name)),
+    graph,
+  );
 
   return {
     getDuration: () => computeDurationHint(graph),
@@ -479,6 +493,12 @@ export function createFileBackedRegistration(
           }
         }
       }
+
+      // Explicit declarative mappings win over the name/default-value
+      // heuristic above. They are applied last so a computed mapping sees the
+      // post-override parameter values and any node fields written by a
+      // direct mapping (see `recipe-overrides.ts`).
+      applyFileBackedMappings(overrideMappings, derived, cloned);
 
       // Optional diagnostics: set TF_DIAG=1 to print derived params and
       // cloned node parameter values before rendering. This is intentionally

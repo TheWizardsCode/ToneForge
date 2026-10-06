@@ -241,6 +241,57 @@ Validation rules:
 - If both `min` and `max` are present, `min <= max`.
 - `default` must match `type` and be inside declared bounds when bounds exist.
 
+### File-Backed Override Mappings
+
+When a recipe is loaded from a file, a declared parameter is normally injected
+into the graph by matching node-param keys or automation fields by exact name,
+or by equality with the declared `default`. That heuristic cannot express
+computed relationships (for example `modulator.frequency = carrier.frequency *
+modRatio`).
+
+For those cases a parameter descriptor may carry an explicit `overrides` list:
+
+```yaml
+meta:
+  parameters:
+    - name: modRatio
+      type: number
+      min: 1
+      max: 4
+      default: 2
+      overrides:
+        - target: modulator.frequency
+          expression: "carrier.frequency * modRatio"
+    - name: modDepthEnd
+      type: number
+      min: 300
+      max: 800
+      overrides:
+        - target: modDepth.automation.gain.linearRamp.value
+```
+
+Each entry in `overrides` has:
+
+- `target` (string, required) — a dotted path to a node field:
+  - `<node>.<field>` writes a node `params` field.
+  - `<node>.automation.<param>.<index|kind>.<field>` writes an automation
+    event field, selected by zero-based `index` or by event `kind`.
+- `expression` (string, optional) — a small arithmetic expression evaluated
+  against resolved parameter values and node fields. Supported operators are
+  `*` and `/`; operands are numeric literals, declared parameter names, or
+  `<node>.<field>` references. When omitted, the parameter's resolved value is
+  written directly.
+
+Resolution order: seed-derived values, then base overrides, then the generic
+name/default heuristic, then explicit mappings. Computed mappings therefore see
+the post-override value of every parameter they reference, regardless of
+declaration order, and explicit mappings win over a heuristic match for the
+same field. An unknown parameter, node, field, automation param, event or
+reference fails loudly when the recipe is registered.
+
+Recipes that declare no `overrides` are unaffected: the mapping mechanism is a
+no-op for them.
+
 ## Routing
 
 `routing` is a required array of connection entries.
