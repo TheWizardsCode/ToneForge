@@ -177,3 +177,19 @@ allocation-heavy work to the hot path; there is no ML inference and no
 suggestion is ever auto-applied.
 
 Reference: work item TF-0MMLC8B3T0Z1F7ZM.
+
+### Testing
+
+The Mixer is covered by three unit suites under
+[`src/mixer/__tests__/`](../src/mixer/__tests__/):
+
+- `schema.test.ts` and `rules-loader.test.ts` — rule parsing/validation and
+  config loading;
+- `runtime.test.ts` — the runtime API: group metadata, voice admission,
+  rule decisions, default duck/UI values, determinism and a latency benchmark;
+- `voice-limiting.test.ts` — the safety-critical voice-limit invariant under a
+  seeded simulated load, fixture-verified duck/boost/limit outcomes for all
+  six groups, and byte-stable determinism snapshots. Deterministic fixtures
+  (seeded PRNG + fixed rule sets) live in `rules-fixtures.ts`.
+
+Reference: work items TF-0MMLC8B3T0Z1F7ZM and TF-0MMLC8SQ302DVYOZ.
