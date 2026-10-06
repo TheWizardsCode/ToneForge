@@ -17,6 +17,9 @@ meta:
       max: 1500
       unit: Hz
       default: 203.4370603047863
+      overrides:
+        - target: windFilter.frequency
+        - target: windFilter.automation.frequency.0.offset
     - name: filterQ
       type: number
       min: 0.5
@@ -29,12 +32,17 @@ meta:
       max: 4
       unit: Hz
       default: 0.8883498038370976
+      overrides:
+        - target: windFilter.automation.frequency.0.rate
     - name: lfoDepth
       type: number
       min: 100
       max: 800
       unit: Hz
       default: 694.563831527383
+      overrides:
+        - target: windFilter.automation.frequency.0.depth
+          expression: "lfoDepth / 2"
     - name: attack
       type: number
       min: 0.1

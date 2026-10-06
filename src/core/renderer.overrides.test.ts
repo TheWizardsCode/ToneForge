@@ -102,10 +102,7 @@ export async function assertOverrideChangesOutput(
  * starts working (stale entry) or if an unlisted param stops working.
  */
 const KNOWN_UNWIRED: Record<string, string> = {
-  "ambient-wind-gust.lfoDepth": "file-backed derived mapping",
   "ambient-wind-gust.release": "file-backed envelope mapping gap",
-  "card-transform.modRatio": "file-backed derived mapping",
-  "weapon-laser-zap.modIndex": "file-backed derived mapping",
 };
 
 // ---------------------------------------------------------------------------
