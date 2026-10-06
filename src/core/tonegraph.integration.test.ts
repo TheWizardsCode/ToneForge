@@ -2,11 +2,14 @@ import { describe, it, expect } from "vitest";
 import { OfflineAudioContext } from "node-web-audio-api";
 import { resolve, dirname, join } from "node:path";
 import { tmpdir } from "node:os";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import yaml from "js-yaml";
 import { createRng } from "./rng.js";
 import { compareBuffers, formatCompareResult } from "../test-utils/buffer-compare.js";
 import { RecipeRegistry, discoverFileBackedRecipes, type RecipeRegistration } from "./recipe.js";
+import { validateToneGraph, type ToneGraphDocument } from "./tonegraph-schema.js";
+import { loadToneGraph } from "./tonegraph.js";
 
 const PRESETS_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "presets", "recipes");
 const SAMPLE_RATE = 44100;
@@ -201,4 +204,57 @@ describe("ToneGraph integration parity", () => {
       expect(fileRender.duration).toBeGreaterThan(0);
     }
   });
+
+  /**
+   * AC5 (TF-0MUVK21Q9003PW21): `ambient-wind-gust` and `card-transform` declare
+   * inline node automation. Validation must preserve it so the rendered output
+   * is actually time-varying (not the static parameter value), and the render
+   * must remain deterministic.
+   */
+  it.each(["ambient-wind-gust", "card-transform"])(
+    "honours inline node automation for %s",
+    async (recipeName) => {
+      const source = await readFile(join(PRESETS_DIR, `${recipeName}.yaml`), "utf-8");
+      const graph = validateToneGraph(yaml.load(source));
+
+      // The validated graph must carry at least one node-level automation map.
+      const automatedNodes = Object.entries(graph.nodes).filter(
+        ([, node]) => (node as { automation?: unknown }).automation !== undefined,
+      );
+      expect(
+        automatedNodes.length,
+        `${recipeName} should have at least one node with inline automation after validation`,
+      ).toBeGreaterThan(0);
+
+      async function renderGraph(candidate: ToneGraphDocument): Promise<Float32Array> {
+        const duration = candidate.meta?.duration ?? 0.5;
+        const ctx = new OfflineAudioContext(1, Math.ceil(SAMPLE_RATE * duration), SAMPLE_RATE);
+        const handle = await loadToneGraph(candidate, ctx, createRng(SEED));
+        handle.start(0);
+        handle.stop(handle.duration);
+        const rendered = await ctx.startRendering();
+        return new Float32Array(rendered.getChannelData(0));
+      }
+
+      // Strip the automation from a clone to obtain the static-graph baseline.
+      const staticGraph = JSON.parse(JSON.stringify(graph)) as ToneGraphDocument;
+      for (const node of Object.values(staticGraph.nodes)) {
+        delete (node as { automation?: unknown }).automation;
+      }
+
+      const automated = await renderGraph(graph);
+      const staticRender = await renderGraph(staticGraph);
+
+      // Time-varying: automation must change the samples versus the static graph.
+      expect(automated.length).toBe(staticRender.length);
+      expect(
+        compareBuffers(automated, staticRender).identical,
+        `${recipeName} inline automation should change the rendered output`,
+      ).toBe(false);
+
+      // Determinism: the same graph + seed twice is byte-identical.
+      const repeat = await renderGraph(graph);
+      expect(compareBuffers(automated, repeat).identical).toBe(true);
+    },
+  );
 });

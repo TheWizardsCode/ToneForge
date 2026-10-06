@@ -82,7 +82,7 @@ describe("loadToneGraph", () => {
   });
 
   it("supports automation set, linear ramp, and lfo", async () => {
-    const graph = {
+    const graph: ToneGraphDocument = {
       version: "0.1",
       meta: { duration: 0.2 },
       nodes: {
@@ -101,14 +101,14 @@ describe("loadToneGraph", () => {
         out: { kind: "destination" },
       },
       routing: [{ chain: ["osc", "gain", "out"] }],
-    } as unknown as ToneGraphDocument;
+    };
 
     const samples = await renderGraph(graph, 4);
     expect(samples.some((sample) => sample !== 0)).toBe(true);
   });
 
   it("applies exponentialRamp node automation to oscillator frequency", async () => {
-    const sweptGraph = {
+    const sweptGraph: ToneGraphDocument = {
       version: "0.1",
       meta: { duration: 0.2 },
       nodes: {
@@ -126,7 +126,7 @@ describe("loadToneGraph", () => {
         out: { kind: "destination" },
       },
       routing: [{ chain: ["osc", "gain", "out"] }],
-    } as unknown as ToneGraphDocument;
+    };
 
     const baselineGraph = {
       version: "0.1",
@@ -154,7 +154,7 @@ describe("loadToneGraph", () => {
   });
 
   it("throws when exponentialRamp automation targets a non-positive value", async () => {
-    const graph = {
+    const graph: ToneGraphDocument = {
       version: "0.1",
       meta: { duration: 0.1 },
       nodes: {
@@ -166,7 +166,7 @@ describe("loadToneGraph", () => {
         out: { kind: "destination" },
       },
       routing: [{ from: "osc", to: "out" }],
-    } as unknown as ToneGraphDocument;
+    };
 
     const ctx = new OfflineAudioContext(1, 4410, 44100);
     await expect(loadToneGraph(graph, ctx, createRng(1))).rejects.toThrow(
