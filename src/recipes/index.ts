@@ -879,11 +879,32 @@ function impactCrackOfflineGraph(
 
   const bufferSize = Math.ceil(ctx.sampleRate * duration);
 
-  // White noise source
+  // Noise source with a white/pink colour blend controlled by
+  // `noiseColorMix` (0 = white, 1 = pink). The pink component is generated
+  // with Paul Kellet's refined filter, which approximates a -3 dB/octave
+  // spectral tilt. Exactly one RNG draw per sample is made, so the underlying
+  // white sequence is unchanged by the blend amount.
   const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
   const noiseData = noiseBuffer.getChannelData(0);
+  let b0 = 0;
+  let b1 = 0;
+  let b2 = 0;
+  let b3 = 0;
+  let b4 = 0;
+  let b5 = 0;
+  let b6 = 0;
+  const mix = params.noiseColorMix;
   for (let i = 0; i < noiseData.length; i++) {
-    noiseData[i] = rng() * 2 - 1;
+    const white = rng() * 2 - 1;
+    b0 = 0.99886 * b0 + white * 0.0555179;
+    b1 = 0.99332 * b1 + white * 0.0750759;
+    b2 = 0.96900 * b2 + white * 0.1538520;
+    b3 = 0.86650 * b3 + white * 0.3104856;
+    b4 = 0.55000 * b4 + white * 0.5329522;
+    b5 = -0.7616 * b5 - white * 0.0168980;
+    const pink = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
+    b6 = white * 0.115926;
+    noiseData[i] = white * (1 - mix) + pink * mix;
   }
 
   const noiseSrc = ctx.createBufferSource();
@@ -2349,7 +2370,10 @@ registry.register("card-defeat-sting", {
 
 function cardRoundCompleteDuration(rng: Rng, overrides: Record<string, number> = {}): number {
   const params = applyOverrides(getCardRoundCompleteParams(rng), overrides);
-  return params.attack + params.decay;
+  // ADSR envelope: attack -> decay to sustain -> sustain plateau -> release.
+  // The recipe declares no separate release or hold time, so the decay time is
+  // reused for both the sustain plateau and the release ramp.
+  return params.attack + params.decay * 3;
 }
 
 function cardRoundCompleteOfflineGraph(
@@ -2374,16 +2398,24 @@ function cardRoundCompleteOfflineGraph(
   const gain = ctx.createGain();
   gain.gain.value = params.level;
 
-  // Amplitude envelope
-  const env = ctx.createGain();
-  env.gain.setValueAtTime(0, 0);
-  env.gain.linearRampToValueAtTime(1, params.attack);
-  env.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+  // ADSR amplitude envelope: 0 -> 1 (attack) -> sustain (decay) -> sustain
+  // plateau -> 0 (release). The sustain level is held between the decay and
+  // release phases; the decay parameter doubles as the plateau and release
+  // duration (see `cardRoundCompleteDuration`).
+  const envelope = ctx.createGain();
+  const decayEnd = params.attack + params.decay;
+  const releaseStart = decayEnd + params.decay;
+  const releaseEnd = releaseStart + params.decay;
+  envelope.gain.setValueAtTime(0, 0);
+  envelope.gain.linearRampToValueAtTime(1, params.attack);
+  envelope.gain.linearRampToValueAtTime(params.sustain, decayEnd);
+  envelope.gain.setValueAtTime(params.sustain, releaseStart);
+  envelope.gain.linearRampToValueAtTime(0, releaseEnd);
 
   osc.connect(filter);
   filter.connect(gain);
-  gain.connect(env);
-  env.connect(ctx.destination);
+  gain.connect(envelope);
+  envelope.connect(ctx.destination);
 
   // Schedule
   osc.start(0);

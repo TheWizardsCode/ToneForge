@@ -102,8 +102,6 @@ export async function assertOverrideChangesOutput(
  * starts working (stale entry) or if an unlisted param stops working.
  */
 const KNOWN_UNWIRED: Record<string, string> = {
-  "impact-crack.noiseColorMix": "declared but unused by the builder",
-  "card-round-complete.sustain": "declared but unused by the builder",
   "ambient-wind-gust.lfoDepth": "file-backed derived mapping",
   "ambient-wind-gust.release": "file-backed envelope mapping gap",
   "card-transform.modRatio": "file-backed derived mapping",
