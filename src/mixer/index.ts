@@ -1,9 +1,9 @@
 /**
  * ToneForge Mixer Module
  *
- * Behaviour-aware mixing and routing layer. This module currently provides
- * the declarative rule schema and the rule config loader; the runtime
- * arbitration engine is delivered separately (TF-0MMLC8B3T0Z1F7ZM).
+ * Behaviour-aware mixing and routing layer. Provides the declarative rule
+ * schema, the rule config loader, and the deterministic runtime arbitration
+ * engine (group registry, voice ledger, rule evaluation).
  *
  * Reference: docs/prd/MIXER_PRD.md; docs/mixer-rules.md
  */
@@ -39,3 +39,11 @@ export {
   resolveMixRulesDir,
   type LoadMixRulesOptions,
 } from "./rules-loader.js";
+
+export {
+  Mixer,
+  type MixGroupState,
+  type MixDecision,
+  type MixerInspection,
+  type MixerOptions,
+} from "./runtime.js";

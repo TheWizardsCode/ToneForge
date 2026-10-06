@@ -116,4 +116,64 @@ mirrors the built-in defaults and is covered by tests that guard against drift.
 (empty = valid); `parseMixRuleSet(data, source)` validates and normalises,
 throwing an actionable `Error` when invalid.
 
-Reference: work item TF-0MMLC8PXU0D3O594.
+## Mixer runtime
+
+The runtime arbitration engine lives in
+[`src/mixer/runtime.ts`](../src/mixer/runtime.ts) and is reached through the
+module index:
+
+```ts
+import { Mixer, loadMixRules } from "./src/mixer/index.js";
+
+const mixer = new Mixer({ ruleSet: loadMixRules() });
+
+mixer.setContext({ surface: "metal" });   // context-driven rules
+mixer.updateState("combat");               // evaluates rules → decisions
+
+const voice = mixer.startVoice("combat");  // null when at the voice cap
+mixer.stopVoice("combat", voice!);
+
+mixer.inspect();
+// → { state, context, groups[], decisions[], voiceCount }
+```
+
+### Group registry
+
+`inspect().groups` returns one `MixGroupState` per confirmed group with its
+`priority`, effective `maxVoices`, `currentGain`, `activeVoices` and (while a
+duck is active) `duckDurationMs`. Gains start at unity (`1`) and only move in
+response to an explicit rule action.
+
+### Voice ledger
+
+`startVoice(group)` admits a voice only while the group is below its effective
+`maxVoices` cap and returns a deterministic voice ID (`<group>-voice-<n>`), or
+`null` when the group is full. `stopVoice(group, id)` releases a voice. Active
+voices are tracked per group; a group never admits more voices than its cap.
+
+### Rule evaluation
+
+`applyRules()` (called implicitly by `updateState`/`setContext`) evaluates the
+rule set against the current state/context. A rule matches when its `state`
+matches the current state **and** every declared `context` dimension matches;
+a rule declaring only one of the two is matched on that trigger alone. Each
+pass resets gains to unity and caps to their configured values, so evaluation
+is deterministic and idempotent for identical inputs.
+
+Matching actions are applied in rule order:
+
+- `duck` multiplies the target gain by `10 ** (-depthDb / 20)` (6 dB → ≈ 0.5);
+- `boost` multiplies the target gain by `10 ** (gainDb / 20)` when `gainDb` is
+declared, otherwise it records a decision without changing the gain;
+- `limit` lowers the target's effective voice cap.
+
+A cap lowered beneath the current active count does not retroactively stop
+live voices; the effective cap is raised to the active count until they end, so
+`activeVoices ≤ maxVoices` always holds.
+
+The full ordered decision list from the most recent pass is available as
+`inspect().decisions`. Evaluation is constant-time per rule and adds no
+allocation-heavy work to the hot path; there is no ML inference and no
+suggestion is ever auto-applied.
+
+Reference: work item TF-0MMLC8B3T0Z1F7ZM.
