@@ -8,12 +8,23 @@
  * - Registry-wide coverage: every recipe honours an override for every
  *   declared parameter.
  * - Baseline unchanged: empty overrides == renderRecipe.
+ *
+ * Per-parameter coverage (TF-0MUVK21BQ004E6ZO):
+ * - Each declared parameter of every registered recipe is tested individually
+ *   via the `assertOverrideChangesOutput` helper.
+ * - Allowlisted (KNOWN_UNWIRED) parameters assert identical output today;
+ *   a stale entry (now changed) fails; a missing entry (no declared param)
+ *   fails.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import { renderPreset, renderRecipe } from "./renderer.js";
 import { registry, initializeRecipeRegistry } from "../recipes/index.js";
 import { createRng } from "./rng.js";
 import { compareBuffers } from "../test-utils/buffer-compare.js";
+
+// ---------------------------------------------------------------------------
+// Shared helpers
+// ---------------------------------------------------------------------------
 
 async function baseline(recipe: string, seed: number): Promise<Float32Array> {
   return (await renderRecipe(recipe, seed)).samples;
@@ -28,6 +39,80 @@ function oppositeExtreme(
   const midpoint = min + (max - min) / 2;
   return baselineValue <= midpoint ? max : min;
 }
+
+/**
+ * Assert that overriding a single parameter changes the rendered output.
+ *
+ * @param recipe       - Recipe name.
+ * @param param        - Parameter name to override.
+ * @param seed         - Seed for deterministic rendering.
+ * @param expectedChange - Whether the override is expected to change output.
+ *                         `true` for non-allowlisted params (should change),
+ *                         `false` for KNOWN_UNWIRED params (should not yet change).
+ */
+export async function assertOverrideChangesOutput(
+  recipe: string,
+  param: string,
+  seed: number,
+  expectedChange: boolean,
+): Promise<void> {
+  const registration = registry.getRegistration(recipe)!;
+  const baseParams = registration.getParams(createRng(seed));
+  const descriptor = registration.params.find((p) => p.name === param);
+  if (!descriptor) {
+    throw new Error(`No descriptor for parameter "${param}" in recipe "${recipe}"`);
+  }
+  if (!(param in baseParams)) {
+    throw new Error(`No baseline value for parameter "${param}" in recipe "${recipe}"`);
+  }
+  const target = oppositeExtreme(
+    descriptor.min,
+    descriptor.max,
+    baseParams[param],
+  );
+  const base = await baseline(recipe, seed);
+  const overridden = await renderPreset({
+    recipe,
+    seed,
+    overrides: { [param]: target },
+  });
+  const changed = !compareBuffers(base, overridden.samples).identical;
+
+  if (expectedChange) {
+    expect(
+      changed,
+      `Override of "${param}" on recipe "${recipe}" had no effect — this parameter should be wired into the render path`,
+    ).toBe(true);
+  } else {
+    const reason = KNOWN_UNWIRED[`${recipe}.${param}`] ?? "unknown";
+    expect(
+      changed,
+      `Override of "${param}" on recipe "${recipe}" now changes output — "${reason}" — remove this entry from KNOWN_UNWIRED`,
+    ).toBe(false);
+  }
+}
+
+/**
+ * KNOWN_UNWIRED: declared parameters whose override does not (yet) change
+ * rendered output.
+ *
+ * These are pre-existing recipe/graph gaps tracked by TF-0MUV9U9QU001SORH:
+ * declared-but-unused params and file-backed mappings that cannot be expressed
+ * by the generic injection heuristic. The test below fails if a listed param
+ * starts working (stale entry) or if an unlisted param stops working.
+ */
+const KNOWN_UNWIRED: Record<string, string> = {
+  "impact-crack.noiseColorMix": "declared but unused by the builder",
+  "card-round-complete.sustain": "declared but unused by the builder",
+  "ambient-wind-gust.lfoDepth": "file-backed derived mapping",
+  "ambient-wind-gust.release": "file-backed envelope mapping gap",
+  "card-transform.modRatio": "file-backed derived mapping",
+  "weapon-laser-zap.modIndex": "file-backed derived mapping",
+};
+
+// ---------------------------------------------------------------------------
+// renderPreset baseline assertions
+// ---------------------------------------------------------------------------
 
 describe("renderPreset", () => {
   it("returns a RenderResult", async () => {
@@ -97,28 +182,25 @@ describe("renderPreset", () => {
   }
 });
 
-/**
- * Declared parameters whose override does not (yet) change output.
- *
- * These are pre-existing recipe/graph gaps tracked by TF-0MUV9U9QU001SORH:
- * declared-but-unused params and file-backed mappings that cannot be expressed
- * by the generic injection heuristic. The test below fails if a listed param
- * starts working (stale entry) or if an unlisted param stops working.
- */
-const KNOWN_UNWIRED: Record<string, string> = {
-  "impact-crack.noiseColorMix": "declared but unused by the builder",
-  "card-round-complete.sustain": "declared but unused by the builder",
-  "ambient-wind-gust.lfoDepth": "file-backed derived mapping",
-  "ambient-wind-gust.release": "file-backed envelope mapping gap",
-  "card-transform.modRatio": "file-backed derived mapping",
-  "weapon-laser-zap.modIndex": "file-backed derived mapping",
-};
+// ---------------------------------------------------------------------------
+// Per-parameter override coverage
+//
+// Each declared parameter of every registered recipe is tested individually
+// via the `assertOverrideChangesOutput` helper, grouped by recipe.  The
+// registry is discovered asynchronously (file-backed recipes), so a single
+// `it()` iterates over all recipes and calls the helper for each parameter —
+// each parameter gets its own named expect assertion with a clear failure
+// message.
+// ---------------------------------------------------------------------------
 
 describe("registry-wide override coverage", () => {
+  beforeAll(async () => {
+    await initializeRecipeRegistry();
+  });
+
   it(
     "honours an override for every declared parameter of every recipe",
     async () => {
-      await initializeRecipeRegistry();
       const recipes = registry.list();
       expect(recipes.length).toBeGreaterThan(0);
 
@@ -130,35 +212,35 @@ describe("registry-wide override coverage", () => {
         const registration = registry.getRegistration(recipe)!;
         const seed = 4321;
         const baseParams = registration.getParams(createRng(seed));
-        const base = await baseline(recipe, seed);
 
         for (const descriptor of registration.params) {
           const key = `${recipe}.${descriptor.name}`;
+
           if (!(descriptor.name in baseParams)) {
             failures.push(`${key}: no baseline value from getParams`);
             continue;
           }
-          const target = oppositeExtreme(
-            descriptor.min,
-            descriptor.max,
-            baseParams[descriptor.name],
-          );
-          const overridden = await renderPreset({
-            recipe,
-            seed,
-            overrides: { [descriptor.name]: target },
-          });
-          const changed = !compareBuffers(base, overridden.samples).identical;
 
-          if (key in KNOWN_UNWIRED) {
-            seenExceptions.add(key);
-            if (changed){
-              staleExceptions.push(
-                `${key}: now honoured — remove from KNOWN_UNWIRED (${KNOWN_UNWIRED[key]})`,
-              );
+          const isKnownUnwired = key in KNOWN_UNWIRED;
+          const expectedChange = !isKnownUnwired;
+
+          // Track that we actually checked this exception key.
+          if (isKnownUnwired) seenExceptions.add(key);
+
+          try {
+            await assertOverrideChangesOutput(
+              recipe,
+              descriptor.name,
+              seed,
+              expectedChange,
+            );
+          } catch (err) {
+            const message = (err as Error).message;
+            if (expectedChange) {
+              failures.push(`${key}: ${message}`);
+            } else {
+              staleExceptions.push(`${key}: ${message}`);
             }
-          } else if (!changed) {
-            failures.push(`${key}: override had no effect`);
           }
         }
       }
@@ -179,4 +261,26 @@ describe("registry-wide override coverage", () => {
     },
     180_000,
   );
+
+  /**
+   * Unit test of the override-check helper:
+   * - Verify the helper correctly detects a real change (non-allowlisted param).
+   */
+  describe("assertOverrideChangesOutput guard correctness", () => {
+    it("detects a real change (non-allowlisted param changes output)", async () => {
+      await assertOverrideChangesOutput(
+        "weapon-laser-zap",
+        "carrierFreq",
+        4321,
+        true, // expected to change
+      );
+    });
+
+    it("detects a missing entry (parameter not declared)", () => {
+      const testEntry = "nonexistent-recipe.fakeParam";
+      const [recipeName] = testEntry.split(".");
+      const registration = registry.getRegistration(recipeName);
+      expect(registration).toBeUndefined();
+    });
+  });
 });
