@@ -62,6 +62,8 @@ import { getCardTableAmbienceParams } from "./card-table-ambience-params.js";
 import { getCardDeckPresenceParams } from "./card-deck-presence-params.js";
 import { getCardTimerTickParams } from "./card-timer-tick-params.js";
 import { getCardTimerWarningParams } from "./card-timer-warning-params.js";
+import { createStackWrapperRecipe } from "./stack-wrapper.js";
+import type { StackDefinition } from "../stack/renderer.js";
 
 /** The global recipe registry instance with all built-in recipes registered. */
 export const registry = new RecipeRegistry();
@@ -4583,3 +4585,32 @@ registry.register("card-timer-warning", {
     };
   },
 });
+
+// ── stack-card-play-landing (stack wrapper) ───────────────────────
+
+/**
+ * In-memory stack definition for the card_play_landing stack preset.
+ *
+ * This mirrors `presets/stacks/card_play_landing.json` so the wrapper
+ * can be registered without any disk I/O (important for the browser build).
+ */
+const cardPlayLandingStack: StackDefinition = {
+  name: "card_play_landing",
+  layers: [
+    { recipe: "card-slide", startTime: 0, gain: 1.0 },
+    { recipe: "card-place", startTime: 0.08, gain: 0.9 },
+    { recipe: "card-glow", startTime: 0.18, gain: 0.55 },
+  ],
+};
+
+registry.register("stack-card-play-landing", createStackWrapperRecipe({
+  name: "stack-card-play-landing",
+  stack: cardPlayLandingStack,
+  description: "Wraps the card_play_landing stack preset as a recipe so it can be used as a single event inside a sequence preset.",
+  category: "Card Game",
+  tags: ["card", "stack", "wrapper", "landing", "card-game"],
+  signalChain: "Stack(card_play_landing): card-slide -> card-place -> card-glow",
+  params: [
+    { name: "gain", min: 0.2, max: 1.0, unit: "amplitude" },
+  ],
+}));

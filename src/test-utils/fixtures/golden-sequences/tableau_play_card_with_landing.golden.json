@@ -1,0 +1,27 @@
+{
+  "name": "tableau_play_card_with_landing",
+  "seed": 42,
+  "sampleRate": 44100,
+  "totalDuration": 0.15,
+  "totalDuration_ms": 150,
+  "events": [
+    {
+      "time_ms": 0,
+      "sampleOffset": 0,
+      "event": "card-slide",
+      "seedOffset": 0,
+      "eventSeed": 42,
+      "gain": 0.7,
+      "repetition": 0
+    },
+    {
+      "time_ms": 150,
+      "sampleOffset": 6615,
+      "event": "stack-card-play-landing",
+      "seedOffset": 1,
+      "eventSeed": 43,
+      "gain": 1,
+      "repetition": 0
+    }
+  ]
+}
