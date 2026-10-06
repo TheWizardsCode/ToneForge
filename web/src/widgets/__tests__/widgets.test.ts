@@ -276,3 +276,293 @@ describe("embedding hygiene", () => {
     pad.dispose();
   });
 });
+
+/* ── Pointer drag interaction tests ──────────────────────── */
+
+describe("slider pointer drag", () => {
+  function mockRect(track: HTMLElement, left: number, width: number): void {
+    vi.spyOn(track, "getBoundingClientRect").mockReturnValue({
+      left, width, top: 0, bottom: 1, right: left + width, x: left, y: 0, height: 1,
+      toJSON: () => ({}),
+    } as DOMRect);
+  }
+
+  it("pointer drag on track changes value", () => {
+    const slider = createSlider({ min: 0, max: 100, step: 1, value: 50, label: "Level" });
+    const track = slider.element.querySelector<HTMLElement>(".tf-slider__track")!;
+    document.body.append(slider.element);
+    mockRect(track, 0, 100);
+
+    const changeHandler = vi.fn();
+    slider.element.addEventListener("change", changeHandler);
+
+    // Pointer at 75% of track → value 75
+    track.dispatchEvent(new PointerEvent("pointerdown", { clientX: 75, bubbles: true }));
+    document.dispatchEvent(new PointerEvent("pointermove", { clientX: 75, bubbles: true }));
+    document.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+
+    expect(slider.getValue()).toBe(75);
+    expect(changeHandler).toHaveBeenCalledTimes(1);
+
+    slider.dispose();
+  });
+
+  it("pointer drag on track respects clamping", () => {
+    const slider = createSlider({ min: 10, max: 90, step: 1, value: 50, label: "Level" });
+    const track = slider.element.querySelector<HTMLElement>(".tf-slider__track")!;
+    document.body.append(slider.element);
+    mockRect(track, 0, 100);
+
+    // Pointer far left → clamped to min
+    track.dispatchEvent(new PointerEvent("pointerdown", { clientX: -200, bubbles: true }));
+    document.dispatchEvent(new PointerEvent("pointermove", { clientX: -200, bubbles: true }));
+    document.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+
+    expect(slider.getValue()).toBe(10);
+
+    // Pointer far right → clamped to max
+    track.dispatchEvent(new PointerEvent("pointerdown", { clientX: 300, bubbles: true }));
+    document.dispatchEvent(new PointerEvent("pointermove", { clientX: 300, bubbles: true }));
+    document.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+
+    expect(slider.getValue()).toBe(90);
+
+    slider.dispose();
+  });
+
+  it("pointer drag on thumb changes value", () => {
+    const slider = createSlider({ min: 0, max: 100, step: 1, value: 50, label: "Level" });
+    const thumb = slider.element.querySelector<HTMLElement>(".tf-slider__thumb")!;
+    document.body.append(slider.element);
+    mockRect(slider.element.querySelector<HTMLElement>(".tf-slider__track")!, 0, 100);
+
+    const changeHandler = vi.fn();
+    slider.element.addEventListener("change", changeHandler);
+
+    thumb.dispatchEvent(new PointerEvent("pointerdown", { clientX: 25, bubbles: true }));
+    document.dispatchEvent(new PointerEvent("pointermove", { clientX: 25, bubbles: true }));
+    document.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+
+    expect(slider.getValue()).toBe(25);
+    expect(changeHandler).toHaveBeenCalledTimes(1);
+
+    slider.dispose();
+  });
+
+  it("no change event when pointer drag results in no value change", () => {
+    const slider = createSlider({ min: 0, max: 100, step: 1, value: 50, label: "Level" });
+    const track = slider.element.querySelector<HTMLElement>(".tf-slider__track")!;
+    document.body.append(slider.element);
+    mockRect(track, 50, 100);
+
+    const changeHandler = vi.fn();
+    slider.element.addEventListener("change", changeHandler);
+
+    // Start at 50% of track (value 50), move to same position
+    track.dispatchEvent(new PointerEvent("pointerdown", { clientX: 100, bubbles: true }));
+    document.dispatchEvent(new PointerEvent("pointermove", { clientX: 100, bubbles: true }));
+    document.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+
+    expect(changeHandler).not.toHaveBeenCalled();
+
+    slider.dispose();
+  });
+
+  it("pointer move during drag updates the value live", () => {
+    const slider = createSlider({ min: 0, max: 100, step: 1, value: 50, label: "Level" });
+    const track = slider.element.querySelector<HTMLElement>(".tf-slider__track")!;
+    document.body.append(slider.element);
+    mockRect(track, 0, 100);
+
+    const changeHandler = vi.fn();
+    slider.element.addEventListener("change", changeHandler);
+
+    // Pointer down at 25% of track
+    track.dispatchEvent(new PointerEvent("pointerdown", { clientX: 25, bubbles: true }));
+    expect(slider.getValue()).toBe(25);
+    expect(changeHandler).toHaveBeenCalledTimes(1);
+
+    // Move further to 50% — live update during drag
+    slider.element.dispatchEvent(new PointerEvent("pointermove", { clientX: 50, bubbles: true }));
+    expect(slider.getValue()).toBe(50);
+    expect(changeHandler).toHaveBeenCalledTimes(2);
+
+    // Release — no additional event
+    slider.element.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+    expect(changeHandler).toHaveBeenCalledTimes(2);
+
+    slider.dispose();
+  });
+
+  it("stops updating after dispose", () => {
+    const slider = createSlider({ min: 0, max: 100, step: 1, value: 50, label: "Level" });
+    const track = slider.element.querySelector<HTMLElement>(".tf-slider__track")!;
+    document.body.append(slider.element);
+    mockRect(track, 0, 100);
+
+    track.dispatchEvent(new PointerEvent("pointerdown", { clientX: 25, bubbles: true }));
+    slider.dispose();
+
+    // Even if we send move/up, no change
+    document.dispatchEvent(new PointerEvent("pointermove", { clientX: 75, bubbles: true }));
+    document.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+
+    expect(slider.getValue()).toBe(25);
+
+    slider.dispose(); // idempotent
+  });
+});
+
+describe("rotary pointer drag", () => {
+  it("horizontal drag rotates dial and changes value", () => {
+    const dial = createRotary({ min: 0, max: 100, step: 1, value: 0, label: "Pan" });
+    const dialEl = dial.element.querySelector<HTMLElement>(".tf-rotary__dial")!;
+    document.body.append(dial.element);
+
+    const changeHandler = vi.fn();
+    dial.element.addEventListener("change", changeHandler);
+
+    // 75px right of a 150px full-range sweep → +50 on a 0–100 range.
+    dialEl.dispatchEvent(new PointerEvent("pointerdown", { clientX: 0, bubbles: true }));
+    dial.element.dispatchEvent(new PointerEvent("pointermove", { clientX: 75, bubbles: true }));
+    dial.element.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+
+    expect(dial.getValue()).toBe(50);
+    expect(changeHandler).toHaveBeenCalledTimes(1);
+
+    dial.dispose();
+  });
+
+  it("horizontal drag clamps to min and max values", () => {
+    const dial = createRotary({ min: 0, max: 100, step: 1, value: 50, label: "Pan" });
+    const dialEl = dial.element.querySelector<HTMLElement>(".tf-rotary__dial")!;
+    document.body.append(dial.element);
+
+    // Drag far right → clamps to max.
+    dialEl.dispatchEvent(new PointerEvent("pointerdown", { clientX: 0, bubbles: true }));
+    dial.element.dispatchEvent(new PointerEvent("pointermove", { clientX: 1000, bubbles: true }));
+    dial.element.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+
+    expect(dial.getValue()).toBe(100);
+
+    // Drag far left → clamps to min.
+    dialEl.dispatchEvent(new PointerEvent("pointerdown", { clientX: 0, bubbles: true }));
+    dial.element.dispatchEvent(new PointerEvent("pointermove", { clientX: -1000, bubbles: true }));
+    dial.element.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+
+    expect(dial.getValue()).toBe(0);
+
+    dial.dispose();
+  });
+
+  it("stops updating after dispose", () => {
+    const dial = createRotary({ min: 0, max: 100, step: 1, value: 50, label: "Pan" });
+    const dialEl = dial.element.querySelector<HTMLElement>(".tf-rotary__dial")!;
+    document.body.append(dial.element);
+
+    dialEl.dispatchEvent(new PointerEvent("pointerdown", { clientX: 0, bubbles: true }));
+    dial.dispose();
+
+    dial.element.dispatchEvent(new PointerEvent("pointermove", { clientX: 1000, bubbles: true }));
+    dial.element.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+
+    // Value should stay at the starting value, unchanged by the drag.
+    expect(dial.getValue()).toBe(50);
+
+    dial.dispose();
+  });
+});
+
+describe("xy pad pointer drag", () => {
+  function mockRect(pad: HTMLElement, left: number, top: number, width: number): void {
+    vi.spyOn(pad, "getBoundingClientRect").mockReturnValue({
+      left, top, width, height: width, right: left + width, x: left, y: top,
+      toJSON: () => ({}),
+    } as DOMRect);
+  }
+
+  it("pointer drag moves thumb and updates values", () => {
+    const pad = createXYPad({
+      label: "Position",
+      x: { min: 0, max: 100, step: 1, value: 50 },
+      y: { min: 0, max: 100, step: 1, value: 50 },
+    });
+    const padEl = pad.element.querySelector<HTMLElement>(".tf-xy-pad__pad")!;
+    document.body.append(pad.element);
+    mockRect(padEl, 0, 0, 100);
+
+    const changeHandler = vi.fn();
+    pad.element.addEventListener("change", changeHandler);
+
+    // Pointer at bottom-right of pad → x=100, y=0 (Y is inverted)
+    padEl.dispatchEvent(new PointerEvent("pointerdown", { clientX: 100, clientY: 100, bubbles: true }));
+    document.dispatchEvent(new PointerEvent("pointermove", { clientX: 100, clientY: 100, bubbles: true }));
+    document.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+
+    expect(pad.getValue()).toEqual({ x: 100, y: 0 });
+    expect(changeHandler).toHaveBeenCalledTimes(1);
+
+    pad.dispose();
+  });
+
+  it("pointer drag clamps values to axis bounds", () => {
+    const pad = createXYPad({
+      label: "Position",
+      x: { min: 10, max: 90, step: 1, value: 50 },
+      y: { min: 10, max: 90, step: 1, value: 50 },
+    });
+    const padEl = pad.element.querySelector<HTMLElement>(".tf-xy-pad__pad")!;
+    document.body.append(pad.element);
+    mockRect(padEl, 0, 0, 100);
+
+    // Pointer far outside → clamped
+    padEl.dispatchEvent(new PointerEvent("pointerdown", { clientX: -200, clientY: -200, bubbles: true }));
+    document.dispatchEvent(new PointerEvent("pointermove", { clientX: -200, clientY: -200, bubbles: true }));
+    document.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+
+    expect(pad.getValue()).toEqual({ x: 10, y: 90 }); // x clamped to min, y clamped to max (inverted)
+
+    pad.dispose();
+  });
+
+  it("pointer drag to center of pad", () => {
+    const pad = createXYPad({
+      label: "Position",
+      x: { min: 0, max: 100, step: 1, value: 50 },
+      y: { min: 0, max: 100, step: 1, value: 50 },
+    });
+    const padEl = pad.element.querySelector<HTMLElement>(".tf-xy-pad__pad")!;
+    document.body.append(pad.element);
+    mockRect(padEl, 0, 0, 100);
+
+    padEl.dispatchEvent(new PointerEvent("pointerdown", { clientX: 50, clientY: 50, bubbles: true }));
+    document.dispatchEvent(new PointerEvent("pointermove", { clientX: 50, clientY: 50, bubbles: true }));
+    document.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+
+    // Center of pad: xRatio=0.5 → x=50, yRatio=0.5 → y=50
+    expect(pad.getValue()).toEqual({ x: 50, y: 50 });
+
+    pad.dispose();
+  });
+
+  it("stops updating after dispose", () => {
+    const pad = createXYPad({
+      label: "Position",
+      x: { min: 0, max: 100, step: 1, value: 50 },
+      y: { min: 0, max: 100, step: 1, value: 50 },
+    });
+    const padEl = pad.element.querySelector<HTMLElement>(".tf-xy-pad__pad")!;
+    document.body.append(pad.element);
+    mockRect(padEl, 0, 0, 100);
+
+    padEl.dispatchEvent(new PointerEvent("pointerdown", { clientX: 25, clientY: 25, bubbles: true }));
+    pad.dispose();
+
+    document.dispatchEvent(new PointerEvent("pointermove", { clientX: 75, clientY: 75, bubbles: true }));
+    document.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+
+    expect(pad.getValue()).toEqual({ x: 25, y: 75 }); // value at time of pointer down, unchanged
+
+    pad.dispose();
+  });
+});

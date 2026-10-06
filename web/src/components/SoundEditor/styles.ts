@@ -106,6 +106,16 @@ export const EDITOR_STYLES = `
     position: relative;
   }
 
+  .tf-slider,
+  .tf-rotary__dial {
+    cursor: grab;
+  }
+
+  .tf-slider:active,
+  .tf-rotary__dial:active {
+    cursor: grabbing;
+  }
+
   .tf-slider {
     display: flex;
     align-items: center;
@@ -198,6 +208,32 @@ export const EDITOR_STYLES = `
   .tf-widget:focus-visible {
     outline: 2px solid var(--tfe-accent, var(--tf-editor-accent, #6ea8fe));
     outline-offset: 2px;
+  }
+
+  /* ── Control label/value wrappers ───────────────────────── */
+
+  .toneforge-control {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .toneforge-control__label {
+    font-size: 0.75rem;
+    color: var(--tfe-foreground, var(--tf-editor-foreground, #f5f5f5));
+    opacity: 0.6;
+    text-transform: capitalize;
+  }
+
+  .toneforge-control__value {
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--tfe-foreground, var(--tf-editor-foreground, #f5f5f5));
+    opacity: 0.8;
+  }
+
+  .is-overridden .toneforge-control__value {
+    color: var(--tfe-accent, var(--tf-editor-accent, #6ea8fe));
   }
 `;
 

@@ -15,6 +15,7 @@ import {
   createSlider,
   createToggleSelect,
   createXYPad,
+  formatValue,
   type ScalarWidget,
   type XYPadWidget,
 } from "../../widgets/index.js";
@@ -40,12 +41,14 @@ export interface ControlPanel {
 interface ScalarEntry {
   name: string;
   widget: ScalarWidget;
+  refreshValue: () => void;
 }
 
 interface PadEntry {
   xName: string;
   yName: string;
   widget: XYPadWidget;
+  refreshValue: () => void;
 }
 
 function descriptorsFor(recipe: string): ParamDescriptor[] {
@@ -98,6 +101,11 @@ export function createControlPanel(initial: SoundPreset): ControlPanel {
     const entry = scalarEntries.find((e) => e.name === name);
     if (entry) {
       entry.widget.element.classList.toggle("is-overridden", overridden);
+      return;
+    }
+    const pad = padEntries.find((e) => e.xName === name || e.yName === name);
+    if (pad) {
+      pad.widget.element.classList.toggle("is-overridden", overridden);
     }
   }
 
@@ -153,11 +161,25 @@ export function createControlPanel(initial: SoundPreset): ControlPanel {
         });
       }
       widget.element.dataset.parameter = spec.name;
-      widget.onChange((next) =>
-        setOverrides([{ name: spec.name, value: next, baseline: baseline[spec.name] }]),
-      );
-      scalarEntries.push({ name: spec.name, widget });
-      element.appendChild(widget.element);
+      const wrapper = document.createElement("div");
+      wrapper.className = "toneforge-control";
+      const labelEl = document.createElement("span");
+      labelEl.className = "toneforge-control__label";
+      labelEl.textContent = spec.label;
+      const valueEl = document.createElement("span");
+      valueEl.className = "toneforge-control__value";
+      const nextV = overrides[spec.name] ?? baseline[spec.name] ?? spec.descriptor.min;
+      valueEl.textContent = formatValue(nextV, spec.unit);
+      const refreshValue = (): void => {
+        valueEl.textContent = formatValue(widget.getValue(), spec.unit);
+      };
+      widget.onChange((next) => {
+        setOverrides([{ name: spec.name, value: next, baseline: baseline[spec.name] }]);
+        refreshValue();
+      });
+      wrapper.append(labelEl, valueEl, widget.element);
+      element.appendChild(wrapper);
+      scalarEntries.push({ name: spec.name, widget, refreshValue });
     }
 
     for (const spec of mapping.pads) {
@@ -182,14 +204,35 @@ export function createControlPanel(initial: SoundPreset): ControlPanel {
         },
       });
       widget.element.dataset.parameter = spec.id;
+      const wrapper = document.createElement("div");
+      wrapper.className = "toneforge-control";
+      const labelXEl = document.createElement("span");
+      labelXEl.className = "toneforge-control__label";
+      labelXEl.textContent = spec.xName;
+      const labelYEl = document.createElement("span");
+      labelYEl.className = "toneforge-control__label";
+      labelYEl.textContent = spec.yName;
+      const valueXEl = document.createElement("span");
+      valueXEl.className = "toneforge-control__value";
+      valueXEl.textContent = formatValue(xValue, spec.xDescriptor.unit);
+      const valueYEl = document.createElement("span");
+      valueYEl.className = "toneforge-control__value";
+      valueYEl.textContent = formatValue(yValue, spec.yDescriptor.unit);
+      const refreshValue = (): void => {
+        const current = widget.getValue();
+        valueXEl.textContent = formatValue(current.x, spec.xDescriptor.unit);
+        valueYEl.textContent = formatValue(current.y, spec.yDescriptor.unit);
+      };
       widget.onChange((value) => {
         setOverrides([
           { name: spec.xName, value: value.x, baseline: baseline[spec.xName] },
           { name: spec.yName, value: value.y, baseline: baseline[spec.yName] },
         ]);
+        refreshValue();
       });
-      padEntries.push({ xName: spec.xName, yName: spec.yName, widget });
-      element.appendChild(widget.element);
+      wrapper.append(labelXEl, valueXEl, labelYEl, valueYEl, widget.element);
+      element.appendChild(wrapper);
+      padEntries.push({ xName: spec.xName, yName: spec.yName, widget, refreshValue });
     }
   }
 
@@ -200,6 +243,7 @@ export function createControlPanel(initial: SoundPreset): ControlPanel {
       if (typeof value === "number") {
         entry.widget.setValue(value);
       }
+      entry.refreshValue();
       markOverridden(entry.name, entry.name in overrides);
     }
     for (const entry of padEntries) {
@@ -208,6 +252,8 @@ export function createControlPanel(initial: SoundPreset): ControlPanel {
       if (typeof x === "number" && typeof y === "number") {
         entry.widget.setValue({ x, y });
       }
+      entry.refreshValue();
+      markOverridden(entry.xName, entry.xName in overrides || entry.yName in overrides);
     }
   }
 

@@ -1,8 +1,9 @@
 /**
- * Rotary dial widget (plain DOM, accessible, keyboard-operable).
+ * Rotary dial widget (plain DOM, accessible, pointer- and keyboard-operable).
  *
- * Renders a circular dial whose indicator rotates across a 270° arc. Uses the
- * same scalar contract, ARIA semantics and keyboard handling as the slider.
+ * Renders a circular dial whose indicator rotates across a 270° arc. Pointer
+ * dragging moves the value horizontally (the standard DAW knob gesture);
+ * keyboard handling matches the slider.
  */
 
 import { ScalarWidgetBase } from "./base-widget.js";
@@ -11,20 +12,60 @@ import type { ScalarBounds, ScalarWidget } from "./widget-types.js";
 const MIN_ANGLE = -135;
 const MAX_ANGLE = 135;
 
+/** Horizontal pointer travel (px) that sweeps the full value range. */
+const DRAG_RANGE_PX = 150;
+
 class RotaryWidget extends ScalarWidgetBase {
   private readonly indicator: HTMLElement;
+  private readonly dial: HTMLElement;
+  private pointerDragging = false;
+  private pointerStartX = 0;
+  private pointerStartValue = 0;
+
+  private readonly handlePointerDown = (event: PointerEvent): void => {
+    if (this.isDisposed()) {
+      return;
+    }
+    event.preventDefault();
+    this.pointerDragging = true;
+    this.pointerStartX = event.clientX;
+    this.pointerStartValue = this.currentValue;
+    document.addEventListener("pointermove", this.handlePointerMove);
+    document.addEventListener("pointerup", this.handlePointerUp);
+  };
+
+  private readonly handlePointerMove = (event: PointerEvent): void => {
+    if (this.isDisposed() || !this.pointerDragging) {
+      return;
+    }
+    event.preventDefault();
+    const delta = event.clientX - this.pointerStartX;
+    const span = this.bounds.max - this.bounds.min;
+    this.commit(this.pointerStartValue + (delta / DRAG_RANGE_PX) * span);
+  };
+
+  private readonly handlePointerUp = (): void => {
+    if (this.pointerDragging) {
+      this.pointerDragging = false;
+      document.removeEventListener("pointermove", this.handlePointerMove);
+      document.removeEventListener("pointerup", this.handlePointerUp);
+    }
+  };
 
   constructor(bounds: ScalarBounds) {
     super("div", "tf-widget tf-rotary", bounds);
 
-    const dial = document.createElement("div");
-    dial.className = "tf-rotary__dial";
+    this.dial = document.createElement("div");
+    this.dial.className = "tf-rotary__dial";
 
     this.indicator = document.createElement("div");
     this.indicator.className = "tf-rotary__indicator";
 
-    dial.appendChild(this.indicator);
-    this.element.appendChild(dial);
+    this.dial.appendChild(this.indicator);
+    this.dial.style.touchAction = "none";
+    this.dial.style.userSelect = "none";
+    this.dial.addEventListener("pointerdown", this.handlePointerDown);
+    this.element.appendChild(this.dial);
     this.render();
   }
 
@@ -37,7 +78,9 @@ class RotaryWidget extends ScalarWidgetBase {
   }
 
   protected onDispose(): void {
-    // No listeners beyond the base keyboard handler.
+    this.dial.removeEventListener("pointerdown", this.handlePointerDown);
+    document.removeEventListener("pointermove", this.handlePointerMove);
+    document.removeEventListener("pointerup", this.handlePointerUp);
   }
 }
 

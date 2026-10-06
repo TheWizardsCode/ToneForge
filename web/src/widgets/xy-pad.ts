@@ -25,11 +25,62 @@ class XYPadWidgetImpl implements XYPadWidget {
   private readonly xAxis: HTMLElement;
   private readonly yAxis: HTMLElement;
   private readonly thumb: HTMLElement;
+  private readonly pad: HTMLElement;
   private readonly listeners = new Set<(value: XYPadValue) => void>();
 
   private x: number;
   private y: number;
   private disposed = false;
+  private pointerDragging = false;
+
+  private readonly handlePointerDown = (event: PointerEvent): void => {
+    if (this.disposed) {
+      return;
+    }
+    if (event.target !== this.pad && !this.pad.contains(event.target as Node)) {
+      return;
+    }
+    event.preventDefault();
+    this.pointerDragging = true;
+    this.updateFromPointer(event);
+    document.addEventListener("pointermove", this.handlePointerMove);
+    document.addEventListener("pointerup", this.handlePointerUp);
+  };
+
+  private readonly handlePointerMove = (event: PointerEvent): void => {
+    if (this.disposed || !this.pointerDragging) {
+      return;
+    }
+    event.preventDefault();
+    this.updateFromPointer(event);
+  };
+
+  private readonly handlePointerUp = (): void => {
+    if (this.pointerDragging) {
+      this.pointerDragging = false;
+      document.removeEventListener("pointermove", this.handlePointerMove);
+      document.removeEventListener("pointerup", this.handlePointerUp);
+    }
+  };
+
+  private updateFromPointer(event: PointerEvent): void {
+    const rect = this.pad.getBoundingClientRect();
+    const xRatio = rect.width > 0 ? Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)) : 0;
+    const yRatio = rect.height > 0 ? Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height)) : 0;
+    const newX = this.bounds.x.min + xRatio * (this.bounds.x.max - this.bounds.x.min);
+    const newY = this.bounds.y.min + (1 - yRatio) * (this.bounds.y.max - this.bounds.y.min);
+    if (newX !== this.x || newY !== this.y) {
+      this.x = newX;
+      this.y = newY;
+      this.render();
+      const value: XYPadValue = { x: this.x, y: this.y };
+      const detail: WidgetChangeDetail<XYPadValue> = { value, name: this.bounds.name };
+      this.element.dispatchEvent(new CustomEvent("change", { detail }));
+      for (const listener of [...this.listeners]) {
+        listener(value);
+      }
+    }
+  };
 
   private readonly boundHandleKey = (event: KeyboardEvent): void => {
     const target = event.target as HTMLElement | null;
@@ -50,17 +101,20 @@ class XYPadWidgetImpl implements XYPadWidget {
     this.element.setAttribute("role", "group");
     this.element.setAttribute("aria-label", bounds.label);
 
-    const pad = document.createElement("div");
-    pad.className = "tf-xy-pad__pad";
+    this.pad = document.createElement("div");
+    this.pad.className = "tf-xy-pad__pad";
+    this.pad.style.touchAction = "none";
+    this.pad.style.userSelect = "none";
     this.thumb = document.createElement("div");
     this.thumb.className = "tf-xy-pad__thumb";
-    pad.appendChild(this.thumb);
+    this.pad.appendChild(this.thumb);
 
     this.xAxis = this.createAxis("x", bounds.x);
     this.yAxis = this.createAxis("y", bounds.y);
 
-    this.element.append(pad, this.xAxis, this.yAxis);
+    this.element.append(this.pad, this.xAxis, this.yAxis);
     this.element.addEventListener("keydown", this.boundHandleKey);
+    this.pad.addEventListener("pointerdown", this.handlePointerDown);
     this.render();
   }
 
@@ -99,6 +153,9 @@ class XYPadWidgetImpl implements XYPadWidget {
     this.disposed = true;
     this.listeners.clear();
     this.element.removeEventListener("keydown", this.boundHandleKey);
+    this.pad.removeEventListener("pointerdown", this.handlePointerDown);
+    document.removeEventListener("pointermove", this.handlePointerMove);
+    document.removeEventListener("pointerup", this.handlePointerUp);
     this.element.remove();
   }
 
