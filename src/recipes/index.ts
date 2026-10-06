@@ -5,8 +5,13 @@
  * Each recipe provides deterministic duration and an offline graph builder.
  */
 
-import type { OfflineAudioContext } from "node-web-audio-api";
-import { RecipeRegistry, discoverFileBackedRecipes } from "../core/recipe.js";
+import type { OfflineAudioContext } from "../audio/web-audio.js";
+import {
+  RecipeRegistry,
+  applyOverrides,
+  discoverFileBackedRecipes,
+  resolveExternalRecipeDirectory,
+} from "../core/recipe.js";
 import type { Rng } from "../core/rng.js";
 import { getFootstepStoneParams } from "./footstep-stone-params.js";
 import { getUiNotificationChimeParams } from "./ui-notification-chime-params.js";
@@ -57,15 +62,67 @@ import { getCardTableAmbienceParams } from "./card-table-ambience-params.js";
 import { getCardDeckPresenceParams } from "./card-deck-presence-params.js";
 import { getCardTimerTickParams } from "./card-timer-tick-params.js";
 import { getCardTimerWarningParams } from "./card-timer-warning-params.js";
+import { createStackWrapperRecipe } from "./stack-wrapper.js";
+import type { StackDefinition } from "../stack/renderer.js";
 
 /** The global recipe registry instance with all built-in recipes registered. */
 export const registry = new RecipeRegistry();
-await discoverFileBackedRecipes(registry);
+
+/**
+ * Cached promise for the one-time file-backed recipe discovery pass.
+ *
+ * Kept module-scoped so repeated calls to {@link initializeRecipeRegistry}
+ * reuse the same discovery result (idempotent, no duplicate registration).
+ */
+let fileBackedRecipesPromise: Promise<string[]> | undefined;
+
+/**
+ * Discover the baked-in and externally registered recipes.
+ *
+ * The external directory is resolved from `TONEFORGE_RECIPE_DIR` (or the
+ * `~/.toneforge/recipes/` default). Resolution is best-effort: a non-Node
+ * runtime or an unresolvable home directory simply skips external discovery.
+ */
+async function discoverWithExternalRecipes(): Promise<string[]> {
+  let additionalRecipeDirectories: string[] = [];
+  try {
+    additionalRecipeDirectories = [await resolveExternalRecipeDirectory()];
+  } catch {
+    additionalRecipeDirectories = [];
+  }
+  return discoverFileBackedRecipes(registry, { additionalRecipeDirectories });
+}
+
+/**
+ * Register file-backed ToneGraph recipes into the shared registry.
+ *
+ * Built-in recipes are registered synchronously when this module is
+ * evaluated. File-backed recipes live on disk and are discovered
+ * asynchronously, so they cannot be registered with a top-level `await` —
+ * browser build targets (Vite/esbuild) reject top-level await, which
+ * previously broke `npm run build --prefix web`.
+ *
+ * Node callers that need file-backed recipes (the CLI, the offline renderer,
+ * and Node test setup) `await` this function before using the registry.
+ * Discovery is a no-op in non-Node runtimes, where the promise resolves to an
+ * empty array — the browser sees only the synchronously-registered built-ins.
+ *
+ * The result is cached, so calling this multiple times performs discovery only
+ * once and returns the same discovered recipe names.
+ *
+ * @returns The names of the file-backed recipes that were discovered.
+ */
+export function initializeRecipeRegistry(): Promise<string[]> {
+  if (fileBackedRecipesPromise === undefined) {
+    fileBackedRecipesPromise = discoverWithExternalRecipes();
+  }
+  return fileBackedRecipesPromise;
+}
 
 // ── footstep-stone ────────────────────────────────────────────────
 
-function footstepStoneDuration(rng: Rng): number {
-  const params = getFootstepStoneParams(rng);
+function footstepStoneDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getFootstepStoneParams(rng), overrides);
   return params.transientAttack + Math.max(params.bodyDecay, params.tailDecay);
 }
 
@@ -73,8 +130,9 @@ function footstepStoneOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getFootstepStoneParams(rng);
+  const params = applyOverrides(getFootstepStoneParams(rng), overrides);
 
   const bufferSize = Math.ceil(ctx.sampleRate * duration);
 
@@ -175,8 +233,8 @@ registry.register("footstep-stone", {
 
 // ── creature-vocal (sample-hybrid) ────────────────────────────────
 
-function creatureVocalDuration(rng: Rng): number {
-  const params = getCreatureVocalParams(rng);
+function creatureVocalDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getCreatureVocalParams(rng), overrides);
   return params.attack + params.decay;
 }
 
@@ -184,8 +242,9 @@ async function creatureVocalOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): Promise<void> {
-  const params = getCreatureVocalParams(rng);
+  const params = applyOverrides(getCreatureVocalParams(rng), overrides);
 
   // Load the CC0 growl sample
   const sampleBuffer = await loadSample("creature-vocal/growl.wav", ctx);
@@ -273,8 +332,8 @@ registry.register("creature-vocal", {
 
 // ── vehicle-engine (sample-hybrid) ────────────────────────────────
 
-function vehicleEngineDuration(rng: Rng): number {
-  const params = getVehicleEngineParams(rng);
+function vehicleEngineDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getVehicleEngineParams(rng), overrides);
   return params.attack + 0.4 + params.release;
 }
 
@@ -282,8 +341,9 @@ async function vehicleEngineOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): Promise<void> {
-  const params = getVehicleEngineParams(rng);
+  const params = applyOverrides(getVehicleEngineParams(rng), overrides);
 
   // Load the CC0 engine loop sample
   const sampleBuffer = await loadSample("vehicle-engine/loop.wav", ctx);
@@ -376,8 +436,8 @@ registry.register("vehicle-engine", {
 
 // ── ui-notification-chime ─────────────────────────────────────────
 
-function uiNotificationChimeDuration(rng: Rng): number {
-  const params = getUiNotificationChimeParams(rng);
+function uiNotificationChimeDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getUiNotificationChimeParams(rng), overrides);
   return params.attack + params.decay + params.release;
 }
 
@@ -385,8 +445,9 @@ function uiNotificationChimeOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getUiNotificationChimeParams(rng);
+  const params = applyOverrides(getUiNotificationChimeParams(rng), overrides);
 
   // Create harmonics: fundamental + overtones as separate oscillators
   for (let h = 0; h < params.harmonicCount; h++) {
@@ -451,7 +512,7 @@ registry.register("ui-notification-chime", {
 
 // ── character-jump-step1 (oscillator only) ────────────────────────
 
-function characterJumpStep1Duration(_rng: Rng): number {
+function characterJumpStep1Duration(_rng: Rng, overrides: Record<string, number> = {}): number {
   // Fixed duration -- no envelope params to derive it from
   return 0.2;
 }
@@ -460,8 +521,9 @@ function characterJumpStep1OfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getCharacterJumpStep1Params(rng);
+  const params = applyOverrides(getCharacterJumpStep1Params(rng), overrides);
 
   // Sine oscillator at constant volume -- no envelope
   const osc = ctx.createOscillator();
@@ -497,8 +559,8 @@ registry.register("character-jump-step1", {
 
 // ── character-jump-step2 (oscillator + envelope) ──────────────────
 
-function characterJumpStep2Duration(rng: Rng): number {
-  const params = getCharacterJumpStep2Params(rng);
+function characterJumpStep2Duration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getCharacterJumpStep2Params(rng), overrides);
   return params.attack + params.decay;
 }
 
@@ -506,8 +568,9 @@ function characterJumpStep2OfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getCharacterJumpStep2Params(rng);
+  const params = applyOverrides(getCharacterJumpStep2Params(rng), overrides);
 
   // Sine oscillator
   const osc = ctx.createOscillator();
@@ -547,8 +610,8 @@ registry.register("character-jump-step2", {
 
 // ── character-jump-step3 (oscillator + envelope + pitch sweep) ────
 
-function characterJumpStep3Duration(rng: Rng): number {
-  const params = getCharacterJumpStep3Params(rng);
+function characterJumpStep3Duration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getCharacterJumpStep3Params(rng), overrides);
   return params.attack + params.decay;
 }
 
@@ -556,8 +619,9 @@ function characterJumpStep3OfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getCharacterJumpStep3Params(rng);
+  const params = applyOverrides(getCharacterJumpStep3Params(rng), overrides);
 
   // Sine oscillator with rising pitch sweep
   const osc = ctx.createOscillator();
@@ -606,8 +670,8 @@ registry.register("character-jump-step3", {
 
 // ── character-jump-step4 (osc + envelope + sweep + noise) ─────────
 
-function characterJumpStep4Duration(rng: Rng): number {
-  const params = getCharacterJumpStep4Params(rng);
+function characterJumpStep4Duration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getCharacterJumpStep4Params(rng), overrides);
   return params.attack + params.decay;
 }
 
@@ -615,8 +679,9 @@ function characterJumpStep4OfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getCharacterJumpStep4Params(rng);
+  const params = applyOverrides(getCharacterJumpStep4Params(rng), overrides);
 
   // Sine oscillator with rising pitch sweep
   const osc = ctx.createOscillator();
@@ -697,8 +762,8 @@ registry.register("character-jump-step4", {
 
 // ── character-jump ────────────────────────────────────────────────
 
-function characterJumpDuration(rng: Rng): number {
-  const params = getCharacterJumpParams(rng);
+function characterJumpDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getCharacterJumpParams(rng), overrides);
   return params.attack + params.decay;
 }
 
@@ -706,8 +771,9 @@ function characterJumpOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getCharacterJumpParams(rng);
+  const params = applyOverrides(getCharacterJumpParams(rng), overrides);
 
   // Sine oscillator with rising pitch sweep
   const osc = ctx.createOscillator();
@@ -798,8 +864,8 @@ registry.register("character-jump", {
 
 // ── impact-crack ──────────────────────────────────────────────────
 
-function impactCrackDuration(rng: Rng): number {
-  const params = getImpactCrackParams(rng);
+function impactCrackDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getImpactCrackParams(rng), overrides);
   return params.attack + params.decay;
 }
 
@@ -807,16 +873,38 @@ function impactCrackOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getImpactCrackParams(rng);
+  const params = applyOverrides(getImpactCrackParams(rng), overrides);
 
   const bufferSize = Math.ceil(ctx.sampleRate * duration);
 
-  // White noise source
+  // Noise source with a white/pink colour blend controlled by
+  // `noiseColorMix` (0 = white, 1 = pink). The pink component is generated
+  // with Paul Kellet's refined filter, which approximates a -3 dB/octave
+  // spectral tilt. Exactly one RNG draw per sample is made, so the underlying
+  // white sequence is unchanged by the blend amount.
   const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
   const noiseData = noiseBuffer.getChannelData(0);
+  let b0 = 0;
+  let b1 = 0;
+  let b2 = 0;
+  let b3 = 0;
+  let b4 = 0;
+  let b5 = 0;
+  let b6 = 0;
+  const mix = params.noiseColorMix;
   for (let i = 0; i < noiseData.length; i++) {
-    noiseData[i] = rng() * 2 - 1;
+    const white = rng() * 2 - 1;
+    b0 = 0.99886 * b0 + white * 0.0555179;
+    b1 = 0.99332 * b1 + white * 0.0750759;
+    b2 = 0.96900 * b2 + white * 0.1538520;
+    b3 = 0.86650 * b3 + white * 0.3104856;
+    b4 = 0.55000 * b4 + white * 0.5329522;
+    b5 = -0.7616 * b5 - white * 0.0168980;
+    const pink = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
+    b6 = white * 0.115926;
+    noiseData[i] = white * (1 - mix) + pink * mix;
   }
 
   const noiseSrc = ctx.createBufferSource();
@@ -876,8 +964,8 @@ registry.register("impact-crack", {
 
 // ── rumble-body ───────────────────────────────────────────────────
 
-function rumbleBodyDuration(rng: Rng): number {
-  const params = getRumbleBodyParams(rng);
+function rumbleBodyDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getRumbleBodyParams(rng), overrides);
   return params.attack + params.sustainDecay + params.tailDecay;
 }
 
@@ -885,8 +973,9 @@ function rumbleBodyOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getRumbleBodyParams(rng);
+  const params = applyOverrides(getRumbleBodyParams(rng), overrides);
 
   const bufferSize = Math.ceil(ctx.sampleRate * duration);
 
@@ -979,8 +1068,8 @@ registry.register("rumble-body", {
 
 // ── debris-tail ──────────────────────────────────────────────────
 
-function debrisTailDuration(rng: Rng): number {
-  const params = getDebrisTailParams(rng);
+function debrisTailDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getDebrisTailParams(rng), overrides);
   return params.durationEnvelope;
 }
 
@@ -988,8 +1077,9 @@ function debrisTailOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getDebrisTailParams(rng);
+  const params = applyOverrides(getDebrisTailParams(rng), overrides);
 
   const bufferSize = Math.ceil(ctx.sampleRate * duration);
 
@@ -1071,8 +1161,8 @@ registry.register("debris-tail", {
 
 // ── slam-transient ───────────────────────────────────────────────
 
-function slamTransientDuration(rng: Rng): number {
-  const params = getSlamTransientParams(rng);
+function slamTransientDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getSlamTransientParams(rng), overrides);
   return params.attack + params.decay;
 }
 
@@ -1080,8 +1170,9 @@ function slamTransientOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getSlamTransientParams(rng);
+  const params = applyOverrides(getSlamTransientParams(rng), overrides);
 
   const bufferSize = Math.ceil(ctx.sampleRate * duration);
 
@@ -1176,8 +1267,8 @@ registry.register("slam-transient", {
 
 // ── resonance-body ───────────────────────────────────────────────
 
-function resonanceBodyDuration(rng: Rng): number {
-  const params = getResonanceBodyParams(rng);
+function resonanceBodyDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getResonanceBodyParams(rng), overrides);
   return params.attack + Math.max(params.fundamentalDecay, params.overtoneDecay);
 }
 
@@ -1185,8 +1276,9 @@ function resonanceBodyOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getResonanceBodyParams(rng);
+  const params = applyOverrides(getResonanceBodyParams(rng), overrides);
 
   // Fundamental sine oscillator
   const fundOsc = ctx.createOscillator();
@@ -1258,8 +1350,8 @@ registry.register("resonance-body", {
 
 // ── rattle-decay ─────────────────────────────────────────────────
 
-function rattleDecayDuration(rng: Rng): number {
-  const params = getRattleDecayParams(rng);
+function rattleDecayDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getRattleDecayParams(rng), overrides);
   return params.duration;
 }
 
@@ -1267,8 +1359,9 @@ function rattleDecayOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getRattleDecayParams(rng);
+  const params = applyOverrides(getRattleDecayParams(rng), overrides);
 
   const bufferSize = Math.ceil(ctx.sampleRate * duration);
 
@@ -1348,8 +1441,8 @@ registry.register("rattle-decay", {
 
 // ── card-flip ─────────────────────────────────────────────────────
 
-function cardFlipDuration(rng: Rng): number {
-  const params = getCardFlipParams(rng);
+function cardFlipDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getCardFlipParams(rng), overrides);
   return params.attack + params.decay;
 }
 
@@ -1357,8 +1450,9 @@ function cardFlipOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getCardFlipParams(rng);
+  const params = applyOverrides(getCardFlipParams(rng), overrides);
 
   const bufferSize = Math.ceil(ctx.sampleRate * duration);
 
@@ -1439,8 +1533,8 @@ registry.register("card-flip", {
 
 // ── card-slide ────────────────────────────────────────────────────
 
-function cardSlideDuration(rng: Rng): number {
-  const params = getCardSlideParams(rng);
+function cardSlideDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getCardSlideParams(rng), overrides);
   return params.attack + params.decay;
 }
 
@@ -1448,8 +1542,9 @@ function cardSlideOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getCardSlideParams(rng);
+  const params = applyOverrides(getCardSlideParams(rng), overrides);
 
   const bufferSize = Math.ceil(ctx.sampleRate * duration);
 
@@ -1538,8 +1633,8 @@ registry.register("card-slide", {
 
 // ── card-place ────────────────────────────────────────────────────
 
-function cardPlaceDuration(rng: Rng): number {
-  const params = getCardPlaceParams(rng);
+function cardPlaceDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getCardPlaceParams(rng), overrides);
   return params.attack + params.bodyDecay;
 }
 
@@ -1547,8 +1642,9 @@ function cardPlaceOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getCardPlaceParams(rng);
+  const params = applyOverrides(getCardPlaceParams(rng), overrides);
 
   const bufferSize = Math.ceil(ctx.sampleRate * duration);
 
@@ -1629,8 +1725,8 @@ registry.register("card-place", {
 
 // ── card-draw ─────────────────────────────────────────────────────
 
-function cardDrawDuration(rng: Rng): number {
-  const params = getCardDrawParams(rng);
+function cardDrawDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getCardDrawParams(rng), overrides);
   return params.attack + params.decay;
 }
 
@@ -1638,8 +1734,9 @@ function cardDrawOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getCardDrawParams(rng);
+  const params = applyOverrides(getCardDrawParams(rng), overrides);
 
   const bufferSize = Math.ceil(ctx.sampleRate * duration);
 
@@ -1726,8 +1823,8 @@ registry.register("card-draw", {
 
 // ── card-shuffle ──────────────────────────────────────────────────
 
-function cardShuffleDuration(rng: Rng): number {
-  const params = getCardShuffleParams(rng);
+function cardShuffleDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getCardShuffleParams(rng), overrides);
   return params.attack + params.decay;
 }
 
@@ -1735,8 +1832,9 @@ function cardShuffleOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getCardShuffleParams(rng);
+  const params = applyOverrides(getCardShuffleParams(rng), overrides);
 
   const bufferSize = Math.ceil(ctx.sampleRate * duration);
 
@@ -1826,8 +1924,8 @@ registry.register("card-shuffle", {
 
 // ── card-fan ──────────────────────────────────────────────────────
 
-function cardFanDuration(rng: Rng): number {
-  const params = getCardFanParams(rng);
+function cardFanDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getCardFanParams(rng), overrides);
   return params.attack + params.decay;
 }
 
@@ -1835,8 +1933,9 @@ function cardFanOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getCardFanParams(rng);
+  const params = applyOverrides(getCardFanParams(rng), overrides);
 
   const bufferSize = Math.ceil(ctx.sampleRate * duration);
 
@@ -1927,8 +2026,8 @@ registry.register("card-fan", {
 
 // ── card-success ──────────────────────────────────────────────────
 
-function cardSuccessDuration(rng: Rng): number {
-  const params = getCardSuccessParams(rng);
+function cardSuccessDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getCardSuccessParams(rng), overrides);
   return params.attack + params.decay;
 }
 
@@ -1936,8 +2035,9 @@ function cardSuccessOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getCardSuccessParams(rng);
+  const params = applyOverrides(getCardSuccessParams(rng), overrides);
 
   // Primary tone
   const osc1 = ctx.createOscillator();
@@ -2007,8 +2107,8 @@ registry.register("card-success", {
 
 // ── card-failure ──────────────────────────────────────────────────
 
-function cardFailureDuration(rng: Rng): number {
-  const params = getCardFailureParams(rng);
+function cardFailureDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getCardFailureParams(rng), overrides);
   return params.attack + params.decay;
 }
 
@@ -2016,8 +2116,9 @@ function cardFailureOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getCardFailureParams(rng);
+  const params = applyOverrides(getCardFailureParams(rng), overrides);
 
   // Primary descending oscillator
   const osc1 = ctx.createOscillator();
@@ -2097,8 +2198,8 @@ registry.register("card-failure", {
 
 // ── card-victory-fanfare ──────────────────────────────────────────
 
-function cardVictoryFanfareDuration(rng: Rng): number {
-  const params = getCardVictoryFanfareParams(rng);
+function cardVictoryFanfareDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getCardVictoryFanfareParams(rng), overrides);
   return params.noteCount * params.noteDuration + params.tailDecay;
 }
 
@@ -2106,8 +2207,9 @@ function cardVictoryFanfareOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getCardVictoryFanfareParams(rng);
+  const params = applyOverrides(getCardVictoryFanfareParams(rng), overrides);
 
   // Primary sine oscillator for arpeggio
   const osc = ctx.createOscillator();
@@ -2186,8 +2288,8 @@ registry.register("card-victory-fanfare", {
 
 // ── card-defeat-sting ─────────────────────────────────────────────
 
-function cardDefeatStingDuration(rng: Rng): number {
-  const params = getCardDefeatStingParams(rng);
+function cardDefeatStingDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getCardDefeatStingParams(rng), overrides);
   return params.noteDuration * 2 + params.tailDecay;
 }
 
@@ -2195,8 +2297,9 @@ function cardDefeatStingOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getCardDefeatStingParams(rng);
+  const params = applyOverrides(getCardDefeatStingParams(rng), overrides);
 
   // Sine oscillator with descending step
   const osc = ctx.createOscillator();
@@ -2265,17 +2368,21 @@ registry.register("card-defeat-sting", {
 
 // ── card-round-complete ───────────────────────────────────────────
 
-function cardRoundCompleteDuration(rng: Rng): number {
-  const params = getCardRoundCompleteParams(rng);
-  return params.attack + params.decay;
+function cardRoundCompleteDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getCardRoundCompleteParams(rng), overrides);
+  // ADSR envelope: attack -> decay to sustain -> sustain plateau -> release.
+  // The recipe declares no separate release or hold time, so the decay time is
+  // reused for both the sustain plateau and the release ramp.
+  return params.attack + params.decay * 3;
 }
 
 function cardRoundCompleteOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getCardRoundCompleteParams(rng);
+  const params = applyOverrides(getCardRoundCompleteParams(rng), overrides);
 
   // Sine oscillator
   const osc = ctx.createOscillator();
@@ -2291,16 +2398,24 @@ function cardRoundCompleteOfflineGraph(
   const gain = ctx.createGain();
   gain.gain.value = params.level;
 
-  // Amplitude envelope
-  const env = ctx.createGain();
-  env.gain.setValueAtTime(0, 0);
-  env.gain.linearRampToValueAtTime(1, params.attack);
-  env.gain.linearRampToValueAtTime(0, params.attack + params.decay);
+  // ADSR amplitude envelope: 0 -> 1 (attack) -> sustain (decay) -> sustain
+  // plateau -> 0 (release). The sustain level is held between the decay and
+  // release phases; the decay parameter doubles as the plateau and release
+  // duration (see `cardRoundCompleteDuration`).
+  const envelope = ctx.createGain();
+  const decayEnd = params.attack + params.decay;
+  const releaseStart = decayEnd + params.decay;
+  const releaseEnd = releaseStart + params.decay;
+  envelope.gain.setValueAtTime(0, 0);
+  envelope.gain.linearRampToValueAtTime(1, params.attack);
+  envelope.gain.linearRampToValueAtTime(params.sustain, decayEnd);
+  envelope.gain.setValueAtTime(params.sustain, releaseStart);
+  envelope.gain.linearRampToValueAtTime(0, releaseEnd);
 
   osc.connect(filter);
   filter.connect(gain);
-  gain.connect(env);
-  env.connect(ctx.destination);
+  gain.connect(envelope);
+  envelope.connect(ctx.destination);
 
   // Schedule
   osc.start(0);
@@ -2334,8 +2449,8 @@ registry.register("card-round-complete", {
 
 // ── card-coin-collect ─────────────────────────────────────────────
 
-function cardCoinCollectDuration(rng: Rng): number {
-  const params = getCardCoinCollectParams(rng);
+function cardCoinCollectDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getCardCoinCollectParams(rng), overrides);
   return params.attack + params.decay;
 }
 
@@ -2343,8 +2458,9 @@ function cardCoinCollectOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getCardCoinCollectParams(rng);
+  const params = applyOverrides(getCardCoinCollectParams(rng), overrides);
 
   // Primary tone with pitch sweep (start high, settle to baseFreq)
   const osc1 = ctx.createOscillator();
@@ -2447,8 +2563,8 @@ registry.register("card-coin-collect", {
 
 // ── card-coin-collect-hybrid (sample-hybrid) ──────────────────────
 
-function cardCoinCollectHybridDuration(rng: Rng): number {
-  const params = getCardCoinCollectHybridParams(rng);
+function cardCoinCollectHybridDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getCardCoinCollectHybridParams(rng), overrides);
   return params.attack + params.decay;
 }
 
@@ -2456,8 +2572,9 @@ async function cardCoinCollectHybridOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): Promise<void> {
-  const params = getCardCoinCollectHybridParams(rng);
+  const params = applyOverrides(getCardCoinCollectHybridParams(rng), overrides);
 
   // Load the CC0 metallic coin sample
   const sampleBuffer = await loadSample("card-coin-collect/clink.wav", ctx);
@@ -2555,8 +2672,8 @@ registry.register("card-coin-collect-hybrid", {
 
 // ── card-coin-spend ───────────────────────────────────────────────
 
-function cardCoinSpendDuration(rng: Rng): number {
-  const params = getCardCoinSpendParams(rng);
+function cardCoinSpendDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getCardCoinSpendParams(rng), overrides);
   return params.attack + params.decay;
 }
 
@@ -2564,8 +2681,9 @@ function cardCoinSpendOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getCardCoinSpendParams(rng);
+  const params = applyOverrides(getCardCoinSpendParams(rng), overrides);
 
   // Primary descending tone
   const osc = ctx.createOscillator();
@@ -2660,8 +2778,8 @@ registry.register("card-coin-spend", {
 
 // ── card-chip-stack ───────────────────────────────────────────────
 
-function cardChipStackDuration(rng: Rng): number {
-  const params = getCardChipStackParams(rng);
+function cardChipStackDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getCardChipStackParams(rng), overrides);
   return params.attack + Math.max(params.clickDecay, params.ringDecay);
 }
 
@@ -2669,8 +2787,9 @@ function cardChipStackOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getCardChipStackParams(rng);
+  const params = applyOverrides(getCardChipStackParams(rng), overrides);
 
   // Percussive click: bandpass-filtered noise
   const bufferSize = Math.ceil(ctx.sampleRate * duration);
@@ -2755,8 +2874,8 @@ registry.register("card-chip-stack", {
 
 // ── card-token-earn ───────────────────────────────────────────────
 
-function cardTokenEarnDuration(rng: Rng): number {
-  const params = getCardTokenEarnParams(rng);
+function cardTokenEarnDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getCardTokenEarnParams(rng), overrides);
   return params.attack + params.decay;
 }
 
@@ -2764,8 +2883,9 @@ function cardTokenEarnOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getCardTokenEarnParams(rng);
+  const params = applyOverrides(getCardTokenEarnParams(rng), overrides);
 
   // Fundamental
   const osc1 = ctx.createOscillator();
@@ -2857,8 +2977,8 @@ registry.register("card-token-earn", {
 
 // ── card-treasure-reveal ──────────────────────────────────────────
 
-function cardTreasureRevealDuration(rng: Rng): number {
-  const params = getCardTreasureRevealParams(rng);
+function cardTreasureRevealDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getCardTreasureRevealParams(rng), overrides);
   return Math.max(
     0.005 + params.shimmerDecay,
     params.toneAttack + params.toneDecay,
@@ -2869,8 +2989,9 @@ function cardTreasureRevealOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getCardTreasureRevealParams(rng);
+  const params = applyOverrides(getCardTreasureRevealParams(rng), overrides);
 
   // Shimmer layer: highpass-filtered white noise
   const bufferSize = Math.ceil(ctx.sampleRate * duration);
@@ -2973,8 +3094,8 @@ registry.register("card-treasure-reveal", {
 
 // ── card-discard ─────────────────────────────────────────────────
 
-function cardDiscardDuration(rng: Rng): number {
-  const params = getCardDiscardParams(rng);
+function cardDiscardDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getCardDiscardParams(rng), overrides);
   return params.attack + params.decay;
 }
 
@@ -2982,8 +3103,9 @@ function cardDiscardOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getCardDiscardParams(rng);
+  const params = applyOverrides(getCardDiscardParams(rng), overrides);
 
   const bufferSize = Math.ceil(ctx.sampleRate * duration);
 
@@ -3068,8 +3190,8 @@ registry.register("card-discard", {
 
 // ── card-burn ────────────────────────────────────────────────────
 
-function cardBurnDuration(rng: Rng): number {
-  const params = getCardBurnParams(rng);
+function cardBurnDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getCardBurnParams(rng), overrides);
   return params.attack + params.decay;
 }
 
@@ -3077,8 +3199,9 @@ function cardBurnOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getCardBurnParams(rng);
+  const params = applyOverrides(getCardBurnParams(rng), overrides);
 
   const bufferSize = Math.ceil(ctx.sampleRate * duration);
 
@@ -3193,8 +3316,8 @@ registry.register("card-burn", {
 
 // ── card-return-to-deck ──────────────────────────────────────────
 
-function cardReturnToDeckDuration(rng: Rng): number {
-  const params = getCardReturnToDeckParams(rng);
+function cardReturnToDeckDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getCardReturnToDeckParams(rng), overrides);
   return params.attack + params.decay;
 }
 
@@ -3202,8 +3325,9 @@ function cardReturnToDeckOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getCardReturnToDeckParams(rng);
+  const params = applyOverrides(getCardReturnToDeckParams(rng), overrides);
 
   const bufferSize = Math.ceil(ctx.sampleRate * duration);
 
@@ -3290,8 +3414,8 @@ registry.register("card-return-to-deck", {
 
 // ── card-power-up ────────────────────────────────────────────────
 
-function cardPowerUpDuration(rng: Rng): number {
-  const params = getCardPowerUpParams(rng);
+function cardPowerUpDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getCardPowerUpParams(rng), overrides);
   return params.attack + params.decay;
 }
 
@@ -3299,8 +3423,9 @@ function cardPowerUpOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getCardPowerUpParams(rng);
+  const params = applyOverrides(getCardPowerUpParams(rng), overrides);
 
   // Fundamental: ascending sine sweep
   const osc = ctx.createOscillator();
@@ -3373,8 +3498,8 @@ registry.register("card-power-up", {
 
 // ── card-power-down ──────────────────────────────────────────────
 
-function cardPowerDownDuration(rng: Rng): number {
-  const params = getCardPowerDownParams(rng);
+function cardPowerDownDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getCardPowerDownParams(rng), overrides);
   return params.attack + params.decay;
 }
 
@@ -3382,8 +3507,9 @@ function cardPowerDownOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getCardPowerDownParams(rng);
+  const params = applyOverrides(getCardPowerDownParams(rng), overrides);
 
   // Main oscillator: descending pitch with lowpass filter
   const osc = ctx.createOscillator();
@@ -3472,8 +3598,8 @@ registry.register("card-power-down", {
 
 // ── card-lock ────────────────────────────────────────────────────
 
-function cardLockDuration(rng: Rng): number {
-  const params = getCardLockParams(rng);
+function cardLockDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getCardLockParams(rng), overrides);
   return params.attack + params.decay;
 }
 
@@ -3481,8 +3607,9 @@ function cardLockOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getCardLockParams(rng);
+  const params = applyOverrides(getCardLockParams(rng), overrides);
 
   // Click transient: square wave burst
   const click = ctx.createOscillator();
@@ -3560,8 +3687,8 @@ registry.register("card-lock", {
 
 // ── card-unlock ──────────────────────────────────────────────────
 
-function cardUnlockDuration(rng: Rng): number {
-  const params = getCardUnlockParams(rng);
+function cardUnlockDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getCardUnlockParams(rng), overrides);
   return params.attack + params.decay;
 }
 
@@ -3569,8 +3696,9 @@ function cardUnlockOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getCardUnlockParams(rng);
+  const params = applyOverrides(getCardUnlockParams(rng), overrides);
 
   // Click transient: square wave burst
   const click = ctx.createOscillator();
@@ -3648,8 +3776,8 @@ registry.register("card-unlock", {
 
 // ── card-glow ────────────────────────────────────────────────────
 
-function cardGlowDuration(rng: Rng): number {
-  const params = getCardGlowParams(rng);
+function cardGlowDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getCardGlowParams(rng), overrides);
   return params.attack + params.sustain + params.release;
 }
 
@@ -3657,8 +3785,9 @@ function cardGlowOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getCardGlowParams(rng);
+  const params = applyOverrides(getCardGlowParams(rng), overrides);
 
   // Base oscillator with LFO vibrato (simulated via frequency automation)
   const osc = ctx.createOscillator();
@@ -3729,8 +3858,8 @@ registry.register("card-glow", {
 
 // ── card-combo-hit ────────────────────────────────────────────────
 
-function cardComboHitDuration(rng: Rng): number {
-  const params = getCardComboHitParams(rng);
+function cardComboHitDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getCardComboHitParams(rng), overrides);
   return params.attack + params.decay;
 }
 
@@ -3738,8 +3867,9 @@ function cardComboHitOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getCardComboHitParams(rng);
+  const params = applyOverrides(getCardComboHitParams(rng), overrides);
 
   // Fundamental sine transient
   const osc = ctx.createOscillator();
@@ -3842,8 +3972,8 @@ registry.register("card-combo-hit", {
 
 // ── card-combo-break ──────────────────────────────────────────────
 
-function cardComboBreakDuration(rng: Rng): number {
-  const params = getCardComboBreakParams(rng);
+function cardComboBreakDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getCardComboBreakParams(rng), overrides);
   return params.attack + params.decay;
 }
 
@@ -3851,8 +3981,9 @@ function cardComboBreakOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getCardComboBreakParams(rng);
+  const params = applyOverrides(getCardComboBreakParams(rng), overrides);
 
   // Main descending sawtooth
   const osc = ctx.createOscillator();
@@ -3952,8 +4083,8 @@ registry.register("card-combo-break", {
 
 // ── card-multiplier-up ────────────────────────────────────────────
 
-function cardMultiplierUpDuration(rng: Rng): number {
-  const params = getCardMultiplierUpParams(rng);
+function cardMultiplierUpDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getCardMultiplierUpParams(rng), overrides);
   return params.noteCount * params.noteDuration + params.attack;
 }
 
@@ -3961,8 +4092,9 @@ function cardMultiplierUpOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getCardMultiplierUpParams(rng);
+  const params = applyOverrides(getCardMultiplierUpParams(rng), overrides);
 
   // Single oscillator with frequency steps for ascending arpeggio
   const osc = ctx.createOscillator();
@@ -4024,8 +4156,8 @@ registry.register("card-multiplier-up", {
 
 // ── card-match ────────────────────────────────────────────────────
 
-function cardMatchDuration(rng: Rng): number {
-  const params = getCardMatchParams(rng);
+function cardMatchDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getCardMatchParams(rng), overrides);
   return params.tone2Delay + params.attack + params.decay;
 }
 
@@ -4033,8 +4165,9 @@ function cardMatchOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getCardMatchParams(rng);
+  const params = applyOverrides(getCardMatchParams(rng), overrides);
 
   // First tone
   const osc1 = ctx.createOscillator();
@@ -4105,8 +4238,8 @@ registry.register("card-match", {
 
 // ── card-table-ambience ───────────────────────────────────────────
 
-function cardTableAmbienceDuration(rng: Rng): number {
-  const params = getCardTableAmbienceParams(rng);
+function cardTableAmbienceDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getCardTableAmbienceParams(rng), overrides);
   return params.attack + params.sustain + params.release;
 }
 
@@ -4114,8 +4247,9 @@ function cardTableAmbienceOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getCardTableAmbienceParams(rng);
+  const params = applyOverrides(getCardTableAmbienceParams(rng), overrides);
 
   // Pink noise buffer (deterministic)
   const bufferSize = Math.ceil(ctx.sampleRate * duration);
@@ -4205,8 +4339,8 @@ registry.register("card-table-ambience", {
 
 // ── card-deck-presence ────────────────────────────────────────────
 
-function cardDeckPresenceDuration(rng: Rng): number {
-  const params = getCardDeckPresenceParams(rng);
+function cardDeckPresenceDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getCardDeckPresenceParams(rng), overrides);
   return params.attack + params.sustain + params.release;
 }
 
@@ -4214,8 +4348,9 @@ function cardDeckPresenceOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   _duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getCardDeckPresenceParams(rng);
+  const params = applyOverrides(getCardDeckPresenceParams(rng), overrides);
   const duration = params.attack + params.sustain + params.release;
 
   // Fundamental hum
@@ -4297,8 +4432,8 @@ registry.register("card-deck-presence", {
 
 // ── card-timer-tick ───────────────────────────────────────────────
 
-function cardTimerTickDuration(rng: Rng): number {
-  const params = getCardTimerTickParams(rng);
+function cardTimerTickDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getCardTimerTickParams(rng), overrides);
   return params.attack + params.decay;
 }
 
@@ -4306,8 +4441,9 @@ function cardTimerTickOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getCardTimerTickParams(rng);
+  const params = applyOverrides(getCardTimerTickParams(rng), overrides);
 
   // Tonal click
   const osc = ctx.createOscillator();
@@ -4388,8 +4524,8 @@ registry.register("card-timer-tick", {
 
 // ── card-timer-warning ────────────────────────────────────────────
 
-function cardTimerWarningDuration(rng: Rng): number {
-  const params = getCardTimerWarningParams(rng);
+function cardTimerWarningDuration(rng: Rng, overrides: Record<string, number> = {}): number {
+  const params = applyOverrides(getCardTimerWarningParams(rng), overrides);
   return params.attack + params.decay;
 }
 
@@ -4397,8 +4533,9 @@ function cardTimerWarningOfflineGraph(
   rng: Rng,
   ctx: OfflineAudioContext,
   duration: number,
+  overrides: Record<string, number> = {},
 ): void {
-  const params = getCardTimerWarningParams(rng);
+  const params = applyOverrides(getCardTimerWarningParams(rng), overrides);
 
   // Primary tone with vibrato
   const osc = ctx.createOscillator();
@@ -4480,3 +4617,32 @@ registry.register("card-timer-warning", {
     };
   },
 });
+
+// ── stack-card-play-landing (stack wrapper) ───────────────────────
+
+/**
+ * In-memory stack definition for the card_play_landing stack preset.
+ *
+ * This mirrors `presets/stacks/card_play_landing.json` so the wrapper
+ * can be registered without any disk I/O (important for the browser build).
+ */
+const cardPlayLandingStack: StackDefinition = {
+  name: "card_play_landing",
+  layers: [
+    { recipe: "card-slide", startTime: 0, gain: 1.0 },
+    { recipe: "card-place", startTime: 0.08, gain: 0.9 },
+    { recipe: "card-glow", startTime: 0.18, gain: 0.55 },
+  ],
+};
+
+registry.register("stack-card-play-landing", createStackWrapperRecipe({
+  name: "stack-card-play-landing",
+  stack: cardPlayLandingStack,
+  description: "Wraps the card_play_landing stack preset as a recipe so it can be used as a single event inside a sequence preset.",
+  category: "Card Game",
+  tags: ["card", "stack", "wrapper", "landing", "card-game"],
+  signalChain: "Stack(card_play_landing): card-slide -> card-place -> card-glow",
+  params: [
+    { name: "gain", min: 0.2, max: 1.0, unit: "amplitude" },
+  ],
+}));

@@ -22,10 +22,10 @@
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync, realpathSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, resolve, basename, extname } from "node:path";
 import { execFile } from "node:child_process";
 import { renderRecipe } from "./core/renderer.js";
-import { registry } from "./recipes/index.js";
+import { registry, initializeRecipeRegistry } from "./recipes/index.js";
 import { playAudio, getPlayerCommand } from "./audio/player.js";
 import { encodeWav } from "./audio/wav-encoder.js";
 import { VERSION } from "./index.js";
@@ -77,6 +77,7 @@ import { findSimilar } from "./library/similarity.js";
 import { exportEntries } from "./library/export.js";
 import { regenerateEntry } from "./library/regenerate.js";
 import { loadSequencePreset, validateSequencePresetFile } from "./sequence/preset-loader.js";
+import { validateToneGraph } from "./core/tonegraph-schema.js";
 import { simulate, formatTimeline } from "./sequence/simulator.js";
 import { renderSequence } from "./sequence/renderer.js";
 import type { SequenceDefinition } from "./sequence/schema.js";
@@ -772,6 +773,7 @@ Browse, search, discover similar sounds, export WAVs, and regenerate entries fro
 | **similar** | Find entries similar to a given entry |
 | **export** | Export library entries as WAV files by category |
 | **regenerate** | Re-render an entry from its stored preset |
+| **add** | Register a new ToneGraph recipe and persist it to an external directory |
 
 ## Usage
 
@@ -781,7 +783,27 @@ toneforge library search [--category <c>] [--intensity <i>] [--texture <t>] [--t
 toneforge library similar --id <id> [--limit <n>] [--json]
 toneforge library export --output <dir> [--category <c>] --format wav [--json]
 toneforge library regenerate --id <id> [--json]
+toneforge library add --file <path> [--destination <dir>] [--name <override>] [--json]
+toneforge library add --inline <tonegraph> --name <name> [--destination <dir>] [--json]
+toneforge library add --stdin --name <name> [--destination <dir>] [--json]
 \`\`\`
+
+## External recipe registration
+
+\`library add\` persists the recipe to an **external recipe directory** so a
+separate \`toneforge generate --recipe <name>\` process discovers it. The
+directory is resolved in this order:
+
+1. \`--destination <dir>\` (single-operation override)
+2. the \`TONEFORGE_RECIPE_DIR\` environment variable
+3. \`~/.toneforge/recipes/\` (platform-agnostic default)
+
+Relative paths for \`--file\`, \`--destination\` and \`TONEFORGE_RECIPE_DIR\` are
+resolved against the current working directory; absolute paths are used as-is.
+The recipe is written atomically (temp file + rename) and re-registering the
+same recipe is an idempotent overwrite. Externally registered recipes are
+discovered alongside the baked-in \`presets/recipes/\` recipes and are shown by
+\`library list\` with their source directory.
 
 ## Options
 
@@ -793,6 +815,11 @@ toneforge library regenerate --id <id> [--json]
 - \`--limit <n>\` — Max results for similarity search (default: 10)
 - \`--output <dir>\` — Output directory for export
 - \`--format wav\` — Export format (currently only wav)
+- \`--file <path>\` — Path to a ToneGraph YAML or JSON file (add subcommand)
+- \`--inline <tonegraph>\` — Inline ToneGraph YAML/JSON definition (add subcommand)
+- \`--stdin\` — Read the ToneGraph definition from stdin (add subcommand)
+- \`--name <name>\` — Override recipe name (defaults to the filename without extension for \`--file\`; required for \`--inline\`/\`--stdin\`)
+- \`--destination <dir>\` — External directory to persist the recipe into (add subcommand; default: \`TONEFORGE_RECIPE_DIR\` or \`~/.toneforge/recipes/\`)
 - \`--json\` — Output results in JSON format
 - \`--help\`, \`-h\` — Show this help message
 
@@ -805,6 +832,13 @@ toneforge library search --intensity high --tags hit,impact
 toneforge library similar --id lib-impact-crack_seed-00042 --limit 5
 toneforge library export --output ./export --category creature --format wav
 toneforge library regenerate --id lib-creature-vocal_seed-04821 --json
+toneforge library add --file ./my-recipe.yaml
+toneforge library add --file ./my-recipe.yaml --name custom-name --json
+toneforge library add --file ./game-weapon.yaml --destination ./project-recipes
+
+# Persist to a custom location, then render it in a separate process
+TONEFORGE_RECIPE_DIR=./project-recipes toneforge library add --file ./game-weapon.yaml
+toneforge generate --recipe game-weapon --seed 42 --output ./game-weapon.wav
 \`\`\``;
   await outputMarkdown(md);
 }
@@ -1225,6 +1259,10 @@ export async function dispatchCommand(
   flags: Record<string, string | boolean>,
   layers: string[],
 ): Promise<number> {
+  // Load file-backed ToneGraph recipes before any command runs. Discovery is
+  // Node-only and idempotent; in non-Node runtimes it resolves to a no-op.
+  await initializeRecipeRegistry();
+
   const jsonMode = flags["json"] === true;
 
   // Enable profiling when --profile flag is set
@@ -3077,6 +3115,21 @@ export async function dispatchCommand(
         const filter = categoryFilter ? { category: categoryFilter } : undefined;
         const entries = await listEntries(filter);
 
+        // Recipe catalogue: baked-in + externally registered recipes (AC7).
+        // `sourceDirectory` is only set for file-backed recipes, so built-in
+        // TypeScript recipes are reported as `built-in`.
+        const recipeCatalog = registry.list().map((name) => {
+          const reg = registry.getRegistration(name);
+          return {
+            name,
+            category: reg?.category ?? "",
+            description: reg?.description ?? "",
+            source: reg?.sourceDirectory ?? null,
+            external: reg?.external === true,
+          };
+        });
+        const externalRecipeCount = recipeCatalog.filter((r) => r.external).length;
+
         if (jsonMode) {
           jsonOut({
             command: "library list",
@@ -3091,6 +3144,9 @@ export async function dispatchCommand(
               tags: e.tags,
               promotedAt: e.promotedAt,
             })),
+            recipeCount: recipeCatalog.length,
+            externalRecipeCount,
+            recipes: recipeCatalog,
           });
         } else if (entries.length === 0) {
           if (categoryFilter) {
@@ -3116,6 +3172,25 @@ export async function dispatchCommand(
             ]),
           );
           outputInfo(`${entries.length} entr${entries.length !== 1 ? "ies" : "y"} listed`);
+        }
+
+        if (!jsonMode && recipeCatalog.length > 0) {
+          outputInfo("");
+          outputInfo(`Recipes (${recipeCatalog.length} total, ${externalRecipeCount} external):`);
+          outputTable(
+            [
+              { header: "Recipe", width: 28 },
+              { header: "Category", width: 14 },
+              { header: "Kind", width: 10 },
+              { header: "Source", width: 36 },
+            ],
+            recipeCatalog.map((r) => [
+              r.name,
+              r.category || "\u2014",
+              r.source ? (r.external ? "external" : "baked-in") : "built-in",
+              r.source ?? "\u2014",
+            ]),
+          );
         }
         return 0;
       } catch (error) {
@@ -3363,6 +3438,179 @@ export async function dispatchCommand(
           outputSuccess(`Regenerated '${entryId}' successfully`);
           outputInfo(`  WAV: ${result.wavPath}`);
           outputInfo(`  Regenerated at: ${result.regeneratedAt}`);
+        }
+        return 0;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(message); } else { outputError(`Error: ${message}`); }
+        return 1;
+      }
+    }
+
+    // ── library add ───────────────────────────────────────────
+    if (subcommand === "add") {
+      if (flags["help"]) {
+        await printLibraryHelp();
+        return 0;
+      }
+
+      const fileFlag = typeof flags["file"] === "string" ? flags["file"] : undefined;
+      const inlineFlag = typeof flags["inline"] === "string" ? flags["inline"] : undefined;
+      const stdinFlag = flags["stdin"] === true;
+      const nameOverride = typeof flags["name"] === "string" ? flags["name"] : undefined;
+      const destinationFlag = typeof flags["destination"] === "string" ? flags["destination"] : undefined;
+
+      // Exactly one input source must be provided.
+      const sourcesProvided = [fileFlag !== undefined, inlineFlag !== undefined, stdinFlag]
+        .filter(Boolean).length;
+      if (sourcesProvided === 0) {
+        const msg = "An input source is required: --file <path>, --inline <graph>, or --stdin. Run 'toneforge library add --help' for usage.";
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+      if (sourcesProvided > 1) {
+        const msg = "Only one input source may be provided: --file, --inline, or --stdin.";
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      try {
+        // Lazily load js-yaml; YAML is a superset of JSON so a single loader
+        // handles both inline and stdin input without an extension hint.
+        const loadYaml = async (): Promise<(input: string) => unknown> => {
+          const yamlModule = await import("js-yaml");
+          const yamlLoad = (yamlModule as { load?: (input: string) => unknown; default?: { load?: (input: string) => unknown } }).load
+            ?? (yamlModule as { default?: { load?: (input: string) => unknown } }).default?.load;
+          if (yamlLoad === undefined) {
+            throw new Error("js-yaml load function is unavailable.");
+          }
+          return yamlLoad;
+        };
+
+        let rawDoc: unknown;
+        let recipeName: string | undefined;
+        let sourceLabel: string;
+        let sourceText: string;
+        // Extension used when persisting the recipe to the external directory.
+        // File-backed recipes keep their on-disk extension; inline/stdin
+        // recipes are stored as YAML (a superset of JSON).
+        let persistExtension = ".yaml";
+
+        if (fileFlag !== undefined) {
+          const resolvedPath = resolve(fileFlag);
+          if (!existsSync(resolvedPath)) {
+            const msg = `File not found: ${fileFlag}`;
+            if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+            return 1;
+          }
+
+          const source = await readFile(resolvedPath, "utf-8");
+          const ext = extname(resolvedPath).toLowerCase();
+          persistExtension = ext;
+
+          if (ext === ".json") {
+            rawDoc = JSON.parse(source);
+          } else if (ext === ".yaml" || ext === ".yml") {
+            rawDoc = (await loadYaml())(source);
+          } else {
+            const msg = `Unsupported file extension '${ext || "(none)"}'. Use .json, .yaml, or .yml.`;
+            if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+            return 1;
+          }
+
+          sourceText = source;
+          // Derive the recipe name from the filename (basename without extension).
+          recipeName = nameOverride ?? basename(resolvedPath, extname(resolvedPath));
+          sourceLabel = fileFlag;
+        } else if (inlineFlag !== undefined) {
+          rawDoc = (await loadYaml())(inlineFlag);
+          sourceText = inlineFlag;
+          sourceLabel = "inline";
+        } else {
+          // Read the ToneGraph definition from stdin.
+          const chunks: Buffer[] = [];
+          for await (const chunk of process.stdin) {
+            chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk as Buffer);
+          }
+          const stdinSource = Buffer.concat(chunks).toString("utf-8");
+          if (stdinSource.trim().length === 0) {
+            const msg = "No input received on stdin.";
+            if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+            return 1;
+          }
+          rawDoc = (await loadYaml())(stdinSource);
+          sourceText = stdinSource;
+          sourceLabel = "stdin";
+        }
+
+        // Validate the ToneGraph document.
+        const graph = validateToneGraph(rawDoc);
+
+        if (recipeName === undefined) {
+          recipeName = nameOverride;
+        }
+        if (recipeName === undefined) {
+          const msg = "A recipe name is required for inline/stdin input. Pass --name <name>.";
+          if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+          return 1;
+        }
+
+        const {
+          assertSafeRecipeName,
+          createFileBackedRegistration,
+          persistRecipeDocument,
+          resolveExternalRecipeDirectory,
+        } = await import("./core/recipe.js");
+
+        assertSafeRecipeName(recipeName);
+
+        // Persist the recipe to the external directory BEFORE registering so
+        // a failed write leaves the registry unchanged (AC4). The destination
+        // is `--destination`, else `TONEFORGE_RECIPE_DIR`, else
+        // `~/.toneforge/recipes/` (AC1, AC2, AC6).
+        const destinationDirectory = await resolveExternalRecipeDirectory({
+          destination: destinationFlag,
+        });
+        const persistResult = await persistRecipeDocument({
+          contents: sourceText,
+          destinationDirectory,
+          fileName: `${recipeName}${persistExtension}`,
+        });
+
+        // Create a file-backed registration from the validated ToneGraph document.
+        const registration = createFileBackedRegistration(recipeName, graph, rawDoc);
+
+        // Register in the session registry, recording the external source so
+        // `library list` surfaces the recipe immediately as external (AC7).
+        registry.register(recipeName, {
+          ...registration,
+          sourceDirectory: persistResult.destinationDirectory,
+          external: true,
+        });
+
+        if (jsonMode) {
+          jsonOut({
+            command: "library add",
+            name: recipeName,
+            file: fileFlag ?? null,
+            source: sourceLabel,
+            destination: persistResult.destinationDirectory,
+            persistedFile: persistResult.destinationPath,
+            category: registration.category,
+            description: registration.description,
+            params: registration.params,
+            tags: registration.tags ?? [],
+          });
+        } else {
+          outputSuccess(`Registered recipe '${recipeName}' from ${sourceLabel}`);
+          outputInfo(`  Category: ${registration.category}`);
+          outputInfo(`  Description: ${registration.description}`);
+          outputInfo(`  Parameters: ${registration.params.map(p => p.name).join(", ") || "(none)"}`);
+          outputInfo(`  Signal chain: ${registration.signalChain}`);
+          if (registration.tags && registration.tags.length > 0) {
+            outputInfo(`  Tags: ${registration.tags.join(", ")}`);
+          }
+          outputInfo(`  Persisted to: ${persistResult.destinationPath}`);
         }
         return 0;
       } catch (error) {

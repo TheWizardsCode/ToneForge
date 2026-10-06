@@ -103,12 +103,38 @@ wss.on("connection", (ws: WebSocket) => {
   log("CONNECTED", undefined, "Terminal session started");
 
   const shell = process.platform === "win32" ? "powershell.exe" : "bash";
+
+  /**
+   * Resolve a directory path relative to the server script.
+   * Uses __dirname so the path is stable after TypeScript compilation.
+   */
+  function serverRelative(...parts: string[]): string {
+    return resolve(__dirname, ...parts);
+  }
+
+  /**
+   * Path to the CI-safe CLI shim directory.
+   * Contains `toneforge` and `tf` shell scripts that delegate to
+   * `bin/dev-cli.js` so the CLI is resolvable in the PTY without
+   * a global `npm link`.
+   */
+  const SHIM_DIR = serverRelative("..", "..", "bin", "tf-shim");
+
+  /**
+   * Prepend the shim directory to the PTY PATH so that `toneforge` and `tf`
+   * commands resolve inside the terminal without a global `npm link`.
+   */
+  const ptyEnv = { ...process.env } as Record<string, string>;
+  if (ptyEnv.PATH) {
+    ptyEnv.PATH = `${SHIM_DIR}:${ptyEnv.PATH}`;
+  }
+
   const ptyProcess = pty.spawn(shell, [], {
     name: "xterm-256color",
     cols: 80,
     rows: 24,
     cwd: PROJECT_ROOT,
-    env: { ...process.env } as Record<string, string>,
+    env: ptyEnv,
   });
 
   // Buffer for detecting and stripping OSC 133;D exit-code sequences from PTY output.

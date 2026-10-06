@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.1.2 (2026-10-06)
+> **Release focus:** This release focuses on making the sound design system more flexible and reliable, letting you shape sounds with interactive controls, save and reuse custom recipes without rebuilding the game, and add recipes from any file location. It also adds smooth pitch sweeps for effects, network playtesting, and preset browsing, alongside fixes for audio glitches, session saving, and automated tests.
+### Features
+- Shape sounds with sliders, dials, and touchpads, then hear changes instantly. (TF-0MUTZ4TOY003DJ45)
+- Sound effects can now sweep smoothly up or down in pitch, like laser zaps and explosions. (TF-0MUV8YKFR002BIA2)
+- You can now save custom recipes that persist across sessions and use them in any future run. (TF-0MUVC3DZ10089SAU)
+- You can now add custom sound recipes from any file location without editing the game's code. (TF-0MUUC9RTU008UJ18)
+- Recipes can now be added or tweaked without rebuilding the game. (TF-0MMZIW9NQ09MV98G)
+- Improved session saving reliability so your progress is preserved more consistently. (TF-0MN1QCTMC07ATYMS)
+- Easily browse available sequence and stack presets right from the command line. (TF-0MMSXILP20HEKXT2)
+- Playtest the game from other devices on your network. (TF-0MUVUWN0A006EEBT)
+- You can now reuse layered sound stacks inside sequences without rebuilding them. (TF-0MMSYF0G20PY7GMB)
+### Bug Fixes
+- Fixed browser audio rendering and terminal command issues so tutorial tests pass reliably. (TF-0MUVBX24I000ST03)
+- Fixed an occasional audio glitch that could cause sound effects to play incorrectly. (TF-0MUURP3KD00724BM)
+- Fixed a setup issue that was preventing the game's automated tests from running. (TF-0MUUELBUD002OEQ8)
+- Sound controls now show labels and respond to click-and-drag. (TF-0MUVMITO30059E7U)
+- All sound parameters now actually change the audio when adjusted. (TF-0MUV9U9QU001SORH)
+### Other
+- ToneForge audio is now properly licensed, ensuring reliable sound in the game. (TF-0MUTVQSI6003VPAD)
+- Recipes now produce different results each time you play. (TF-0MN1TS9661DEIXH0)
+- Removed an unused audio library, making the game download smaller and faster to install. (TF-0MUUYLVHZ002FRYE)
+
 ## v0.1.1 (2026-10-04)
 ### Features
 - Generate a wider variety of game sounds, like lasers, footsteps, chimes, and wind. (TF-0MLXF74KE17SQKAD)

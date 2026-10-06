@@ -15,16 +15,23 @@
  * Reference: TF-0MM8S3BDR1QMN6TZ (Session Save/Resume)
  */
 
-import { writeFile, readFile, copyFile, readdir, unlink } from "node:fs/promises";
-import { existsSync } from "node:fs";
 import { dirname, basename, resolve } from "node:path";
 import type { WizardSessionData, CandidateSelection } from "./types.js";
+import { NodeFsSessionStore, type SessionStore } from "./session-store.js";
 
 /** Current schema version for session files. */
 export const SESSION_SCHEMA_VERSION = 1;
 
 /** Default session file name. */
 export const DEFAULT_SESSION_FILE = ".toneforge-session.json";
+
+/**
+ * Default file store used when no store is injected.
+ *
+ * Production callers rely on this `node:fs/promises`-backed implementation;
+ * tests inject an in-memory store instead for hermetic runs.
+ */
+export const defaultSessionStore: SessionStore = new NodeFsSessionStore();
 
 /** Maximum number of backup files to retain. */
 const MAX_BACKUPS = 3;
@@ -148,19 +155,22 @@ function deserializeSession(envelope: SessionFileEnvelope): WizardSessionData {
  *
  * @param data - The session data to persist.
  * @param filePath - Path to the session file. Defaults to `.toneforge-session.json` in cwd.
+ * @param store - Persistence store to write through. Defaults to the
+ *   `node:fs/promises`-backed store.
  */
 export async function saveSession(
   data: WizardSessionData,
   filePath: string = DEFAULT_SESSION_FILE,
+  store: SessionStore = defaultSessionStore,
 ): Promise<void> {
   // Back up existing file before overwriting
-  if (existsSync(filePath)) {
-    await createBackup(filePath);
+  if (await store.exists(filePath)) {
+    await createBackup(filePath, store);
   }
 
   const envelope = serializeSession(data);
   const content = JSON.stringify(envelope, null, 2);
-  await writeFile(filePath, content, "utf-8");
+  await store.writeFile(filePath, content);
 }
 
 /**
@@ -169,16 +179,19 @@ export async function saveSession(
  * Validates the schema version and handles corrupted files gracefully.
  *
  * @param filePath - Path to the session file.
+ * @param store - Persistence store to read through. Defaults to the
+ *   `node:fs/promises`-backed store.
  * @returns The deserialized WizardSessionData.
  * @throws SessionVersionMismatchError if the schema version does not match.
  * @throws SessionCorruptedError if the file cannot be parsed.
  */
 export async function loadSession(
   filePath: string = DEFAULT_SESSION_FILE,
+  store: SessionStore = defaultSessionStore,
 ): Promise<WizardSessionData> {
   let content: string;
   try {
-    content = await readFile(filePath, "utf-8");
+    content = await store.readFile(filePath);
   } catch (err) {
     throw new SessionCorruptedError(
       filePath,
@@ -224,39 +237,37 @@ export async function loadSession(
  * Check if a session file exists at the given path.
  *
  * @param filePath - Path to check. Defaults to `.toneforge-session.json` in cwd.
+ * @param store - Persistence store to query. Defaults to the
+ *   `node:fs/promises`-backed store.
  * @returns true if the file exists.
  */
-export function detectSessionFile(
+export async function detectSessionFile(
   filePath: string = DEFAULT_SESSION_FILE,
-): boolean {
-  // During test runs (Vitest/NODE_ENV=test) we avoid interacting with a
-  // developer's on-disk session file to keep tests hermetic and deterministic.
-  // Tests set `VITEST=true` in the environment; respect that and treat the
-  // session file as absent so the TUI does not prompt to resume or delete it.
-  if (process.env.VITEST === "true" || process.env.NODE_ENV === "test") {
-    return false;
-  }
-
-  return existsSync(filePath);
+  store: SessionStore = defaultSessionStore,
+): Promise<boolean> {
+  return store.exists(filePath);
 }
 
 /**
  * Delete the session file and all its backups.
  *
  * @param filePath - Path to the session file. Defaults to `.toneforge-session.json` in cwd.
+ * @param store - Persistence store to delete through. Defaults to the
+ *   `node:fs/promises`-backed store.
  */
 export async function deleteSessionFile(
   filePath: string = DEFAULT_SESSION_FILE,
+  store: SessionStore = defaultSessionStore,
 ): Promise<void> {
   // Delete the main file
-  if (existsSync(filePath)) {
-    await unlink(filePath);
+  if (await store.exists(filePath)) {
+    await store.unlink(filePath);
   }
 
   // Delete all backups
-  const backups = await listBackups(filePath);
+  const backups = await listBackups(filePath, store);
   for (const backup of backups) {
-    await unlink(backup);
+    await store.unlink(backup);
   }
 }
 
@@ -285,13 +296,16 @@ function backupPath(filePath: string): string {
  *
  * Backup files match the pattern: `<base>.<timestamp>.json`
  */
-export async function listBackups(filePath: string): Promise<string[]> {
+export async function listBackups(
+  filePath: string,
+  store: SessionStore = defaultSessionStore,
+): Promise<string[]> {
   const dir = dirname(resolve(filePath));
   const base = basename(filePath, ".json");
 
-  if (!existsSync(dir)) return [];
+  if (!(await store.exists(dir))) return [];
 
-  const entries = await readdir(dir);
+  const entries = await store.readdir(dir);
 
   // Match pattern: <base>.<timestamp>.json (but not the main file)
   const mainName = basename(filePath);
@@ -308,22 +322,28 @@ export async function listBackups(filePath: string): Promise<string[]> {
 /**
  * Create a timestamped backup of the session file and prune old backups.
  */
-async function createBackup(filePath: string): Promise<void> {
+async function createBackup(
+  filePath: string,
+  store: SessionStore,
+): Promise<void> {
   const dest = backupPath(filePath);
-  await copyFile(filePath, dest);
-  await pruneBackups(filePath);
+  await store.copyFile(filePath, dest);
+  await pruneBackups(filePath, store);
 }
 
 /**
  * Remove old backups beyond MAX_BACKUPS, keeping the newest ones.
  */
-async function pruneBackups(filePath: string): Promise<void> {
-  const backups = await listBackups(filePath);
+async function pruneBackups(
+  filePath: string,
+  store: SessionStore,
+): Promise<void> {
+  const backups = await listBackups(filePath, store);
 
   // backups is sorted oldest first; remove the oldest ones
   while (backups.length > MAX_BACKUPS) {
     const oldest = backups.shift()!;
-    await unlink(oldest);
+    await store.unlink(oldest);
   }
 }
 

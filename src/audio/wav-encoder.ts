@@ -9,6 +9,10 @@
  * - data sub-chunk (8 + sample data bytes)
  */
 
+// Import Buffer explicitly rather than relying on the Node global so the same
+// encoder works in the browser (Vite resolves this to the `buffer` polyfill).
+import { Buffer } from "buffer";
+
 /** Options for WAV encoding. */
 export interface WavEncodeOptions {
   /** Sample rate in Hz (default: 44100). */

@@ -2,7 +2,9 @@
  * Offline Renderer
  *
  * Renders recipe audio to buffers using OfflineAudioContext.
- * Uses node-web-audio-api for Node.js compatibility.
+ * Uses the cross-platform OfflineAudioContext abstraction from
+ * `src/audio/web-audio.ts`: the browser-native Web Audio API in the browser
+ * and node-web-audio-api in Node.js.
  *
  * Recipes are discovered via the RecipeRegistry — adding a new recipe
  * requires only registering it in src/recipes/index.ts; no changes to
@@ -11,10 +13,10 @@
  * Reference: docs/prd/CORE_PRD.md Section 8
  */
 
-import { OfflineAudioContext } from "node-web-audio-api";
 import { createRng } from "./rng.js";
-import { registry } from "../recipes/index.js";
+import { registry, initializeRecipeRegistry } from "../recipes/index.js";
 import { profiler } from "./profiler.js";
+import { OfflineAudioContext } from "../audio/web-audio.js";
 
 /** Result of an offline render containing sample data. */
 export interface RenderResult {
@@ -31,7 +33,7 @@ export interface RenderResult {
 /**
  * Renders a named recipe with the given seed to an audio buffer.
  *
- * Uses OfflineAudioContext (via node-web-audio-api) to produce
+ * Uses the cross-platform OfflineAudioContext abstraction to produce
  * deterministic output for the same recipe + seed combination.
  *
  * The recipe is looked up in the RecipeRegistry. Its `getDuration`
@@ -45,11 +47,60 @@ export interface RenderResult {
  * @returns Promise resolving to the rendered audio data.
  * @throws If the recipe is not found in the registry.
  */
+/** Preset-shaped input accepted by {@link renderPreset}. */
+export interface RenderPresetInput {
+  /** Registered recipe name. */
+  recipe: string;
+  /** Deterministic integer seed. */
+  seed: number;
+  /**
+   * Parameter overrides applied on top of the seed-derived baseline.
+   *
+   * Only declared parameters are honoured. File-backed recipes apply their
+   * explicit declarative mappings after the base overrides, so a computed
+   * mapping (for example `modulator.frequency = carrier.frequency *
+   * modRatio`) sees the overridden value of every parameter it references.
+   */
+  overrides?: Record<string, number>;
+}
+
 export async function renderRecipe(
   recipeName: string,
   seed: number,
   duration?: number,
 ): Promise<RenderResult> {
+  return renderRecipeInternal(recipeName, seed, duration, undefined);
+}
+
+/**
+ * Renders a preset-shaped `{ recipe, seed, overrides }` input.
+ *
+ * Overrides replace the seed-derived value for the named parameters; an empty
+ * or omitted `overrides` object produces output byte-identical to
+ * `renderRecipe(recipe, seed)`.
+ */
+export async function renderPreset(
+  input: RenderPresetInput,
+  duration?: number,
+): Promise<RenderResult> {
+  return renderRecipeInternal(
+    input.recipe,
+    input.seed,
+    duration,
+    input.overrides,
+  );
+}
+
+async function renderRecipeInternal(
+  recipeName: string,
+  seed: number,
+  duration: number | undefined,
+  overrides: Record<string, number> | undefined,
+): Promise<RenderResult> {
+  // File-backed recipes are discovered asynchronously; ensure they are
+  // registered before resolving the recipe. Idempotent and cached.
+  await initializeRecipeRegistry();
+
   const registration = registry.getRegistration(recipeName);
   if (!registration) {
     throw new Error(`Recipe not found: ${recipeName}`);
@@ -60,7 +111,7 @@ export async function renderRecipe(
   // so the parameter sequence is deterministic regardless of whether
   // a duration override is provided.
   const durationRng = createRng(seed);
-  const renderDuration = duration ?? registration.getDuration(durationRng);
+  const renderDuration = duration ?? registration.getDuration(durationRng, overrides);
   const sampleRate = 44100;
   const length = Math.ceil(sampleRate * renderDuration);
 
@@ -72,7 +123,7 @@ export async function renderRecipe(
   // Await the result to support both sync recipes (returning void)
   // and async recipes (returning Promise<void>) that load samples.
   const graphRng = createRng(seed);
-  await registration.buildOfflineGraph(graphRng, ctx, renderDuration);
+  await registration.buildOfflineGraph(graphRng, ctx, renderDuration, overrides);
   profiler.mark("graph_build");
 
   const audioBuffer = await ctx.startRendering();

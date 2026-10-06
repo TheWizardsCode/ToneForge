@@ -81,6 +81,34 @@ podman run -p 3000:3000 -e ALLOWED_ORIGINS="mydomain.com,localhost" toneforge-we
 | `ALLOWED_ORIGINS` | `localhost,127.0.0.1`  | Comma-separated list of allowed Origin hostnames         |
 | `VITE_PORT`       | `5173`                 | Vite dev server port (development only)                  |
 
+## Testing
+
+Web tests run with Vitest (`npm test --prefix web`). The default environment is
+Node, which is what the existing server/wizard/audio tests expect. SoundEditor
+component tests live under `src/components/SoundEditor/**` and opt into a DOM
+environment per file with the directive:
+
+```ts
+// @vitest-environment happy-dom
+```
+
+Shared SoundEditor scaffolding lives under `test/`:
+
+- `test/fixtures/editor-fixtures.ts` — representative `{ recipe, seed, overrides,
+  descriptors }` cases (oscillator, noise/filter and file-backed ToneGraph),
+  with parameter descriptors read from the shared recipe registry.
+- `test/helpers/determinism.ts` — renders a preset-shaped input twice through
+  the existing offline render path and reports/asserts byte-identical
+  `Float32Array` output (`assertDeterministic`, `renderPresetTwice`,
+  `compareSamples`).
+
+> The offline render path does not yet accept parameter overrides (tracked by
+> TF-0MUV11RXS003Y6JI); the determinism helper threads `overrides` through a
+> forward-compatible seam that becomes effective when that work lands.
+
+Because the server tests serve the built SPA, run `npm run build --prefix web`
+once in a fresh checkout/worktree before `npm test --prefix web`.
+
 ## Architecture
 
 ```

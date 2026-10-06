@@ -21,24 +21,34 @@ meta:
       max: 700
       unit: Hz
       default: 301.05755701685734
+      overrides:
+        - target: carrier.frequency
     - name: modRatio
       type: number
       min: 1
       max: 4
       unit: ratio
       default: 2.9809359325982947
+      overrides:
+        - target: modulator.frequency
+          expression: "carrier.frequency * modRatio"
     - name: modDepthStart
       type: number
       min: 50
       max: 200
       unit: Hz
       default: 66.6435630215899
+      overrides:
+        - target: modDepth.gain
+        - target: modDepth.automation.gain.0.value
     - name: modDepthEnd
       type: number
       min: 300
       max: 800
       unit: Hz
       default: 724.6884510909879
+      overrides:
+        - target: modDepth.automation.gain.linearRamp.value
     - name: attack
       type: number
       min: 0.02

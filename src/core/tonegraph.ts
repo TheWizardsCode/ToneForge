@@ -20,6 +20,12 @@ interface AutomationLinearRampEvent {
   value: number;
 }
 
+interface AutomationExponentialRampEvent {
+  kind: "exponentialRamp";
+  time: number;
+  value: number;
+}
+
 interface AutomationLfoEvent {
   kind: "lfo";
   rate: number;
@@ -34,6 +40,7 @@ interface AutomationLfoEvent {
 type AutomationEvent =
   | AutomationSetEvent
   | AutomationLinearRampEvent
+  | AutomationExponentialRampEvent
   | AutomationLfoEvent;
 
 interface RuntimeNode {
@@ -56,6 +63,15 @@ export interface ToneGraphHandle {
   nodes: Record<string, AudioNode>;
   duration: number;
   start: (time?: number) => void;
+  /**
+   * Schedule the end of playback at `time` (defaults to {@link duration}).
+   *
+   * Envelope nodes hold their sustain level from the end of the decay phase
+   * and ramp to silence over the final `release` seconds *inside* the render
+   * window — i.e. the ramp spans `[time - release, time]` (clamped at `0`).
+   * This matches the authored convention `duration = attack + decay +
+   * release`. Sources stop at `time`.
+   */
   stop: (time?: number) => void;
   dispose: () => void;
 }
@@ -177,6 +193,20 @@ function parseAutomationList(raw: unknown, nodeId: string, paramName: string): A
       };
     }
 
+    if (kindRaw === "exponentialRamp") {
+      const value = ensureNumber(event.value, `Node "${nodeId}" automation[${index}].value`);
+      if (value <= 0) {
+        throw new Error(
+          `Node "${nodeId}" automation[${index}] exponentialRamp value must be greater than 0.`,
+        );
+      }
+      return {
+        kind: "exponentialRamp",
+        time: ensureNumber(event.time, `Node "${nodeId}" automation[${index}].time`),
+        value,
+      };
+    }
+
     if (kindRaw === "lfo") {
       const waveRaw = event.wave;
       const wave: ModulationWave =
@@ -261,6 +291,14 @@ function applyAutomationEvents(
       continue;
     }
 
+    if (event.kind === "exponentialRamp") {
+      if (event.value <= 0) {
+        throw new Error("exponentialRamp value must be greater than 0.");
+      }
+      param.exponentialRampToValueAtTime(event.value, baseTime + event.time);
+      continue;
+    }
+
     const start = baseTime + (event.start ?? 0);
     const end = baseTime + (event.end ?? durationHint);
     const step = event.step ?? (1 / 128);
@@ -275,10 +313,65 @@ function applyAutomationEvents(
   }
 }
 
+/**
+ * Parse a routing endpoint reference that may be namespace-qualified.
+ * Formats: "nodeId", "nodeId.param", "ns/<ns>/<nodeId>", "ns/<ns>/<nodeId>.param"
+ */
+function parseEndpointReference(ref: string): { nodeId: string; param?: string; ns?: string } {
+  const dotIndex = ref.indexOf(".");
+  let rawNodeId: string;
+  let param: string | undefined;
+
+  if (dotIndex < 0) {
+    rawNodeId = ref;
+  } else {
+    rawNodeId = ref.slice(0, dotIndex);
+    param = ref.slice(dotIndex + 1);
+  }
+
+  // Check for namespace prefix: ns/<namespace>/<nodeId>
+  if (rawNodeId.startsWith("ns/")) {
+    const nsMatch = rawNodeId.match(/^ns\/([^/]+)\/([^/]+)$/);
+    if (!nsMatch) {
+      throw new Error(`Invalid namespace reference "${ref}".`);
+    }
+    return { nodeId: nsMatch[2], param, ns: nsMatch[1] };
+  }
+
+  return { nodeId: rawNodeId, param };
+}
+
 function resolveEndpoint(
   ref: string,
   nodes: Map<string, RuntimeNode>,
+  namespaces?: Record<string, { nodes: string[] }>,
 ): { output?: AudioNode; param?: AudioParam } {
+  const parsed = parseEndpointReference(ref);
+
+  // Namespace-qualified reference: validate and resolve the actual node id.
+  if (parsed.ns !== undefined) {
+    const nsDef = namespaces?.[parsed.ns];
+    if (!nsDef) {
+      throw new Error(`Unknown namespace "${parsed.ns}" in endpoint reference "${ref}".`);
+    }
+    if (!nsDef.nodes.includes(parsed.nodeId)) {
+      throw new Error(
+        `Node "${parsed.nodeId}" is not declared in namespace "${parsed.ns}" (reference "${ref}").`,
+      );
+    }
+
+    const node = nodes.get(parsed.nodeId);
+    if (!node) {
+      throw new Error(
+        `Namespace "${parsed.ns}" references missing node "${parsed.nodeId}" (reference "${ref}").`,
+      );
+    }
+    if (parsed.param) {
+      return { param: node.params[parsed.param] };
+    }
+    return { output: node.output };
+  }
+
   const dotIndex = ref.indexOf(".");
   if (dotIndex < 0) {
     const node = nodes.get(ref);
@@ -501,6 +594,10 @@ async function createRuntimeNode(
 
 function expandRouting(entries: ToneGraphRoutingEntry[]): Array<{ from: string; to: string }> {
   const links: Array<{ from: string; to: string }> = [];
+
+  const toEndpointList = (value: string | string[] | undefined): string[] =>
+    value === undefined ? [] : Array.isArray(value) ? value : [value];
+
   for (const entry of entries) {
     if ("chain" in entry) {
       for (let i = 0; i < entry.chain.length - 1; i += 1) {
@@ -508,6 +605,18 @@ function expandRouting(entries: ToneGraphRoutingEntry[]): Array<{ from: string; 
       }
       continue;
     }
+
+    if ("bus" in entry) {
+      const busRef = `bus:${entry.bus}`;
+      for (const input of toEndpointList(entry.from)) {
+        links.push({ from: input, to: busRef });
+      }
+      for (const output of toEndpointList(entry.to)) {
+        links.push({ from: busRef, to: output });
+      }
+      continue;
+    }
+
     links.push(entry);
   }
   return links;
@@ -526,9 +635,24 @@ export async function loadToneGraph(
     runtimeNodes.set(id, await createRuntimeNode(ctx, id, def, activeRng, duration));
   }
 
+  // Materialise each declared bus as a GainNode addressed by the reserved
+  // reference `bus:<id>`. Validation guarantees bus ids do not collide with
+  // node ids or generated `bus:` references.
+  for (const [busId, busDef] of Object.entries(graph.buses ?? {})) {
+    const gainNode = ctx.createGain();
+    gainNode.gain.value = busDef.gain ?? 1;
+    runtimeNodes.set(`bus:${busId}`, {
+      output: gainNode,
+      params: { gain: gainNode.gain },
+      startables: [],
+      stoppables: [],
+      internals: [gainNode],
+    });
+  }
+
   for (const route of expandRouting(graph.routing)) {
-    const from = resolveEndpoint(route.from, runtimeNodes);
-    const to = resolveEndpoint(route.to, runtimeNodes);
+    const from = resolveEndpoint(route.from, runtimeNodes, graph.namespaces);
+    const to = resolveEndpoint(route.to, runtimeNodes, graph.namespaces);
 
     if (from.param) {
       throw new Error(`Invalid route ${route.from} -> ${route.to}: routing from AudioParam is not supported.`);
@@ -563,6 +687,29 @@ export async function loadToneGraph(
     }
   }
 
+  // Sequences schedule timed events on an existing node's AudioParam. They are
+  // the document-level counterpart to inline node automation and are applied
+  // deterministically at load time (identical graphs produce identical
+  // schedules). `graph.random.seed` is resolved above so sequences that depend
+  // on noise buffers remain deterministic.
+  for (const [sequenceIndex, sequence] of (graph.sequences ?? []).entries()) {
+    const runtime = runtimeNodes.get(sequence.node);
+    if (!runtime) {
+      throw new Error(
+        `Sequence ${sequenceIndex} references unknown node "${sequence.node}".`,
+      );
+    }
+
+    const param = runtime.params[sequence.param];
+    if (!param) {
+      throw new Error(
+        `Sequence ${sequenceIndex} targets unknown AudioParam "${sequence.param}" on node "${sequence.node}".`,
+      );
+    }
+
+    applyAutomationEvents(param, sequence.events, duration);
+  }
+
   const started = new Set<AudioScheduledSourceNode>();
   const nodes: Record<string, AudioNode> = {};
   for (const [id, runtime] of runtimeNodes) {
@@ -593,10 +740,16 @@ export async function loadToneGraph(
   const stop = (time = duration): void => {
     for (const runtime of runtimeNodes.values()) {
       if (runtime.envelope) {
-        const releaseEnd = time + runtime.envelope.release;
-        runtime.envelope.gain.cancelScheduledValues(time);
-        runtime.envelope.gain.setValueAtTime(runtime.envelope.sustain, time);
-        runtime.envelope.gain.linearRampToValueAtTime(0, releaseEnd);
+        // The authored duration is `attack + decay + release`, so the release
+        // ramp is intended to occupy the final `release` seconds of the render
+        // window: [time - release, time]. Clamp at 0 so short buffers never
+        // schedule events before the render window. `cancelScheduledValues`
+        // starts at the release so the attack/decay schedule is preserved and
+        // the sustain plateau is re-asserted up to the release.
+        const releaseStart = Math.max(0, time - runtime.envelope.release);
+        runtime.envelope.gain.cancelScheduledValues(releaseStart);
+        runtime.envelope.gain.setValueAtTime(runtime.envelope.sustain, releaseStart);
+        runtime.envelope.gain.linearRampToValueAtTime(0, time);
       }
 
       for (const source of runtime.stoppables) {

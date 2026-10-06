@@ -87,6 +87,7 @@ vi.mock("node:fs/promises", () => ({
 
 import { launchWizard } from "../index.js";
 import { setTtyOverride } from "../../output.js";
+import { InMemorySessionStore } from "../session-store.js";
 import { select, input, confirm } from "@inquirer/prompts";
 import { sweep } from "../../explore/sweep.js";
 import { renderRecipe } from "../../core/renderer.js";
@@ -148,6 +149,9 @@ function makeCandidate(recipe: string, seed: number): ExploreCandidate {
 let selectQueue: Array<unknown> = [];
 let inputQueue: Array<string> = [];
 let confirmQueue: Array<boolean> = [];
+// Hermetic persistence store: the wizard writes/reads session state here
+// instead of the developer's on-disk session file (no VITEST/NODE_ENV guard).
+let sessionStore: InMemorySessionStore;
 
 function setupPromptMocks() {
   (select as Mock).mockImplementation(async () => {
@@ -205,6 +209,7 @@ describe("tui wizard end-to-end", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setTtyOverride(true);
+    sessionStore = new InMemorySessionStore();
 
     // Full pipeline prompt sequence:
     //
@@ -260,6 +265,7 @@ describe("tui wizard end-to-end", () => {
       true, // review confirm
       true, // export byCategory
       true, // export proceed
+      true, // delete session file (file exists because auto-save persisted it)
     ];
 
     setupPromptMocks();
@@ -272,13 +278,13 @@ describe("tui wizard end-to-end", () => {
   });
 
   it("completes a two-recipe palette and writes a manifest", async () => {
-    const exitCode = await launchWizard();
+    const exitCode = await launchWizard({ store: sessionStore });
     expect(exitCode).toBe(0);
 
     // Verify prompt call counts
     expect(select as Mock).toHaveBeenCalledTimes(12);
     expect(input as Mock).toHaveBeenCalledTimes(1);
-    expect(confirm as Mock).toHaveBeenCalledTimes(4);
+    expect(confirm as Mock).toHaveBeenCalledTimes(5);
 
     // Verify export pipeline was invoked for both recipes
     expect((addEntry as Mock).mock.calls).toHaveLength(2);
@@ -344,11 +350,12 @@ describe("tui wizard end-to-end", () => {
       true, // review confirm
       true, // export byCategory
       true, // export proceed
+      true, // delete session file
     ];
 
     setupPromptMocks();
 
-    const exitCode = await launchWizard();
+    const exitCode = await launchWizard({ store: sessionStore });
     expect(exitCode).toBe(0);
 
     // Both recipes should be exported
@@ -386,7 +393,7 @@ describe("tui wizard end-to-end", () => {
         return true;
       });
 
-    const exitCode = await launchWizard();
+    const exitCode = await launchWizard({ store: sessionStore });
     expect(exitCode).toBe(0);
 
     // Verify the error message names both recipe and seed

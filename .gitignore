@@ -55,6 +55,14 @@ bin/
 # Node / TypeScript
 ##################################
 node_modules/
+# Also ignore a symlink named exactly `node_modules` (no trailing slash):
+# `phase_start` links the main checkout's dependency tree into each worktree,
+# and a trailing-slash pattern does NOT match a symlink. Without this rule
+# `git add -A` stages the symlink and pushes a self-referential link to dev,
+# breaking every fresh checkout (TF-0MUUEZE48002CLBX).
+node_modules
+.implement_state.json
+.port-skips
 dist/
 dist-server/
 *.tsbuildinfo

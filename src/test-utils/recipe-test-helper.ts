@@ -15,7 +15,7 @@ import { describe, it, expect } from "vitest";
 import { createRng } from "../core/rng.js";
 import type { Rng } from "../core/rng.js";
 import { registry } from "../recipes/index.js";
-import { renderRecipe } from "../core/renderer.js";
+import { renderPreset, renderRecipe } from "../core/renderer.js";
 import {
   compareBuffers,
   formatCompareResult,
@@ -32,6 +32,36 @@ export interface ParamSpec {
   min: number;
   /** Maximum expected value (exclusive). */
   max: number;
+}
+
+/**
+ * Assert that overriding a single declared parameter changes the rendered
+ * output of a recipe. Throws (via the returned rejection) when the override
+ * has no audible effect.
+ *
+ * @param recipeName    - Registered recipe name.
+ * @param param         - Declared parameter to override.
+ * @param overrideValue - Override value (usually an extreme of the declared range).
+ * @param seed          - Deterministic seed (default `4321`).
+ */
+export async function assertOverrideChangesOutput(
+  recipeName: string,
+  param: string,
+  overrideValue: number,
+  seed = 4321,
+): Promise<void> {
+  const base = await renderRecipe(recipeName, seed);
+  const overridden = await renderPreset({
+    recipe: recipeName,
+    seed,
+    overrides: { [param]: overrideValue },
+  });
+
+  const comparison = compareBuffers(base.samples, overridden.samples);
+  expect(
+    comparison.identical,
+    `Override of "${param}" on recipe "${recipeName}" had no effect.\n${formatCompareResult(comparison)}`,
+  ).toBe(false);
 }
 
 /**
