@@ -8,9 +8,10 @@
  */
 
 import { describe, it, expect, afterEach, vi } from "vitest";
+import { spawn } from "node:child_process";
 import { writeFileSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 vi.mock("./audio/player.js", () => ({
   playAudio: vi.fn().mockResolvedValue(undefined),
@@ -75,6 +76,52 @@ context surface=gravel
 state sprint
 quit
 `;
+
+/** Project root (this test lives in `src/`). */
+const PROJECT_ROOT = resolve(import.meta.dirname, "..");
+
+/**
+ * Spawn `runtime start --serve --json`, feed *input* to stdin, then send
+ * *signal* once the child is ready (when *readyMarker* appears on stdout) or
+ * after *fallbackMs*. Resolves once the child exits.
+ */
+async function runServeUntilSignal(
+  input: string,
+  signal: NodeJS.Signals,
+  opts: { readyMarker?: string; fallbackMs?: number } = {},
+): Promise<{ code: number | null; stdout: string }> {
+  return new Promise((resolvePromise, reject) => {
+    const child = spawn(
+      process.execPath,
+      [
+        join(PROJECT_ROOT, "bin", "dev-cli.js"),
+        "runtime",
+        "start",
+        "--serve",
+        "--json",
+      ],
+      { cwd: PROJECT_ROOT, stdio: ["pipe", "pipe", "pipe"] },
+    );
+    let stdout = "";
+    let signalled = false;
+    const sendSignal = (): void => {
+      if (signalled) return;
+      signalled = true;
+      child.kill(signal);
+    };
+    child.stdout.on("data", (chunk) => {
+      stdout += String(chunk);
+      if (opts.readyMarker && stdout.includes(opts.readyMarker)) sendSignal();
+    });
+    child.on("error", reject);
+    child.on("exit", (code) => {
+      clearTimeout(fallback);
+      resolvePromise({ code, stdout });
+    });
+    child.stdin.end(input);
+    const fallback = setTimeout(sendSignal, opts.fallbackMs ?? 8000);
+  });
+}
 
 // ── Help ──────────────────────────────────────────────────────────
 
@@ -237,6 +284,68 @@ describe("CLI runtime start — --script (human)", () => {
     expect(stderr).toContain("Unknown command");
     expect(stdout).toContain("State: idle -> walk");
   });
+});
+
+// ── Service mode ──────────────────────────────────────────────────
+
+describe("CLI runtime start — --serve", () => {
+  it("lists --serve and the param command in help", async () => {
+    const { code, stdout } = await captureOutput(() =>
+      main(argv("runtime", "start", "--help")),
+    );
+    expect(code).toBe(0);
+    expect(stdout).toContain("--serve");
+    expect(stdout).toContain("param <id> <name> <value>");
+  });
+
+  it("rejects --serve combined with --script", async () => {
+    const { code, stderr } = await captureOutput(() =>
+      main(
+        argv(
+          "runtime",
+          "start",
+          "--serve",
+          "--script",
+          writeScript("quit\n"),
+          "--json",
+        ),
+      ),
+    );
+    expect(code).toBe(1);
+    expect(stderr).toContain("--serve");
+  });
+
+  it("stays alive after stdin closes and shuts down cleanly on SIGTERM", async () => {
+    // `state walk` proves the runtime is live and processing input; stdin then
+    // closes, but the service must keep running until the signal arrives.
+    const { code, stdout } = await runServeUntilSignal("state walk\n", "SIGTERM", {
+      readyMarker: "state_change",
+    });
+    expect(code).toBe(0);
+
+    const records = stdout.split("\n").filter(Boolean).map((l) => JSON.parse(l));
+    const summary = records.find((r) => r.command === "runtime serve");
+    expect(summary).toBeDefined();
+    expect(summary.shutdownReason).toBe("signal:SIGTERM");
+  }, 30_000);
+
+  it("shuts down cleanly on a quit command", async () => {
+    const { code, stdout } = await runServeUntilSignal(
+      "state walk\nparam footstep-stone gain 0.5\nquit\n",
+      "SIGKILL",
+      { fallbackMs: 10_000 },
+    );
+    expect(code).toBe(0);
+
+    const records = stdout.split("\n").filter(Boolean).map((l) => JSON.parse(l));
+    const summary = records.find((r) => r.command === "runtime serve");
+    expect(summary).toBeDefined();
+    expect(summary.shutdownReason).toBe("quit");
+    const paramEvents = records.filter(
+      (r) => r.command === "runtime event" && r.event.type === "parameter_change",
+    );
+    expect(paramEvents).toHaveLength(1);
+  }, 30_000);
 });
 
 // ── Continuous transport ──────────────────────────────────────────

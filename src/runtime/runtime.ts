@@ -131,6 +131,9 @@ export interface RuntimeOptions {
 /** Valid SFX parameter names. */
 export type SfxParameterName = "intensity" | "gain" | "pitch" | "filter";
 
+/** Current SFX parameter values for a sound (omitted names are unset). */
+export type SfxParameterValues = Partial<Record<SfxParameterName, number>>;
+
 /** Range constraints for each parameter. */
 const PARAMETER_RANGES: Record<
   SfxParameterName,
@@ -190,6 +193,19 @@ export interface Runtime {
     name: SfxParameterName,
     value: number,
   ): SfxParameterResult;
+
+  /**
+   * Read the current parameter values stored for a sound.
+   *
+   * Returns a snapshot of the values set via {@link setSfxParameter} for the
+   * given sound id. The live session uses this to apply audible modulation to
+   * renders of a matching voice/recipe. Returns an empty object when the sound
+   * has no recorded parameters.
+   *
+   * @param id - The sound identifier.
+   * @returns A snapshot of the parameter values (never mutates the store).
+   */
+  getSfxParameters(id: string): Readonly<SfxParameterValues>;
 
   /** Inspect current runtime state. */
   inspect(): RuntimeInspection;
@@ -594,6 +610,12 @@ export function createRuntime(options?: RuntimeOptions): Runtime {
       });
 
       return { id, name, value };
+    },
+
+    getSfxParameters(id: string): Readonly<SfxParameterValues> {
+      const paramMap = sfxParameters.get(id);
+      if (!paramMap) return {};
+      return Object.fromEntries(paramMap) as SfxParameterValues;
     },
 
     inspect(): RuntimeInspection {

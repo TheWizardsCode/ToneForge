@@ -232,6 +232,7 @@ export async function yargsMain(argv: string[] = process.argv): Promise<number> 
       y3.option("scenario", { type: "string", describe: "Path to a runtime scenario JSON file" })
         .option("seed", { type: "number", describe: "Override the scenario seed" })
         .option("script", { type: "string", describe: "Replay a command-per-line script and exit" })
+        .option("serve", { type: "boolean", describe: "Run as a long-running service (no TTY; clean shutdown on SIGINT/SIGTERM)" })
         .option("json", { type: "boolean", describe: "Stream runtime events as JSON (no audio)" })
         .option("cache-size", { type: "number", describe: "Maximum cached renders" })
         .option("iterations", { type: "number", describe: "Stop the transport after n loop iterations" })
@@ -241,6 +242,7 @@ export async function yargsMain(argv: string[] = process.argv): Promise<number> 
         ...(argv.scenario !== undefined ? { scenario: String(argv.scenario) } : {}),
         ...(argv.seed !== undefined ? { seed: String(argv.seed) } : {}),
         ...(argv.script !== undefined ? { script: String(argv.script) } : {}),
+        ...(argv.serve === true ? { serve: true } : {}),
         ...(argv["cache-size"] !== undefined ? { "cache-size": String(argv["cache-size"]) } : {}),
         ...(argv.iterations !== undefined ? { iterations: String(argv.iterations) } : {}),
         ...(argv["seed-variation"] === false ? { "seed-variation": false } : {}),

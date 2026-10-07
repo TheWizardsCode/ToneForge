@@ -428,6 +428,16 @@ TF‑0MLYX9DP51U7AQDK). It supports `intensity`, `gain`, `pitch`, and `filter`,
 validates names and ranges before mutating state, logs a deterministic
 `parameter_change` event, and stores per-sound values keyed by sound id.
 
+Audible modulation is delivered by the live session (work item
+TF‑0MUYBRRCQ00148QD). Each transport iteration re-renders through the buffer
+cache and the session applies the stored values for the event's resolved
+recipe as a deterministic DSP transform (pitch resample → one-pole low-pass →
+`gain` × `intensity`). Because the Node playback path renders a whole WAV per
+event, the change is **iteration-granular** — audible on the next loop pass,
+not sample-accurate. In the live session the sound `id` is the event's
+resolved recipe name, and the `param <id> <name> <value>` command exposes
+`setSfxParameter` interactively.
+
 General real‑time parameter automation for arbitrary sounds remains a Future
 Extension (see §16).
 
@@ -449,7 +459,9 @@ toneforge runtime start --cache-size 128       # bound the render cache
   as they arrive. `--script` switches to a deterministic virtual clock for
   reproducible replay.
 - **Command surface.** `state <name>`, `context <dim>=<value> ...`,
-  `start [state]`, `stop`, `inspect`, `reset`, `help`, and `quit`/`exit` (see
+  `param <id> <name> <value>` (adjust a continuous sound's `intensity`,
+  `gain`, `pitch` or `filter`; audible on the next loop pass), `start [state]`,
+  `stop`, `inspect`, `reset`, `help`, and `quit`/`exit` (see
   `src/runtime/session.ts`).
 - **Continuous transport.** `start` keeps the active sequence looping
   (re-arming after each pattern period) while `state`/`context` changes
@@ -471,11 +483,14 @@ toneforge runtime start --cache-size 128       # bound the render cache
   `scheduleRuntimeBuffer`.
 - **Headless mode.** `--json` streams one JSON object per runtime event and
   performs no rendering or playback, so the session is verifiable in CI.
+- **Service mode.** `--serve` runs the session as a long-running service: no
+  TTY is required, the runtime stays alive after stdin closes, and it shuts
+  down cleanly on `SIGINT`/`SIGTERM` or a `quit` command
+  (`src/runtime/service.ts`).
 
-Audible `setSfxParameter` modulation and long‑running service mode are tracked
-as a follow‑up (TF‑0MUYBRRCQ00148QD) and remain out of scope here. Because the
-Node playback path plays a whole WAV per event, that follow‑up's parameter
-modulation will be **iteration‑granular** (audible on the next loop pass), not
+Audible `setSfxParameter` modulation and long‑running service mode are
+delivered (TF‑0MUYBRRCQ00148QD) — see §19.9 and the command surface above. The
+modulation is **iteration‑granular** (audible on the next loop pass), not
 sample‑accurate, unless a persistent Web Audio real‑time graph is added.
 
 ---

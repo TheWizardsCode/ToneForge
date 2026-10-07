@@ -20,6 +20,9 @@ export {
   type RuntimeInspection,
   type RuntimeListener,
   type RecipeResolver,
+  type SfxParameterName,
+  type SfxParameterValues,
+  type SfxParameterResult,
 } from "./runtime.js";
 
 export {
@@ -64,3 +67,17 @@ export {
   type SessionCommandResult,
   type SessionScheduler,
 } from "./session.js";
+
+export {
+  applySfxParameters,
+  type SfxModulationName,
+  type SfxModulationValues,
+} from "./parameter-modulation.js";
+
+export {
+  createRuntimeService,
+  type RuntimeService,
+  type RuntimeServiceOptions,
+  type ServiceSignalSource,
+  type ShutdownSignal,
+} from "./service.js";

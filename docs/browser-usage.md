@@ -176,6 +176,11 @@ runtime.setSfxParameter("engine-1", "pitch", 1.8);
 ```
 
 Each successful change is logged as a deterministic `parameter_change` event.
+In a live `createRuntimeSession` host, the stored values for an event's
+resolved recipe are applied to each freshly-rendered buffer, so a change is
+audible on the **next loop pass** (iteration-granular). The CLI exposes this as
+the `param <id> <name> <value>` command and supports a long-running
+`runtime start --serve` mode (`src/runtime/service.ts`).
 General real-time parameter automation for arbitrary one-shot sounds is a
 documented future extension (see `docs/prd/RUNTIME_PRD.md` §16).
 

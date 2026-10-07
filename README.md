@@ -103,6 +103,7 @@ buffer cache and scheduling it for playback at its sequence-relative time:
 toneforge runtime start
 # runtime> start walk          # begin continuous footsteps
 # runtime> context surface=gravel
+# runtime> param footstep-gravel pitch 1.5   # audible on the next loop pass
 # runtime> state sprint
 # runtime> stop
 # runtime> quit
@@ -111,7 +112,9 @@ toneforge runtime start
 `start` runs a **continuous transport** that keeps the active sequence looping;
 `state`/`context` changes reconfigure it live and `stop` halts it. Each
 iteration uses a distinct deterministic seed, so the loop evolves rather than
-repeating identically.
+repeating identically. `param <id> <name> <value>` adjusts a continuous sound's
+`intensity`, `gain`, `pitch` or `filter`; because a whole WAV is rendered per
+event, the change is audible on the **next loop pass** (iteration-granular).
 
 For deterministic, non-interactive replay (and CI), use a command script —
 `--json` streams one JSON object per runtime event and performs no playback,
@@ -122,6 +125,14 @@ toneforge runtime start --script ./session.txt
 toneforge runtime start --script ./session.txt --iterations 4
 toneforge runtime start --script ./session.txt --json --iterations 4
 toneforge runtime start --cache-size 128 --no-seed-variation
+```
+
+For a **long-running service**, `--serve` keeps the runtime alive and
+processing commands over time: it does not require a TTY, does not exit when
+stdin closes, and shuts down cleanly on `SIGINT`/`SIGTERM` or a `quit` command:
+
+```bash
+toneforge runtime start --serve
 ```
 
 See [RUNTIME_PRD.md §19](docs/prd/RUNTIME_PRD.md) and

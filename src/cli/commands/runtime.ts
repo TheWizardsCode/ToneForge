@@ -13,6 +13,11 @@ export function builder(yargs: any) {
           type: "string",
           describe: "Replay a command-per-line script and exit",
         })
+        .option("serve", {
+          type: "boolean",
+          describe:
+            "Run as a long-running service (no TTY; clean shutdown on SIGINT/SIGTERM)",
+        })
         .option("json", {
           type: "boolean",
           describe: "Stream runtime events as JSON (no audio)",

@@ -611,3 +611,97 @@ describe("createRuntimeSession — loopInterval cadence", () => {
     h.session.stop();
   });
 });
+
+// ── Real-time SFX parameter commands ──────────────────────────────
+
+describe("createRuntimeSession — param command", () => {
+  it("adjusts a sound parameter and logs a parameter_change", () => {
+    const h = makeHarness();
+    const result = h.session.handleCommand("param engine-1 intensity 0.5");
+    expect(result).toMatchObject({ ok: true, type: "param" });
+
+    const paramEvents = h.events.filter(
+      (e) => e.event.type === "parameter_change",
+    );
+    expect(paramEvents).toHaveLength(1);
+    expect(paramEvents[0]!.event.detail["id"]).toBe("engine-1");
+    expect(paramEvents[0]!.event.detail["name"]).toBe("intensity");
+    expect(paramEvents[0]!.event.detail["value"]).toBe(0.5);
+  });
+
+  it("exposes the stored values via the runtime", () => {
+    const h = makeHarness();
+    h.session.handleCommand("param engine-1 gain 0.25");
+    expect(h.session.runtime.getSfxParameters("engine-1")).toEqual({ gain: 0.25 });
+    expect(h.session.runtime.getSfxParameters("missing")).toEqual({});
+  });
+
+  it("rejects malformed usage without terminating the session", () => {
+    const h = makeHarness();
+    expect(h.session.handleCommand("param").ok).toBe(false);
+    expect(h.session.handleCommand("param engine-1").ok).toBe(false);
+    expect(h.session.handleCommand("param engine-1 gain").ok).toBe(false);
+    expect(h.session.handleCommand("param engine-1 gain abc").ok).toBe(false);
+    expect(h.session.handleCommand("param engine-1 bogus 0.5").ok).toBe(false);
+    expect(h.session.runtime.isRunning()).toBe(true);
+  });
+
+  it("help lists the param command", () => {
+    const h = makeHarness();
+    expect(h.session.handleCommand("help").message).toContain("param");
+  });
+});
+
+// ── Audible parameter modulation ──────────────────────────────────
+
+describe("createRuntimeSession — audible parameter modulation", () => {
+  it("applies a parameter change to the next loop pass", async () => {
+    const h = makeTransportHarness({
+      maxIterations: 1,
+      scenario: loopIntervalScenario(),
+    });
+    h.session.handleCommand("start walk");
+
+    // First footstep (seed 42), no modulation yet.
+    await h.runSteps(1);
+    expect(h.played).toHaveLength(1);
+    expect(h.played[0]!.samples[0]).toBeCloseTo(42 * 0.7);
+
+    h.session.handleCommand("param footstep-stone gain 0.5");
+
+    // Next loop pass (seed 1042) is modulated by the stored gain.
+    await h.runToIdle();
+    expect(h.played).toHaveLength(2);
+    expect(h.played[1]!.samples[0]).toBeCloseTo(1042 * 0.7 * 0.5);
+  });
+
+  it("leaves the render unmodulated when the parameter targets another id", async () => {
+    const h = makeTransportHarness({
+      maxIterations: 1,
+      scenario: loopIntervalScenario(),
+    });
+    h.session.handleCommand("start walk");
+    await h.runSteps(1);
+
+    h.session.handleCommand("param some-other-sound gain 0.5");
+
+    await h.runToIdle();
+    expect(h.played[1]!.samples[0]).toBeCloseTo(1042 * 0.7);
+  });
+
+  it("replays deterministically including parameter modulation", async () => {
+    const run = async (): Promise<string> => {
+      const h = makeTransportHarness({
+        maxIterations: 2,
+        scenario: loopIntervalScenario(),
+      });
+      h.session.runCommandScript("start walk\nparam footstep-stone gain 0.5\nquit\n");
+      await h.runToIdle();
+      return JSON.stringify({
+        events: h.events.map((e) => e.event),
+        played: h.played.map((r) => Array.from(r.samples)),
+      });
+    };
+    expect(await run()).toBe(await run());
+  });
+});

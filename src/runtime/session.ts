@@ -27,11 +27,12 @@ import type { RenderResult } from "../core/renderer.js";
 import { createStateMachine } from "../state/state.js";
 import { createContext } from "../context/context.js";
 import { createRuntime } from "./runtime.js";
-import type { Runtime, RuntimeLogEntry } from "./runtime.js";
+import type { Runtime, RuntimeLogEntry, SfxParameterName } from "./runtime.js";
 import type { SimulationResult } from "../sequence/simulator.js";
 import { createTemplateRecipeResolver } from "./scenario.js";
 import type { RuntimeScenario } from "./scenario.js";
 import type { BufferCache, BufferCacheStats } from "./buffer-cache.js";
+import { applySfxParameters } from "./parameter-modulation.js";
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -53,6 +54,7 @@ export interface SessionCommandResult {
     | "context"
     | "start"
     | "stop"
+    | "param"
     | "inspect"
     | "reset"
     | "help"
@@ -211,6 +213,7 @@ const HELP_TEXT = [
   "Commands:",
   "  state <name>                 transition the state machine",
   "  context <dim>=<value> ...    update environment context",
+  "  param <id> <name> <value>    adjust a sound parameter (intensity|gain|pitch|filter)",
   "  start [state]                start/inspect the continuous transport",
   "  stop                         stop the continuous transport",
   "  inspect                      print the current runtime inspection",
@@ -406,9 +409,15 @@ export function createRuntimeSession(
         const delayMs = Number(detail["time_ms"] ?? 0);
         const sequence = String(detail["sequence"] ?? "");
 
+        // Iteration-granular modulation: the values stored for this voice
+        // (resolved recipe) are applied to the freshly-rendered buffer, so a
+        // `setSfxParameter` change becomes audible on the next loop pass.
+        const parameters = runtime.getSfxParameters(recipe);
+
         const cancel = scheduleTask(delayMs, async () => {
           const rendered = await cache.getOrRender({ recipe, seed: eventSeed });
-          await play(applyGain(rendered, gain));
+          const modulated = applySfxParameters(rendered, parameters);
+          await play(applyGain(modulated, gain));
         });
         if (sequence) trackScheduled(sequence, cancel);
       }
@@ -523,6 +532,35 @@ export function createRuntimeSession(
           message: wasRunning
             ? "Transport stopped."
             : "Transport is not running.",
+        };
+      }
+
+      case "param": {
+        if (rest.length !== 3) {
+          return {
+            ok: false,
+            type: "error",
+            message: "Usage: param <id> <name> <value>",
+          };
+        }
+        const [id, name, rawValue] = rest as [string, string, string];
+        const value = Number(rawValue);
+        if (!Number.isFinite(value)) {
+          return {
+            ok: false,
+            type: "error",
+            message: `Invalid value '${rawValue}' for parameter '${name}': expected a number.`,
+          };
+        }
+        try {
+          runtime.setSfxParameter(id, name as SfxParameterName, value);
+        } catch (error) {
+          return { ok: false, type: "error", message: errorMessage(error) };
+        }
+        return {
+          ok: true,
+          type: "param",
+          message: `Parameter: ${id}.${name} = ${value}`,
         };
       }
 

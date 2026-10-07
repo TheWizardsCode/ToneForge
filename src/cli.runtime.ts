@@ -89,6 +89,8 @@ import type { RuntimeAudioResult } from "./runtime/audio.js";
 import { createBufferCache } from "./runtime/buffer-cache.js";
 import { createRuntimeSession } from "./runtime/session.js";
 import type { RuntimeSession } from "./runtime/session.js";
+import { createRuntimeService } from "./runtime/service.js";
+import type { RuntimeService } from "./runtime/service.js";
 import { VISUAL_FORMATS, exportVisual, listPalettes } from "./visualizer/index.js";
 
 /** Parse command-line arguments into a structured map. */
@@ -682,7 +684,7 @@ async function printRuntimeStartHelp(): Promise<void> {
 ## Usage
 
 \`\`\`
-toneforge runtime start [--scenario <file>] [--seed <number>] [--script <file>] [--json] [--cache-size <n>] [--iterations <n>] [--no-seed-variation]
+toneforge runtime start [--scenario <file>] [--seed <number>] [--script <file>] [--serve] [--json] [--cache-size <n>] [--iterations <n>] [--no-seed-variation]
 \`\`\`
 
 The session runs the runtime against a **live clock**: each command is applied
@@ -695,6 +697,7 @@ looping while \`state\`/\`context\` changes reconfigure it live.
 
 - \`state <name>\` — transition the state machine
 - \`context <dim>=<value> ...\` — update environment context
+- \`param <id> <name> <value>\` — adjust a continuous sound parameter (\`intensity\`, \`gain\`, \`pitch\`, \`filter\`); audible on the next loop pass
 - \`start [state]\` — start the continuous transport (optionally setting a state)
 - \`stop\` — stop the continuous transport
 - \`inspect\` — print the current runtime inspection
@@ -707,6 +710,7 @@ looping while \`state\`/\`context\` changes reconfigure it live.
 - \`--scenario <file>\` — Runtime scenario JSON (default: \`presets/runtime/footsteps.json\`)
 - \`--seed <number>\` — Override the scenario seed
 - \`--script <file>\` — Replay a command-per-line script non-interactively (deterministic clock) and exit
+- \`--serve\` — Run as a long-running service (no TTY required; stays alive after stdin closes; clean shutdown on SIGINT/SIGTERM or \`quit\`)
 - \`--json\` — Stream one JSON object per runtime event to stdout; no audio
 - \`--cache-size <n>\` — Maximum cached renders (default: 64)
 - \`--iterations <n>\` — Stop the transport after n loop iterations (default: 0 = unbounded)
@@ -720,6 +724,7 @@ toneforge runtime start
 toneforge runtime start --script ./session.tf.txt --iterations 4
 toneforge runtime start --script ./session.tf.txt --json --iterations 4
 toneforge runtime start --cache-size 128 --json
+toneforge runtime start --serve
 toneforge runtime start --seed 7
 \`\`\``;
   await outputMarkdown(md);
@@ -1381,6 +1386,58 @@ async function runInteractiveRuntimeSession(
       if (!opts.jsonMode && isTty) rl.prompt();
     }
   } finally {
+    rl.close();
+  }
+}
+
+/**
+ * Drive a long-running runtime service over stdin until a shutdown signal or a
+ * `quit`/`exit` command.
+ *
+ * Unlike the interactive session, reaching stdin EOF does **not** end the
+ * service: it keeps the runtime alive (processing commands as they arrive)
+ * until `service.stop()` is requested by a signal or a `quit` command.
+ */
+async function runServiceRuntimeSession(
+  session: RuntimeSession,
+  service: RuntimeService,
+  opts: { jsonMode: boolean },
+): Promise<void> {
+  const isTty = process.stdin.isTTY === true;
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+    terminal: isTty,
+    ...(opts.jsonMode ? {} : { prompt: "runtime> " }),
+  });
+
+  const onLine = (line: string): void => {
+    const result = session.handleCommand(line);
+    if (!opts.jsonMode && result.message) {
+      if (result.ok) {
+        outputInfo(result.message);
+      } else {
+        outputError(result.message);
+      }
+    }
+    if (result.type === "quit") service.stop("quit");
+  };
+
+  rl.on("line", onLine);
+  if (!opts.jsonMode && isTty) rl.prompt();
+
+  // A pending promise does not keep the Node event loop alive. Once stdin
+  // closes, the readline interface no longer holds the process open, so a
+  // referenced interval is required to keep a long-running service alive
+  // until `stop()` (signal or `quit`) resolves the wait.
+  const keepAlive = setInterval(() => {}, 60_000);
+
+  try {
+    // Keep the process alive until an explicit stop/quit or a shutdown signal;
+    // stdin EOF must not end service mode.
+    await service.wait();
+  } finally {
+    clearInterval(keepAlive);
     rl.close();
   }
 }
@@ -4468,6 +4525,7 @@ export async function dispatchCommand(
           : "presets/runtime/footsteps.json";
       const scriptPath =
         typeof flags["script"] === "string" ? flags["script"] : undefined;
+      const serveMode = flags["serve"] === true;
 
       let seedOverride: number | undefined;
       const seedRaw = flags["seed"];
@@ -4506,6 +4564,12 @@ export async function dispatchCommand(
         flags["seed-variation"] === false || flags["no-seed-variation"] === true
       );
 
+      if (serveMode && scriptPath !== undefined) {
+        const msg = "'--serve' cannot be combined with '--script'.";
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
       try {
         let scenario = await loadRuntimeScenario(scenarioPath);
         if (seedOverride !== undefined) {
@@ -4530,6 +4594,27 @@ export async function dispatchCommand(
                   playAudio(result.samples, { sampleRate: result.sampleRate }),
               }),
         });
+
+        if (serveMode) {
+          const service = createRuntimeService({
+            session,
+            onShutdown: (reason) => {
+              if (jsonMode) {
+                jsonOut({
+                  command: "runtime serve",
+                  shutdownReason: reason,
+                  stats: session.stats(),
+                });
+              } else {
+                outputInfo(`Runtime service stopped (${reason}).`);
+              }
+            },
+          });
+          service.start();
+          await runServiceRuntimeSession(session, service, { jsonMode });
+          service.stop("stopped");
+          return 0;
+        }
 
         if (scriptPath !== undefined) {
           let source: string;
