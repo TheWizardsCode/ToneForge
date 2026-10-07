@@ -101,7 +101,13 @@ describe("ToneGraph integration parity", () => {
   it("discovers all migrated recipes as file-backed registrations", async () => {
     const fileBackedRegistry = new RecipeRegistry();
     const discovered = await discoverFileBackedRecipes(fileBackedRegistry, { recipeDirectory: PRESETS_DIR });
-    expect(discovered.sort()).toEqual([...MIGRATED].sort());
+    // The migrated recipes are a subset of everything discovered from
+    // `presets/recipes/`; the recipe book (TF-0MUY9H7QZ000UX5W) adds more
+    // file-backed recipes alongside them, so assert containment rather than
+    // exact equality.
+    for (const recipeName of MIGRATED) {
+      expect(discovered).toContain(recipeName);
+    }
   });
 
   it("all migrated file-backed recipes are deterministic across three renders", async () => {
