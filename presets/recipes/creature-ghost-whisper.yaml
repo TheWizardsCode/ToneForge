@@ -1,0 +1,120 @@
+# Tier 5 — Character & critter voices (noise + tonal blend)
+# Ghost whisper.
+
+version: '0.1'
+meta:
+  name: creature-ghost-whisper
+  description: Ghost whisper
+  category: Creature
+  tags:
+  - casual
+  - fun
+  - creature
+  duration: 0.8
+  parameters:
+  - name: toneFreq
+    type: number
+    min: 380
+    max: 760
+    unit: Hz
+    default: 600
+    overrides:
+    - target: osc.frequency
+  - name: noiseLevel
+    type: number
+    min: 0.2
+    max: 0.8
+    unit: amplitude
+    default: 0.5
+    overrides:
+    - target: noise.level
+  - name: filterStart
+    type: number
+    min: 500
+    max: 1200
+    unit: Hz
+    default: 800
+    overrides:
+    - target: filter.automation.frequency.0.value
+  - name: filterEnd
+    type: number
+    min: 1400
+    max: 2800
+    unit: Hz
+    default: 2000
+    overrides:
+    - target: filter.automation.frequency.1.value
+  - name: attack
+    type: number
+    min: 0.02
+    max: 0.1
+    unit: s
+    default: 0.06
+    overrides:
+    - target: env.attack
+  - name: decay
+    type: number
+    min: 0.36
+    max: 0.7
+    unit: s
+    default: 0.5
+    overrides:
+    - target: env.decay
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 600
+    automation:
+      frequency:
+      - kind: set
+        time: 0.0
+        value: 600
+      - kind: linearRamp
+        time: 0.5
+        value: 500
+  noise:
+    kind: noise
+    params:
+      color: white
+      level: 0.5
+  filter:
+    kind: biquadFilter
+    params:
+      type: bandpass
+      frequency: 800
+      Q: 1.5
+    automation:
+      frequency:
+      - kind: set
+        time: 0.0
+        value: 800
+      - kind: linearRamp
+        time: 0.5
+        value: 2000
+  mix:
+    kind: gain
+    params:
+      gain: 0.75
+  env:
+    kind: envelope
+    params:
+      attack: 0.06
+      decay: 0.5
+      sustain: 0.0
+      release: 0.0
+  out:
+    kind: destination
+routing:
+- chain:
+  - osc
+  - mix
+- chain:
+  - noise
+  - filter
+  - mix
+- chain:
+  - mix
+  - env
+  - out

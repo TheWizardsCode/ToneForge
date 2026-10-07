@@ -157,11 +157,11 @@ describe("Recipe Book Roster", () => {
 });
 
 describe("Recipe Book Gates (delivered entries only)", () => {
-  for (var k = 0; k < recipeRoster.length; k++) {
-    var entry = recipeRoster[k]!;
-    var recipeName = entry.name;
-    var yamlPath = resolve(RECIPES_DIR, recipeName + ".yaml");
-    var isDelivered = existsSync(yamlPath);
+  for (let k = 0; k < recipeRoster.length; k++) {
+    const entry = recipeRoster[k]!;
+    const recipeName = entry.name;
+    const yamlPath = resolve(RECIPES_DIR, recipeName + ".yaml");
+    const isDelivered = existsSync(yamlPath);
 
     describe(recipeName + " (tier " + entry.tier + ")" + (isDelivered ? "" : " — not yet delivered"), () => {
       if (!isDelivered) {

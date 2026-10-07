@@ -48,8 +48,12 @@ if (entries.length !== 100) {
   process.exit(1);
 }
 
-// Sort by tier then name for deterministic order
-entries.sort((a, b) => a.tier - b.tier || a.name.localeCompare(b.name));
+// Preserve the roster's authored order within each tier (ascending complexity).
+// The roster is already tier-grouped and ordered; a stable sort by tier only
+// keeps the intended within-tier progression instead of re-sorting names
+// alphabetically, which would break the ascending-complexity contract and the
+// index-order gate in recipe-book.test.ts.
+entries.sort((a, b) => a.tier - b.tier);
 
 // ── Generate index ───────────────────────────────────────────────────────────
 

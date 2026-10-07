@@ -179,6 +179,148 @@ const narratives: Record<string, Narrative> = {
     intent:
       "A clear, neutral confirmation that a setting has been disabled.",
   },
+
+  // \u2500\u2500\u2500 Tier 5: Character & critter voices \u2500\u2500\u2500
+  "character-jump-voice": {
+    overview:
+      "A short, upward character utterance for a jump \u2014 a cheerful \"hup!\" that reads as effort leaving the ground. A sawtooth voice bent upward through a bandpass gives it a vowel-like, cartoonish lift.",
+    synthesis:
+      "A sawtooth oscillator rises exponentially from 180 Hz to 520 Hz while a bandpass filter at 900 Hz (Q 4) emphasises a single formant region, so the sweep reads as a spoken vowel rather than a plain glide. A fast 5 ms attack and a 220 ms decay keep the hop snappy.",
+    parameters:
+      "`startFreq`/`endFreq` set the register and span of the lift; `filterFreq` moves the formant that shapes the vowel; `attack`/`decay` tune the punch and length.",
+    intent:
+      "A joyful acknowledgement of a jump input that stays short enough to fire on every hop.",
+  },
+  "character-hurt-voice": {
+    overview:
+      "A pained character exclamation \u2014 an FM yelp that falls away as the character recoils, the descending brightness suggesting a flinch.",
+    synthesis:
+      "An `fmPattern` voice (carrier 300 Hz, modulator 450 Hz, index 9) carries a buzzy, vocal timbre while a lowpass filter sweeps from 1200 Hz down to 350 Hz, darkening the tone as it fades over 280 ms.",
+    parameters:
+      "`carrierFreq`/`modulatorFreq`/`modIndex` set the voice's timbre; `filterStart`/`filterEnd` set how quickly it darkens; `attack`/`decay` control the wince.",
+    intent:
+      "A readable hurt reaction that is expressive but never harsh on repeated playback.",
+  },
+  "character-happy-voice": {
+    overview:
+      "A bright, approving character chirp for a happy reaction \u2014 a short, bell-like FM \"yay\".",
+    synthesis:
+      "An `fmPattern` voice (carrier 520 Hz, modulator 780 Hz, index 4) produces a bell-like but still vocal tone; a quick 6 ms attack and a 240 ms decay give it a bouncy, cheerful shape.",
+    parameters:
+      "`carrierFreq`/`modulatorFreq` set the register and harmonic ratio; `modIndex` controls brightness and roughness; `attack`/`decay` tune the bounce.",
+    intent:
+      "A perky positive cue for rewards, greetings and friendly moments.",
+  },
+  "character-effort-grunt": {
+    overview:
+      "A low, breathy grunt for physical effort \u2014 a short burst of voice plus breath that reads as exertion.",
+    synthesis:
+      "A 120 Hz sine carries the pitched part of the grunt while white noise through a 600 Hz lowpass supplies the breath; the two are summed before a 200 ms envelope. This noise-plus-tonal blend is one of the tier's defining techniques.",
+    parameters:
+      "`toneFreq` sets the pitch of the voice; `noiseLevel` balances breath against tone; `filterFreq` darkens the noise; `attack`/`decay` shape the effort.",
+    intent:
+      "A grounded, physical effort cue for pushes, lifts, hits and landings.",
+  },
+  "character-sigh-voice": {
+    overview:
+      "A soft, deflating sigh \u2014 the sound of relief or resignation, with a falling pitch and a long breath tail.",
+    synthesis:
+      "A 320 Hz sine glides down to 180 Hz over 400 ms while pink noise at 0.35 passes through a 700 Hz bandpass and mixes with the tone. The slow 30 ms attack and 400 ms decay let the breath out gradually.",
+    parameters:
+      "`startFreq`/`endFreq` set the fall; `filterFreq` places the breath; `noiseLevel` balances air against voice; `attack`/`decay` control the length of the exhalation.",
+    intent:
+      "A gentle downward cue for letting go, disappointment or calm after action.",
+  },
+  "creature-blob-squish": {
+    overview:
+      "A gooey squish for a soft-bodied creature \u2014 a wet, downward thump with no pitched layer.",
+    synthesis:
+      "Pink noise through a resonant lowpass (Q 6) sweeps from 900 Hz down to 180 Hz, so the texture darkens and thickens as it closes. All of the character is in the filter movement, not a tonal carrier.",
+    parameters:
+      "`startFreq`/`endFreq` set the squash depth; `attack`/`decay` set how quickly the blob collapses.",
+    intent:
+      "A tactile, squishy impact for blobs, slimes and jelly enemies.",
+  },
+  "creature-bat-squeak": {
+    overview:
+      "A high, warbling bat squeak produced by rapid pitch modulation.",
+    synthesis:
+      "A sine at 1800 Hz is modulated by a 35 Hz LFO with \u00b1500 Hz depth, giving a fast vibrato that reads as a squeak rather than a steady tone. A very short 3 ms attack and 180 ms decay keep it in the high, chattery register.",
+    parameters:
+      "`lfoRate` sets the chatter speed; `lfoDepth` sets the warble width; `lfoOffset` shifts the whole squeak up or down; `attack`/`decay` trim the burst.",
+    intent:
+      "A nimble critter cry for small flying creatures.",
+  },
+  "creature-frog-croak": {
+    overview:
+      "A low, rattly frog croak with a distinctly non-musical timbre.",
+    synthesis:
+      "An `fmPattern` voice with a low 140 Hz carrier and an 85 Hz modulator at index 14 produces a dense, inharmonic rattle \u2014 the classic croak. A short 10 ms attack and a 300 ms decay give it the throaty push.",
+    parameters:
+      "`carrierFreq`/`modulatorFreq` set the pitch and rattle; `modIndex` controls the rasp; `attack`/`decay` tune the push and release.",
+    intent:
+      "A characterful low croak for amphibian creatures and swamp ambience.",
+  },
+  "creature-bird-chirp": {
+    overview:
+      "A quick, stepped bird chirp \u2014 three or four tiny notes that rise and fall like birdsong.",
+    synthesis:
+      "A sine begins at 2200 Hz, steps up to 3200 Hz, dips to 2400 Hz and finally rises to 3000 Hz via `set`/`linearRamp` automation. The stepped contour, rather than a smooth glide, is what makes it read as a chirp.",
+    parameters:
+      "`chirpLow`/`chirpHigh` set the register and the birdsong range; `attack`/`decay` set the note length.",
+    intent:
+      "A bright, friendly bird call for forest and meadow critters.",
+  },
+  "creature-slime-bounce": {
+    overview:
+      "A bouncy slime hop with a springy pitch contour and a soft filter.",
+    synthesis:
+      "A 400 Hz sine leaps to 700 Hz in 80 ms and settles back to 300 Hz, tracing the arc of a bounce. A 1200 Hz lowpass (Q 3) rounds off the top end so the bounce stays gooey rather than glassy.",
+    parameters:
+      "`startFreq`/`peakFreq` set the bounce height; `filterFreq` sets the softness; `attack`/`decay` trim the hop.",
+    intent:
+      "A playful movement cue for gelatinous creatures and balls.",
+  },
+  "critter-squeak-toy": {
+    overview:
+      "A bright, toy-like squeak for a cute critter \u2014 the sound of a rubber toy being squeezed.",
+    synthesis:
+      "An `fmPattern` voice at a high 1200 Hz carrier with a 1900 Hz modulator at index 7 gives the squeak its plasticky, hollow character. A 4 ms attack and a 200 ms decay keep it toylike.",
+    parameters:
+      "`carrierFreq`/`modulatorFreq` set the pitch and hollow tone; `modIndex` controls the squeakiness; `attack`/`decay` trim the squeeze.",
+    intent:
+      "A cheerful, compact squeak for mascots, pets and toy creatures.",
+  },
+  "critter-purr-soft": {
+    overview:
+      "A warm, continuous purr \u2014 a low rumble with a gentle amplitude flutter.",
+    synthesis:
+      "A 90 Hz sine and pink noise through a 450 Hz lowpass are summed, and the mix gain is modulated by a 24 Hz LFO, so the purr pulses rather than hisses. A slow 80 ms attack and a long 450 ms decay make it feel sustained.",
+    parameters:
+      "`toneFreq` sets the rumble pitch; `noiseLevel` balances breath; `filterFreq` darkens the texture; `purrRate`/`purrDepth` set the flutter; `attack`/`decay` shape the swell.",
+    intent:
+      "A comforting, contented purr for friendly critters and companions.",
+  },
+  "creature-ghost-whisper": {
+    overview:
+      "A breathy ghostly whisper, airy and unsettling but gentle rather than scary.",
+    synthesis:
+      "White noise through a bandpass that rises from 800 Hz to 2000 Hz supplies the breath, while a 600 Hz sine slides to 500 Hz underneath. The 60 ms attack and 500 ms decay let it emerge and fade like a whisper.",
+    parameters:
+      "`toneFreq` sets the underlying tone; `noiseLevel` balances air; `filterStart`/`filterEnd` set the breath sweep; `attack`/`decay` shape the fade.",
+    intent:
+      "A spooky-but-playful supernatural cue for ghosts and haunted spaces.",
+  },
+  "creature-dragon-huff": {
+    overview:
+      "A low, rasping dragon huff \u2014 a short breathy growl from a large creature.",
+    synthesis:
+      "An 80 Hz sawtooth and brown noise through a 400 Hz lowpass (Q 2) are summed, and the filter sweeps down to 150 Hz, so the huff darkens and settles. The low register conveys size and weight.",
+    parameters:
+      "`toneFreq` sets the growl pitch; `noiseLevel` balances the huff; `filterStart`/`filterEnd` set the darkening sweep; `attack`/`decay` trim the breath.",
+    intent:
+      "A weighty, imposing creature breath for dragons and beasts.",
+  },
 };
 
 function describeContour(contour: ContourEvent[]): string {

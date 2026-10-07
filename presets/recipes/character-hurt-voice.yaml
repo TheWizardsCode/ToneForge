@@ -1,0 +1,106 @@
+# Tier 5 — Character & critter voices (FM + filter sweep)
+# Character hurt voice.
+
+version: '0.1'
+meta:
+  name: character-hurt-voice
+  description: Character hurt voice
+  category: Character
+  tags:
+  - casual
+  - fun
+  - character
+  duration: 0.43
+  parameters:
+  - name: carrierFreq
+    type: number
+    min: 200
+    max: 420
+    unit: Hz
+    default: 300
+    overrides:
+    - target: fm.carrierFrequency
+  - name: modulatorFreq
+    type: number
+    min: 300
+    max: 640
+    unit: Hz
+    default: 450
+    overrides:
+    - target: fm.modulatorFrequency
+  - name: modIndex
+    type: number
+    min: 3
+    max: 16
+    unit: ratio
+    default: 9
+    overrides:
+    - target: fm.modulationIndex
+  - name: filterStart
+    type: number
+    min: 700
+    max: 1800
+    unit: Hz
+    default: 1200
+    overrides:
+    - target: filter.automation.frequency.0.value
+  - name: filterEnd
+    type: number
+    min: 180
+    max: 600
+    unit: Hz
+    default: 350
+    overrides:
+    - target: filter.automation.frequency.1.value
+  - name: attack
+    type: number
+    min: 0.003
+    max: 0.03
+    unit: s
+    default: 0.008
+    overrides:
+    - target: env.attack
+  - name: decay
+    type: number
+    min: 0.16
+    max: 0.4
+    unit: s
+    default: 0.28
+    overrides:
+    - target: env.decay
+nodes:
+  fm:
+    kind: fmPattern
+    params:
+      carrierFrequency: 300
+      modulatorFrequency: 450
+      modulationIndex: 9
+  filter:
+    kind: biquadFilter
+    params:
+      type: lowpass
+      frequency: 1200
+      Q: 1
+    automation:
+      frequency:
+      - kind: set
+        time: 0.0
+        value: 1200
+      - kind: exponentialRamp
+        time: 0.28
+        value: 350
+  env:
+    kind: envelope
+    params:
+      attack: 0.008
+      decay: 0.28
+      sustain: 0.0
+      release: 0.0
+  out:
+    kind: destination
+routing:
+- chain:
+  - fm
+  - filter
+  - env
+  - out
