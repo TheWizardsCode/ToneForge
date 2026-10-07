@@ -1,0 +1,80 @@
+# Tier 4 — Melodic motifs (3-note figure)
+# Quest-accept motif: a 3-note F major figure at 349, 440, 523 Hz.
+
+version: "0.1"
+meta:
+  name: motif-quest-accept
+  description: Quest-accept motif
+  category: UI
+  tags:
+    - casual
+    - joy
+    - motif
+  duration: 0.59
+  parameters:
+    - name: note1
+      type: number
+      min: 244
+      max: 488
+      unit: Hz
+      default: 349
+    - name: note2
+      type: number
+      min: 308
+      max: 616
+      unit: Hz
+      default: 440
+    - name: note3
+      type: number
+      min: 366
+      max: 732
+      unit: Hz
+      default: 523
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: triangle
+      frequency: 349
+    automation:
+      frequency:
+        - kind: set
+          time: 0.0
+          value: 349
+        - kind: set
+          time: 0.18
+          value: 440
+        - kind: set
+          time: 0.36
+          value: 523
+  gate:
+    kind: gain
+    params:
+      gain: 0
+    automation:
+      gain:
+        - kind: set
+          time: 0
+          value: 0
+        - kind: linearRamp
+          time: 0.01
+          value: 0.8
+        - kind: linearRamp
+          time: 0.15
+          value: 0
+        - kind: linearRamp
+          time: 0.19
+          value: 0.8
+        - kind: linearRamp
+          time: 0.33
+          value: 0
+        - kind: linearRamp
+          time: 0.37
+          value: 0.8
+        - kind: linearRamp
+          time: 0.51
+          value: 0
+  out:
+    kind: destination
+routing:
+  - chain: [osc, gate, out]

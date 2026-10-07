@@ -1,0 +1,65 @@
+# Tier 4 — Melodic motifs (2-note figure)
+# Tab-switch motif: a 2-note D minor figure at 294, 349 Hz.
+
+version: "0.1"
+meta:
+  name: ui-tab-switch-motif
+  description: Tab-switch motif
+  category: UI
+  tags:
+    - casual
+    - fun
+    - ui
+  duration: 0.41
+  parameters:
+    - name: note1
+      type: number
+      min: 205
+      max: 411
+      unit: Hz
+      default: 294
+    - name: note2
+      type: number
+      min: 244
+      max: 488
+      unit: Hz
+      default: 349
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: triangle
+      frequency: 294
+    automation:
+      frequency:
+        - kind: set
+          time: 0.0
+          value: 294
+        - kind: set
+          time: 0.18
+          value: 349
+  gate:
+    kind: gain
+    params:
+      gain: 0
+    automation:
+      gain:
+        - kind: set
+          time: 0
+          value: 0
+        - kind: linearRamp
+          time: 0.01
+          value: 0.8
+        - kind: linearRamp
+          time: 0.15
+          value: 0
+        - kind: linearRamp
+          time: 0.19
+          value: 0.8
+        - kind: linearRamp
+          time: 0.33
+          value: 0
+  out:
+    kind: destination
+routing:
+  - chain: [osc, gate, out]

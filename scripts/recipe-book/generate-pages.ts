@@ -186,12 +186,14 @@ function describeContour(contour: ContourEvent[]): string {
   const first = contour[0]!;
   const last = contour[contour.length - 1]!;
   const rising = last.value > first.value;
-  const rampKinds = [...new Set(contour.slice(1).map((e) => e.kind))].join("/");
-  const direction = rising ? "rising" : "falling";
-  const shape = rampKinds.includes("exponential")
-    ? "exponential"
-    : "linear";
+  const steps = contour.slice(1).map((e) => e.kind);
+  const stepped = steps.length > 0 && steps.every((k) => k === "set");
   const waypoints = contour.map((e) => `${e.value} Hz`).join(" → ");
+  if (stepped) {
+    return `The pitch steps through a ${contour.length}-note figure (${waypoints}) via scheduled set events on the frequency AudioParam, while a gain gate shapes each note into a short articulated motif.`;
+  }
+  const direction = rising ? "rising" : "falling";
+  const shape = steps.some((k) => k.includes("exponential")) ? "exponential" : "linear";
   return `The pitch follows a ${shape} ${direction} contour (${waypoints}) scheduled on the frequency AudioParam, so the sound bends rather than holding a fixed pitch.`;
 }
 
