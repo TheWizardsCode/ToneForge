@@ -332,7 +332,9 @@ interface TransportTask {
  * Harness for the continuous transport. Uses a virtual scheduler that runs
  * tasks in due-time order, so loop iterations are deterministic and instant.
  */
-function makeTransportHarness(opts: { maxIterations?: number; seedVariation?: boolean } = {}) {
+function makeTransportHarness(
+  opts: { maxIterations?: number; seedVariation?: boolean; scenario?: RuntimeScenario } = {},
+) {
   let now = 0;
   let order = 0;
   const tasks: TransportTask[] = [];
@@ -368,7 +370,7 @@ function makeTransportHarness(opts: { maxIterations?: number; seedVariation?: bo
   const events: RuntimeLogEntry[] = [];
 
   const session = createRuntimeSession({
-    scenario: sessionScenario(),
+    scenario: opts.scenario ?? sessionScenario(),
     cache,
     scheduler,
     play: (result) => {
@@ -434,6 +436,45 @@ function makeTransportHarness(opts: { maxIterations?: number; seedVariation?: bo
 }
 
 const WALK_EVENTS = 3;
+
+/**
+ * A scenario whose walk sequence is a single footstep with an explicit
+ * `loopInterval` (0.5s), so the transport period comes from the declared
+ * cadence rather than the event timing.
+ */
+function loopIntervalScenario(): RuntimeScenario {
+  return parseRuntimeScenario(
+    {
+      version: "1.0",
+      name: "loop_interval_test",
+      seed: 42,
+      stateMachine: {
+        name: "movement",
+        initial: "idle",
+        states: [
+          { name: "idle" },
+          { name: "walk", sequencer: "seq_walk" },
+        ],
+        transitions: [
+          { from: "idle", to: "walk" },
+          { from: "walk", to: "idle" },
+        ],
+      },
+      context: { initial: { surface: "stone" } },
+      sequences: {
+        seq_walk: {
+          version: "1.0",
+          name: "seq_walk",
+          loopInterval: 0.5,
+          events: [{ time: 0, event: "footstep", seedOffset: 0, gain: 0.7 }],
+        },
+      },
+      recipeResolver: { footstep: "footstep-{surface}" },
+      steps: [{ time: 0, state: "walk" }],
+    },
+    "loop-interval-test",
+  );
+}
 
 describe("createRuntimeSession — continuous transport", () => {
   it("start <state> loops the active sequence for maxIterations", async () => {
@@ -537,5 +578,36 @@ describe("createRuntimeSession — continuous transport", () => {
       return JSON.stringify(h.events.map((e) => e.event));
     };
     expect(await run()).toBe(await run());
+  });
+});
+
+describe("createRuntimeSession — loopInterval cadence", () => {
+  it("uses the sequence loopInterval as the transport period", async () => {
+    const h = makeTransportHarness({ maxIterations: 1, scenario: loopIntervalScenario() });
+    h.session.handleCommand("start walk");
+
+    // One footstep per activation.
+    await h.runSteps(1);
+    expect(h.firedSeeds()).toEqual([42]);
+
+    // The loop timer is scheduled one loopInterval (0.5s) after the event.
+    const loopTimer = h.tasks.filter((t) => !t.done && !t.cancelled)[0];
+    expect(loopTimer?.due).toBe(500);
+
+    // The first iteration refires with a varied seed and then stops.
+    await h.runToIdle();
+    expect(h.firedSeeds()).toEqual([42, 1042]);
+    expect(h.session.stats().transportRunning).toBe(false);
+  });
+
+  it("falls back to event-derived timing when loopInterval is absent", async () => {
+    const h = makeTransportHarness({ maxIterations: 1 });
+    h.session.handleCommand("start walk");
+    await h.runSteps(WALK_EVENTS);
+
+    // 3-event walk (0, 600, 1200) → period 1800ms.
+    const loopTimer = h.tasks.filter((t) => !t.done && !t.cancelled)[0];
+    expect(loopTimer?.due).toBe(1800);
+    h.session.stop();
   });
 });

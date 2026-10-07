@@ -261,8 +261,8 @@ describe("CLI runtime start — continuous transport", () => {
     const fires = records.filter(
       (r) => r.command === "runtime event" && r.event.type === "event_fire",
     );
-    // Initial batch (3 footsteps) + one loop iteration (3 more).
-    expect(fires.length).toBe(6);
+    // One footstep per state activation + one per loop iteration.
+    expect(fires.length).toBe(2);
 
     const summary = records.find((r) => r.command === "runtime start");
     expect(summary.stats.transportRunning).toBe(false);
@@ -283,6 +283,6 @@ describe("CLI runtime start — continuous transport", () => {
     const seeds = records
       .filter((r) => r.command === "runtime event" && r.event.type === "event_fire")
       .map((r) => r.event.detail.eventSeed);
-    expect(seeds.slice(0, 3)).toEqual(seeds.slice(3, 6));
+    expect(seeds.slice(0, 1)).toEqual(seeds.slice(1, 2));
   });
 });

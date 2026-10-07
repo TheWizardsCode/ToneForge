@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "name": "runtime_footsteps",
-  "description": "Scripted runtime demo: a character walks on stone, the surface changes to gravel, then sprints. The runtime resolves each footstep to a surface-specific recipe and renders it through the offline renderer.",
+  "description": "Scripted runtime demo: a character walks on stone, the surface changes to gravel, then sprints. Each state sequence is a single footstep; the recipe resolver picks the surface and the loop cadence is declared per sequence.",
   "seed": 42,
   "stateMachine": {
     "name": "movement",
@@ -35,31 +35,28 @@
     "footsteps_walk": {
       "version": "1.0",
       "name": "footsteps_walk",
-      "description": "Relaxed walking cadence (~0.6s per step).",
+      "description": "Single footstep; relaxed walking cadence (~0.6s per step).",
+      "loopInterval": 0.6,
       "events": [
-        { "time": 0.0, "event": "footstep", "seedOffset": 0, "gain": 0.7 },
-        { "time": 0.6, "event": "footstep", "seedOffset": 1, "gain": 0.65 },
-        { "time": 1.2, "event": "footstep", "seedOffset": 2, "gain": 0.7 }
+        { "time": 0.0, "event": "footstep", "seedOffset": 0, "gain": 0.7 }
       ]
     },
     "footsteps_run": {
       "version": "1.0",
       "name": "footsteps_run",
-      "description": "Running cadence (~0.35s per step).",
+      "description": "Single footstep; running cadence (~0.35s per step).",
+      "loopInterval": 0.35,
       "events": [
-        { "time": 0.0, "event": "footstep", "seedOffset": 0, "gain": 0.85 },
-        { "time": 0.35, "event": "footstep", "seedOffset": 1, "gain": 0.8 },
-        { "time": 0.7, "event": "footstep", "seedOffset": 2, "gain": 0.85 }
+        { "time": 0.0, "event": "footstep", "seedOffset": 0, "gain": 0.85 }
       ]
     },
     "footsteps_sprint": {
       "version": "1.0",
       "name": "footsteps_sprint",
-      "description": "Sprinting cadence (~0.25s per step).",
+      "description": "Single footstep; sprinting cadence (~0.25s per step).",
+      "loopInterval": 0.25,
       "events": [
-        { "time": 0.0, "event": "footstep", "seedOffset": 0, "gain": 1.0 },
-        { "time": 0.25, "event": "footstep", "seedOffset": 1, "gain": 0.95 },
-        { "time": 0.5, "event": "footstep", "seedOffset": 2, "gain": 1.0 }
+        { "time": 0.0, "event": "footstep", "seedOffset": 0, "gain": 1.0 }
       ]
     }
   },

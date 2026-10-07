@@ -4308,6 +4308,7 @@ export async function dispatchCommand(
               name: definition.name,
               description: definition.description || null,
               tempo: definition.tempo || null,
+              loopInterval: definition.loopInterval ?? null,
               events: definition.events.map((e, i) => ({
                 index: i,
                 time: e.time,
@@ -4329,6 +4330,9 @@ export async function dispatchCommand(
             }
             if (definition.tempo) {
               outputInfo(`  Tempo: ${definition.tempo} BPM`);
+            }
+            if (definition.loopInterval !== undefined) {
+              outputInfo(`  Loop interval: ${definition.loopInterval}s`);
             }
             outputInfo("");
 

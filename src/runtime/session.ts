@@ -180,11 +180,22 @@ function applyGain(result: RenderResult, gain: number): RenderResult {
 }
 
 /**
- * Compute the loop period of a simulated sequence: the last event time plus the
- * final inter-event gap, so the next iteration's first event lands one cadence
- * after the last event (rather than doubling it).
+ * Compute the loop period of a sequence.
+ *
+ * An explicit `loopInterval` (seconds) wins — it is the declared cadence for
+ * single-event patterns (e.g. a footstep). Otherwise the period is derived
+ * from the event timing: the last event time plus the final inter-event gap,
+ * so the next iteration's first event lands one cadence after the last event
+ * (rather than doubling it).
  */
-function computePatternPeriodMs(simulation: SimulationResult): number {
+function computePatternPeriodMs(
+  simulation: SimulationResult,
+  loopIntervalSeconds?: number,
+): number {
+  if (loopIntervalSeconds !== undefined && loopIntervalSeconds > 0) {
+    return loopIntervalSeconds * 1000;
+  }
+
   const events = simulation.events;
   if (events.length === 0) return 0;
 
@@ -345,7 +356,14 @@ export function createRuntimeSession(
     const simulation = runtime.simulateActive();
     if (!simulation) return;
 
-    const periodMs = computePatternPeriodMs(simulation);
+    const activeName = runtime.inspect().state?.activeSequence;
+    const activeSequence = activeName
+      ? scenario.sequences[activeName]
+      : undefined;
+    const periodMs = computePatternPeriodMs(
+      simulation,
+      activeSequence?.loopInterval,
+    );
     if (periodMs <= 0) return;
 
     loopCancel = scheduler(periodMs, () => {

@@ -13,7 +13,8 @@ description: >
 A game character walks across stone, the ground turns to gravel, and then
 they break into a sprint. Each footstep is a different sound, chosen by the
 **runtime** from the current state (walk / sprint) and environment context
-(surface: stone / gravel).
+(surface: stone / gravel). Each state sequence is a single footstep; the loop
+cadence is declared per sequence as `loopInterval`.
 
 The runtime is **render-backed**: it resolves every event to a concrete
 recipe, the existing offline renderer mixes the result, and the host playback
@@ -42,9 +43,10 @@ context.
 
 > [!commentary]
 > Listen for two independent changes. The **surface** change swaps the recipe
-> (stone to gravel), while the **state** change swaps the sequence (slower,
-> softer walking cadence to a faster, louder sprint). State and context are
-> orthogonal inputs to the same runtime.
+> (stone to gravel), while the **state** change swaps the (single-footstep)
+> sequence — its gain and character. In the live transport (Act 4) the state
+> also swaps the cadence, because each sequence declares its own
+> `loopInterval` (walk 0.6s, run 0.35s, sprint 0.25s).
 
 ## Act 2 — Inspect the resolved timeline
 
@@ -61,9 +63,10 @@ sequence, the original event name, and the **resolved** recipe name.
 
 > [!commentary]
 > Notice `originalRecipe: "footstep"` alongside `recipe: "footstep-gravel"`.
-> That is the recipe resolver doing context-driven switching. From time 0 to
-> 1.2s the surface is stone; at 1.4s the context changes to gravel and the
-> remaining footsteps resolve to gravel; at 2.8s the state becomes sprint.
+> That is the recipe resolver doing context-driven switching: a walk footstep
+> at 0s resolves to `footstep-stone`; at 1.4s the surface changes to gravel so
+> the next footstep resolves to `footstep-gravel`; at 2.8s the state becomes
+> sprint (still gravel). One footstep per phase.
 
 ## Act 3 — Export for CI
 
@@ -74,7 +77,7 @@ toneforge runtime demo --output ./runtime-demo/
 ```
 
 This writes the mixed `runtime-demo.wav`, one WAV per resolved event (for
-example `00-footstep-stone-seed42.wav` and `03-footstep-gravel-seed42.wav`),
+example `00-footstep-stone-seed42.wav` and `01-footstep-gravel-seed42.wav`),
 and a `timeline.json` describing the run — all without touching an audio
 device.
 
@@ -116,11 +119,13 @@ state sprint
 quit
 ```
 
-Each iteration re-resolves the cadence (state) and recipe (surface) and uses a
-distinct deterministic seed, so the loop evolves rather than repeating
-identically. `--iterations <n>` bounds the run; without it an interactive
-transport loops until `stop`/`quit`. `--no-seed-variation` makes every
-iteration identical, and `--json` streams the loop as a headless event log.
+Each iteration plays one footstep, resolving the recipe from the current
+surface, and waits the sequence's `loopInterval` before the next — so the
+state determines the cadence and each iteration uses a distinct deterministic
+seed, evolving rather than repeating identically. `--iterations <n>` bounds the
+run; without it an interactive transport loops until `stop`/`quit`.
+`--no-seed-variation` makes every iteration identical, and `--json` streams
+the loop as a headless event log.
 
 > [!commentary]
 > `start`/`stop` turn the runtime from a burst player into a sustained

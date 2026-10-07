@@ -453,7 +453,10 @@ toneforge runtime start --cache-size 128       # bound the render cache
   `src/runtime/session.ts`).
 - **Continuous transport.** `start` keeps the active sequence looping
   (re-arming after each pattern period) while `state`/`context` changes
-  reconfigure the loop live, and `stop` halts it. Iterations use a distinct,
+  reconfigure the loop live, and `stop` halts it. Each state sequence is a
+  single footstep; the loop period is the sequence's declared `loopInterval`
+  when present (walk `0.6`s, run `0.35`s, sprint `0.25`s), otherwise it is
+  derived from the event timing. Iterations use a distinct,
   deterministic seed derived from the iteration index (`--no-seed-variation`
   disables it), and `--iterations <n>` bounds a run so scripted/CI sessions
   terminate (interactive sessions are unbounded until `stop`/`quit`). The loop
