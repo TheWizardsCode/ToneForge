@@ -284,7 +284,11 @@ toneforge generate --recipe card-coin-spend --seed 42 --output ./filtered-export
 > `generate --output` to export. The filter flags do not change how
 > generation works. They narrow the list so you know what to generate.
 > For larger batches, pipe the `--json` output into a script that loops
-> over the recipe names and generates each one automatically.
+> over the recipe names and generates each one automatically. See
+> [`demos/machine-use.md`](machine-use.md) for a complete, runnable
+> example: the [`scripts/report-available-sounds.sh`](../scripts/report-available-sounds.sh)
+> batch script consumes `list recipes --json`, filters out already-used
+> sounds, and reports the remaining candidates.
 
 ## Recap -- What you just learned
 

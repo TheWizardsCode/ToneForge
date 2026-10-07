@@ -51,6 +51,15 @@ tf generate --recipe ui-scifi-confirm --seed 42
 npm run demo
 ```
 
+The guided walkthroughs live in [`demos/`](demos/) -- see the
+[Demo Index](demos/README.md#demo-index) for the full list. For a
+machine-consumption example, [`demos/machine-use.md`](demos/machine-use.md)
+walks through [`scripts/report-available-sounds.sh`](scripts/report-available-sounds.sh),
+a reusable batch script that consumes `toneforge list recipes --json`,
+filters out already-used sounds, and reports the remaining candidates as
+text or JSON -- useful when automating asset discovery in a build or CI
+pipeline.
+
 ### Run the web demo
 
 Starts the backend server and Vite dev server:
