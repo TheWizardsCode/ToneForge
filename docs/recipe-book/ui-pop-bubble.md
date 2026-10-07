@@ -17,7 +17,7 @@ description: "Bubbly pop for UI reveal"
 
 ### Synthesis
 
-It is built from a single sine tone shaped by The amplitude envelope runs attack 0.002s, decay 0.08s and sustain 0, so the tone opens quickly and then settles. The pitch follows a exponential rising contour (400 Hz → 800 Hz) scheduled on the oscillator's frequency AudioParam, so the note bends rather than holding a fixed pitch.
+It is built from a single sine tone, shaped by an amplitude envelope (attack 0.002s, decay 0.08s, sustain 0), which opens quickly and then settles. The pitch follows a exponential rising contour (400 Hz → 800 Hz) scheduled on the frequency AudioParam, so the sound bends rather than holding a fixed pitch.
 
 ### Parameters
 

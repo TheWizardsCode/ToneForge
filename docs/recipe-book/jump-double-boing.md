@@ -17,7 +17,7 @@ description: "Double-bounce jump with a springy pitch hop"
 
 ### Synthesis
 
-It is built from a single sine tone shaped by The amplitude envelope runs attack 0.005s, decay 0.2s and sustain 0, so the tone opens quickly and then settles. The pitch follows a linear rising contour (250 Hz → 500 Hz → 350 Hz) scheduled on the oscillator's frequency AudioParam, so the note bends rather than holding a fixed pitch.
+It is built from a single sine tone, shaped by an amplitude envelope (attack 0.005s, decay 0.2s, sustain 0), which opens quickly and then settles. The pitch follows a linear rising contour (250 Hz → 500 Hz → 350 Hz) scheduled on the frequency AudioParam, so the sound bends rather than holding a fixed pitch.
 
 ### Parameters
 

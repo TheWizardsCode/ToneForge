@@ -192,18 +192,24 @@ function describeContour(contour: ContourEvent[]): string {
     ? "exponential"
     : "linear";
   const waypoints = contour.map((e) => `${e.value} Hz`).join(" → ");
-  return `The pitch follows a ${shape} ${direction} contour (${waypoints}) scheduled on the oscillator's frequency AudioParam, so the note bends rather than holding a fixed pitch.`;
+  return `The pitch follows a ${shape} ${direction} contour (${waypoints}) scheduled on the frequency AudioParam, so the sound bends rather than holding a fixed pitch.`;
 }
 
 function fallbackNarrative(name: string, meta: RecipeMeta): Narrative {
   const { description, tags, kind, parameters, contour, envelope, waveform } = meta;
+  const sourceKind = meta.sourceKind ?? kind;
   const contourText = contour && contour.length > 1 ? describeContour(contour) : "";
   const envText = envelope
-    ? `The amplitude envelope runs attack ${envelope.attack}s, decay ${envelope.decay}s and sustain ${envelope.sustain}, so the tone opens quickly and then settles.`
-    : "The amplitude envelope keeps the sound compact.";
+    ? `an amplitude envelope (attack ${envelope.attack}s, decay ${envelope.decay}s, sustain ${envelope.sustain}), which opens quickly and then settles`
+    : "a compact amplitude envelope";
+  const source = sourceKind === "noise"
+    ? `a ${meta.noiseColor ?? "filtered"}-noise source through a ${meta.filterType ?? "biquad"} filter${meta.filterQ !== undefined ? ` (Q=${meta.filterQ})` : ""}`
+    : sourceKind === "fmPattern"
+      ? "an FM (fmPattern) voice"
+      : `a single ${waveform ?? sourceKind} tone`;
   const synth = contourText
-    ? `It is built from a single ${waveform ?? kind} tone shaped by ${envText} ${contourText}`
-    : `It is built from a single ${kind} tone shaped by ${envText} No additional processing is required, so it renders quickly and deterministically.`;
+    ? `It is built from ${source}, shaped by ${envText}. ${contourText}`
+    : `It is built from ${source}, shaped by ${envText}. No additional processing is required, so it renders quickly and deterministically.`;
   const paramNames = parameters.map((p) => `\`${p.name}\``).join(", ");
   return {
     overview: `\`${name}\` provides ${description.toLowerCase()}. It belongs to the casual recipe family (${tags.join(", ")}) and is designed to be short, characterful and easy to layer.`,
@@ -250,6 +256,10 @@ interface RecipeMeta {
   parameters: Array<{ name: string; type: string; min?: number; max?: number; unit?: string; default?: unknown }>;
   contour?: ContourEvent[];
   envelope?: EnvelopeShape;
+  sourceKind?: string;
+  noiseColor?: string;
+  filterType?: string;
+  filterQ?: number;
 }
 
 function loadRecipe(name: string): RecipeMeta | null {
@@ -263,20 +273,38 @@ function loadRecipe(name: string): RecipeMeta | null {
     kinds.find((k) => ["oscillator", "noise", "fmPattern", "bufferSource", "lfo"].includes(k)) ??
     "oscillator";
 
-  // First oscillator node (with optional waveform + frequency automation)
+  // First oscillator/noise/FM source, plus any frequency automation and envelope
   let waveform: string | undefined;
+  let noiseColor: string | undefined;
+  let filterType: string | undefined;
+  let filterQ: number | undefined;
+  let fmIndex: number | undefined;
   let contour: ContourEvent[] | undefined;
   let envelope: EnvelopeShape | undefined;
+  const extractContour = (events: unknown): ContourEvent[] | undefined => {
+    if (!Array.isArray(events)) return undefined;
+    const out = events
+      .filter((e: any) => e && typeof e.value === "number")
+      .map((e: any) => ({ kind: String(e.kind), time: Number(e.time), value: Number(e.value) }));
+    return out.length > 1 ? out : undefined;
+  };
   for (const node of Object.values(nodes)) {
     if (!node || typeof node !== "object") continue;
-    if (node.kind === "oscillator" && !waveform) {
+    if (node.kind === "oscillator" && waveform === undefined) {
       waveform = node.params?.type;
-      const events = node.automation?.frequency;
-      if (Array.isArray(events)) {
-        contour = events
-          .filter((e: any) => e && typeof e.value === "number")
-          .map((e: any) => ({ kind: String(e.kind), time: Number(e.time), value: Number(e.value) }));
-      }
+    }
+    if (node.kind === "noise" && noiseColor === undefined) {
+      noiseColor = node.params?.color;
+    }
+    if (node.kind === "fmPattern" && fmIndex === undefined) {
+      fmIndex = node.params?.modulationIndex;
+    }
+    if (node.kind === "biquadFilter" && filterType === undefined) {
+      filterType = node.params?.type;
+      filterQ = node.params?.Q;
+    }
+    if (contour === undefined) {
+      contour = extractContour(node.automation?.frequency);
     }
     if (node.kind === "envelope" && !envelope) {
       envelope = node.params as EnvelopeShape;
@@ -289,10 +317,14 @@ function loadRecipe(name: string): RecipeMeta | null {
     tags: (meta.tags as string[]) ?? [],
     kind: kind === "oscillator" ? "oscillator" : kind,
     category: String(meta.category ?? "UI"),
-    waveform,
+    waveform: waveform ?? noiseColor ?? (fmIndex !== undefined ? "fmPattern" : undefined),
     parameters: params,
     contour,
     envelope,
+    sourceKind: kind,
+    noiseColor,
+    filterType,
+    filterQ,
   };
 }
 

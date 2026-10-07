@@ -1,0 +1,59 @@
+# Tier 3 — Textured & filtered (filtered noise)
+# Static crackle texture: a white-noise source shaped by a highpass filter at 5000 Hz (Q=1).
+
+version: "0.1"
+meta:
+  name: texture-static-crackle
+  description: Static crackle texture
+  category: Texture
+  tags:
+    - casual
+    - fun
+    - texture
+  duration: 0.421
+  parameters:
+    - name: filterFreq
+      type: number
+      min: 2500
+      max: 9000
+      unit: Hz
+      default: 5000
+    - name: attack
+      type: number
+      min: 0.001
+      max: 0.02
+      unit: s
+      default: 0.001
+    - name: decay
+      type: number
+      min: 0.09
+      max: 0.39
+      unit: s
+      default: 0.3
+nodes:
+  noise:
+    kind: noise
+    params:
+      color: white
+      level: 1
+  filter:
+    kind: biquadFilter
+    params:
+      type: highpass
+      frequency: 5000
+      Q: 1
+  level:
+    kind: gain
+    params:
+      gain: 0.62
+  env:
+    kind: envelope
+    params:
+      attack: 0.001
+      decay: 0.3
+      sustain: 0
+      release: 0
+  out:
+    kind: destination
+routing:
+  - chain: [noise, filter, level, env, out]

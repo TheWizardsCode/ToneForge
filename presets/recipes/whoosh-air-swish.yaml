@@ -1,0 +1,73 @@
+# Tier 3 — Textured & filtered (filter sweep)
+# Air swish whoosh: a white-noise source swept through a bandpass filter from 500 Hz to 3000 Hz (Q=3).
+
+version: "0.1"
+meta:
+  name: whoosh-air-swish
+  description: Air swish whoosh
+  category: Impact
+  tags:
+    - casual
+    - fun
+    - whoosh
+  duration: 0.44
+  parameters:
+    - name: startFreq
+      type: number
+      min: 250
+      max: 800
+      unit: Hz
+      default: 500
+    - name: endFreq
+      type: number
+      min: 1800
+      max: 5400
+      unit: Hz
+      default: 3000
+    - name: attack
+      type: number
+      min: 0.001
+      max: 0.05
+      unit: s
+      default: 0.02
+    - name: decay
+      type: number
+      min: 0.09
+      max: 0.39
+      unit: s
+      default: 0.3
+nodes:
+  noise:
+    kind: noise
+    params:
+      color: white
+      level: 1
+  filter:
+    kind: biquadFilter
+    params:
+      type: bandpass
+      frequency: 500
+      Q: 3
+    automation:
+      frequency:
+        - kind: set
+          time: 0
+          value: 500
+        - kind: linearRamp
+          time: 0.32
+          value: 3000
+  level:
+    kind: gain
+    params:
+      gain: 0.58
+  env:
+    kind: envelope
+    params:
+      attack: 0.02
+      decay: 0.3
+      sustain: 0
+      release: 0
+  out:
+    kind: destination
+routing:
+  - chain: [noise, filter, level, env, out]

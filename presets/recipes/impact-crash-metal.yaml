@@ -1,0 +1,59 @@
+# Tier 3 — Textured & filtered (filtered noise)
+# Metal crash with resonant ring: a white-noise source shaped by a bandpass filter at 3200 Hz (Q=8).
+
+version: "0.1"
+meta:
+  name: impact-crash-metal
+  description: Metal crash with resonant ring
+  category: Impact
+  tags:
+    - casual
+    - fun
+    - impact
+  duration: 0.356
+  parameters:
+    - name: filterFreq
+      type: number
+      min: 1600
+      max: 5760
+      unit: Hz
+      default: 3200
+    - name: attack
+      type: number
+      min: 0.001
+      max: 0.02
+      unit: s
+      default: 0.001
+    - name: decay
+      type: number
+      min: 0.075
+      max: 0.325
+      unit: s
+      default: 0.25
+nodes:
+  noise:
+    kind: noise
+    params:
+      color: white
+      level: 1
+  filter:
+    kind: biquadFilter
+    params:
+      type: bandpass
+      frequency: 3200
+      Q: 8
+  level:
+    kind: gain
+    params:
+      gain: 0.62
+  env:
+    kind: envelope
+    params:
+      attack: 0.001
+      decay: 0.25
+      sustain: 0
+      release: 0
+  out:
+    kind: destination
+routing:
+  - chain: [noise, filter, level, env, out]

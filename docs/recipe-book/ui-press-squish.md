@@ -17,7 +17,7 @@ description: "Squishy press shape for button actuation"
 
 ### Synthesis
 
-It is built from a single triangle tone shaped by The amplitude envelope runs attack 0.005s, decay 0.1s and sustain 0, so the tone opens quickly and then settles. The pitch follows a exponential falling contour (500 Hz → 250 Hz) scheduled on the oscillator's frequency AudioParam, so the note bends rather than holding a fixed pitch.
+It is built from a single triangle tone, shaped by an amplitude envelope (attack 0.005s, decay 0.1s, sustain 0), which opens quickly and then settles. The pitch follows a exponential falling contour (500 Hz → 250 Hz) scheduled on the frequency AudioParam, so the sound bends rather than holding a fixed pitch.
 
 ### Parameters
 
