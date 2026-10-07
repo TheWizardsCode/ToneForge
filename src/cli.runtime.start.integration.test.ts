@@ -88,6 +88,9 @@ describe("CLI runtime start — help", () => {
     expect(stdout).toContain("state <name>");
     expect(stdout).toContain("--script");
     expect(stdout).toContain("--cache-size");
+    expect(stdout).toContain("--iterations");
+    expect(stdout).toContain("start [state]");
+    expect(stdout).toContain("stop");
   });
 
   it("lists start in the runtime command help", async () => {
@@ -233,5 +236,53 @@ describe("CLI runtime start — --script (human)", () => {
     expect(code).toBe(0);
     expect(stderr).toContain("Unknown command");
     expect(stdout).toContain("State: idle -> walk");
+  });
+});
+
+// ── Continuous transport ──────────────────────────────────────────
+
+describe("CLI runtime start — continuous transport", () => {
+  it("rejects a negative --iterations", async () => {
+    const { code, stderr } = await captureOutput(() =>
+      main(argv("runtime", "start", "--iterations", "-1", "--script", writeScript("quit\n"), "--json")),
+    );
+    expect(code).toBe(1);
+    expect(stderr).toContain("--iterations");
+  });
+
+  it("loops the transport for --iterations and reports the count", async () => {
+    const script = writeScript("start walk\nquit\n");
+    const { code, stdout } = await captureOutput(() =>
+      main(argv("runtime", "start", "--script", script, "--json", "--iterations", "1")),
+    );
+    expect(code).toBe(0);
+
+    const records = stdout.split("\n").filter(Boolean).map((l) => JSON.parse(l));
+    const fires = records.filter(
+      (r) => r.command === "runtime event" && r.event.type === "event_fire",
+    );
+    // Initial batch (3 footsteps) + one loop iteration (3 more).
+    expect(fires.length).toBe(6);
+
+    const summary = records.find((r) => r.command === "runtime start");
+    expect(summary.stats.transportRunning).toBe(false);
+    expect(summary.stats.iteration).toBe(1);
+  });
+
+  it("repeats seeds across iterations with --no-seed-variation", async () => {
+    const script = writeScript("start walk\nquit\n");
+    const { code, stdout } = await captureOutput(() =>
+      main(argv(
+        "runtime", "start", "--script", script, "--json",
+        "--iterations", "1", "--no-seed-variation",
+      )),
+    );
+    expect(code).toBe(0);
+
+    const records = stdout.split("\n").filter(Boolean).map((l) => JSON.parse(l));
+    const seeds = records
+      .filter((r) => r.command === "runtime event" && r.event.type === "event_fire")
+      .map((r) => r.event.detail.eventSeed);
+    expect(seeds.slice(0, 3)).toEqual(seeds.slice(3, 6));
   });
 });

@@ -10,12 +10,17 @@
  * through the cache, and schedules each buffer at its sequence-relative time on
  * the host playback path.
  *
+ * The session also provides a **continuous transport**: `start` keeps the
+ * active sequence looping (re-arming after each pattern period) while state and
+ * context changes reconfigure the loop live, and `stop` halts it. Iterations
+ * use a distinct, deterministic seed derived from the iteration index.
+ *
  * The module is host- and runtime-agnostic: `scheduler` and `play` are
  * injectable, and the default scheduler (`setTimeout`) works in Node and the
  * browser. The caller supplies the host `play` (Node `playAudio`; browser
  * `AudioBufferSourceNode`).
  *
- * Reference: docs/prd/RUNTIME_PRD.md §3, §6, §19
+ * Reference: docs/prd/RUNTIME_PRD.md §3, §5, §6, §19
  */
 
 import type { RenderResult } from "../core/renderer.js";
@@ -23,9 +28,10 @@ import { createStateMachine } from "../state/state.js";
 import { createContext } from "../context/context.js";
 import { createRuntime } from "./runtime.js";
 import type { Runtime, RuntimeLogEntry } from "./runtime.js";
+import type { SimulationResult } from "../sequence/simulator.js";
 import { createTemplateRecipeResolver } from "./scenario.js";
 import type { RuntimeScenario } from "./scenario.js";
-import type { BufferCache } from "./buffer-cache.js";
+import type { BufferCache, BufferCacheStats } from "./buffer-cache.js";
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -45,6 +51,8 @@ export interface SessionCommandResult {
   type:
     | "state"
     | "context"
+    | "start"
+    | "stop"
     | "inspect"
     | "reset"
     | "help"
@@ -89,6 +97,19 @@ export interface RuntimeSessionOptions {
 
   /** Render and schedule events for playback (default: true). */
   schedulePlayback?: boolean;
+
+  /**
+   * Vary the event seed on each transport iteration (default: true) so a loop
+   * does not repeat identically. Deterministic: derived from the iteration
+   * index, not the clock.
+   */
+  seedVariation?: boolean;
+
+  /**
+   * Stop the transport automatically after this many loop iterations
+   * (default: 0 → unbounded). Bounds scripted/`--json` runs.
+   */
+  maxIterations?: number;
 }
 
 /** Session statistics. */
@@ -97,8 +118,12 @@ export interface RuntimeSessionStats {
   eventCount: number;
   /** Playback tasks currently scheduled. */
   pendingTasks: number;
+  /** Whether the continuous transport is running. */
+  transportRunning: boolean;
+  /** Number of completed transport loop iterations. */
+  iteration: number;
   /** Render-cache statistics. */
-  cache: ReturnType<BufferCache["stats"]>;
+  cache: BufferCacheStats;
 }
 
 /** Runtime session API. */
@@ -119,7 +144,10 @@ export interface RuntimeSession {
   /** Resolve once all currently-scheduled playback tasks have run. */
   waitForIdle(): Promise<void>;
 
-  /** Cancel pending playback and stop the runtime. */
+  /** Resolve once the continuous transport stops (bounded or via `stop`). */
+  waitForTransportIdle(): Promise<void>;
+
+  /** Cancel pending playback and the transport, then stop the runtime. */
   stop(): void;
 
   /** Session statistics snapshot. */
@@ -133,6 +161,14 @@ const DEFAULT_SCHEDULER: SessionScheduler = (delayMs, task) => {
   return () => clearTimeout(handle);
 };
 
+/**
+ * Seed stride between transport iterations.
+ *
+ * Larger than any realistic sequence `seedOffset`, so iteration `n`'s event
+ * seeds never collide with iteration `n-1`'s.
+ */
+const SEED_STRIDE = 1000;
+
 /** Apply a gain multiplier to a rendered buffer (no-op for unity gain). */
 function applyGain(result: RenderResult, gain: number): RenderResult {
   if (gain === 1) return result;
@@ -143,10 +179,29 @@ function applyGain(result: RenderResult, gain: number): RenderResult {
   return { ...result, samples };
 }
 
+/**
+ * Compute the loop period of a simulated sequence: the last event time plus the
+ * final inter-event gap, so the next iteration's first event lands one cadence
+ * after the last event (rather than doubling it).
+ */
+function computePatternPeriodMs(simulation: SimulationResult): number {
+  const events = simulation.events;
+  if (events.length === 0) return 0;
+
+  const last = events[events.length - 1]!.time_ms;
+  if (events.length === 1) return Math.max(last, 0) + 1000;
+
+  const previous = events[events.length - 2]!.time_ms;
+  const gap = Math.max(1, last - previous);
+  return last + gap;
+}
+
 const HELP_TEXT = [
   "Commands:",
   "  state <name>                 transition the state machine",
   "  context <dim>=<value> ...    update environment context",
+  "  start [state]                start/inspect the continuous transport",
+  "  stop                         stop the continuous transport",
   "  inspect                      print the current runtime inspection",
   "  reset                        reset state/context and restart",
   "  help                         show this help",
@@ -173,6 +228,8 @@ export function createRuntimeSession(
     virtualClock = false,
     clockStart = 0,
     schedulePlayback = true,
+    seedVariation = true,
+    maxIterations = 0,
   } = options;
 
   const seed = options.seed ?? scenario.seed;
@@ -197,6 +254,12 @@ export function createRuntimeSession(
   let eventCount = 0;
   const idleWaiters: Array<() => void> = [];
   const scheduledBySequence = new Map<string, Set<() => void>>();
+
+  // Transport bookkeeping.
+  let transportRunning = false;
+  let iteration = 0;
+  let loopCancel: (() => void) | null = null;
+  const transportWaiters: Array<() => void> = [];
 
   function resolveIdleWaiters(): void {
     if (pending === 0) {
@@ -248,6 +311,55 @@ export function createRuntimeSession(
       for (const cancel of set) cancel();
     }
     scheduledBySequence.clear();
+  }
+
+  // ── Transport ──
+
+  function clearLoopTimer(): void {
+    if (loopCancel) {
+      loopCancel();
+      loopCancel = null;
+    }
+  }
+
+  function resolveTransportWaiters(): void {
+    for (const resolve of transportWaiters.splice(0)) resolve();
+  }
+
+  function stopTransport(): void {
+    transportRunning = false;
+    clearLoopTimer();
+    cancelAll();
+    resolveTransportWaiters();
+  }
+
+  /**
+   * (Re-)arm the loop: after one pattern period, advance the iteration, refire
+   * the active sequence, and re-arm. Safe to call repeatedly (cancels any
+   * pending loop timer first), which is how state/context changes retune it.
+   */
+  function armLoop(): void {
+    clearLoopTimer();
+    if (!transportRunning) return;
+
+    const simulation = runtime.simulateActive();
+    if (!simulation) return;
+
+    const periodMs = computePatternPeriodMs(simulation);
+    if (periodMs <= 0) return;
+
+    loopCancel = scheduler(periodMs, () => {
+      loopCancel = null;
+      if (!transportRunning) return;
+      if (maxIterations > 0 && iteration >= maxIterations) {
+        stopTransport();
+        return;
+      }
+      iteration++;
+      if (virtualClock) clockMs += periodMs;
+      runtime.refireActive(seedVariation ? iteration * SEED_STRIDE : 0);
+      armLoop();
+    });
   }
 
   const runtime = createRuntime({
@@ -308,6 +420,7 @@ export function createRuntimeSession(
         }
         try {
           const record = runtime.setState(rest[0]!);
+          if (transportRunning) armLoop();
           return {
             ok: true,
             type: "state",
@@ -340,6 +453,7 @@ export function createRuntimeSession(
         }
         try {
           const changes = runtime.setContext(updates);
+          if (transportRunning) armLoop();
           const summary =
             changes.length === 0
               ? "Context unchanged."
@@ -355,6 +469,45 @@ export function createRuntimeSession(
         }
       }
 
+      case "start": {
+        if (rest.length > 1) {
+          return { ok: false, type: "error", message: "Usage: start [state]" };
+        }
+        const stateArg = rest[0];
+        if (stateArg !== undefined) {
+          try {
+            runtime.setState(stateArg);
+          } catch (error) {
+            return { ok: false, type: "error", message: errorMessage(error) };
+          }
+        }
+        if (!transportRunning) {
+          transportRunning = true;
+          iteration = 0;
+        }
+        armLoop();
+        const active = runtime.inspect().state?.activeSequence;
+        return {
+          ok: true,
+          type: "start",
+          message: active
+            ? `Transport started (sequence: ${active}).`
+            : "Transport started; set a state to hear a sequence.",
+        };
+      }
+
+      case "stop": {
+        const wasRunning = transportRunning;
+        stopTransport();
+        return {
+          ok: true,
+          type: "stop",
+          message: wasRunning
+            ? "Transport stopped."
+            : "Transport is not running.",
+        };
+      }
+
       case "inspect": {
         return {
           ok: true,
@@ -364,7 +517,7 @@ export function createRuntimeSession(
       }
 
       case "reset": {
-        cancelAll();
+        stopTransport();
         runtime.reset();
         runtime.start();
         return { ok: true, type: "reset", message: "Session reset." };
@@ -413,8 +566,15 @@ export function createRuntimeSession(
       });
     },
 
+    waitForTransportIdle(): Promise<void> {
+      if (!transportRunning) return Promise.resolve();
+      return new Promise<void>((resolve) => {
+        transportWaiters.push(resolve);
+      });
+    },
+
     stop(): void {
-      cancelAll();
+      stopTransport();
       if (runtime.isRunning()) runtime.stop();
     },
 
@@ -422,6 +582,8 @@ export function createRuntimeSession(
       return {
         eventCount,
         pendingTasks: pending,
+        transportRunning,
+        iteration,
         cache: cache.stats(),
       };
     },

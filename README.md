@@ -101,19 +101,27 @@ buffer cache and scheduling it for playback at its sequence-relative time:
 
 ```bash
 toneforge runtime start
-# runtime> state walk
+# runtime> start walk          # begin continuous footsteps
 # runtime> context surface=gravel
 # runtime> state sprint
+# runtime> stop
 # runtime> quit
 ```
 
+`start` runs a **continuous transport** that keeps the active sequence looping;
+`state`/`context` changes reconfigure it live and `stop` halts it. Each
+iteration uses a distinct deterministic seed, so the loop evolves rather than
+repeating identically.
+
 For deterministic, non-interactive replay (and CI), use a command script —
-`--json` streams one JSON object per runtime event and performs no playback:
+`--json` streams one JSON object per runtime event and performs no playback,
+and `--iterations` bounds the loop so it terminates:
 
 ```bash
 toneforge runtime start --script ./session.txt
-toneforge runtime start --script ./session.txt --json
-toneforge runtime start --cache-size 128
+toneforge runtime start --script ./session.txt --iterations 4
+toneforge runtime start --script ./session.txt --json --iterations 4
+toneforge runtime start --cache-size 128 --no-seed-variation
 ```
 
 See [RUNTIME_PRD.md §19](docs/prd/RUNTIME_PRD.md) and

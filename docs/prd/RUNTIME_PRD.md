@@ -440,6 +440,7 @@ session exposes that directly, rather than scripting it:
 toneforge runtime start                       # interactive session (live clock)
 toneforge runtime start --script ./session.txt # deterministic replay, then exit
 toneforge runtime start --script ./session.txt --json   # CI: stream events, no audio
+toneforge runtime start --script ./session.txt --iterations 4  # bounded loop
 toneforge runtime start --cache-size 128       # bound the render cache
 ```
 
@@ -447,8 +448,16 @@ toneforge runtime start --cache-size 128       # bound the render cache
   applied immediately, so `state walk` / `context surface=gravel` take effect
   as they arrive. `--script` switches to a deterministic virtual clock for
   reproducible replay.
-- **Command surface.** `state <name>`, `context <dim>=<value> ...`, `inspect`,
-  `reset`, `help`, and `quit`/`exit` (see `src/runtime/session.ts`).
+- **Command surface.** `state <name>`, `context <dim>=<value> ...`,
+  `start [state]`, `stop`, `inspect`, `reset`, `help`, and `quit`/`exit` (see
+  `src/runtime/session.ts`).
+- **Continuous transport.** `start` keeps the active sequence looping
+  (re-arming after each pattern period) while `state`/`context` changes
+  reconfigure the loop live, and `stop` halts it. Iterations use a distinct,
+  deterministic seed derived from the iteration index (`--no-seed-variation`
+  disables it), and `--iterations <n>` bounds a run so scripted/CI sessions
+  terminate (interactive sessions are unbounded until `stop`/`quit`). The loop
+  re-fires the active sequence through `runtime.refireActive(seedOffset)`.
 - **Buffer cache.** `src/runtime/buffer-cache.ts` is a bounded LRU keyed by
   `(recipe, seed, overrides)` (§19.5); repeated events reuse renders and
   eviction is deterministic.
@@ -461,7 +470,10 @@ toneforge runtime start --cache-size 128       # bound the render cache
   performs no rendering or playback, so the session is verifiable in CI.
 
 Audible `setSfxParameter` modulation and long‑running service mode are tracked
-as a follow‑up (TF‑0MUYBRRCQ00148QD) and remain out of scope here.
+as a follow‑up (TF‑0MUYBRRCQ00148QD) and remain out of scope here. Because the
+Node playback path plays a whole WAV per event, that follow‑up's parameter
+modulation will be **iteration‑granular** (audible on the next loop pass), not
+sample‑accurate, unless a persistent Web Audio real‑time graph is added.
 
 ---
 

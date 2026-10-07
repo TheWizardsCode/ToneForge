@@ -87,30 +87,45 @@ device.
 
 > The scripted demo is deterministic, but the runtime is meant to be embedded.
 > In a live session the runtime runs against a real clock, so commands take
-> effect as they arrive and each event is scheduled for playback immediately.
+> effect as they arrive — and `start` keeps the footsteps going instead of
+> firing a single burst.
+
+Interactively, `start` begins a **continuous transport** and `stop` halts it:
+
+```
+runtime> start walk
+runtime> context surface=gravel
+runtime> state sprint
+runtime> stop
+runtime> quit
+```
+
+For a deterministic, CI-friendly version, run a command script with a loop
+bound:
 
 ```bash
-toneforge runtime start --script demos/fixtures/runtime-session.txt
+toneforge runtime start --script demos/fixtures/runtime-session.txt --iterations 3
 ```
 
 Where `demos/fixtures/runtime-session.txt` is one command per line:
 
 ```
-state walk
+start walk
 context surface=gravel
 state sprint
 quit
 ```
 
-Each resolved event is rendered through a bounded LRU buffer cache and played
-at its sequence-relative time; a state change cancels the previous pattern's
-pending playback. Use `--json` for a headless event stream (no audio), and
-`--cache-size <n>` to bound the cache.
+Each iteration re-resolves the cadence (state) and recipe (surface) and uses a
+distinct deterministic seed, so the loop evolves rather than repeating
+identically. `--iterations <n>` bounds the run; without it an interactive
+transport loops until `stop`/`quit`. `--no-seed-variation` makes every
+iteration identical, and `--json` streams the loop as a headless event log.
 
 > [!commentary]
-> `runtime start` is the runtime as a host would use it — an event-driven
-> engine you feed state and context. `runtime demo` is the same engine driven
-> by a fixed script for reproducible listening and CI. See
+> `start`/`stop` turn the runtime from a burst player into a sustained
+> behavioural engine: the footsteps keep playing while you retune state and
+> environment. `runtime demo` remains the fixed-script listening example; see
 > `docs/prd/RUNTIME_PRD.md` §19.10.
 
 ## Recap

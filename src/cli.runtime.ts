@@ -682,18 +682,21 @@ async function printRuntimeStartHelp(): Promise<void> {
 ## Usage
 
 \`\`\`
-toneforge runtime start [--scenario <file>] [--seed <number>] [--script <file>] [--json] [--cache-size <n>]
+toneforge runtime start [--scenario <file>] [--seed <number>] [--script <file>] [--json] [--cache-size <n>] [--iterations <n>] [--no-seed-variation]
 \`\`\`
 
 The session runs the runtime against a **live clock**: each command is applied
 immediately, resolved events are rendered through a bounded LRU buffer cache,
 and each rendered buffer is scheduled for playback at its sequence-relative
-time. Use it to drive behavioural audio by hand and hear the runtime react.
+time. \`start\` begins a **continuous transport** that keeps the active sequence
+looping while \`state\`/\`context\` changes reconfigure it live.
 
 ## Commands (interactive)
 
 - \`state <name>\` — transition the state machine
 - \`context <dim>=<value> ...\` — update environment context
+- \`start [state]\` — start the continuous transport (optionally setting a state)
+- \`stop\` — stop the continuous transport
 - \`inspect\` — print the current runtime inspection
 - \`reset\` — reset state/context and restart
 - \`help\` — show command help
@@ -706,14 +709,16 @@ time. Use it to drive behavioural audio by hand and hear the runtime react.
 - \`--script <file>\` — Replay a command-per-line script non-interactively (deterministic clock) and exit
 - \`--json\` — Stream one JSON object per runtime event to stdout; no audio
 - \`--cache-size <n>\` — Maximum cached renders (default: 64)
+- \`--iterations <n>\` — Stop the transport after n loop iterations (default: 0 = unbounded)
+- \`--no-seed-variation\` — Use the same seeds for every transport iteration (default: vary per iteration)
 - \`--help\`, \`-h\` — Show this help message
 
 ## Examples
 
 \`\`\`
 toneforge runtime start
-toneforge runtime start --script ./session.tf.txt
-toneforge runtime start --script ./session.tf.txt --json
+toneforge runtime start --script ./session.tf.txt --iterations 4
+toneforge runtime start --script ./session.tf.txt --json --iterations 4
 toneforge runtime start --cache-size 128 --json
 toneforge runtime start --seed 7
 \`\`\``;
@@ -4482,6 +4487,21 @@ export async function dispatchCommand(
         }
       }
 
+      let maxIterations = 0;
+      const iterationsRaw = flags["iterations"];
+      if (iterationsRaw !== undefined && iterationsRaw !== true) {
+        maxIterations = parseInt(iterationsRaw as string, 10);
+        if (Number.isNaN(maxIterations) || maxIterations < 0) {
+          const msg = `--iterations must be a non-negative integer, got '${iterationsRaw}'.`;
+          if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+          return 1;
+        }
+      }
+
+      const seedVariation = !(
+        flags["seed-variation"] === false || flags["no-seed-variation"] === true
+      );
+
       try {
         let scenario = await loadRuntimeScenario(scenarioPath);
         if (seedOverride !== undefined) {
@@ -4494,6 +4514,8 @@ export async function dispatchCommand(
           cache,
           virtualClock: scriptPath !== undefined,
           schedulePlayback: !jsonMode,
+          seedVariation,
+          maxIterations,
           ...(jsonMode
             ? {
                 onEvent: (entry) =>
@@ -4517,22 +4539,31 @@ export async function dispatchCommand(
           }
           const results = session.runCommandScript(source);
 
+          if (!jsonMode) {
+            for (const result of results) {
+              if (!result.message) continue;
+              if (result.ok) outputInfo(result.message);
+              else outputError(result.message);
+            }
+          }
+
+          // Wait for a bounded transport to finish, or for the current
+          // one-shot playback to drain, then shut down cleanly.
+          if (maxIterations > 0) {
+            await session.waitForTransportIdle();
+          } else if (!jsonMode) {
+            await session.waitForIdle();
+          }
+
+          session.stop();
+
           if (jsonMode) {
-            session.stop();
             jsonOut({
               command: "runtime start",
               script: scriptPath,
               commands: results.length,
               stats: session.stats(),
             });
-          } else {
-            for (const result of results) {
-              if (!result.message) continue;
-              if (result.ok) outputInfo(result.message);
-              else outputError(result.message);
-            }
-            await session.waitForIdle();
-            session.stop();
           }
 
           return 0;

@@ -20,6 +20,15 @@ export function builder(yargs: any) {
         .option("cache-size", {
           type: "number",
           describe: "Maximum cached renders",
+        })
+        .option("iterations", {
+          type: "number",
+          describe: "Stop the transport after n loop iterations (0 = unbounded)",
+        })
+        .option("seed-variation", {
+          type: "boolean",
+          default: true,
+          describe: "Vary the event seed on each transport iteration",
         });
     })
     .command("demo", "Run a scripted runtime audio demo", (y: any) => {

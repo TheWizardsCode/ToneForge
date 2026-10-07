@@ -210,6 +210,17 @@ export interface Runtime {
    */
   simulateActive(): SimulationResult | null;
 
+  /**
+   * Re-fire the sequence active for the current state, without changing state.
+   *
+   * Emits a fresh batch of `event_fire` events, using `seed + seedOffset` for
+   * deterministic variation between iterations. Used by live looping.
+   *
+   * @param seedOffset - Offset added to the session seed for this refire.
+   * @returns true when a sequence was active and refired, false otherwise.
+   */
+  refireActive(seedOffset?: number): boolean;
+
   /** Reset the runtime, clearing all state, context, and logs. */
   reset(): void;
 }
@@ -362,8 +373,9 @@ export function createRuntime(options?: RuntimeOptions): Runtime {
   function fireSequenceEvents(
     seqDef: SequenceDefinition,
     stateName: string,
+    seedOffset = 0,
   ): void {
-    const simulation = simulate(seqDef, seed);
+    const simulation = simulate(seqDef, seed + seedOffset);
     const ctx = getCurrentContextSnapshot();
 
     for (const evt of simulation.events) {
@@ -635,6 +647,22 @@ export function createRuntime(options?: RuntimeOptions): Runtime {
       if (!seqDef) return null;
 
       return simulate(seqDef, seed);
+    },
+
+    refireActive(seedOffset = 0): boolean {
+      if (!running) {
+        throw new Error(
+          "Runtime is not running. Call start() before refiring a sequence.",
+        );
+      }
+      if (!stateMachine) return false;
+
+      const currentState = stateMachine.current();
+      const seqDef = resolveSequenceForState(currentState);
+      if (!seqDef) return false;
+
+      fireSequenceEvents(seqDef, currentState, seedOffset);
+      return true;
     },
 
     reset(): void {

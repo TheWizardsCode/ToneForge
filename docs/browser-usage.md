@@ -250,6 +250,21 @@ await session.waitForIdle();
 session.stop();
 ```
 
+For continuous playback, use the transport (`start [state]` / `stop`). It loops
+the active sequence, reconfiguring live as state/context change, and varies the
+event seed per iteration:
+
+```ts
+session.handleCommand("start walk");          // begin continuous footsteps
+session.handleCommand("context surface=gravel"); // retune to gravel
+session.handleCommand("stop");                // halt the loop
+await session.waitForTransportIdle();
+session.stop();
+```
+
+In a bounded/headless run, pass `maxIterations` (CLI `--iterations`) so the loop
+self-terminates, and `seedVariation: false` for identical iterations.
+
 The same engine runs in Node: the CLI passes `playAudio` as the `play` hook. In
 headless mode (`--json`) rendering and playback are skipped entirely, so a
 session can be replayed in CI without an audio device. Replaying a `--script`

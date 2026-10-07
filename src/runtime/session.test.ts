@@ -317,3 +317,225 @@ quit
     expect(timestamps.some((t) => t > 0)).toBe(true);
   });
 });
+
+// ── Continuous transport ──────────────────────────────────────────
+
+interface TransportTask {
+  due: number;
+  order: number;
+  task: () => void;
+  cancelled: boolean;
+  done: boolean;
+}
+
+/**
+ * Harness for the continuous transport. Uses a virtual scheduler that runs
+ * tasks in due-time order, so loop iterations are deterministic and instant.
+ */
+function makeTransportHarness(opts: { maxIterations?: number; seedVariation?: boolean } = {}) {
+  let now = 0;
+  let order = 0;
+  const tasks: TransportTask[] = [];
+
+  const scheduler = (delay: number, task: () => void): (() => void) => {
+    const t: TransportTask = {
+      due: now + Math.max(0, delay),
+      order: order++,
+      task,
+      cancelled: false,
+      done: false,
+    };
+    tasks.push(t);
+    return () => {
+      t.cancelled = true;
+    };
+  };
+
+  const renderCalls: BufferCacheKey[] = [];
+  const cache = createBufferCache({
+    renderer: async (key) => {
+      renderCalls.push(key);
+      return {
+        samples: new Float32Array([key.seed]),
+        sampleRate: 44100,
+        duration: 0.01,
+        numberOfChannels: 1,
+      };
+    },
+  });
+
+  const played: RenderResult[] = [];
+  const events: RuntimeLogEntry[] = [];
+
+  const session = createRuntimeSession({
+    scenario: sessionScenario(),
+    cache,
+    scheduler,
+    play: (result) => {
+      played.push(result);
+    },
+    onEvent: (entry) => events.push(entry),
+    virtualClock: true,
+    schedulePlayback: true,
+    seedVariation: opts.seedVariation ?? true,
+    maxIterations: opts.maxIterations ?? 0,
+  });
+
+  const nextTask = (): TransportTask | undefined =>
+    tasks
+      .filter((t) => !t.cancelled && !t.done)
+      .sort((a, b) => a.due - b.due || a.order - b.order)[0];
+
+  const runSteps = async (count: number): Promise<void> => {
+    for (let i = 0; i < count; i++) {
+      const next = nextTask();
+      if (!next) return;
+      next.done = true;
+      now = Math.max(now, next.due);
+      next.task();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+  };
+
+  const runToIdle = async (maxSteps = 500): Promise<void> => {
+    for (let i = 0; i < maxSteps; i++) {
+      if (!nextTask()) return;
+      await runSteps(1);
+    }
+  };
+
+  const firedSeeds = (): number[] =>
+    events
+      .filter((e) => e.event.type === "event_fire")
+      .map((e) => Number(e.event.detail["eventSeed"]));
+  const firedRecipes = (): string[] =>
+    events
+      .filter((e) => e.event.type === "event_fire")
+      .map((e) => String(e.event.detail["resolvedRecipe"]));
+  const firedTimes = (): number[] =>
+    events
+      .filter((e) => e.event.type === "event_fire")
+      .map((e) => Number(e.event.detail["time_ms"]));
+
+  return {
+    session,
+    tasks,
+    renderCalls,
+    played,
+    events,
+    runSteps,
+    runToIdle,
+    cache,
+    firedSeeds,
+    firedRecipes,
+    firedTimes,
+    now: () => now,
+  };
+}
+
+const WALK_EVENTS = 3;
+
+describe("createRuntimeSession — continuous transport", () => {
+  it("start <state> loops the active sequence for maxIterations", async () => {
+    const h = makeTransportHarness({ maxIterations: 2 });
+    const result = h.session.handleCommand("start walk");
+    expect(result).toMatchObject({ ok: true, type: "start" });
+    expect(h.session.stats().transportRunning).toBe(true);
+
+    await h.runToIdle();
+
+    expect(h.session.stats().transportRunning).toBe(false);
+    expect(h.session.stats().iteration).toBe(2);
+    // Initial batch + 2 refires, 3 events each.
+    expect(h.firedSeeds()).toHaveLength(WALK_EVENTS * 3);
+  });
+
+  it("varies the event seed per iteration by default", async () => {
+    const h = makeTransportHarness({ maxIterations: 2 });
+    h.session.handleCommand("start walk");
+    await h.runToIdle();
+
+    const seeds = h.firedSeeds();
+    expect(seeds.slice(0, 3)).toEqual([42, 43, 44]);
+    expect(seeds.slice(3, 6)).toEqual([1042, 1043, 1044]);
+    expect(seeds.slice(6, 9)).toEqual([2042, 2043, 2044]);
+  });
+
+  it("repeats seeds when seedVariation is disabled", async () => {
+    const h = makeTransportHarness({ maxIterations: 2, seedVariation: false });
+    h.session.handleCommand("start walk");
+    await h.runToIdle();
+
+    expect(h.firedSeeds()).toEqual([42, 43, 44, 42, 43, 44, 42, 43, 44]);
+  });
+
+  it("re-resolves recipes when context changes mid-loop", async () => {
+    const h = makeTransportHarness({ maxIterations: 0 });
+    h.session.handleCommand("start walk");
+    await h.runSteps(WALK_EVENTS);
+
+    expect(h.firedRecipes().filter((r) => r === "footstep-stone")).toHaveLength(WALK_EVENTS);
+
+    h.session.handleCommand("context surface=gravel");
+    await h.runSteps(WALK_EVENTS);
+
+    expect(h.firedRecipes().filter((r) => r === "footstep-gravel")).toHaveLength(WALK_EVENTS);
+    h.session.stop();
+  });
+
+  it("switches sequence on a state change mid-loop", async () => {
+    const h = makeTransportHarness({ maxIterations: 0 });
+    h.session.handleCommand("start walk");
+    await h.runSteps(WALK_EVENTS);
+
+    h.session.handleCommand("state sprint");
+    await h.runSteps(3);
+
+    expect(h.firedTimes().slice(-3)).toEqual([0, 250, 500]);
+    const types = h.events.map((e) => e.event.type);
+    expect(types).toContain("sequence_stop");
+    expect(types).toContain("sequence_start");
+    h.session.stop();
+  });
+
+  it("stop cancels the loop and pending playback", async () => {
+    const h = makeTransportHarness({ maxIterations: 0 });
+    h.session.handleCommand("start walk");
+    expect(h.session.stats().transportRunning).toBe(true);
+
+    const result = h.session.handleCommand("stop");
+    expect(result.type).toBe("stop");
+    expect(h.session.stats().transportRunning).toBe(false);
+    expect(h.tasks.every((t) => t.cancelled || t.done)).toBe(true);
+  });
+
+  it("start without a state arms the transport and waits for a state", async () => {
+    const h = makeTransportHarness({ maxIterations: 2 });
+    h.session.handleCommand("start");
+    await h.runSteps(1);
+    expect(h.firedSeeds()).toHaveLength(0);
+    expect(h.session.stats().transportRunning).toBe(true);
+
+    h.session.handleCommand("state walk");
+    await h.runToIdle();
+    expect(h.firedSeeds().length).toBeGreaterThan(0);
+    expect(h.session.stats().transportRunning).toBe(false);
+  });
+
+  it("rejects malformed start usage", () => {
+    const h = makeTransportHarness();
+    const result = h.session.handleCommand("start walk sprint");
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain("Usage: start");
+  });
+
+  it("replays a scripted transport deterministically", async () => {
+    const run = async () => {
+      const h = makeTransportHarness({ maxIterations: 2 });
+      h.session.runCommandScript("start walk\ncontext surface=gravel\nquit\n");
+      await h.runToIdle();
+      return JSON.stringify(h.events.map((e) => e.event));
+    };
+    expect(await run()).toBe(await run());
+  });
+});
