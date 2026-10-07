@@ -18,6 +18,39 @@ import { registry, initializeRecipeRegistry } from "../recipes/index.js";
 import { profiler } from "./profiler.js";
 import { OfflineAudioContext } from "../audio/web-audio.js";
 
+/**
+ * Error thrown when `ctx.startRendering()` returns `null`.
+ *
+ * This occurs under heavy host contention when the `node-web-audio-api`
+ * shim in Node.js is unable to complete the offline render (load average
+ * ~10–25). It is not a genuine audio-graph failure — the graph is correct,
+ * but the underlying library returns `null` instead of an `AudioBuffer`.
+ *
+ * **Remediation:** retry with reduced parallelism (fewer concurrent renders)
+ * or re-run the test in a less loaded environment.
+ *
+ * @example
+ * ```ts
+ * try {
+ *   const result = await renderRecipe("rattle-decay", 42);
+ * } catch (err) {
+ *   if (err instanceof RenderError && err.contention) {
+ *     // retry with reduced parallelism
+ *   }
+ * }
+ * ```
+ */
+export class RenderError extends Error {
+  /** True when the error was caused by a contention-induced null return. */
+  readonly contention: boolean;
+
+  constructor(message: string, options?: { contention?: boolean }) {
+    super(message);
+    this.name = "RenderError";
+    this.contention = options?.contention ?? false;
+  }
+}
+
 /** Result of an offline render containing sample data. */
 export interface RenderResult {
   /** Raw audio samples (mono, Float32Array). */
@@ -45,7 +78,8 @@ export interface RenderResult {
  * @param duration - Optional duration override in seconds. If not provided,
  *                   uses the recipe's natural duration.
  * @returns Promise resolving to the rendered audio data.
- * @throws If the recipe is not found in the registry.
+ * @throws If the recipe is not found in the registry, or if
+ *         `startRendering()` returns `null` (see {@link RenderError}).
  */
 /** Preset-shaped input accepted by {@link renderPreset}. */
 export interface RenderPresetInput {
@@ -127,6 +161,13 @@ async function renderRecipeInternal(
   profiler.mark("graph_build");
 
   const audioBuffer = await ctx.startRendering();
+  if (!audioBuffer) {
+    throw new RenderError(
+      `startRendering() returned null (recipe: ${recipeName}, seed: ${seed}). ` +
+        `This can occur under host contention. Retry with reduced parallelism.`,
+      { contention: true },
+    );
+  }
   profiler.mark("render");
   const samples = new Float32Array(audioBuffer.getChannelData(0));
 
