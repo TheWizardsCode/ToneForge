@@ -103,6 +103,7 @@ export async function yargsMain(argv: string[] = process.argv): Promise<number> 
         ...(argv.search !== undefined ? { search: String(argv.search) } : {}),
         ...(argv.category !== undefined ? { category: String(argv.category) } : {}),
         ...(argv.tags !== undefined ? { tags: String(argv.tags) } : {}),
+        ...(argv.dir !== undefined ? { dir: String(argv.dir) } : {}),
       }),
       [],
     );

@@ -1,11 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { existsSync, readFileSync, rmSync, writeFileSync, unlinkSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { runCli } from "../test/run-yargs-child.js";
-
-/** Preset directory relative to the repository root. */
-const PROJECT_ROOT = join(import.meta.dirname, "..");
 
 describe("yargs CLI entrypoint integration", () => {
   let tempDir: string;
@@ -328,21 +325,116 @@ describe("yargs CLI entrypoint integration", () => {
     expect(data.presets.length).toBe(0);
   });
 
-  it("returns non-zero for a malformed preset file", async () => {
-    const malformedPath = join(PROJECT_ROOT, "presets", "sequences", "__malformed_test__.json");
-    writeFileSync(malformedPath, "{ this is not valid json");
-    try {
-      const { code, stderr } = await runCli(["list", "sequences", "--json"]);
-      expect(code).toBe(1);
-      const data = JSON.parse(stderr);
-      expect(data.error).toContain("Malformed");
-      expect(data.error).toContain("__malformed_test__.json");
-    } finally {
-      try {
-        unlinkSync(malformedPath);
-      } catch {
-        // best-effort cleanup
-      }
-    }
+  it("returns non-zero for a malformed preset file in an isolated --dir", async () => {
+    // The fixture lives in an isolated temp directory and is passed to the CLI
+    // via --dir, so the shared repo presets/sequences directory is never written
+    // to (TF-0MUYJSZDT001T2NN AC1).
+    const dir = join(tempDir, "malformed-sequences");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "bad_preset.json"), "{ this is not valid json");
+
+    const { code, stderr } = await runCli(["list", "sequences", "--dir", dir, "--json"]);
+    expect(code).toBe(1);
+    const data = JSON.parse(stderr);
+    expect(data.error).toContain("Malformed");
+    expect(data.error).toContain("bad_preset.json");
+  });
+
+  // -----------------------------------------------------------------
+  // Directory override: --dir and environment variables
+  // -----------------------------------------------------------------
+
+  it("lists sequences from an explicit --dir override", async () => {
+    const dir = join(tempDir, "custom-sequences");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "custom_one.json"), JSON.stringify({ name: "custom_one", description: "A custom sequence" }));
+    writeFileSync(join(dir, "custom_two.json"), JSON.stringify({ name: "custom_two", description: "Another custom sequence" }));
+
+    const { code, stdout } = await runCli(["list", "sequences", "--dir", dir, "--json"]);
+    expect(code).toBe(0);
+    const data = JSON.parse(stdout);
+    expect(data.resource).toBe("sequences");
+    expect(data.total).toBe(2);
+    expect(data.presets.map((p: { name: string }) => p.name).sort()).toEqual(["custom_one", "custom_two"]);
+    // The repo default presets must NOT leak into an overridden listing.
+    expect(data.presets.some((p: { name: string }) => p.name === "weapon_burst")).toBe(false);
+  });
+
+  it("lists stacks from an explicit --dir override", async () => {
+    const dir = join(tempDir, "custom-stacks");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "custom_stack.json"), JSON.stringify({ name: "custom_stack", description: "A custom stack" }));
+
+    const { code, stdout } = await runCli(["list", "stacks", "--dir", dir, "--json"]);
+    expect(code).toBe(0);
+    const data = JSON.parse(stdout);
+    expect(data.resource).toBe("stacks");
+    expect(data.total).toBe(1);
+    expect(data.presets.map((p: { name: string }) => p.name)).toEqual(["custom_stack"]);
+  });
+
+  it("lists sequences from TONEFORGE_SEQUENCES_DIR when --dir is absent", async () => {
+    const dir = join(tempDir, "env-sequences");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "env_one.json"), JSON.stringify({ name: "env_one", description: "From the environment" }));
+
+    const { code, stdout } = await runCli(["list", "sequences", "--json"], {
+      env: { TONEFORGE_SEQUENCES_DIR: dir },
+    });
+    expect(code).toBe(0);
+    const data = JSON.parse(stdout);
+    expect(data.total).toBe(1);
+    expect(data.presets.map((p: { name: string }) => p.name)).toEqual(["env_one"]);
+  });
+
+  it("lists stacks from TONEFORGE_STACKS_DIR when --dir is absent", async () => {
+    const dir = join(tempDir, "env-stacks");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "env_stack.json"), JSON.stringify({ name: "env_stack", description: "From the environment" }));
+
+    const { code, stdout } = await runCli(["list", "stacks", "--json"], {
+      env: { TONEFORGE_STACKS_DIR: dir },
+    });
+    expect(code).toBe(0);
+    const data = JSON.parse(stdout);
+    expect(data.total).toBe(1);
+    expect(data.presets.map((p: { name: string }) => p.name)).toEqual(["env_stack"]);
+  });
+
+  it("prefers --dir over TONEFORGE_SEQUENCES_DIR", async () => {
+    const envDir = join(tempDir, "env-precedence");
+    const cliDir = join(tempDir, "cli-precedence");
+    mkdirSync(envDir, { recursive: true });
+    mkdirSync(cliDir, { recursive: true });
+    writeFileSync(join(envDir, "env_preset.json"), JSON.stringify({ name: "env_preset", description: "env" }));
+    writeFileSync(join(cliDir, "cli_preset.json"), JSON.stringify({ name: "cli_preset", description: "cli" }));
+
+    const { code, stdout } = await runCli(["list", "sequences", "--dir", cliDir, "--json"], {
+      env: { TONEFORGE_SEQUENCES_DIR: envDir },
+    });
+    expect(code).toBe(0);
+    const data = JSON.parse(stdout);
+    expect(data.presets.map((p: { name: string }) => p.name)).toEqual(["cli_preset"]);
+  });
+
+  it("ignores __-prefixed malformed artefacts in a preset directory", async () => {
+    const dir = join(tempDir, "artefact-sequences");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "__malformed_test__.json"), "{ this is not valid json");
+    writeFileSync(join(dir, "real_preset.json"), JSON.stringify({ name: "real_preset", description: "A real preset" }));
+
+    const { code, stdout } = await runCli(["list", "sequences", "--dir", dir, "--json"]);
+    expect(code).toBe(0);
+    const data = JSON.parse(stdout);
+    expect(data.total).toBe(1);
+    expect(data.presets.map((p: { name: string }) => p.name)).toEqual(["real_preset"]);
+  });
+
+  it("documents --dir and the directory environment variables", async () => {
+    const { code, stdout } = await runCli(["list", "--help"]);
+    expect(code).toBe(0);
+    expect(stdout).toContain("--dir");
+    expect(stdout).toContain("TONEFORGE_SEQUENCES_DIR");
+    expect(stdout).toContain("TONEFORGE_STACKS_DIR");
   });
 });

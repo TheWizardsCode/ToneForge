@@ -394,6 +394,8 @@ async function printListHelp(): Promise<void> {
 ## Resources
 
 - **recipes** — List all registered recipes with name, description, category, and tags *(default)*
+- **sequences** — List sequence presets from \`presets/sequences\`
+- **stacks** — List stack presets from \`presets/stacks\`
 
 ## Filtering
 
@@ -403,8 +405,22 @@ async function printListHelp(): Promise<void> {
 
 Filters combine with AND logic. Empty or whitespace-only values are ignored.
 
+## Preset directory override (sequences, stacks)
+
+The directory scanned by \`list sequences\` / \`list stacks\` is resolved in
+this order:
+
+1. \`--dir <path>\` — explicit override for this invocation
+2. \`TONEFORGE_SEQUENCES_DIR\` / \`TONEFORGE_STACKS_DIR\` — environment override
+3. the repo default (\`presets/sequences\` / \`presets/stacks\`)
+
+Relative paths are resolved against the current working directory. Files whose
+basename begins with \`__\` are treated as test/temp artefacts and are skipped,
+so a leaked fixture can never fail the command.
+
 ## Options
 
+- \`--dir <path>\` — Directory to list sequences/stacks from (default: \`TONEFORGE_SEQUENCES_DIR\` / \`TONEFORGE_STACKS_DIR\` or the repo presets directory)
 - \`--json\` — Output results in JSON format
 - \`--help\`, \`-h\` — Show this help message
 
@@ -418,6 +434,11 @@ toneforge list recipes --category weapon
 toneforge list recipes --tags sci-fi,laser
 toneforge list recipes --search beam --category weapon --tags laser
 toneforge list recipes --json
+toneforge list sequences
+toneforge list sequences --json
+toneforge list sequences --dir ./my-presets
+toneforge list stacks --dir ./my-presets --search victory
+TONEFORGE_SEQUENCES_DIR=./my-presets toneforge list sequences --json
 \`\`\``;
   await outputMarkdown(md);
 }
@@ -1689,6 +1710,7 @@ export async function dispatchCommand(
       search: flags["search"],
       category: flags["category"],
       tags: flags["tags"],
+      dir: flags["dir"],
       json: jsonMode,
     };
     // The command handler returns an exit code

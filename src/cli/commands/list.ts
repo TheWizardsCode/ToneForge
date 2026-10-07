@@ -1,9 +1,10 @@
 import type { Arguments } from "yargs";
-import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { readFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import { outputInfo, outputTable, outputError, isStdoutTty } from "../../output.js";
 import { registry } from "../../recipes/index.js";
 import { truncateTags } from "../../cli/helpers.js";
+import { listPresetFiles } from "../../sequence/preset-discovery.js";
 
 /** Absolute path to the repository root. */
 const PROJECT_ROOT = join(import.meta.dirname, "../../..");
@@ -17,6 +18,42 @@ const RESOURCE_DIR: Record<Exclude<ValidResource, "recipes">, string> = {
   sequences: join(PROJECT_ROOT, "presets", "sequences"),
   stacks: join(PROJECT_ROOT, "presets", "stacks"),
 };
+
+/** Environment variable that overrides each preset resource directory. */
+const RESOURCE_ENV: Record<Exclude<ValidResource, "recipes">, string> = {
+  sequences: "TONEFORGE_SEQUENCES_DIR",
+  stacks: "TONEFORGE_STACKS_DIR",
+};
+
+/**
+ * Resolve the directory a `list sequences` / `list stacks` invocation scans.
+ *
+ * Precedence (mirrors the `TONEFORGE_RECIPE_DIR` pattern in `core/recipe.ts`):
+ * 1. `options.dir` (the CLI `--dir <path>` option)
+ * 2. the resource's environment variable (`TONEFORGE_SEQUENCES_DIR` /
+ *    `TONEFORGE_STACKS_DIR`)
+ * 3. the repo default (`presets/sequences` / `presets/stacks`)
+ *
+ * Relative paths are resolved against the current working directory so the
+ * result is always absolute.
+ */
+export function resolvePresetDirectory(
+  resource: Exclude<ValidResource, "recipes">,
+  options: { dir?: string; env?: Record<string, string | undefined> } = {},
+): string {
+  const explicit = options.dir?.trim();
+  if (explicit) {
+    return resolve(explicit);
+  }
+
+  const env = options.env ?? process.env;
+  const envDirectory = env[RESOURCE_ENV[resource]]?.trim();
+  if (envDirectory) {
+    return resolve(envDirectory);
+  }
+
+  return RESOURCE_DIR[resource];
+}
 
 /** Minimal preset shape extracted from JSON files. */
 interface PresetEntry {
@@ -32,10 +69,11 @@ interface PresetEntry {
 async function listPresets(dir: string): Promise<{ presets: PresetEntry[]; malformed: string[] }> {
   const presets: PresetEntry[] = [];
   const malformed: string[] = [];
-  const files = await readdir(dir);
+  // Shared discovery excludes `__`-prefixed test/temp artefacts, so a leaked
+  // or in-flight fixture can never be parsed (or fail) as a real preset.
+  const files = listPresetFiles(dir);
 
-  for (const file of files.sort()) {
-    if (!file.endsWith(".json")) continue;
+  for (const file of files) {
     const filePath = join(dir, file);
     try {
       const raw = await readFile(filePath, "utf-8");
@@ -64,6 +102,11 @@ export function builder(yargs: any) {
     .option("search", { type: "string", describe: "Search filter" })
     .option("category", { type: "string", describe: "Filter by category" })
     .option("tags", { type: "string", describe: "Filter by tags" })
+    .option("dir", {
+      type: "string",
+      describe:
+        "Directory to list sequences/stacks from (default: TONEFORGE_SEQUENCES_DIR / TONEFORGE_STACKS_DIR or the repo presets directory)",
+    })
     .option("json", { type: "boolean", describe: "Output JSON" });
 }
 
@@ -86,7 +129,10 @@ export async function handler(argv: Arguments) {
   const search = rawSearch && rawSearch.trim().length > 0 ? rawSearch.trim().toLowerCase() : undefined;
 
   if (res === "sequences" || res === "stacks") {
-    return handlePresets(res, RESOURCE_DIR[res], search, rawSearch, jsonMode);
+    const dir = resolvePresetDirectory(res, {
+      dir: typeof argv.dir === "string" ? argv.dir : undefined,
+    });
+    return handlePresets(res, dir, search, rawSearch, jsonMode);
   }
 
   return handleRecipes(argv, search, rawSearch, jsonMode);
