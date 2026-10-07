@@ -22,7 +22,7 @@
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync, realpathSync } from "node:fs";
-import { dirname, resolve, basename, extname } from "node:path";
+import { dirname, resolve, basename, extname, join } from "node:path";
 import { execFile } from "node:child_process";
 import { renderRecipe } from "./core/renderer.js";
 import { registry, initializeRecipeRegistry } from "./recipes/index.js";
@@ -81,6 +81,9 @@ import { validateToneGraph } from "./core/tonegraph-schema.js";
 import { simulate, formatTimeline } from "./sequence/simulator.js";
 import { renderSequence } from "./sequence/renderer.js";
 import type { SequenceDefinition } from "./sequence/schema.js";
+import { loadRuntimeScenario } from "./runtime/scenario.js";
+import { runRuntimeScenario } from "./runtime/audio.js";
+import type { RuntimeAudioResult } from "./runtime/audio.js";
 import { VISUAL_FORMATS, exportVisual, listPalettes } from "./visualizer/index.js";
 
 /** Parse command-line arguments into a structured map. */
@@ -153,6 +156,7 @@ async function printHelp(): Promise<void> {
 | **explore** | Discover, rank, and curate sounds across seed spaces |
 | **library** | Manage the curated sound library (list, search, export) |
 | **sequence** | Schedule and render temporal event patterns from presets |
+| **runtime** | Run a scripted, render-backed runtime audio demo |
 | **stack** | Compose layered sound events from multiple recipes |
 | **show** | Display recipe metadata and parameters |
 | **play** | Play a WAV file through the system audio player |
@@ -634,6 +638,67 @@ toneforge sequence inspect --preset <file> [--validate]
 \`\`\`
 toneforge sequence inspect --preset presets/sequences/weapon_burst.json
 toneforge sequence inspect --preset presets/sequences/weapon_burst.json --validate
+\`\`\``;
+  await outputMarkdown(md);
+}
+
+/** Print help text for the runtime command group. */
+async function printRuntimeHelp(): Promise<void> {
+  const md = `# ToneForge runtime
+
+**Render-backed runtime for audible, state- and context-driven playback**
+
+The runtime orchestrates State, Context, and Sequencer, resolves each event
+to a recipe, renders it with the existing offline renderer, and plays it.
+It never grows a second synthesis engine.
+
+## Subcommands
+
+| Subcommand | Description |
+|------------|-------------|
+| **demo** | Run a scripted runtime scenario and play or export the rendered audio |
+
+Run \`toneforge runtime demo --help\` for subcommand-specific help.
+
+## Reference
+
+- \`docs/prd/RUNTIME_PRD.md\` §19 (Runtime ↔ Render/Playback Pipeline)`;
+  await outputMarkdown(md);
+}
+
+/** Print help text for the runtime demo subcommand. */
+async function printRuntimeDemoHelp(): Promise<void> {
+  const md = `# ToneForge runtime demo
+
+**Run a scripted runtime scenario as audible, state- and context-driven audio**
+
+## Usage
+
+\`\`\`
+toneforge runtime demo [--scenario <file>] [--seed <number>] [--output <dir>] [--json]
+\`\`\`
+
+The demo drives a deterministic runtime session through a scripted set of
+state and context changes, resolves every event to a recipe via the
+scenario's recipe resolver, and mixes the result with the offline renderer.
+By default it plays the audio; \`--output\` exports WAVs and the event
+timeline so the demo is verifiable in CI without audio hardware.
+
+## Options
+
+- \`--scenario <file>\` — Path to a runtime scenario JSON file (default: \`presets/runtime/footsteps.json\`)
+- \`--seed <number>\` — Override the scenario seed (deterministic)
+- \`--output <dir>\` — Export the mixed WAV, per-event WAVs, and \`timeline.json\` to this directory instead of playing
+- \`--json\` — Print the event timeline as JSON (implies no playback)
+- \`--help\`, \`-h\` — Show this help message
+
+## Examples
+
+\`\`\`
+toneforge runtime demo
+toneforge runtime demo --seed 7 --output ./runtime-demo/
+toneforge runtime demo --json
+toneforge runtime demo --scenario presets/runtime/footsteps.json --json
 \`\`\``;
   await outputMarkdown(md);
 }
@@ -1155,6 +1220,78 @@ function formatNumber(n: number): string {
 export { truncateTags } from "./cli/helpers.js";
 
 /**
+ * Serialise a runtime demo result for `--json` output.
+ */
+function formatRuntimeDemoJson(
+  result: RuntimeAudioResult,
+  outputDir: string | undefined,
+  played: boolean,
+): Record<string, unknown> {
+  return {
+    command: "runtime demo",
+    scenario: result.scenario,
+    seed: result.seed,
+    sampleRate: result.sampleRate,
+    duration: result.render.duration,
+    samples: result.render.samples.length,
+    output: outputDir ?? null,
+    played,
+    events: result.events.map((e) => ({
+      time_ms: e.time_ms,
+      sampleOffset: e.sampleOffset,
+      state: e.state,
+      sequence: e.sequence,
+      originalRecipe: e.originalRecipe,
+      recipe: e.recipe,
+      eventSeed: e.eventSeed,
+      gain: e.gain,
+      repetition: e.repetition,
+      ...(e.duration !== undefined ? { duration: e.duration } : {}),
+    })),
+  };
+}
+
+/**
+ * Export a runtime demo: the mixed WAV, one WAV per resolved event, and the
+ * event timeline as JSON. Used by `toneforge runtime demo --output <dir>` so
+ * the demo is verifiable in CI without audio hardware.
+ */
+async function writeRuntimeDemoOutputs(
+  result: RuntimeAudioResult,
+  outputDir: string,
+  jsonMode: boolean,
+): Promise<void> {
+  const dir = resolve(outputDir);
+  await mkdir(dir, { recursive: true });
+
+  const mixedPath = join(dir, "runtime-demo.wav");
+  await writeFile(
+    mixedPath,
+    encodeWav(result.render.samples, { sampleRate: result.render.sampleRate }),
+  );
+
+  for (let i = 0; i < result.eventRenders.length; i++) {
+    const { event, render } = result.eventRenders[i]!;
+    const name = `${String(i).padStart(2, "0")}-${event.recipe}-seed${event.eventSeed}.wav`;
+    await writeFile(
+      join(dir, name),
+      encodeWav(render.samples, { sampleRate: render.sampleRate }),
+    );
+  }
+
+  const timelinePath = join(dir, "timeline.json");
+  await writeFile(
+    timelinePath,
+    JSON.stringify(formatRuntimeDemoJson(result, outputDir, false), null, 2),
+  );
+
+  if (!jsonMode) {
+    outputSuccess(`Wrote ${mixedPath}`);
+    outputSuccess(`Wrote ${timelinePath}`);
+  }
+}
+
+/**
  * Output a JSON object to stdout. Used by all commands when --json is active.
  */
 function jsonOut(data: Record<string, unknown>): void {
@@ -1376,6 +1513,12 @@ export async function dispatchCommand(
         await printSequenceInspectHelp();
       } else {
         await printSequenceHelp();
+      }
+    } else if (command === "runtime") {
+      if (subcommand === "demo") {
+        await printRuntimeDemoHelp();
+      } else {
+        await printRuntimeHelp();
       }
     } else {
       await printHelp();
@@ -4126,6 +4269,100 @@ export async function dispatchCommand(
     }
 
     await printSequenceHelp();
+    return 0;
+  }
+
+  // ── runtime command ────────────────────────────────────────────
+
+  if (command === "runtime") {
+    if (flags["help"] && subcommand === undefined) {
+      await printRuntimeHelp();
+      return 0;
+    }
+
+    if (subcommand === "demo") {
+      if (flags["help"]) {
+        await printRuntimeDemoHelp();
+        return 0;
+      }
+
+      const scenarioPath =
+        typeof flags["scenario"] === "string"
+          ? flags["scenario"]
+          : "presets/runtime/footsteps.json";
+      const outputDir =
+        typeof flags["output"] === "string" ? flags["output"] : undefined;
+
+      let seedOverride: number | undefined;
+      const seedRaw = flags["seed"];
+      if (seedRaw !== undefined && seedRaw !== true) {
+        seedOverride = parseInt(seedRaw as string, 10);
+        if (Number.isNaN(seedOverride)) {
+          const msg = `--seed must be an integer, got '${seedRaw}'.`;
+          if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+          return 1;
+        }
+      }
+
+      try {
+        let scenario = await loadRuntimeScenario(scenarioPath);
+        if (seedOverride !== undefined) {
+          scenario = { ...scenario, seed: seedOverride };
+        }
+
+        if (!jsonMode) {
+          outputInfo(
+            `Running runtime scenario '${scenario.name}' (seed ${scenario.seed})...`,
+          );
+        }
+
+        const startMs = performance.now();
+        const result = await runRuntimeScenario(scenario);
+        const renderMs = (performance.now() - startMs).toFixed(0);
+
+        if (!jsonMode) {
+          outputInfo(
+            `Resolved ${result.events.length} event(s) to ` +
+            `${result.render.duration.toFixed(3)}s of audio ` +
+            `(${result.render.sampleRate} Hz, ${result.render.samples.length} samples) ` +
+            `in ${renderMs}ms`,
+          );
+        }
+
+        if (outputDir !== undefined) {
+          await writeRuntimeDemoOutputs(result, outputDir, jsonMode);
+        }
+
+        const willPlay = outputDir === undefined && !jsonMode;
+
+        if (jsonMode) {
+          jsonOut(formatRuntimeDemoJson(result, outputDir, willPlay));
+        } else if (willPlay) {
+          outputInfo("Playing...");
+          await playAudio(result.render.samples, {
+            sampleRate: result.render.sampleRate,
+          });
+          profiler.mark("playback_complete");
+          outputSuccess("Done.");
+        } else {
+          outputSuccess(`Wrote runtime demo to ${outputDir}`);
+        }
+
+        return 0;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(message); } else { outputError(`Error: ${message}`); }
+        return 1;
+      }
+    }
+
+    if (subcommand !== undefined) {
+      const msg = `Unknown runtime subcommand '${subcommand}'. Run 'toneforge runtime --help' for usage.`;
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+
+    await printRuntimeHelp();
     return 0;
   }
 

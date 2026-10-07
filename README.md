@@ -68,6 +68,31 @@ Starts the backend server and Vite dev server:
 npm run dev:web
 ```
 
+### Run the runtime audio demo
+
+The runtime is **render-backed**: a scripted session drives State and Context
+changes, each runtime event resolves to a recipe through a recipe resolver,
+and the existing offline renderer mixes the result — no second synthesis
+engine. Playing it lets you *hear* behaviour change (a footstep moving from
+stone to gravel, then walking to sprinting) instead of reading an event log:
+
+```bash
+toneforge runtime demo
+```
+
+The demo is deterministic (a fixed seed reproduces the same event log and the
+same rendered samples) and can be verified in CI without audio hardware:
+
+```bash
+toneforge runtime demo --json                 # print the resolved event timeline
+toneforge runtime demo --output ./runtime-demo/  # export WAVs + timeline.json
+toneforge runtime demo --seed 7 --json          # seed override
+```
+
+The scenario lives in [`presets/runtime/footsteps.json`](presets/runtime/footsteps.json).
+See [RUNTIME_PRD.md §19](docs/prd/RUNTIME_PRD.md) for the render/playback
+pipeline design.
+
 ### Browser support
 
 ToneForge is Runtime-aware: the Runtime, renderer, and recipe registry run in

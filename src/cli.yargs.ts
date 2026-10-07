@@ -12,6 +12,7 @@ import * as playCmd from "./cli/commands/play.js";
 import * as versionCmd from "./cli/commands/version.js";
 import * as stackCmd from "./cli/commands/stack.js";
 import * as sequenceCmd from "./cli/commands/sequence.js";
+import * as runtimeCmd from "./cli/commands/runtime.js";
 import * as analyzeCmd from "./cli/commands/analyze.js";
 import * as classifyCmd from "./cli/commands/classify.js";
 import * as exploreCmd from "./cli/commands/explore.js";
@@ -27,6 +28,7 @@ export const FRAMEWORK_COMMANDS = [
   "version",
   "stack",
   "sequence",
+  "runtime",
   "analyze",
   "classify",
   "explore",
@@ -214,6 +216,28 @@ export async function yargsMain(argv: string[] = process.argv): Promise<number> 
       exitCode = await dispatchCommand("sequence", "inspect", buildFlags(argv, {
         ...(argv.preset !== undefined ? { preset: String(argv.preset) } : {}),
         ...(argv.validate === true ? { validate: true } : {}),
+      }), []);
+    });
+  }, async (_argv) => {
+    // Re-parse raw argv so dispatchCommand receives the unknown subcommand name
+    // for proper error output. yargs only calls this handler when no subcommand
+    // matched, so `argv._` isn't reliable; `raw` (captured in outer scope) is.
+    const parsed = parseArgs(["node", "cli.ts", ...raw]);
+    exitCode = await dispatchCommand(parsed.command, parsed.subcommand, parsed.flags, parsed.layers);
+  });
+
+  // ── runtime ───────────────────────────────────────────────────────────────
+  y.command(runtimeCmd.command, runtimeCmd.desc, (y2) => {
+    y2.command("demo", "Run a scripted runtime audio demo", (y3) => {
+      y3.option("scenario", { type: "string", describe: "Path to a runtime scenario JSON file" })
+        .option("seed", { type: "number", describe: "Override the scenario seed" })
+        .option("output", { type: "string", describe: "Directory to export rendered WAVs and the timeline" })
+        .option("json", { type: "boolean", describe: "Output JSON" });
+    }, async (argv) => {
+      exitCode = await dispatchCommand("runtime", "demo", buildFlags(argv, {
+        ...(argv.scenario !== undefined ? { scenario: String(argv.scenario) } : {}),
+        ...(argv.seed !== undefined ? { seed: String(argv.seed) } : {}),
+        ...(argv.output !== undefined ? { output: String(argv.output) } : {}),
       }), []);
     });
   }, async (_argv) => {

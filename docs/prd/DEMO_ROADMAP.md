@@ -509,6 +509,11 @@ A live interactive session (web demo or REPL):
 - `toneforge runtime start` (interactive mode)
 - State and context manipulation via REPL or API
 
+> **Delivered (TF‑0MUXW66870013DOL):** the audible, render-backed demo ships as
+> `toneforge runtime demo` — play it, print the resolved event timeline with
+> `--json`, or export WAVs + `timeline.json` with `--output <dir>` for CI.
+> See `docs/prd/RUNTIME_PRD.md` §19.
+
 **Key Proof Points:**
 - Sound is behavior, not a static file -- it responds to game state in real time
 - State transitions are declarative, inspectable, and deterministic

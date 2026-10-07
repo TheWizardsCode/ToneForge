@@ -387,6 +387,39 @@ acceptance criteria. This revisit item is complete once this PRD and that work
 item's acceptance criteria exist; building the demo is owned by
 TF‑0MUXW66870013DOL.
 
+#### Delivered: `toneforge runtime demo`
+
+The demo is implemented and shipped as the `runtime demo` command:
+
+```bash
+toneforge runtime demo                       # play the scripted demo
+toneforge runtime demo --json                # print the resolved event timeline
+toneforge runtime demo --output ./runtime/    # export WAVs + timeline.json (headless/CI)
+toneforge runtime demo --seed 7 --json        # deterministic seed override
+```
+
+- **Scenario preset.** `presets/runtime/footsteps.json` is a versioned JSON
+  scenario: a state machine (idle/walk/run/sprint), a context dimension
+  (`surface`), short per-state sequences, a declarative recipe resolver
+  (`footstep` + `surface` → `footstep-{surface}`), and a scripted step list
+  (walk on stone → walk on gravel → sprint on gravel).
+- **Resolver.** `src/runtime/scenario.ts` loads and validates scenarios and
+  builds the recipe resolver (`createTemplateRecipeResolver`).
+- **Render-backed bridge.** `src/runtime/audio.ts` drives the runtime through
+  the steps with a deterministic clock, collects the resolved `event_fire`
+  entries, and mixes them with the existing `renderSequence` renderer — no
+  second synthesis engine.
+- **Playback.** Node encodes the mixed buffer (`encodeWav`) and plays it with
+  `playAudio`; the browser wraps the buffer in an `AudioBuffer` and schedules
+  an `AudioBufferSourceNode` via `scheduleRuntimeBuffer`.
+- **Headless verification.** `--output <dir>` writes the mixed
+  `runtime-demo.wav`, one WAV per resolved event, and `timeline.json`;
+  `--json` prints the same timeline to stdout. Both paths run without audio
+  hardware.
+
+The scenario is deterministic: a fixed seed reproduces the same event log and
+the same rendered samples.
+
 ### 19.9 Parameter adjustment
 
 Focused real-time parameter modulation of continuous/looping sounds is

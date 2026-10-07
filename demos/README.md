@@ -116,6 +116,7 @@ convention.
 | [`exploration.md`](exploration.md) | Sweeping seeds, ranking, clustering, and promoting candidates. |
 | [`library.md`](library.md) | Promoting, searching, exporting, and regenerating library entries. |
 | [`sequencer.md`](sequencer.md) | Scheduling recipe triggers over time with sequence presets. |
+| [`runtime.md`](runtime.md) | Audible, render-backed runtime demo driven by scripted state and context changes. |
 | [`card-game-sounds.md`](card-game-sounds.md) | Finding, previewing, and selecting card game sounds. |
 | [`recipe-filtering.md`](recipe-filtering.md) | Filtering recipes by search, category, and tags, with JSON output for scripting. |
 | [`machine-use.md`](machine-use.md) | JSON-driven reporting batch script that discovers available sounds while filtering out already-used ones. |

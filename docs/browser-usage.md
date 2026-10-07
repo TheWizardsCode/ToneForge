@@ -179,6 +179,46 @@ Each successful change is logged as a deterministic `parameter_change` event.
 General real-time parameter automation for arbitrary one-shot sounds is a
 documented future extension (see `docs/prd/RUNTIME_PRD.md` §16).
 
+### Render-backed runtime playback (audible demo)
+
+The runtime can drive audible playback by resolving its events to recipes and
+mixing them with the offline renderer. `runRuntimeScenario(scenario)` runs a
+declarative runtime scenario — state machine, context, sequences,
+recipe resolver, and scripted steps — and returns the resolved event timeline,
+the per-event renders, and the mixed buffer:
+
+```ts
+import { runRuntimeScenario } from "@toneforge/runtime/audio.js";
+import { loadRuntimeScenario } from "@toneforge/runtime/scenario.js";
+
+// Node: load a scenario from disk. In the browser, build the object with
+// `parseRuntimeScenario` from inline JSON instead of reading a file.
+const scenario = await loadRuntimeScenario("presets/runtime/footsteps.json");
+const { render } = await runRuntimeScenario(scenario);
+```
+
+Play the mixed buffer on the shared `AudioContext` by wrapping it in an
+`AudioBuffer` and scheduling an `AudioBufferSourceNode` via
+`scheduleRuntimeBuffer` (the same abstraction `node-web-audio-api` exposes in
+Node):
+
+```ts
+import { scheduleRuntimeBuffer } from "@toneforge/runtime/audio.js";
+import { getAudioContext } from "@toneforge/audio/web-audio.js";
+
+const ctx = getAudioContext();
+await ctx.resume(); // browsers require a user gesture before playback
+scheduleRuntimeBuffer(ctx, render.samples, render.sampleRate);
+```
+
+The Node CLI uses the same bridge and plays through `playAudio`:
+
+```bash
+toneforge runtime demo                  # play
+toneforge runtime demo --json           # resolved event timeline
+toneforge runtime demo --output ./out/  # export WAVs + timeline.json
+```
+
 ## Recipe rendering in the browser
 
 `renderRecipe(recipeName, seed, duration?)` from `src/core/renderer.ts` uses the

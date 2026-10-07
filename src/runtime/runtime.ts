@@ -380,6 +380,7 @@ export function createRuntime(options?: RuntimeOptions): Runtime {
           resolvedRecipe,
           time_ms: evt.time_ms,
           gain: evt.gain,
+          duration: evt.duration,
           seedOffset: evt.seedOffset,
           eventSeed: evt.eventSeed,
           repetition: evt.repetition,
