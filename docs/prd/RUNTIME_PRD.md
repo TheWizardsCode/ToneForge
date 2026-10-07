@@ -155,6 +155,14 @@ stopSfx(id);
 setSfxParameter(id, "intensity", 0.5);
 ```
 
+`setSfxParameter(id, name, value)` updates a parameter of a sound that is
+already playing, in real time. The initial supported scope is
+**continuous/looping sounds** (for example an engine loop whose pitch tracks
+RPM); general real-time parameter automation for arbitrary one-shot sounds
+remains a Future Extension (§16). Supported parameters are `intensity`,
+`gain`, `pitch`, and `filter`, each validated against a documented range
+before any state is mutated. See §19.9 for the implementation reference.
+
 ---
 
 ## 7. Integration with ToneForge Stack
@@ -379,10 +387,16 @@ acceptance criteria. This revisit item is complete once this PRD and that work
 item's acceptance criteria exist; building the demo is owned by
 TF‑0MUXW66870013DOL.
 
-### 19.9 Future parameter automation
+### 19.9 Parameter adjustment
 
-General real‑time parameter automation remains a Future Extension (see §16)
-and is tracked separately as TF‑0MLYX9DP51U7AQDK.
+Focused real-time parameter modulation of continuous/looping sounds is
+implemented by `runtime.setSfxParameter(id, name, value)` (work item
+TF‑0MLYX9DP51U7AQDK). It supports `intensity`, `gain`, `pitch`, and `filter`,
+validates names and ranges before mutating state, logs a deterministic
+`parameter_change` event, and stores per-sound values keyed by sound id.
+
+General real‑time parameter automation for arbitrary sounds remains a Future
+Extension (see §16).
 
 ---
 

@@ -84,6 +84,7 @@ Context, and Sequencer. See
 | `isRunning()` | `boolean` | Whether a session is active |
 | `setState(name)` | `TransitionRecord` | Transition the attached state machine |
 | `setContext(updates)` | `ContextChangeRecord[]` | Update context dimensions |
+| `setSfxParameter(id, name, value)` | `SfxParameterResult` | Adjust a parameter of a playing continuous/looping sound |
 | `inspect()` | `RuntimeInspection` | Snapshot of state, context, active sequences, event count |
 | `log(limit?)` | `readonly RuntimeLogEntry[]` | Inspect the event log |
 | `onEvent(listener)` | `() => void` | Subscribe to events; returns an unsubscribe |
@@ -149,6 +150,34 @@ runtime.setState("walk");
 runtime.setContext({ surface: "gravel" });
 runtime.stop();
 ```
+
+### Example: real-time parameter adjustment (engine loop)
+
+`setSfxParameter(id, name, value)` updates a parameter of a sound that is
+already playing. The initial supported scope is continuous/looping sounds — for
+example an engine loop whose pitch and intensity track RPM. It supports
+`intensity`, `gain`, `pitch`, and `filter`; values are validated against their
+ranges before any state changes:
+
+```ts
+runtime.start();
+runtime.setState("running"); // activates the engine loop sequence
+
+// RPM rises: modulate the loop in real time.
+runtime.setSfxParameter("engine-1", "intensity", 0.3);
+runtime.setSfxParameter("engine-1", "pitch", 0.6);
+// ... later, at higher RPM ...
+runtime.setSfxParameter("engine-1", "intensity", 0.9);
+runtime.setSfxParameter("engine-1", "pitch", 1.8);
+
+// Invalid names or out-of-range values throw and leave playback untouched:
+// runtime.setSfxParameter("engine-1", "bogus", 0.5);     // unknown parameter
+// runtime.setSfxParameter("engine-1", "gain", 1.5);      // out of range
+```
+
+Each successful change is logged as a deterministic `parameter_change` event.
+General real-time parameter automation for arbitrary one-shot sounds is a
+documented future extension (see `docs/prd/RUNTIME_PRD.md` §16).
 
 ## Recipe rendering in the browser
 

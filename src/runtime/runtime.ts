@@ -36,7 +36,8 @@ export interface RuntimeEvent {
     | "sequence_start"
     | "sequence_stop"
     | "event_fire"
-    | "event_skip";
+    | "event_skip"
+    | "parameter_change";
 
   /** Descriptive detail for the event. */
   detail: Record<string, unknown>;
@@ -127,6 +128,35 @@ export interface RuntimeOptions {
   maxLogEntries?: number;
 }
 
+/** Valid SFX parameter names. */
+export type SfxParameterName = "intensity" | "gain" | "pitch" | "filter";
+
+/** Range constraints for each parameter. */
+const PARAMETER_RANGES: Record<
+  SfxParameterName,
+  { min: number; max: number; unit: string }
+> = {
+  intensity: { min: 0, max: 1, unit: "0-1" },
+  gain: { min: 0, max: 1, unit: "0-1" },
+  pitch: { min: 0.1, max: 4, unit: "0.1-4.0" },
+  filter: { min: 0, max: 1, unit: "0-1" },
+};
+
+/**
+ * Result of runtime.setSfxParameter().
+ */
+export interface SfxParameterResult {
+  /** The sound identifier. */
+  id: string;
+  /** The parameter name. */
+  name: string;
+  /** The new value. */
+  value: number;
+}
+
+/** Mapping from sound ID to its parameter map. */
+type SfxParameterStore = Map<string, Map<SfxParameterName, number>>;
+
 /** Runtime API surface. */
 export interface Runtime {
   /** Start the runtime. Returns the session ID. */
@@ -143,6 +173,23 @@ export interface Runtime {
 
   /** Set context dimensions (delegates to attached Context). */
   setContext(updates: Record<string, string>): ContextChangeRecord[];
+
+  /**
+   * Update a parameter of a playing sound in real time.
+   *
+   * Scoped to continuous/looping sounds (e.g. engine loops).
+   * Supports: intensity, gain, pitch, filter.
+   *
+   * @param id - The sound identifier.
+   * @param name - The parameter name.
+   * @param value - The new value (validated against parameter range).
+   * @returns The parameter update result.
+   */
+  setSfxParameter(
+    id: string,
+    name: SfxParameterName,
+    value: number,
+  ): SfxParameterResult;
 
   /** Inspect current runtime state. */
   inspect(): RuntimeInspection;
@@ -192,6 +239,9 @@ export function createRuntime(options?: RuntimeOptions): Runtime {
   let sessionRng: Rng = createRng(seed);
   const listeners: Set<RuntimeListener> = new Set();
 
+  // Parameter store: maps sound ID -> parameter name -> value
+  const sfxParameters: SfxParameterStore = new Map();
+
   // Track active sequence name for inspection
   let activeSequenceName: string | null = null;
 
@@ -222,6 +272,36 @@ export function createRuntime(options?: RuntimeOptions): Runtime {
 
   function nextEventId(): number {
     return ++eventCounter;
+  }
+
+  /**
+   * Validate a parameter name and value, returning an actionable error
+   * message when invalid. Throws on invalid input without mutating state.
+   */
+  function validateSfxParameter(
+    name: string,
+    value: number,
+  ): asserts name is SfxParameterName {
+    const range = PARAMETER_RANGES[name as SfxParameterName];
+    if (!range) {
+      const valid = Object.keys(PARAMETER_RANGES).join(", ");
+      throw new Error(
+        `Unknown parameter "${name}". Valid parameters: ${valid}.`,
+      );
+    }
+
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      throw new Error(
+        `Invalid value for parameter "${name}": expected a finite number.`,
+      );
+    }
+
+    if (value < range.min || value > range.max) {
+      throw new Error(
+        `Value ${value} is out of range for parameter "${name}" ` +
+          `(expected ${range.unit}).`,
+      );
+    }
   }
 
   function getCurrentContextSnapshot(): Record<string, string> {
@@ -462,6 +542,47 @@ export function createRuntime(options?: RuntimeOptions): Runtime {
       return changes;
     },
 
+    setSfxParameter(
+      id: string,
+      name: SfxParameterName,
+      value: number,
+    ): SfxParameterResult {
+      if (!running) {
+        throw new Error(
+          "Runtime is not running. Call start() before adjusting parameters.",
+        );
+      }
+
+      // Validate before mutating state
+      validateSfxParameter(name, value);
+
+      // Ensure sound ID has a parameter map
+      if (!sfxParameters.has(id)) {
+        sfxParameters.set(id, new Map());
+      }
+
+      const paramMap = sfxParameters.get(id)!;
+      const oldValue = paramMap.get(name);
+
+      // Store the parameter value
+      paramMap.set(name, value);
+
+      // Log the parameter change
+      emit({
+        id: nextEventId(),
+        timestamp: clock(),
+        type: "parameter_change",
+        detail: {
+          id,
+          name,
+          value,
+          previousValue: oldValue ?? null,
+        },
+      });
+
+      return { id, name, value };
+    },
+
     inspect(): RuntimeInspection {
       let stateInfo: RuntimeInspection["state"] = null;
 
@@ -525,6 +646,7 @@ export function createRuntime(options?: RuntimeOptions): Runtime {
       currentSessionId = null;
       activeSequenceName = null;
       sessionRng = createRng(seed);
+      sfxParameters.clear();
 
       if (stateMachine) {
         stateMachine.reset();
