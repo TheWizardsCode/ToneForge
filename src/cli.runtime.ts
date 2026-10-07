@@ -81,6 +81,7 @@ import { validateToneGraph } from "./core/tonegraph-schema.js";
 import { simulate, formatTimeline } from "./sequence/simulator.js";
 import { renderSequence } from "./sequence/renderer.js";
 import type { SequenceDefinition } from "./sequence/schema.js";
+import { VISUAL_FORMATS, exportVisual, listPalettes } from "./visualizer/index.js";
 
 /** Parse command-line arguments into a structured map. */
 export function parseArgs(argv: string[]): {
@@ -157,6 +158,7 @@ async function printHelp(): Promise<void> {
 | **play** | Play a WAV file through the system audio player |
 | **list** | List available resources (e.g. recipes) |
 | **tui** | Interactive wizard for building sound palettes |
+| **visualize** | Generate deterministic, audio-synchronised visual effects |
 | **version** | Print the ToneForge version |
 
 ## Options
@@ -253,6 +255,50 @@ toneforge analyze --input ./renders/weapon-laser-zap_seed-001.wav
 toneforge analyze --recipe weapon-laser-zap --seed 42
 toneforge analyze --input ./renders/ --format table
 toneforge analyze --input ./renders/ --output ./analysis/
+\`\`\``;
+  await outputMarkdown(md);
+}
+
+/** Print help text for the visualize command. */
+async function printVisualizeHelp(): Promise<void> {
+  const palettes = listPalettes();
+  const md = `# ToneForge visualize
+
+**Generate deterministic, audio-synchronised visual effects**
+
+## Usage
+
+\`\`\`
+toneforge visualize export --recipe <name> --seed <n> --format <f> --output <dir>
+\`\`\`
+
+## Options
+
+- \`--recipe <name>\` — Recipe name to visualise
+- \`--seed <number>\` — Seed for deterministic output
+- \`--format <spritesheet|frames>\` — Export format (default: \`spritesheet\`)
+- \`--output <dir>\` — Output directory (created if missing)
+- \`--palette <name>\` — Aesthetic palette (default: \`calm_ui\`)
+- \`--frames <n>\` — Number of animation frames (default: 8)
+- \`--width <n>\` / \`--height <n>\` — Frame size in pixels (default: 64)
+- \`--json\` — Output structured JSON to stdout
+- \`--help\`, \`-h\` — Show this help message
+
+## Palettes
+
+${palettes.map((p) => `- \`${p.name}\` — ${p.description}`).join("\n")}
+
+## Determinism
+
+Visual output is deterministic: the same recipe + seed + palette always
+produces byte-identical assets. Visual intensity follows the rendered
+audio's amplitude envelope, so effects stay synchronised to the sound.
+
+## Examples
+
+\`\`\`
+toneforge visualize export --recipe weapon-laser-zap --seed 42 --format spritesheet --output ./vfx/
+toneforge visualize export --recipe ui-scifi-confirm --seed 7 --palette sci_fi_neon --output ./vfx/
 \`\`\``;
   await outputMarkdown(md);
 }
@@ -1319,6 +1365,8 @@ export async function dispatchCommand(
       await printLibraryHelp();
     } else if (command === "tui") {
       await printTuiHelp();
+    } else if (command === "visualize") {
+      await printVisualizeHelp();
     } else if (command === "sequence") {
       if (subcommand === "generate") {
         await printSequenceGenerateHelp();
@@ -1902,6 +1950,125 @@ export async function dispatchCommand(
         jsonOut(output);
       } else {
         formatAnalysisHumanReadable(analysisResult, inputPath!);
+      }
+      return 0;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (jsonMode) { jsonErr(message); } else { outputError(`Error: ${message}`); }
+      return 1;
+    }
+  }
+
+  // ── visualize command ───────────────────────────────────────────
+
+  if (command === "visualize") {
+    if (flags["help"]) {
+      await printVisualizeHelp();
+      return 0;
+    }
+
+    if (subcommand !== "export") {
+      const msg =
+        subcommand === undefined
+          ? "'visualize' requires a subcommand. Did you mean 'visualize export'? Run 'toneforge visualize --help' for usage."
+          : `Unknown visualize subcommand '${subcommand}'. Run 'toneforge visualize --help' for usage.`;
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+
+    const recipeName = typeof flags["recipe"] === "string" ? flags["recipe"] : undefined;
+    const seedRaw = flags["seed"];
+    const formatFlag = typeof flags["format"] === "string" ? flags["format"] : "spritesheet";
+    const outputFlag = typeof flags["output"] === "string" ? flags["output"] : undefined;
+    const paletteFlag = typeof flags["palette"] === "string" ? flags["palette"] : undefined;
+
+    if (recipeName === undefined) {
+      const msg = "--recipe is required. Run 'toneforge visualize --help' for usage.";
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+    if (outputFlag === undefined) {
+      const msg = "--output is required. Run 'toneforge visualize --help' for usage.";
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+    if (seedRaw === undefined || seedRaw === true) {
+      const msg = "--seed is required. Run 'toneforge visualize --help' for usage.";
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+    const seed = parseInt(seedRaw as string, 10);
+    if (Number.isNaN(seed)) {
+      const msg = `--seed must be an integer, got '${seedRaw}'.`;
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+    if (!(VISUAL_FORMATS as readonly string[]).includes(formatFlag)) {
+      const msg = `--format must be one of ${VISUAL_FORMATS.join(", ")}, got '${formatFlag}'.`;
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+
+    const numericFlag = (
+      value: string | boolean | undefined,
+    ): number | undefined | false => {
+      if (value === undefined || value === true) {
+        return undefined;
+      }
+      const parsed = parseInt(value as string, 10);
+      if (Number.isNaN(parsed)) {
+        return false;
+      }
+      return parsed;
+    };
+    const frames = numericFlag(flags["frames"]);
+    const width = numericFlag(flags["width"]);
+    const height = numericFlag(flags["height"]);
+    for (const [value, name] of [
+      [frames, "--frames"],
+      [width, "--width"],
+      [height, "--height"],
+    ] as const) {
+      if (value === false) {
+        const msg = `${name} must be an integer.`;
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+    }
+
+    if (!registry.getRegistration(recipeName)) {
+      const suggestions = suggestRecipes(recipeName, registry.list());
+      let msg = `Unknown recipe '${recipeName}'.`;
+      if (suggestions.length > 0) {
+        msg += ` Did you mean: ${suggestions.join(", ")}?`;
+      }
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+
+    try {
+      const result = await exportVisual({
+        recipe: recipeName,
+        seed,
+        format: formatFlag,
+        outputDir: resolve(outputFlag),
+        ...(paletteFlag !== undefined ? { palette: paletteFlag } : {}),
+        ...(typeof frames === "number" ? { frames } : {}),
+        ...(typeof width === "number" ? { width } : {}),
+        ...(typeof height === "number" ? { height } : {}),
+      });
+
+      if (jsonMode) {
+        jsonOut({ ...result });
+      } else {
+        outputSuccess(
+          `Exported ${result.format} for '${result.recipe}' (seed ${result.seed}, palette ${result.palette})`,
+        );
+        outputInfo(`Effect: ${result.effect}`);
+        outputInfo(`Frames: ${result.frameCount} @ ${result.frameWidth}x${result.frameHeight}`);
+        for (const file of result.files) {
+          outputInfo(`  ${file}`);
+        }
       }
       return 0;
     } catch (error) {

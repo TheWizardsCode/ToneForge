@@ -17,6 +17,7 @@ import * as classifyCmd from "./cli/commands/classify.js";
 import * as exploreCmd from "./cli/commands/explore.js";
 import * as libraryCmd from "./cli/commands/library.js";
 import * as tuiCmd from "./cli/commands/tui.js";
+import * as visualizeCmd from "./cli/commands/visualize.js";
 
 export const FRAMEWORK_COMMANDS = [
   "generate",
@@ -31,6 +32,7 @@ export const FRAMEWORK_COMMANDS = [
   "explore",
   "library",
   "tui",
+  "visualize",
 ];
 
 /**
@@ -396,6 +398,38 @@ export async function yargsMain(argv: string[] = process.argv): Promise<number> 
         ...(argv.stdin === true ? { stdin: true } : {}),
         ...(argv.name !== undefined ? { name: String(argv.name) } : {}),
         ...(argv.destination !== undefined ? { destination: String(argv.destination) } : {}),
+      }), []);
+    });
+  }, async (_argv) => {
+    // Re-parse raw argv so dispatchCommand receives the unknown subcommand name
+    // for proper error output. yargs only calls this handler when no subcommand
+    // matched, so `argv._` isn't reliable; `raw` (captured in outer scope) is.
+    const parsed = parseArgs(["node", "cli.ts", ...raw]);
+    exitCode = await dispatchCommand(parsed.command, parsed.subcommand, parsed.flags, parsed.layers);
+  });
+
+  // ── visualize ─────────────────────────────────────────────────────────────
+  y.command(visualizeCmd.command, visualizeCmd.desc, (y2) => {
+    y2.command("export", "Export deterministic visual effects for a recipe", (y3) => {
+      y3.option("recipe", { type: "string", describe: "Recipe name" })
+        .option("seed", { type: "number", describe: "Seed for deterministic output" })
+        .option("format", { type: "string", describe: "Export format: spritesheet or frames" })
+        .option("output", { type: "string", describe: "Output directory" })
+        .option("palette", { type: "string", describe: "Aesthetic palette name" })
+        .option("frames", { type: "number", describe: "Number of animation frames" })
+        .option("width", { type: "number", describe: "Frame width in pixels" })
+        .option("height", { type: "number", describe: "Frame height in pixels" })
+        .option("json", { type: "boolean", describe: "Output JSON" });
+    }, async (argv) => {
+      exitCode = await dispatchCommand("visualize", "export", buildFlags(argv, {
+        ...(argv.recipe !== undefined ? { recipe: String(argv.recipe) } : {}),
+        ...(argv.seed !== undefined ? { seed: String(argv.seed) } : {}),
+        ...(argv.format !== undefined ? { format: String(argv.format) } : {}),
+        ...(argv.output !== undefined ? { output: String(argv.output) } : {}),
+        ...(argv.palette !== undefined ? { palette: String(argv.palette) } : {}),
+        ...(argv.frames !== undefined ? { frames: String(argv.frames) } : {}),
+        ...(argv.width !== undefined ? { width: String(argv.width) } : {}),
+        ...(argv.height !== undefined ? { height: String(argv.height) } : {}),
       }), []);
     });
   }, async (_argv) => {
