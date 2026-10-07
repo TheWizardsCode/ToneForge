@@ -1,0 +1,25 @@
+{
+  "version": "1.0",
+  "name": "casual_adventure_intro_sequence",
+  "description": "Casual adventure intro: an adventure-call sting, a short start-game fanfare and an air swish launching a new journey.",
+  "events": [
+    {
+      "time": 0.0,
+      "event": "sting-adventure-call",
+      "seedOffset": 0,
+      "gain": 1.0
+    },
+    {
+      "time": 0.35,
+      "event": "motif-start-game-fanfare-short",
+      "seedOffset": 1,
+      "gain": 0.9
+    },
+    {
+      "time": 0.75,
+      "event": "whoosh-air-swish",
+      "seedOffset": 2,
+      "gain": 0.7
+    }
+  ]
+}

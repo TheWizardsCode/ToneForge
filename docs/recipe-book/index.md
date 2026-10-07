@@ -127,3 +127,18 @@ organised into seven ascending tiers of increasing complexity:
 
 **Total: 100 recipes** across 7 tiers.
 
+## Capstones: Layered arrangements
+
+Ten capstone arrangements composed from the recipes above using `toneforge stack` and `toneforge sequence`:
+
+1. [`casual_ui_confirm_stack`](./casual_ui_confirm_stack.md) — Casual UI confirm stack: a crisp selection pop, a rising confirmation tone and a magic shimmer layered into one satisfying interface acknowledgement.
+2. [`casual_coin_reward_stack`](./casual_coin_reward_stack.md) — Casual coin reward stack: a bright pickup tick, an arcing coin contour and a coin-chain jingle that together celebrate a reward.
+3. [`casual_victory_stack`](./casual_victory_stack.md) — Casual victory stack: a two-note victory motif, a level-up jingle and a bright multi-voice victory sting layered for a full win fanfare.
+4. [`casual_character_jump_stack`](./casual_character_jump_stack.md) — Casual character-jump stack: a rising hop blip, a character jump voice and an air swish whoosh layered into a lively jump.
+5. [`casual_impact_hit_stack`](./casual_impact_hit_stack.md) — Casual impact-hit stack: a dull thud, a fleshy punch and a metallic crash layered into a single weighty hit.
+6. [`casual_menu_flow_sequence`](./casual_menu_flow_sequence.md) — Casual menu flow: a click, a selection pop, a rising confirm and a dialog-open motif tracing a happy interface journey.
+7. [`casual_coin_run_sequence`](./casual_coin_run_sequence.md) — Casual coin run: four rapid coin pickups building into an arcing reward, tuned for a satisfying collection streak.
+8. [`casual_level_complete_sequence`](./casual_level_complete_sequence.md) — Casual level complete: a quest-complete motif, a level-up jingle and a level-complete sting closing a stage with a flourish.
+9. [`casual_game_over_sequence`](./casual_game_over_sequence.md) — Casual game over: a soft defeat sting, a gentle game-over sting and a falling cancel tone that end a run kindly.
+10. [`casual_adventure_intro_sequence`](./casual_adventure_intro_sequence.md) — Casual adventure intro: an adventure-call sting, a short start-game fanfare and an air swish launching a new journey.
+

@@ -1,0 +1,25 @@
+{
+  "version": "1.0",
+  "name": "casual_game_over_sequence",
+  "description": "Casual game over: a soft defeat sting, a gentle game-over sting and a falling cancel tone that end a run kindly.",
+  "events": [
+    {
+      "time": 0.0,
+      "event": "sting-defeat-soft",
+      "seedOffset": 0,
+      "gain": 0.9
+    },
+    {
+      "time": 0.35,
+      "event": "sting-game-over-gentle",
+      "seedOffset": 1,
+      "gain": 0.9
+    },
+    {
+      "time": 0.9,
+      "event": "ui-cancel-fall",
+      "seedOffset": 2,
+      "gain": 0.7
+    }
+  ]
+}

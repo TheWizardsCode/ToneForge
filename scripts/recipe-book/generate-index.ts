@@ -99,6 +99,46 @@ lines.push("");
 lines.push(`**Total: ${entries.length} recipes** across 7 tiers.`);
 lines.push("");
 
+// ── Capstone arrangements (after the 100 recipes) ──────────────────
+
+interface CapstoneEntry {
+  kind: "stacks" | "sequences";
+  name: string;
+}
+
+const capstones: CapstoneEntry[] = [
+  { kind: "stacks", name: "casual_ui_confirm_stack" },
+  { kind: "stacks", name: "casual_coin_reward_stack" },
+  { kind: "stacks", name: "casual_victory_stack" },
+  { kind: "stacks", name: "casual_character_jump_stack" },
+  { kind: "stacks", name: "casual_impact_hit_stack" },
+  { kind: "sequences", name: "casual_menu_flow_sequence" },
+  { kind: "sequences", name: "casual_coin_run_sequence" },
+  { kind: "sequences", name: "casual_level_complete_sequence" },
+  { kind: "sequences", name: "casual_game_over_sequence" },
+  { kind: "sequences", name: "casual_adventure_intro_sequence" },
+];
+
+lines.push("## Capstones: Layered arrangements");
+lines.push("");
+lines.push(
+  "Ten capstone arrangements composed from the recipes above using `toneforge stack` and `toneforge sequence`:",
+);
+lines.push("");
+
+capstones.forEach((cap, i) => {
+  const presetPath = resolve(ROOT, "presets", cap.kind, `${cap.name}.json`);
+  const preset = JSON.parse(readFileSync(presetPath, "utf-8")) as {
+    description?: string;
+  };
+  lines.push(
+    `${i + 1}. [\`${cap.name}\`](./${cap.name}.md) — ${preset.description ?? cap.name}`,
+  );
+});
+lines.push("");
+
 const outputPath = resolve(ROOT, "docs", "recipe-book", "index.md");
 writeFileSync(outputPath, lines.join("\n") + "\n", "utf-8");
-console.log(`Generated ${outputPath} (${entries.length} entries)`);
+console.log(
+  `Generated ${outputPath} (${entries.length} recipes + ${capstones.length} capstones)`,
+);

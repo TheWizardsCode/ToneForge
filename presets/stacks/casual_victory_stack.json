@@ -1,0 +1,22 @@
+{
+  "version": "1.0",
+  "name": "casual_victory_stack",
+  "description": "Casual victory stack: a two-note victory motif, a level-up jingle and a bright multi-voice victory sting layered for a full win fanfare.",
+  "layers": [
+    {
+      "recipe": "motif-win-two-note",
+      "startTime": 0.0,
+      "gain": 0.9
+    },
+    {
+      "recipe": "jingle-level-up",
+      "startTime": 0.34,
+      "gain": 0.8
+    },
+    {
+      "recipe": "sting-victory-bright",
+      "startTime": 0.6,
+      "gain": 1.0
+    }
+  ]
+}
