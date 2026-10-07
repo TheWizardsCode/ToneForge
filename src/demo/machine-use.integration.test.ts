@@ -199,7 +199,7 @@ describe("report-available-sounds.sh", () => {
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }
-  }, 15_000);
+  }, 30_000); // Spawns several CLI calls (incl. `npx` resolution); 30s matches the helper execFile budget and absorbs full-suite parallel load
 
   // -----------------------------------------------------------------------
   // AC2: error — missing used-sounds file exits non-zero

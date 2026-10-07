@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
@@ -22,6 +22,47 @@ import { renderRecipe } from "../core/renderer.js";
 import { registry } from "./index.js";
 import { recipeRoster, type RosterEntry } from "./recipe-book/roster.js";
 import { compareBuffers } from "../test-utils/buffer-compare.js";
+import { main } from "../cli.js";
+
+/** The ten capstone arrangement pages that follow the 100 recipes. */
+const CAPSTONE_PAGES = [
+  "casual_ui_confirm_stack",
+  "casual_coin_reward_stack",
+  "casual_victory_stack",
+  "casual_character_jump_stack",
+  "casual_impact_hit_stack",
+  "casual_menu_flow_sequence",
+  "casual_coin_run_sequence",
+  "casual_level_complete_sequence",
+  "casual_game_over_sequence",
+  "casual_adventure_intro_sequence",
+];
+
+/** Build a fake argv as if invoked via `node cli.ts <...args>`. */
+function argv(...args: string[]): string[] {
+  return ["node", "cli.ts", ...args];
+}
+
+/** Capture stdout while running a CLI handler. */
+async function captureStdout(fn: () => Promise<number>): Promise<string> {
+  const lines: string[] = [];
+  const origLog = console.log;
+  const origWrite = process.stdout.write;
+  console.log = (...args: unknown[]) => {
+    lines.push(args.map(String).join(" "));
+  };
+  process.stdout.write = ((chunk: string | Uint8Array) => {
+    lines.push(String(chunk));
+    return true;
+  }) as typeof process.stdout.write;
+  try {
+    await fn();
+  } finally {
+    console.log = origLog;
+    process.stdout.write = origWrite;
+  }
+  return lines.join("\n");
+}
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..", "..");
@@ -156,21 +197,12 @@ describe("Recipe Book Roster", () => {
   });
 });
 
-describe("Recipe Book Gates (delivered entries only)", () => {
+describe("Recipe Book Gates", () => {
   for (let k = 0; k < recipeRoster.length; k++) {
     const entry = recipeRoster[k]!;
     const recipeName = entry.name;
-    const yamlPath = resolve(RECIPES_DIR, recipeName + ".yaml");
-    const isDelivered = existsSync(yamlPath);
 
-    describe(recipeName + " (tier " + entry.tier + ")" + (isDelivered ? "" : " — not yet delivered"), () => {
-      if (!isDelivered) {
-        it("is not yet delivered (deferred to completion gate)", () => {
-          expect(true).toBe(true);
-        });
-        return;
-      }
-
+    describe(recipeName + " (tier " + entry.tier + ")", () => {
       it("ToneGraph schema is valid", () => {
         var doc = loadAndValidateRecipe(recipeName);
         expect(doc).toBeDefined();
@@ -210,29 +242,94 @@ describe("Recipe Book Gates (delivered entries only)", () => {
   }
 });
 
-describe("Index completeness", () => {
-  it("contains recipe links for delivered entries", () => {
-    var content = readFileSync(INDEX_PATH, "utf-8");
-    var deliveredCount = 0;
-    for (var m = 0; m < recipeRoster.length; m++) {
-      var r = recipeRoster[m]!;
-      var rp = resolve(RECIPES_DIR, r.name + ".yaml");
-      if (existsSync(rp)) deliveredCount++;
+describe("Recipe Book completion gate", () => {
+  it("delivers exactly the 100 roster recipes", () => {
+    const missing = recipeRoster
+      .filter((e) => !existsSync(resolve(RECIPES_DIR, e.name + ".yaml")))
+      .map((e) => e.name);
+    expect(missing, "Missing recipe YAML for: " + missing.join(", ")).toEqual([]);
+  });
+
+  it("has a page for every roster recipe and lists them in roster order", () => {
+    const index = readFileSync(INDEX_PATH, "utf-8");
+    const missingPages: string[] = [];
+    const missingIndex: string[] = [];
+    for (const entry of recipeRoster) {
+      if (!existsSync(resolve(DOCS_DIR, entry.name + ".md"))) {
+        missingPages.push(entry.name);
+      }
+      const link = "[\`" + entry.name + "\`](./" + entry.name + ".md)";
+      if (!index.includes(link)) {
+        missingIndex.push(entry.name);
+      }
     }
-    var linkCount = 0;
-    var regex = /\[`[^`]+`\]\(\.\/[^)]+\.md\)/g;
-    var match: RegExpExecArray | null;
-    while ((match = regex.exec(content)) !== null) {
-      linkCount++;
+    expect(missingPages, "Missing pages: " + missingPages.join(", ")).toEqual([]);
+    expect(missingIndex, "Missing index links: " + missingIndex.join(", ")).toEqual([]);
+  });
+
+  it("lists exactly the 100 recipes plus the capstones in index.md", () => {
+    const index = readFileSync(INDEX_PATH, "utf-8");
+    const linkRegex = /\[`([^`]+)`\]\(\.\/([^)]+)\.md\)/g;
+    const linked = new Set<string>();
+    let match: RegExpExecArray | null;
+    while ((match = linkRegex.exec(index)) !== null) {
+      linked.add(match[1]!);
     }
-    expect(linkCount).toBeGreaterThanOrEqual(deliveredCount);
+    const expected = new Set<string>([
+      ...recipeRoster.map((e) => e.name),
+      ...CAPSTONE_PAGES,
+    ]);
+    expect([...linked].sort()).toEqual([...expected].sort());
+  });
+
+  it("is bidirectional: every recipe has a page and no page is orphaned", () => {
+    const pageIds = readdirSync(DOCS_DIR)
+      .filter((f) => f.endsWith(".md") && f !== "index.md" && f !== "_template.md")
+      .map((f) => f.replace(/\.md$/, ""));
+    const pageSet = new Set(pageIds);
+    const rosterSet = new Set(recipeRoster.map((e) => e.name));
+    const capstoneSet = new Set(CAPSTONE_PAGES);
+
+    const missingPages = recipeRoster
+      .filter((e) => !pageSet.has(e.name))
+      .map((e) => e.name);
+    expect(missingPages, "Recipes without pages: " + missingPages.join(", ")).toEqual([]);
+
+    const orphans = pageIds.filter(
+      (id) => !rosterSet.has(id) && !capstoneSet.has(id),
+    );
+    expect(orphans, "Orphan pages: " + orphans.join(", ")).toEqual([]);
+  });
+
+  it("toneforge list recipes --tags casual returns all 100 book recipes with casual + fun/joy", async () => {
+    const stdout = await captureStdout(() =>
+      main(argv("list", "recipes", "--tags", "casual", "--json")),
+    );
+    const data = JSON.parse(stdout) as {
+      recipes: Array<{ name: string; tags: string[] }>;
+    };
+    const byName = new Map(data.recipes.map((r) => [r.name, r]));
+
+    for (const entry of recipeRoster) {
+      const recipe = byName.get(entry.name);
+      expect(
+        recipe,
+        entry.name + " missing from `toneforge list recipes --tags casual`",
+      ).toBeDefined();
+      const tags = (recipe?.tags ?? []).map((t) => t.toLowerCase());
+      expect(tags, entry.name + " must carry the casual tag").toContain("casual");
+      expect(
+        tags.includes("fun") || tags.includes("joy"),
+        entry.name + " must carry at least one of fun/joy",
+      ).toBe(true);
+    }
   });
 
   it("is ordered by tier ascending", () => {
-    var content = readFileSync(INDEX_PATH, "utf-8");
-    var tierMatches = [...content.matchAll(/## Tier (\d+)/g)];
-    var tiers = tierMatches.map(function(m: RegExpMatchArray) { return Number(m[1]); });
-    for (var p = 1; p < tiers.length; p++) {
+    const content = readFileSync(INDEX_PATH, "utf-8");
+    const tierMatches = [...content.matchAll(/## Tier (\d+)/g)];
+    const tiers = tierMatches.map((m: RegExpMatchArray) => Number(m[1]));
+    for (let p = 1; p < tiers.length; p++) {
       expect(tiers[p]!).toBeGreaterThan(tiers[p - 1]!);
     }
   });
