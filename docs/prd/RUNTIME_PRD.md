@@ -50,7 +50,7 @@ Its purpose is to:
 - Full procedural generation at runtime
 - DAW‑style editing
 - AI inference during gameplay
-- Offline rendering or export
+- Offline rendering or export *as a user-facing feature* (the runtime uses offline rendering internally to produce buffers; see §19)
 
 ---
 
@@ -92,7 +92,7 @@ ToneForge Runtime guarantees:
 
 ## 5.1 Procedural Playback
 
-Plays procedural or hybrid recipes directly using Tone.js nodes.
+Plays procedural or hybrid recipes directly through the ToneForge offline renderer (see §19). The renderer is the single source of audio truth; the runtime does not embed a second synthesis engine.
 
 **Use cases**
 - footsteps
@@ -294,9 +294,100 @@ ToneForge Runtime enables:
 ToneForge Runtime is the **execution layer** of the ToneForge ecosystem.  
 It brings procedural and hybrid sound design into real‑time environments—efficiently, deterministically, and at scale—without sacrificing control or performance.
 
+## 19. Runtime ↔ Render/Playback Pipeline (2026‑10 Revisit)
+
+This section records the outcome of the runtime PRD revisit
+(TF‑0MM4M1NXU0WHH6AJ) and supersedes earlier wording that implied a
+Tone.js‑only, offline‑only runtime.
+
+### 19.1 The gap
+
+The runtime in `src/runtime/` orchestrates State, Context, and Sequencer and
+logs deterministic events, but it never produces audio. The former Demo 9 was
+removed because it emitted only simulated transitions as JSONL. This section
+defines how the runtime, when asked to play, wires into the existing renderer
+and audio player.
+
+### 19.2 Decision: a render‑backed runtime
+
+Runtime playback is **render‑backed**. An event resolves to a concrete recipe
+(or sequence/stack); the existing offline renderer produces a deterministic
+sample buffer; the runtime schedules that buffer through the host playback
+layer. The runtime does not grow a second synthesis engine, and the renderer
+remains the single source of audio truth.
+
+Pipeline:
+
+```
+Context / State
+      ↓
+Runtime event  →  recipe resolver  →  render layer
+                                       (renderRecipe / renderSequence / renderStack)
+      ↓                                        ↓
+  event log  ←─────────────────  AudioBuffer cache  →  playback
+                                                        (Node WAV player /
+                                                         browser AudioContext)
+```
+
+### 19.3 Render layer
+
+- `renderRecipe(recipe, seed)`, `renderSequence(...)`, and `renderStack(...)`
+  produce Float32 samples at 44.1 kHz mono (the current convention).
+- The renderer is pure and deterministic; runtime playback never mutates it.
+- Rendering is asynchronous so sample‑backed recipes work unchanged.
+
+### 19.4 Playback layer
+
+- **Node:** encode the rendered buffer with `encodeWav` and hand the file to
+  `playAudio` — the same path used by `toneforge play`.
+- **Browser:** wrap the buffer in an `AudioBuffer` and schedule an
+  `AudioBufferSourceNode` on the shared `AudioContext`.
+- Playback is non‑blocking and does not change the runtime event log.
+
+### 19.5 Buffer cache
+
+- Buffers are cached by `(recipe, seed, overrides hash)`.
+- The cache is bounded by a configurable limit and evicts deterministically
+  (LRU), so repeated events reuse work without unbounded memory growth.
+
+### 19.6 Playback modes (revised)
+
+The three modes in §5 map onto one buffer interface:
+
+| Mode | Implementation |
+|---|---|
+| Procedural | Render the recipe/sequence now and play the buffer |
+| Hybrid | Render procedural layers now, mix with pre‑baked sample layers |
+| Baked fallback | Look up a pre‑baked WAV instead of rendering |
+
+### 19.7 Determinism
+
+Same seed + recipe → identical samples → identical playback. Rendering is
+independent of runtime state; runtime state remains active voices, the buffer
+cache, and runtime parameters.
+
+### 19.8 Audible demo user story
+
+**As a game developer**, I want a scripted runtime demo that plays audible
+sound whose recipe changes as state and context change — footsteps changing
+from stone to gravel, and from walking to sprinting — so that I can *hear* the
+runtime responding to behaviour instead of reading its event log.
+
+The demo is tracked as **TF‑0MUXW66870013DOL** ("Runtime Audio Demo: audible
+state‑ and context‑driven playback"), which carries the updated, verifiable
+acceptance criteria. This revisit item is complete once this PRD and that work
+item's acceptance criteria exist; building the demo is owned by
+TF‑0MUXW66870013DOL.
+
+### 19.9 Future parameter automation
+
+General real‑time parameter automation remains a Future Extension (see §16)
+and is tracked separately as TF‑0MLYX9DP51U7AQDK.
+
 ---
 
 If you want next, the natural follow‑ups are:
+- the audible runtime demo (TF‑0MUXW66870013DOL)
 - a formal runtime performance budget spec
 - Unity or Unreal integration PRDs
 - or a runtime‑safe recipe subset definition
