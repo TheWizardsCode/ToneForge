@@ -1,0 +1,92 @@
+# Tier 6 — Ambience & loops (filtered noise bed + slow LFO)
+# Forest breeze ambience.
+
+version: '0.1'
+meta:
+  name: ambience-forest-breeze
+  description: Forest breeze ambience
+  category: Ambience
+  tags:
+  - casual
+  - joy
+  - ambience
+  duration: 1.9
+  parameters:
+  - name: filterFreq
+    type: number
+    min: 350
+    max: 900
+    unit: Hz
+    default: 600
+    overrides:
+    - target: filter.frequency
+    - target: filter.automation.frequency.0.offset
+  - name: breezeRate
+    type: number
+    min: 0.1
+    max: 1.2
+    unit: Hz
+    default: 0.5
+    overrides:
+    - target: filter.automation.frequency.0.rate
+  - name: breezeDepth
+    type: number
+    min: 120
+    max: 450
+    unit: Hz
+    default: 250
+    overrides:
+    - target: filter.automation.frequency.0.depth
+  - name: attack
+    type: number
+    min: 0.2
+    max: 0.6
+    unit: s
+    default: 0.4
+    overrides:
+    - target: env.attack
+  - name: release
+    type: number
+    min: 0.25
+    max: 0.7
+    unit: s
+    default: 0.55
+    overrides:
+    - target: env.release
+nodes:
+  noise:
+    kind: noise
+    params:
+      color: pink
+      level: 0.8
+  filter:
+    kind: biquadFilter
+    params:
+      type: bandpass
+      frequency: 600
+      Q: 1.5
+    automation:
+      frequency:
+      - kind: lfo
+        rate: 0.5
+        depth: 250
+        offset: 600
+        start: 0
+        end: 2.5
+        step: 0.02
+        wave: sine
+  env:
+    kind: envelope
+    params:
+      attack: 0.4
+      decay: 0.6
+      sustain: 0.72
+      release: 0.55
+  out:
+    kind: destination
+routing:
+- chain:
+  - noise
+  - filter
+  - env
+  - out

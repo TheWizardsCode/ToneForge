@@ -1,0 +1,73 @@
+# Tier 6 — Ambience & loops (broadband noise bed)
+# Soft waterfall ambience.
+
+version: '0.1'
+meta:
+  name: ambience-waterfall-soft
+  description: Soft waterfall ambience
+  category: Ambience
+  tags:
+  - casual
+  - fun
+  - ambience
+  duration: 1.7
+  parameters:
+  - name: filterFreq
+    type: number
+    min: 1400
+    max: 3600
+    unit: Hz
+    default: 2500
+    overrides:
+    - target: filter.frequency
+  - name: noiseLevel
+    type: number
+    min: 0.6
+    max: 1.0
+    unit: amplitude
+    default: 0.85
+    overrides:
+    - target: noise.level
+  - name: attack
+    type: number
+    min: 0.15
+    max: 0.5
+    unit: s
+    default: 0.35
+    overrides:
+    - target: env.attack
+  - name: release
+    type: number
+    min: 0.2
+    max: 0.6
+    unit: s
+    default: 0.5
+    overrides:
+    - target: env.release
+nodes:
+  noise:
+    kind: noise
+    params:
+      color: white
+      level: 0.85
+  filter:
+    kind: biquadFilter
+    params:
+      type: lowpass
+      frequency: 2500
+      Q: 0.7
+  env:
+    kind: envelope
+    params:
+      attack: 0.35
+      decay: 0.5
+      sustain: 0.8
+      release: 0.5
+  out:
+    kind: destination
+routing:
+- chain:
+  - noise
+  - filter
+  - env
+  - out

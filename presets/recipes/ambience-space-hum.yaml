@@ -1,0 +1,81 @@
+# Tier 6 — Ambience & loops (dual-drone beat)
+# Space hum ambience.
+
+version: '0.1'
+meta:
+  name: ambience-space-hum
+  description: Space hum ambience
+  category: Ambience
+  tags:
+  - casual
+  - fun
+  - ambience
+  duration: 2.1
+  parameters:
+  - name: humFreq
+    type: number
+    min: 40
+    max: 90
+    unit: Hz
+    default: 60
+    overrides:
+    - target: osc1.frequency
+  - name: beatFreq
+    type: number
+    min: 41
+    max: 96
+    unit: Hz
+    default: 61
+    overrides:
+    - target: osc2.frequency
+  - name: attack
+    type: number
+    min: 0.2
+    max: 0.7
+    unit: s
+    default: 0.45
+    overrides:
+    - target: env.attack
+  - name: release
+    type: number
+    min: 0.3
+    max: 0.8
+    unit: s
+    default: 0.6
+    overrides:
+    - target: env.release
+nodes:
+  osc1:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 60
+  osc2:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 61
+  mix:
+    kind: gain
+    params:
+      gain: 0.6
+  env:
+    kind: envelope
+    params:
+      attack: 0.45
+      decay: 0.6
+      sustain: 0.8
+      release: 0.6
+  out:
+    kind: destination
+routing:
+- chain:
+  - osc1
+  - mix
+- chain:
+  - osc2
+  - mix
+- chain:
+  - mix
+  - env
+  - out

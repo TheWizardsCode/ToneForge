@@ -1,0 +1,96 @@
+# Tier 6 — Ambience & loops (slow amplitude LFO bed)
+# Ocean waves ambience.
+
+version: '0.1'
+meta:
+  name: ambience-ocean-waves
+  description: Ocean waves ambience
+  category: Ambience
+  tags:
+  - casual
+  - joy
+  - ambience
+  duration: 1.9
+  parameters:
+  - name: waveRate
+    type: number
+    min: 0.08
+    max: 0.5
+    unit: Hz
+    default: 0.2
+    overrides:
+    - target: mix.automation.gain.0.rate
+  - name: waveDepth
+    type: number
+    min: 0.15
+    max: 0.45
+    unit: amplitude
+    default: 0.35
+    overrides:
+    - target: mix.automation.gain.0.depth
+  - name: filterFreq
+    type: number
+    min: 600
+    max: 1800
+    unit: Hz
+    default: 1200
+    overrides:
+    - target: filter.frequency
+  - name: attack
+    type: number
+    min: 0.2
+    max: 0.6
+    unit: s
+    default: 0.4
+    overrides:
+    - target: env.attack
+  - name: release
+    type: number
+    min: 0.25
+    max: 0.7
+    unit: s
+    default: 0.6
+    overrides:
+    - target: env.release
+nodes:
+  noise:
+    kind: noise
+    params:
+      color: pink
+      level: 0.9
+  filter:
+    kind: biquadFilter
+    params:
+      type: lowpass
+      frequency: 1200
+      Q: 0.8
+  mix:
+    kind: gain
+    params:
+      gain: 0.5
+    automation:
+      gain:
+      - kind: lfo
+        rate: 0.2
+        depth: 0.35
+        offset: 0.5
+        start: 0
+        end: 2.5
+        step: 0.02
+        wave: sine
+  env:
+    kind: envelope
+    params:
+      attack: 0.4
+      decay: 0.6
+      sustain: 0.85
+      release: 0.6
+  out:
+    kind: destination
+routing:
+- chain:
+  - noise
+  - filter
+  - mix
+  - env
+  - out

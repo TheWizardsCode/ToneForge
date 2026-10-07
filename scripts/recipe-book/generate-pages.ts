@@ -321,6 +321,148 @@ const narratives: Record<string, Narrative> = {
     intent:
       "A weighty, imposing creature breath for dragons and beasts.",
   },
+
+  // \u2500\u2500\u2500 Tier 6: Ambience & loops \u2500\u2500\u2500
+  "ambience-meadow-day": {
+    overview:
+      "A warm daytime meadow bed \u2014 a soft pitched tone blended with pink noise, suggesting distant birds and rustling grass.",
+    synthesis:
+      "A 520 Hz sine and pink noise at 0.35 are summed and passed through a 1200 Hz bandpass; a slow 400 ms attack and 500 ms release with a 0.72 sustain keep the texture continuous rather than event-like, so it can loop under a scene.",
+    parameters:
+      "`toneFreq` sets the pitched layer; `noiseLevel` balances air against tone; `filterFreq` places the texture; `attack`/`decay`/`release` shape the swell and fade.",
+    intent:
+      "A calm, sunny outdoor loop for menus and exploration.",
+  },
+  "ambience-cave-drip": {
+    overview:
+      "A dark cave bed with a low drone and periodic resonant drips.",
+    synthesis:
+      "A 90 Hz sine drone is joined by a small white-noise layer through a bandpass whose centre is swept by a 3 Hz LFO (\u00b1400 Hz), producing the repeating drip resonance. A long sustain keeps the cave open.",
+    parameters:
+      "`droneFreq` sets the rumble; `noiseLevel` the drip material; `dripRate`/`dripDepth` the drip spacing and brightness; `attack`/`release` the fade.",
+    intent:
+      "An echoing underground loop with occasional water.",
+  },
+  "ambience-forest-breeze": {
+    overview:
+      "A leafy forest breeze \u2014 filtered pink noise gently swept by a very slow LFO.",
+    synthesis:
+      "Pink noise passes a bandpass at 600 Hz (Q 1.5) whose centre is modulated by a 0.5 Hz LFO (\u00b1250 Hz); the filter and LFO offset are linked so changing `filterFreq` moves the whole breeze.",
+    parameters:
+      "`filterFreq` sets the breeze's base; `breezeRate`/`breezeDepth` set the gust speed and width; `attack`/`release` shape the swell.",
+    intent:
+      "A soft, natural outdoor loop.",
+  },
+  "ambience-waterfall-soft": {
+    overview:
+      "A steady soft waterfall \u2014 broad white noise rounded by a gentle lowpass.",
+    synthesis:
+      "White noise through a 2500 Hz lowpass (Q 0.7) gives a full, uncoloured rush; a long sustain and relaxed release make it a continuous bed rather than an event.",
+    parameters:
+      "`filterFreq` sets brightness; `noiseLevel` sets loudness; `attack`/`release` shape the fade.",
+    intent:
+      "A continuous water loop for caves, grottos and gardens.",
+  },
+  "ambience-campfire-crackle": {
+    overview:
+      "A campfire bed \u2014 warm noise with periodic crackles.",
+    synthesis:
+      "White noise through a bandpass at 2200 Hz (Q 2) with a 6 Hz LFO (\u00b1900 Hz) creates the flutter and pops of flame; a moderate sustain keeps it alive while the release prevents a hard stop.",
+    parameters:
+      "`filterFreq` sets the warmth; `crackleRate`/`crackleDepth` set the pop frequency and intensity; `attack`/`release` the fade.",
+    intent:
+      "A cosy fire loop for camps and taverns.",
+  },
+  "ambience-rain-light": {
+    overview:
+      "Light rain \u2014 a high, hissing noise bed.",
+    synthesis:
+      "White noise through a 3000 Hz highpass (Q 0.5) leaves only the fine high-frequency patter of drizzle; a soft envelope keeps it continuous and even.",
+    parameters:
+      "`filterFreq` sets the rain tone; `noiseLevel` its density; `attack`/`release` the fade.",
+    intent:
+      "A gentle rain loop for outdoor scenes.",
+  },
+  "ambience-ocean-waves": {
+    overview:
+      "Ocean waves \u2014 a filtered noise bed swelling and receding.",
+    synthesis:
+      "Pink noise through a 1200 Hz lowpass is amplitude-modulated by a 0.2 Hz LFO (\u00b10.35) on the mix gain, producing the long surge and fall of surf.",
+    parameters:
+      "`waveRate`/`waveDepth` set the swell timing and strength; `filterFreq` the water tone; `attack`/`release` the fade.",
+    intent:
+      "A rolling coastal loop.",
+  },
+  "ambience-night-crickets": {
+    overview:
+      "Night crickets \u2014 a chirping high tone over a quiet bed.",
+    synthesis:
+      "A 4200 Hz sine with a 14 Hz LFO (\u00b1300 Hz) produces the cricket chirr; a small pink-noise layer through a 1500 Hz lowpass supplies the night air. The two are summed before a sustained envelope.",
+    parameters:
+      "`cricketRate`/`cricketDepth` set the chirp speed and warble; `noiseLevel` the bed; `filterFreq` the air; `attack`/`release` the fade.",
+    intent:
+      "A warm summer-night loop.",
+  },
+  "ambience-space-hum": {
+    overview:
+      "A deep space hum \u2014 two almost-identical low drones that beat slowly.",
+    synthesis:
+      "60 Hz and 61 Hz sines are summed; their 1 Hz difference creates a slow, unsettling beat. A long attack and release keep the drone sustained and seamless.",
+    parameters:
+      "`humFreq` and `beatFreq` set the two drone pitches (their difference is the beat); `attack`/`release` shape the fade.",
+    intent:
+      "An eerie, weightless sci-fi loop.",
+  },
+  "ambience-machine-hum": {
+    overview:
+      "A machine-room hum \u2014 a low sawtooth drone softened by a lowpass.",
+    synthesis:
+      "A 55 Hz sawtooth through a 400 Hz lowpass (Q 2) yields a rich but muffled industrial hum; the lowpass removes the harsh upper harmonics that would otherwise fatigue.",
+    parameters:
+      "`humFreq` sets the motor pitch; `filterFreq` the muffling; `attack`/`release` the fade.",
+    intent:
+      "A steady engine-room or factory loop.",
+  },
+  "ambience-market-bustle": {
+    overview:
+      "A busy market \u2014 a chattering mid-band bed with a tonal undercurrent.",
+    synthesis:
+      "Pink noise through a bandpass at 1000 Hz (Q 1) modulated by a 2 Hz LFO (\u00b1300 Hz) suggests indistinct voices, while a 300 Hz sine adds body beneath them.",
+    parameters:
+      "`chatterRate`/`chatterDepth` set the crowd movement; `filterFreq` the voices' band; `noiseLevel` the crowd level; `attack`/`release` the fade.",
+    intent:
+      "A lively, populated town loop.",
+  },
+  "ambience-magic-glow": {
+    overview:
+      "A magical glow \u2014 a shimmering high FM drone.",
+    synthesis:
+      "An `fmPattern` voice (carrier 900 Hz, modulator 1400 Hz, index 3) produces a bell-like shimmer, highpassed at 500 Hz so it floats above the mix without muddying it.",
+    parameters:
+      "`carrierFreq`/`modulatorFreq` set the shimmer pitch and ratio; `modIndex` its brightness; `attack`/`release` the fade.",
+    intent:
+      "An enchanted, luminous loop for magical places.",
+  },
+  "ambience-desert-wind": {
+    overview:
+      "A dry desert wind \u2014 brown noise swept by a slow bandpass.",
+    synthesis:
+      "Brown noise through a bandpass at 500 Hz (Q 1.5) with a 0.3 Hz LFO (\u00b1300 Hz) gives a low, dusty gust; brown noise supplies the weight and low-frequency body.",
+    parameters:
+      "`windRate`/`windDepth` set the gust motion; `filterFreq` the wind body; `attack`/`release` the fade.",
+    intent:
+      "A sparse, arid outdoor loop.",
+  },
+  "ambience-snowfall-hush": {
+    overview:
+      "A silent snowfall hush \u2014 the faintest high noise over a soft low tone.",
+    synthesis:
+      "White noise through a 4000 Hz highpass leaves a whisper of air, while a 120 Hz sine underpins it. A long attack and release make it as gentle as possible.",
+    parameters:
+      "`toneFreq` sets the low pad; `noiseLevel` the air; `filterFreq` the hiss tone; `attack`/`release` the fade.",
+    intent:
+      "A quiet, still winter loop.",
+  },
 };
 
 function describeContour(contour: ContourEvent[]): string {
