@@ -1,0 +1,63 @@
+# Tier 2 — Shaped events (envelope + pitch movement)
+# Bouncy bonk for cartoon impacts — linear pitch contour from 180 Hz to 420 Hz.
+
+version: "0.1"
+meta:
+  name: impact-bonk-bouncy
+  description: Bouncy bonk for cartoon impacts
+  category: Impact
+  tags:
+    - casual
+    - fun
+    - impact
+  duration: 0.23
+  parameters:
+    - name: startFreq
+      type: number
+      min: 108
+      max: 288
+      unit: Hz
+      default: 180
+    - name: endFreq
+      type: number
+      min: 252
+      max: 672
+      unit: Hz
+      default: 420
+    - name: attack
+      type: number
+      min: 0.001
+      max: 0.03
+      unit: s
+      default: 0.002
+    - name: decay
+      type: number
+      min: 0.03
+      max: 0.4
+      unit: s
+      default: 0.12
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: square
+      frequency: 180
+    automation:
+      frequency:
+        - kind: set
+          time: 0
+          value: 180
+        - kind: linearRamp
+          time: 0.06
+          value: 420
+  env:
+    kind: envelope
+    params:
+      attack: 0.002
+      decay: 0.12
+      sustain: 0
+      release: 0
+  out:
+    kind: destination
+routing:
+  - chain: [osc, env, out]

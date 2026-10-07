@@ -1,0 +1,72 @@
+# Tier 2 — Shaped events (envelope + pitch movement)
+# Double-bounce jump with a springy pitch hop — linear pitch contour from 250 Hz to 350 Hz.
+
+version: "0.1"
+meta:
+  name: jump-double-boing
+  description: Double-bounce jump with a springy pitch hop
+  category: Character
+  tags:
+    - casual
+    - fun
+    - jump
+  duration: 0.39
+  parameters:
+    - name: startFreq
+      type: number
+      min: 150
+      max: 400
+      unit: Hz
+      default: 250
+    - name: midFreq
+      type: number
+      min: 350
+      max: 700
+      unit: Hz
+      default: 500
+    - name: endFreq
+      type: number
+      min: 210
+      max: 560
+      unit: Hz
+      default: 350
+    - name: attack
+      type: number
+      min: 0.001
+      max: 0.03
+      unit: s
+      default: 0.005
+    - name: decay
+      type: number
+      min: 0.03
+      max: 0.4
+      unit: s
+      default: 0.2
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 250
+    automation:
+      frequency:
+        - kind: set
+          time: 0
+          value: 250
+        - kind: linearRamp
+          time: 0.07
+          value: 500
+        - kind: linearRamp
+          time: 0.14
+          value: 350
+  env:
+    kind: envelope
+    params:
+      attack: 0.005
+      decay: 0.2
+      sustain: 0
+      release: 0
+  out:
+    kind: destination
+routing:
+  - chain: [osc, env, out]

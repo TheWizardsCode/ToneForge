@@ -1,0 +1,63 @@
+# Tier 2 — Shaped events (envelope + pitch movement)
+# Falling cancellation tone — exponential pitch contour from 700 Hz to 300 Hz.
+
+version: "0.1"
+meta:
+  name: ui-cancel-fall
+  description: Falling cancellation tone
+  category: UI
+  tags:
+    - casual
+    - fun
+    - ui
+  duration: 0.32
+  parameters:
+    - name: startFreq
+      type: number
+      min: 420
+      max: 1120
+      unit: Hz
+      default: 700
+    - name: endFreq
+      type: number
+      min: 180
+      max: 480
+      unit: Hz
+      default: 300
+    - name: attack
+      type: number
+      min: 0.001
+      max: 0.03
+      unit: s
+      default: 0.005
+    - name: decay
+      type: number
+      min: 0.03
+      max: 0.4
+      unit: s
+      default: 0.15
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 700
+    automation:
+      frequency:
+        - kind: set
+          time: 0
+          value: 700
+        - kind: exponentialRamp
+          time: 0.12
+          value: 300
+  env:
+    kind: envelope
+    params:
+      attack: 0.005
+      decay: 0.15
+      sustain: 0
+      release: 0
+  out:
+    kind: destination
+routing:
+  - chain: [osc, env, out]

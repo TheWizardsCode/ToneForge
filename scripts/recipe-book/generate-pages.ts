@@ -181,18 +181,34 @@ const narratives: Record<string, Narrative> = {
   },
 };
 
-function fallbackNarrative(
-  name: string,
-  kind: string,
-  description: string,
-  tags: string[],
-): Narrative {
+function describeContour(contour: ContourEvent[]): string {
+  if (contour.length < 2) return "";
+  const first = contour[0]!;
+  const last = contour[contour.length - 1]!;
+  const rising = last.value > first.value;
+  const rampKinds = [...new Set(contour.slice(1).map((e) => e.kind))].join("/");
+  const direction = rising ? "rising" : "falling";
+  const shape = rampKinds.includes("exponential")
+    ? "exponential"
+    : "linear";
+  const waypoints = contour.map((e) => `${e.value} Hz`).join(" → ");
+  return `The pitch follows a ${shape} ${direction} contour (${waypoints}) scheduled on the oscillator's frequency AudioParam, so the note bends rather than holding a fixed pitch.`;
+}
+
+function fallbackNarrative(name: string, meta: RecipeMeta): Narrative {
+  const { description, tags, kind, parameters, contour, envelope, waveform } = meta;
+  const contourText = contour && contour.length > 1 ? describeContour(contour) : "";
+  const envText = envelope
+    ? `The amplitude envelope runs attack ${envelope.attack}s, decay ${envelope.decay}s and sustain ${envelope.sustain}, so the tone opens quickly and then settles.`
+    : "The amplitude envelope keeps the sound compact.";
+  const synth = contourText
+    ? `It is built from a single ${waveform ?? kind} tone shaped by ${envText} ${contourText}`
+    : `It is built from a single ${kind} tone shaped by ${envText} No additional processing is required, so it renders quickly and deterministically.`;
+  const paramNames = parameters.map((p) => `\`${p.name}\``).join(", ");
   return {
-    overview: `\`${name}\` is a ${description.toLowerCase()} It belongs to the casual recipe family (${tags.join(", ")}) and is designed to be short, characterful and easy to layer.`,
-    synthesis:
-      `It is built from a single ${kind} tone shaped by an amplitude envelope. The envelope keeps the sound compact and the oscillator provides the tonal colour; no additional processing is required, so it renders quickly and deterministically.`,
-    parameters:
-      "The declared parameters expose the oscillator frequency and the envelope attack/decay. Adjust the frequency to move the sound between registers and the decay to make it snappier or more resonant.",
+    overview: `\`${name}\` provides ${description.toLowerCase()}. It belongs to the casual recipe family (${tags.join(", ")}) and is designed to be short, characterful and easy to layer.`,
+    synthesis: synth,
+    parameters: `The declared parameters (${paramNames}) expose the pitch contour endpoints and the envelope timing. Override a contour endpoint to change the direction or span of the sweep, or adjust the decay to make the event snappier or more resonant.`,
     intent:
       "A lightweight, joyful game sound intended as a placeholder that a sound designer can immediately vary through the CLI.",
   };
@@ -212,12 +228,28 @@ function parseRosterNames(): string[] {
   return names;
 }
 
+interface ContourEvent {
+  kind: string;
+  time: number;
+  value: number;
+}
+
+interface EnvelopeShape {
+  attack?: number;
+  decay?: number;
+  sustain?: number;
+  release?: number;
+}
+
 interface RecipeMeta {
   description: string;
   tags: string[];
   kind: string;
   category: string;
+  waveform?: string;
   parameters: Array<{ name: string; type: string; min?: number; max?: number; unit?: string; default?: unknown }>;
+  contour?: ContourEvent[];
+  envelope?: EnvelopeShape;
 }
 
 function loadRecipe(name: string): RecipeMeta | null {
@@ -225,18 +257,42 @@ function loadRecipe(name: string): RecipeMeta | null {
   if (!existsSync(filePath)) return null;
   const doc = yaml.load(readFileSync(filePath, "utf-8")) as Record<string, unknown>;
   const meta = (doc.meta ?? {}) as Record<string, unknown>;
-  const nodes = (doc.nodes ?? {}) as Record<string, { kind?: string }>;
-  const kinds = Object.values(nodes).map((n) => n.kind ?? "");
+  const nodes = (doc.nodes ?? {}) as Record<string, any>;
+  const kinds = Object.values(nodes).map((n) => (n && typeof n === "object" ? n.kind : "") ?? "");
   const kind =
     kinds.find((k) => ["oscillator", "noise", "fmPattern", "bufferSource", "lfo"].includes(k)) ??
     "oscillator";
+
+  // First oscillator node (with optional waveform + frequency automation)
+  let waveform: string | undefined;
+  let contour: ContourEvent[] | undefined;
+  let envelope: EnvelopeShape | undefined;
+  for (const node of Object.values(nodes)) {
+    if (!node || typeof node !== "object") continue;
+    if (node.kind === "oscillator" && !waveform) {
+      waveform = node.params?.type;
+      const events = node.automation?.frequency;
+      if (Array.isArray(events)) {
+        contour = events
+          .filter((e: any) => e && typeof e.value === "number")
+          .map((e: any) => ({ kind: String(e.kind), time: Number(e.time), value: Number(e.value) }));
+      }
+    }
+    if (node.kind === "envelope" && !envelope) {
+      envelope = node.params as EnvelopeShape;
+    }
+  }
+
   const params = (meta.parameters as RecipeMeta["parameters"]) ?? [];
   return {
     description: String(meta.description ?? name),
     tags: (meta.tags as string[]) ?? [],
     kind: kind === "oscillator" ? "oscillator" : kind,
     category: String(meta.category ?? "UI"),
+    waveform,
     parameters: params,
+    contour,
+    envelope,
   };
 }
 
@@ -342,9 +398,7 @@ for (const name of targets) {
     skipped++;
     continue;
   }
-  const narrative =
-    narratives[name] ??
-    fallbackNarrative(name, meta.kind, meta.description, meta.tags);
+  const narrative = narratives[name] ?? fallbackNarrative(name, meta);
   const page = renderPage(name, orderIndex.get(name) ?? 0, meta, narrative);
   writeFileSync(resolve(DOCS_DIR, `${name}.md`), page, "utf-8");
   written++;

@@ -1,0 +1,63 @@
+# Tier 2 — Shaped events (envelope + pitch movement)
+# Dull thud for soft impacts — exponential pitch contour from 200 Hz to 80 Hz.
+
+version: "0.1"
+meta:
+  name: impact-thud-dull
+  description: Dull thud for soft impacts
+  category: Impact
+  tags:
+    - casual
+    - fun
+    - impact
+  duration: 0.3
+  parameters:
+    - name: startFreq
+      type: number
+      min: 120
+      max: 320
+      unit: Hz
+      default: 200
+    - name: endFreq
+      type: number
+      min: 48
+      max: 128
+      unit: Hz
+      default: 80
+    - name: attack
+      type: number
+      min: 0.001
+      max: 0.03
+      unit: s
+      default: 0.002
+    - name: decay
+      type: number
+      min: 0.03
+      max: 0.4
+      unit: s
+      default: 0.15
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 200
+    automation:
+      frequency:
+        - kind: set
+          time: 0
+          value: 200
+        - kind: exponentialRamp
+          time: 0.1
+          value: 80
+  env:
+    kind: envelope
+    params:
+      attack: 0.002
+      decay: 0.15
+      sustain: 0
+      release: 0
+  out:
+    kind: destination
+routing:
+  - chain: [osc, env, out]

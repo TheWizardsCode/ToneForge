@@ -1,0 +1,63 @@
+# Tier 2 — Shaped events (envelope + pitch movement)
+# Rising hop blip for character jumps — linear pitch contour from 300 Hz to 600 Hz.
+
+version: "0.1"
+meta:
+  name: jump-hop-blip
+  description: Rising hop blip for character jumps
+  category: Character
+  tags:
+    - casual
+    - fun
+    - jump
+  duration: 0.25
+  parameters:
+    - name: startFreq
+      type: number
+      min: 180
+      max: 480
+      unit: Hz
+      default: 300
+    - name: endFreq
+      type: number
+      min: 360
+      max: 960
+      unit: Hz
+      default: 600
+    - name: attack
+      type: number
+      min: 0.001
+      max: 0.03
+      unit: s
+      default: 0.005
+    - name: decay
+      type: number
+      min: 0.03
+      max: 0.4
+      unit: s
+      default: 0.12
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 300
+    automation:
+      frequency:
+        - kind: set
+          time: 0
+          value: 300
+        - kind: linearRamp
+          time: 0.08
+          value: 600
+  env:
+    kind: envelope
+    params:
+      attack: 0.005
+      decay: 0.12
+      sustain: 0
+      release: 0
+  out:
+    kind: destination
+routing:
+  - chain: [osc, env, out]

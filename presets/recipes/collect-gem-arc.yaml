@@ -1,0 +1,63 @@
+# Tier 2 — Shaped events (envelope + pitch movement)
+# Arcing gem pickup contour — linear pitch contour from 1200 Hz to 2000 Hz.
+
+version: "0.1"
+meta:
+  name: collect-gem-arc
+  description: Arcing gem pickup contour
+  category: Collect
+  tags:
+    - casual
+    - joy
+    - collect
+  duration: 0.25
+  parameters:
+    - name: startFreq
+      type: number
+      min: 720
+      max: 1920
+      unit: Hz
+      default: 1200
+    - name: endFreq
+      type: number
+      min: 1200
+      max: 3200
+      unit: Hz
+      default: 2000
+    - name: attack
+      type: number
+      min: 0.001
+      max: 0.03
+      unit: s
+      default: 0.003
+    - name: decay
+      type: number
+      min: 0.03
+      max: 0.4
+      unit: s
+      default: 0.12
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: triangle
+      frequency: 1200
+    automation:
+      frequency:
+        - kind: set
+          time: 0
+          value: 1200
+        - kind: linearRamp
+          time: 0.08
+          value: 2000
+  env:
+    kind: envelope
+    params:
+      attack: 0.003
+      decay: 0.12
+      sustain: 0
+      release: 0
+  out:
+    kind: destination
+routing:
+  - chain: [osc, env, out]
