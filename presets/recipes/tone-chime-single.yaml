@@ -1,0 +1,49 @@
+# Tier 1 — Pure tones & blips (single oscillator, simple envelope)
+# Single-note chime for notifications
+
+version: "0.1"
+meta:
+  name: tone-chime-single
+  description: Single-note chime for notifications
+  category: UI
+  tags:
+    - casual
+    - joy
+    - ui
+  duration: 0.274
+  parameters:
+    - name: frequency
+      type: number
+      min: 880
+      max: 1760
+      unit: Hz
+      default: 1320
+    - name: attack
+      type: number
+      min: 0.001
+      max: 0.02
+      unit: s
+      default: 0.004
+    - name: decay
+      type: number
+      min: 0.15
+      max: 0.4
+      unit: s
+      default: 0.25
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 1320
+  env:
+    kind: envelope
+    params:
+      attack: 0.004
+      decay: 0.25
+      sustain: 0
+      release: 0
+  out:
+    kind: destination
+routing:
+  - chain: [osc, env, out]

@@ -5,6 +5,10 @@
  * Each entry declares a planned recipe with its tier, family prefix, and a
  * one-line sound-design intent.
  *
+ * This roster is the source of truth recorded in the tier work items
+ * (TF-0MUYBDMHM003TI3D … TF-0MUYBDONM008UGQW); the per-tier acceptance
+ * criteria name each recipe explicitly.
+ *
  * Tier counts: 14/14/16/14/14/14/14 = 100
  *
  * Tag policy: every recipe carries `casual` plus at least one of `fun`/`joy`,
@@ -24,146 +28,118 @@ export interface RosterEntry {
 
 export const recipeRoster: RosterEntry[] = [
   // ─── Tier 1: Pure tones & blips (single oscillator, simple envelope) ───
-  // 1.1–1.4  Sine tones
-  { name: "blip-sine-ping",         tier: 1, family: "ui",        intent: "Short sine blip for UI confirmations" },
-  { name: "tone-sine-low-drone",    tier: 1, family: "ambient",   intent: "Low sustained sine drone for background presence" },
-  { name: "tone-sine-high-bell",    tier: 1, family: "ui",        intent: "High-pitched sine bell for collectibles" },
-  { name: "tone-sine-mid-click",    tier: 1, family: "ui",        intent: "Mid-range sine click for button presses" },
-  // 1.5–1.8  Square waves
-  { name: "blip-square-walk",       tier: 1, family: "ui",        intent: "Retro square-wave walk step" },
-  { name: "tone-square-menu-tick",  tier: 1, family: "ui",        intent: "Menu navigation tick using square wave" },
-  { name: "blip-square-select",     tier: 1, family: "ui",        intent: "Squarer, buzzy select tone" },
-  { name: "tone-square-chime",      tier: 1, family: "ui",        intent: "Chime-like square wave with quick fade" },
-  // 1.9–1.12  Triangle waves
-  { name: "blip-triangle-boop",     tier: 1, family: "ui",        intent: "Friendly triangle wave boop" },
-  { name: "tone-triangle-soft-tap", tier: 1, family: "ui",        intent: "Soft triangle tap for gentle feedback" },
-  { name: "blip-triangle-pop",      tier: 1, family: "ui",        intent: "Pop-like triangle pulse" },
-  { name: "tone-triangle-warm-tone",tier: 1, family: "ui",        intent: "Warm mid-level triangle tone" },
-  // 1.13–1.14  Sawtooth waves
-  { name: "blip-saw-zap",           tier: 1, family: "impact",    intent: "Sharp sawtooth zap for impacts" },
-  { name: "tone-saw-bright-ring",   tier: 1, family: "ui",        intent: "Bright sawtooth ring for notifications" },
+  { name: "blip-sine-ping",          tier: 1, family: "blip",      intent: "Short sine blip for UI confirmations" },
+  { name: "blip-square-short",       tier: 1, family: "blip",      intent: "Short square-wave blip for retro feedback" },
+  { name: "blip-triangle-soft",      tier: 1, family: "blip",      intent: "Soft triangle-wave blip for gentle cues" },
+  { name: "blip-saw-buzz",           tier: 1, family: "blip",      intent: "Buzzy sawtooth blip for crisp alerts" },
+  { name: "tone-chime-single",       tier: 1, family: "tone",      intent: "Single-note chime for notifications" },
+  { name: "tone-bell-tap",           tier: 1, family: "tone",      intent: "Bell-like tapped tone for rewards" },
+  { name: "ui-click-crisp",          tier: 1, family: "ui",        intent: "Crisp click for button presses" },
+  { name: "ui-tap-soft",             tier: 1, family: "ui",        intent: "Soft tap for light UI interactions" },
+  { name: "ui-select-pop",           tier: 1, family: "ui",        intent: "Pop-like selection tone" },
+  { name: "ui-cancel-blip",          tier: 1, family: "ui",        intent: "Downward-feeling cancel blip" },
+  { name: "collect-pickup-coin",     tier: 1, family: "collect",   intent: "Bright coin pickup sparkle" },
+  { name: "collect-gem-tick",        tier: 1, family: "collect",   intent: "Short gem collection tick" },
+  { name: "ui-toggle-on",            tier: 1, family: "ui",        intent: "Toggle-on confirmation blip" },
+  { name: "ui-toggle-off",           tier: 1, family: "ui",        intent: "Toggle-off confirmation blip" },
 
   // ─── Tier 2: Shaped events (envelope + pitch movement) ───
-  // 2.1–2.4  Envelope sweeps
-  { name: "sweep-pitch-rise",       tier: 2, family: "ui",        intent: "Pitch rising sweep for ascending UI cues" },
-  { name: "sweep-pitch-fall",       tier: 2, family: "ui",        intent: "Pitch falling sweep for descending UI cues" },
-  { name: "sweep-pitch-whoosh",     tier: 2, family: "impact",    intent: "Wide pitch sweep whoosh for transitions" },
-  { name: "sweep-pitch-bloop",      tier: 2, family: "ui",        intent: "Playful pitch-bending bloop" },
-  // 2.5–2.8  ADSR shapes
-  { name: "shape-adsr-pluck",       tier: 2, family: "ui",        intent: "Pluck-like ADSR with fast attack" },
-  { name: "shape-adsr-pad",         tier: 2, family: "ambient",   intent: "Soft pad with slow attack and long sustain" },
-  { name: "shape-adsr-kick",        tier: 2, family: "impact",    intent: "Kick-like envelope with punchy decay" },
-  { name: "shape-adsr-snare",       tier: 2, family: "impact",    intent: "Snare-like envelope with quick decay" },
-  // 2.9–2.12  Pitch curves
-  { name: "curve-pitch-slide",      tier: 2, family: "ui",        intent: "Smooth pitch slide between two notes" },
-  { name: "curve-pitch-hop",        tier: 2, family: "ui",        intent: "Discrete two-step pitch hop" },
-  { name: "curve-pitch-gliss",      tier: 2, family: "ui",        intent: "Fast glissando for sliding effects" },
-  { name: "curve-pitch-wobble",     tier: 2, family: "ui",        intent: "Wobbly pitch curve for quirkiness" },
-  // 2.13–2.14  Combined shapes
-  { name: "shape-env-pitch-burst",  tier: 2, family: "impact",    intent: "Envelope burst with pitch drop" },
-  { name: "shape-env-pitch-lift",   tier: 2, family: "ui",        intent: "Envelope lift with pitch rise on attack" },
+  { name: "jump-hop-blip",           tier: 2, family: "jump",      intent: "Rising hop blip for character jumps" },
+  { name: "jump-double-boing",       tier: 2, family: "jump",      intent: "Double-bounce jump with a springy pitch hop" },
+  { name: "sweep-rise-bright",       tier: 2, family: "sweep",     intent: "Bright rising pitch sweep for positive cues" },
+  { name: "sweep-fall-soft",         tier: 2, family: "sweep",     intent: "Soft falling pitch sweep for wind-downs" },
+  { name: "ui-pop-bubble",           tier: 2, family: "ui",        intent: "Bubbly pop for UI reveal" },
+  { name: "ui-press-squish",         tier: 2, family: "ui",        intent: "Squishy press shape for button actuation" },
+  { name: "impact-thud-dull",        tier: 2, family: "impact",    intent: "Dull thud for soft impacts" },
+  { name: "impact-bonk-bouncy",      tier: 2, family: "impact",    intent: "Bouncy bonk for cartoon impacts" },
+  { name: "ui-confirm-rise",         tier: 2, family: "ui",        intent: "Rising confirmation tone" },
+  { name: "ui-cancel-fall",          tier: 2, family: "ui",        intent: "Falling cancellation tone" },
+  { name: "collect-coin-arc",        tier: 2, family: "collect",   intent: "Arcing coin pickup contour" },
+  { name: "collect-gem-arc",         tier: 2, family: "collect",   intent: "Arcing gem pickup contour" },
+  { name: "weapon-pew-soft",         tier: 2, family: "weapon",    intent: "Soft laser pew with pitch drop" },
+  { name: "ui-launch-tone-sweep",    tier: 2, family: "ui",        intent: "Launch tone with an upward sweep" },
 
   // ─── Tier 3: Textured & filtered (noise, filters, FM) ───
-  // 3.1–3.4  Noise-based
-  { name: "texture-noise-scratch",  tier: 3, family: "impact",    intent: "Filtered noise scratch for surface interaction" },
-  { name: "texture-noise-hiss",     tier: 3, family: "ambient",   intent: "Breathy noise hiss for wind/air" },
-  { name: "texture-noise-crackle",  tier: 3, family: "impact",    intent: "Crackling noise for fire/spark effects" },
-  { name: "texture-noise-rumble",   tier: 3, family: "impact",    intent: "Low-passed noise rumble for distant thunder" },
-  // 3.5–3.8  Filter sweeps
-  { name: "filter-sweep-open",      tier: 3, family: "ui",        intent: "Lowpass filter opening up for reveal" },
-  { name: "filter-sweep-close",     tier: 3, family: "ui",        intent: "Lowpass filter closing down for conceal" },
-  { name: "filter-resonant-bass",   tier: 3, family: "impact",    intent: "Resonant filter sweep on bass tone" },
-  { name: "filter-bandwidth-wipe",  tier: 3, family: "ui",        intent: "Bandpass sweep for scanning effects" },
-  // 3.9–3.12  FM synthesis
-  { name: "fm-metallic-chime",      tier: 3, family: "ui",        intent: "Metallic FM chime with harmonic richness" },
-  { name: "fm-bell-tone",           tier: 3, family: "ui",        intent: "Bell-like FM tone with complex harmonics" },
-  { name: "fm-bass-bounce",         tier: 3, family: "impact",    intent: "Bouncy FM bass with modulation" },
-  { name: "fm-zip-electric",        tier: 3, family: "ui",        intent: "Electric zip sound via FM modulation" },
-  // 3.13–3.16  Combined textures
-  { name: "texture-noise-filter-burst", tier: 3, family: "impact", intent: "Noise burst through sweeping filter" },
-  { name: "texture-fm-noise-grit",  tier: 3, family: "impact",    intent: "FM tone layered with filtered noise grit" },
-  { name: "texture-filter-fm-wash", tier: 3, family: "ambient",   intent: "Washed-out FM through resonant filter" },
-  { name: "texture-noise-fm-shimmer", tier: 3, family: "ambient", intent: "Shimmering texture combining noise and FM" },
+  { name: "impact-punch-flesh",      tier: 3, family: "impact",    intent: "Fleshy punch impact" },
+  { name: "impact-crash-metal",      tier: 3, family: "impact",    intent: "Metal crash with resonant ring" },
+  { name: "impact-crunch-gravel",    tier: 3, family: "impact",    intent: "Gravel crunch impact" },
+  { name: "whoosh-air-swish",        tier: 3, family: "whoosh",    intent: "Air swish whoosh" },
+  { name: "whoosh-cloth-flap",       tier: 3, family: "whoosh",    intent: "Cloth flap whoosh" },
+  { name: "explosion-pop-bright",    tier: 3, family: "explosion", intent: "Bright explosion pop" },
+  { name: "explosion-fizz-short",    tier: 3, family: "explosion", intent: "Short fizzing explosion tail" },
+  { name: "sparkle-magic-shimmer",   tier: 3, family: "sparkle",   intent: "Magical shimmer sparkle" },
+  { name: "texture-static-crackle",  tier: 3, family: "texture",   intent: "Static crackle texture" },
+  { name: "ui-glitch-digital",       tier: 3, family: "ui",        intent: "Digital glitch UI effect" },
+  { name: "ui-robot-beep",           tier: 3, family: "ui",        intent: "Robotic FM beep" },
+  { name: "ui-alien-warble",         tier: 3, family: "ui",        intent: "Alien warbling tone" },
+  { name: "weapon-zap-electric",     tier: 3, family: "weapon",    intent: "Electric weapon zap" },
+  { name: "footstep-grass-rustle",   tier: 3, family: "footstep",  intent: "Grass rustle footstep" },
+  { name: "footstep-sand-crunch",    tier: 3, family: "footstep",  intent: "Sand crunch footstep" },
+  { name: "collect-rattle-drop",     tier: 3, family: "collect",   intent: "Rattle-drop collectible" },
 
   // ─── Tier 4: Melodic motifs (2–4 note figures) ───
-  // 4.1–4.4  Two-note motifs
-  { name: "melody-two-note-rise",   tier: 4, family: "ui",        intent: "Simple two-note rising motif" },
-  { name: "melody-two-note-fall",   tier: 4, family: "ui",        intent: "Simple two-note falling motif" },
-  { name: "melody-two-note-bounce", tier: 4, family: "ui",        intent: "Bouncy two-note motif with rhythm" },
-  { name: "melody-two-note-answer", tier: 4, family: "ui",        intent: "Call-and-response two-note phrase" },
-  // 4.5–4.8  Three-note motifs
-  { name: "melody-three-note-arpeggio", tier: 4, family: "ui",    intent: "Quick three-note ascending arpeggio" },
-  { name: "melody-three-note-descending", tier: 4, family: "ui",  intent: "Descending three-note melodic figure" },
-  { name: "melody-three-note-jingle",   tier: 4, family: "ui",    intent: "Three-note jingle for collectibles" },
-  { name: "melody-three-note-alert",    tier: 4, family: "ui",    intent: "Attention-grabbing three-note alert" },
-  // 4.9–4.12  Four-note motifs
-  { name: "melody-four-note-blast", tier: 4, family: "ui",        intent: "Four-note ascending melodic blast" },
-  { name: "melody-four-note-fanfare", tier: 4, family: "ui",      intent: "Short fanfare-style four-note figure" },
-  { name: "melody-four-note-trill",   tier: 4, family: "ui",      intent: "Trilling four-note motif" },
-  { name: "melody-four-note-cadence", tier: 4, family: "ui",      intent: "Cadential four-note resolution phrase" },
-  // 4.13–4.14  Variations
-  { name: "melody-rhythmic-hop",    tier: 4, family: "ui",        intent: "Rhythmically staggered two-note hop" },
-  { name: "melody-syncopated-clap", tier: 4, family: "ui",        intent: "Syncopated short motif mimicking a clap" },
+  { name: "motif-win-two-note",      tier: 4, family: "motif",     intent: "Two-note victory motif" },
+  { name: "motif-lose-two-note",     tier: 4, family: "motif",     intent: "Two-note losing motif" },
+  { name: "motif-menu-select-arpeggio", tier: 4, family: "motif",  intent: "Menu-select arpeggio" },
+  { name: "motif-start-game-fanfare-short", tier: 4, family: "motif", intent: "Short game-start fanfare" },
+  { name: "jingle-level-up",         tier: 4, family: "jingle",    intent: "Level-up jingle" },
+  { name: "jingle-achievement",      tier: 4, family: "jingle",    intent: "Achievement jingle" },
+  { name: "jingle-coin-chain",       tier: 4, family: "jingle",    intent: "Coin-chain jingle" },
+  { name: "jingle-star-collect",     tier: 4, family: "jingle",    intent: "Star-collect jingle" },
+  { name: "ui-tab-switch-motif",     tier: 4, family: "ui",        intent: "Tab-switch motif" },
+  { name: "ui-dialog-open-motif",    tier: 4, family: "ui",        intent: "Dialog-open motif" },
+  { name: "ui-dialog-close-motif",   tier: 4, family: "ui",        intent: "Dialog-close motif" },
+  { name: "collect-powerup-arpeggio", tier: 4, family: "collect",  intent: "Power-up arpeggio" },
+  { name: "motif-quest-accept",      tier: 4, family: "motif",     intent: "Quest-accept motif" },
+  { name: "motif-quest-complete",    tier: 4, family: "motif",     intent: "Quest-complete fanfare" },
 
   // ─── Tier 5: Character & critter voices ───
-  // 5.1–5.4  Simple critter sounds
-  { name: "character-squeak-mouse",     tier: 5, family: "character", intent: "High-pitched mouse squeak" },
-  { name: "character-peep-bird",        tier: 5, family: "character", intent: "Short bird peep" },
-  { name: "character-grunt-troll",      tier: 5, family: "character", intent: "Low grunting troll voice" },
-  { name: "character-chirp-cicada",     tier: 5, family: "character", intent: "Rhythmic cicada-like chirp" },
-  // 5.5–5.8  Expressive voices
-  { name: "character-laugh-joy",        tier: 5, family: "character", intent: "Joyful character laugh" },
-  { name: "character-growl-angry",      tier: 5, family: "character", intent: "Angry low growl" },
-  { name: "character-sing-happy",       tier: 5, family: "character", intent: "Happy whistled singing fragment" },
-  { name: "character-cry-sad",          tier: 5, family: "character", intent: "Descending sad character cry" },
-  // 5.9–5.12  Complex critters
-  { name: "character-roar-big",         tier: 5, family: "character", intent: "Big creature roar with harmonics" },
-  { name: "character-hoot-owl",         tier: 5, family: "character", intent: "Owl-like hoot sequence" },
-  { name: "character-croak-frog",       tier: 5, family: "character", intent: "Frog-like croak with pitch bend" },
-  { name: "character-warble-birdsong",  tier: 5, family: "character", intent: "Complex warbling birdsong" },
-  // 5.13–5.14  Special
-  { name: "character-bubble-pop",       tier: 5, family: "character", intent: "Bubble-pop creature interaction" },
-  { name: "character-spider-scuttle",   tier: 5, family: "character", intent: "Multi-click scuttling spider sound" },
+  { name: "character-jump-voice",    tier: 5, family: "character", intent: "Character jump voice" },
+  { name: "character-hurt-voice",    tier: 5, family: "character", intent: "Character hurt voice" },
+  { name: "character-happy-voice",   tier: 5, family: "character", intent: "Character happy voice" },
+  { name: "character-effort-grunt",  tier: 5, family: "character", intent: "Character effort grunt" },
+  { name: "character-sigh-voice",    tier: 5, family: "character", intent: "Character sigh" },
+  { name: "creature-blob-squish",    tier: 5, family: "creature",  intent: "Blob squish" },
+  { name: "creature-bat-squeak",     tier: 5, family: "creature",  intent: "Bat squeak" },
+  { name: "creature-frog-croak",     tier: 5, family: "creature",  intent: "Frog croak" },
+  { name: "creature-bird-chirp",     tier: 5, family: "creature",  intent: "Bird chirp" },
+  { name: "creature-slime-bounce",   tier: 5, family: "creature",  intent: "Slime bounce" },
+  { name: "critter-squeak-toy",      tier: 5, family: "critter",   intent: "Toy critter squeak" },
+  { name: "critter-purr-soft",       tier: 5, family: "critter",   intent: "Soft critter purr" },
+  { name: "creature-ghost-whisper",  tier: 5, family: "creature",  intent: "Ghost whisper" },
+  { name: "creature-dragon-huff",    tier: 5, family: "creature",  intent: "Dragon huff" },
 
   // ─── Tier 6: Ambience & loops ───
-  // 6.1–6.4  Wind & weather
-  { name: "ambience-wind-gentle",       tier: 6, family: "ambient", intent: "Gentle wind ambience loop" },
-  { name: "ambience-wind-storm",        tier: 6, family: "ambient", intent: "Stormy wind with gusts" },
-  { name: "ambience-rain-light",        tier: 6, family: "ambient", intent: "Light rain ambience" },
-  { name: "ambience-thunder-roll",      tier: 6, family: "ambient", intent: "Distant thunder roll" },
-  // 6.5–6.8  Nature
-  { name: "ambience-forest-birds",      tier: 6, family: "ambient", intent: "Forest bird ambience loop" },
-  { name: "ambience-stream-flow",       tier: 6, family: "ambient", intent: "Gentle stream flow ambience" },
-  { name: "ambience-cave-echo",         tier: 6, family: "ambient", intent: "Cave reverb ambience with drip" },
-  { name: "ambience-fire-crackle",      tier: 6, family: "ambient", intent: "Crackling campfire ambience" },
-  // 6.9–6.12  Urban/industrial
-  { name: "ambience-city-distant",      tier: 6, family: "ambient", intent: "Distant city ambience hum" },
-  { name: "ambience-machine-hum",       tier: 6, family: "ambient", intent: "Continuous machine hum" },
-  { name: "ambience-pipe-hiss",         tier: 6, family: "ambient", intent: "Steam pipe hiss loop" },
-  { name: "ambience-metal-clank",       tier: 6, family: "ambient", intent: "Repeating metal clank loop" },
-  // 6.13–6.14  Abstract
-  { name: "ambience-pads-drone",        tier: 6, family: "ambient", intent: "Soft evolving pad drone" },
-  { name: "ambience-texture-swell",     tier: 6, family: "ambient", intent: "Slow textural swell with filter movement" },
+  { name: "ambience-meadow-day",     tier: 6, family: "ambience",  intent: "Daytime meadow ambience" },
+  { name: "ambience-cave-drip",      tier: 6, family: "ambience",  intent: "Cave drip ambience" },
+  { name: "ambience-forest-breeze",  tier: 6, family: "ambience",  intent: "Forest breeze ambience" },
+  { name: "ambience-waterfall-soft", tier: 6, family: "ambience",  intent: "Soft waterfall ambience" },
+  { name: "ambience-campfire-crackle", tier: 6, family: "ambience", intent: "Campfire crackle ambience" },
+  { name: "ambience-rain-light",     tier: 6, family: "ambience",  intent: "Light rain ambience" },
+  { name: "ambience-ocean-waves",    tier: 6, family: "ambience",  intent: "Ocean waves ambience" },
+  { name: "ambience-night-crickets", tier: 6, family: "ambience",  intent: "Night crickets ambience" },
+  { name: "ambience-space-hum",      tier: 6, family: "ambience",  intent: "Space hum ambience" },
+  { name: "ambience-machine-hum",    tier: 6, family: "ambience",  intent: "Machine hum ambience" },
+  { name: "ambience-market-bustle",  tier: 6, family: "ambience",  intent: "Market bustle ambience" },
+  { name: "ambience-magic-glow",     tier: 6, family: "ambience",  intent: "Magic glow ambience" },
+  { name: "ambience-desert-wind",    tier: 6, family: "ambience",  intent: "Desert wind ambience" },
+  { name: "ambience-snowfall-hush",  tier: 6, family: "ambience",  intent: "Snowfall hush ambience" },
 
   // ─── Tier 7: Multi-voice stings (self-contained 2–3 voices) ───
-  // 7.1–7.4  Two-voice stings
-  { name: "sting-two-voice-triumph",    tier: 7, family: "ui",        intent: "Two-voice triumphant melodic sting" },
-  { name: "sting-two-voice-alert",      tier: 7, family: "ui",        intent: "Two-voice alert with harmonic tension" },
-  { name: "sting-two-voice-mystery",    tier: 7, family: "ui",        intent: "Two-voice mysterious suspended sting" },
-  { name: "sting-two-voice-resolution", tier: 7, family: "ui",        intent: "Two-voice resolving cadence sting" },
-  // 7.5–7.8  Three-voice stings
-  { name: "sting-three-voice-fanfare",  tier: 7, family: "ui",        intent: "Three-voice bright fanfare sting" },
-  { name: "sting-three-voice-dark",     tier: 7, family: "ui",        intent: "Three-voice dark dramatic sting" },
-  { name: "sting-three-voice-joyful",   tier: 7, family: "ui",        intent: "Three-voice joyful celebratory sting" },
-  { name: "sting-three-voice-melancholy", tier: 7, family: "ui",      intent: "Three-voice melancholic descending sting" },
-  // 7.9–7.12  Hybrid stings
-  { name: "sting-hybrid-melody-bass",   tier: 7, family: "ui",        intent: "Melody plus bass two-voice interplay" },
-  { name: "sting-hybrid-lead-pad",      tier: 7, family: "ui",        intent: "Lead line over sustained pad" },
-  { name: "sting-hybrid-arp-chord",     tier: 7, family: "ui",        intent: "Arpeggiated lead with chord stabs" },
-  { name: "sting-hybrid-duet-call",     tier: 7, family: "ui",        intent: "Call-and-response duet sting" },
-  // 7.13–7.14  Extended
-  { name: "sting-extended-crescendo",   tier: 7, family: "ui",        intent: "Three-voice crescendo to climax" },
-  { name: "sting-extended-decay",       tier: 7, family: "ui",        intent: "Three-voice fading into silence" },
+  { name: "sting-victory-bright",    tier: 7, family: "sting",     intent: "Bright multi-voice victory sting" },
+  { name: "sting-defeat-soft",       tier: 7, family: "sting",     intent: "Soft multi-voice defeat sting" },
+  { name: "sting-level-complete",    tier: 7, family: "sting",     intent: "Level-complete sting" },
+  { name: "sting-boss-appear",       tier: 7, family: "sting",     intent: "Boss-appear dramatic sting" },
+  { name: "sting-puzzle-solved",     tier: 7, family: "sting",     intent: "Puzzle-solved sting" },
+  { name: "sting-game-over-gentle",  tier: 7, family: "sting",     intent: "Gentle game-over sting" },
+  { name: "sting-treasure-found",    tier: 7, family: "sting",     intent: "Treasure-found sting" },
+  { name: "sting-powerup-major",     tier: 7, family: "sting",     intent: "Major power-up sting" },
+  { name: "sting-danger-warning",    tier: 7, family: "sting",     intent: "Danger-warning sting" },
+  { name: "sting-mystery-reveal",    tier: 7, family: "sting",     intent: "Mystery-reveal sting" },
+  { name: "sting-celebration-pop",   tier: 7, family: "sting",     intent: "Celebration pop sting" },
+  { name: "sting-sad-trombone-soft", tier: 7, family: "sting",     intent: "Soft sad-trombone sting" },
+  { name: "sting-adventure-call",    tier: 7, family: "sting",     intent: "Adventure-call sting" },
+  { name: "sting-finale-short",      tier: 7, family: "sting",     intent: "Short finale sting" },
 ];
 
 /** Assert that the roster is internally consistent. */

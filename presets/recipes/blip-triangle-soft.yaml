@@ -1,0 +1,49 @@
+# Tier 1 — Pure tones & blips (single oscillator, simple envelope)
+# Soft triangle-wave blip for gentle cues
+
+version: "0.1"
+meta:
+  name: blip-triangle-soft
+  description: Soft triangle-wave blip for gentle cues
+  category: UI
+  tags:
+    - casual
+    - joy
+    - ui
+  duration: 0.086
+  parameters:
+    - name: frequency
+      type: number
+      min: 200
+      max: 560
+      unit: Hz
+      default: 350
+    - name: attack
+      type: number
+      min: 0.001
+      max: 0.02
+      unit: s
+      default: 0.006
+    - name: decay
+      type: number
+      min: 0.02
+      max: 0.12
+      unit: s
+      default: 0.06
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: triangle
+      frequency: 350
+  env:
+    kind: envelope
+    params:
+      attack: 0.006
+      decay: 0.06
+      sustain: 0
+      release: 0
+  out:
+    kind: destination
+routing:
+  - chain: [osc, env, out]

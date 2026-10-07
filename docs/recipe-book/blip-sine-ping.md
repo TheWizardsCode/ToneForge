@@ -1,32 +1,31 @@
 ---
 title: "Blip Sine Ping"
 id: "blip-sine-ping"
-order: 2
+order: 1
 description: "Short, bright sine blip for UI confirmations"
 ---
 
 # Blip Sine Ping
 
-**Tier 1** · UI · Tags: casual, fun, ui
+**Category: UI** · Tags: casual, fun, ui
 
 ## Sound design
 
-The `blip-sine-ping` is the simplest possible ToneForge recipe: a single sine oscillator
-gated by a fast ADSR envelope, routed directly to the output. It produces a short,
-bright tone ideal for casual game UI confirmations — think the sound a coin makes
-when collected in a mobile puzzle game, or a button click in a lighthearted interface.
+### Overview
 
-The sine waveform was chosen because it produces a pure, pleasant tone with no harsh
-harmonics. At 880 Hz (the default frequency), it sits comfortably in the upper-mid
-range — bright enough to cut through other game audio, but not so high that it becomes
-piercing. The 5 ms attack gives an instant onset, and the 40 ms decay creates a
-snappy "ping" that feels responsive without dragging.
+The simplest possible ToneForge recipe: a single sine oscillator gated by a fast ADSR envelope, routed directly to the output. It produces a short, bright tone ideal for casual UI confirmations — the sound a coin makes when collected, or a button click in a lighthearted interface.
 
-The key parameter to experiment with is `frequency`. Lower values (around 600 Hz)
-produce a softer, more muted blip suitable for less important confirmations. Higher
-values (up to 1200 Hz) create a brighter, more attention-grabbing tone for critical
-feedback. The `decay` parameter controls the perceived length — shorter decays feel
-punchier, longer decays feel more melodic.
+### Synthesis
+
+The sine waveform produces a pure, pleasant tone with no harsh harmonics. At 880 Hz it sits comfortably in the upper-mid range: bright enough to cut through other game audio without becoming piercing. The 5 ms attack gives an instant onset and the 40 ms decay creates a snappy ping that feels responsive.
+
+### Parameters
+
+Lower `frequency` values (around 600 Hz) give a softer, more muted blip for less important confirmations; higher values (up to 1200 Hz) are brighter and more attention-grabbing. `decay` controls perceived length — shorter feels punchier, longer feels more melodic.
+
+### Seed behaviour & musical intent
+
+With a fixed seed (e.g. `--seed 42`) this recipe renders byte-identical audio on every platform and run. A cheerful, unambiguous confirmation that a tap or press was registered, with no sustain to mask the next sound.
 
 ## ToneForge CLI
 
@@ -34,13 +33,16 @@ punchier, longer decays feel more melodic.
 ```bash
 # Generate the recipe with a specific seed
 toneforge generate --recipe blip-sine-ping --seed 42 --output blip-sine-ping.wav
-
+```
+```bash
 # Show the recipe metadata
 toneforge show --recipe blip-sine-ping
-
+```
+```bash
 # List all recipes, filtered by casual tag
 toneforge list recipes --tags casual
-
+```
+```bash
 # Generate with default seed
 toneforge generate --recipe blip-sine-ping --output blip-sine-ping-default.wav
 ```
@@ -48,17 +50,11 @@ toneforge generate --recipe blip-sine-ping --output blip-sine-ping-default.wav
 
 ## Parameters
 
-| Parameter | Type | Range | Default | Description |
-|-----------|------|-------|---------|-------------|
-| `frequency` | number | 600–1200 Hz | 880 Hz | The pitch of the sine oscillator |
-| `attack` | number | 1–10 ms | 5 ms | Time for the sound to reach full volume |
-| `decay` | number | 20–100 ms | 40 ms | Time for the sound to fade after the attack phase |
-
-## Seed behaviour
-
-With a fixed seed (e.g. `--seed 42`), the recipe produces byte-identical output
-across all platforms and runs. This determinism is guaranteed by ToneForge's
-deterministic RNG and offline rendering pipeline.
+| Parameter | Type | Range | Default |
+|-----------|------|-------|---------|
+| `frequency` | number | 600–1200 Hz | 880 Hz |
+| `attack` | number | 0.001–0.01 s | 0.005 s |
+| `decay` | number | 0.02–0.1 s | 0.04 s |
 
 ## See also
 
