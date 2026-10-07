@@ -431,6 +431,38 @@ validates names and ranges before mutating state, logs a deterministic
 General real‑time parameter automation for arbitrary sounds remains a Future
 Extension (see §16).
 
+### 19.10 Live interactive session (delivered)
+
+The runtime is a host‑embedded, event‑driven engine (see §3, §6). The live
+session exposes that directly, rather than scripting it:
+
+```bash
+toneforge runtime start                       # interactive session (live clock)
+toneforge runtime start --script ./session.txt # deterministic replay, then exit
+toneforge runtime start --script ./session.txt --json   # CI: stream events, no audio
+toneforge runtime start --cache-size 128       # bound the render cache
+```
+
+- **Live clock.** The session uses the real clock by default; each command is
+  applied immediately, so `state walk` / `context surface=gravel` take effect
+  as they arrive. `--script` switches to a deterministic virtual clock for
+  reproducible replay.
+- **Command surface.** `state <name>`, `context <dim>=<value> ...`, `inspect`,
+  `reset`, `help`, and `quit`/`exit` (see `src/runtime/session.ts`).
+- **Buffer cache.** `src/runtime/buffer-cache.ts` is a bounded LRU keyed by
+  `(recipe, seed, overrides)` (§19.5); repeated events reuse renders and
+  eviction is deterministic.
+- **Scheduled playback.** Each resolved event's buffer is scheduled at its
+  sequence-relative `time_ms` through an injectable scheduler; a sequence's
+  pending playback is cancelled when its sequence stops (e.g. on a state
+  change). Node plays via `playAudio`; the browser schedules via
+  `scheduleRuntimeBuffer`.
+- **Headless mode.** `--json` streams one JSON object per runtime event and
+  performs no rendering or playback, so the session is verifiable in CI.
+
+Audible `setSfxParameter` modulation and long‑running service mode are tracked
+as a follow‑up (TF‑0MUYBRRCQ00148QD) and remain out of scope here.
+
 ---
 
 If you want next, the natural follow‑ups are:

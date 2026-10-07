@@ -83,6 +83,36 @@ device.
 > a given seed. That makes the runtime demo as reproducible as every other
 > ToneForge surface: same seed, same scenario, same sound.
 
+## Act 4 — Drive it live
+
+> The scripted demo is deterministic, but the runtime is meant to be embedded.
+> In a live session the runtime runs against a real clock, so commands take
+> effect as they arrive and each event is scheduled for playback immediately.
+
+```bash
+toneforge runtime start --script demos/fixtures/runtime-session.txt
+```
+
+Where `demos/fixtures/runtime-session.txt` is one command per line:
+
+```
+state walk
+context surface=gravel
+state sprint
+quit
+```
+
+Each resolved event is rendered through a bounded LRU buffer cache and played
+at its sequence-relative time; a state change cancels the previous pattern's
+pending playback. Use `--json` for a headless event stream (no audio), and
+`--cache-size <n>` to bound the cache.
+
+> [!commentary]
+> `runtime start` is the runtime as a host would use it — an event-driven
+> engine you feed state and context. `runtime demo` is the same engine driven
+> by a fixed script for reproducible listening and CI. See
+> `docs/prd/RUNTIME_PRD.md` §19.10.
+
 ## Recap
 
 - The runtime orchestrates **State**, **Context**, and the **Sequencer**.

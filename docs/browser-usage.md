@@ -219,6 +219,42 @@ toneforge runtime demo --json           # resolved event timeline
 toneforge runtime demo --output ./out/  # export WAVs + timeline.json
 ```
 
+### Live interactive session (host-embedded)
+
+For a *live* host — where state and context change over time — use
+`createRuntimeSession`. It owns a runtime, a bounded LRU buffer cache,
+and a playback scheduler, and it renders each resolved event through the cache
+at its sequence-relative time:
+
+```ts
+import { createRuntimeSession, createBufferCache } from "@toneforge/runtime/index.js";
+import { scheduleRuntimeBuffer } from "@toneforge/runtime/audio.js";
+import { getAudioContext } from "@toneforge/audio/web-audio.js";
+
+const ctx = getAudioContext();
+await ctx.resume();
+
+const session = createRuntimeSession({
+  scenario,
+  cache: createBufferCache({ maxEntries: 64 }),
+  // Browser playback: schedule each rendered buffer on the shared context.
+  play: (result) => {
+    scheduleRuntimeBuffer(ctx, result.samples, result.sampleRate);
+  },
+});
+
+session.handleCommand("state walk");
+session.handleCommand("context surface=gravel");
+session.handleCommand("state sprint");
+await session.waitForIdle();
+session.stop();
+```
+
+The same engine runs in Node: the CLI passes `playAudio` as the `play` hook. In
+headless mode (`--json`) rendering and playback are skipped entirely, so a
+session can be replayed in CI without an audio device. Replaying a `--script`
+with the virtual clock is deterministic: same commands + seed → same event log.
+
 ## Recipe rendering in the browser
 
 `renderRecipe(recipeName, seed, duration?)` from `src/core/renderer.ts` uses the

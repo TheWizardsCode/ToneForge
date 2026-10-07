@@ -1,0 +1,6 @@
+# Runtime session script (toneforge runtime start --script)
+# One command per line; blank lines and # comments are ignored.
+state walk
+context surface=gravel
+state sprint
+quit

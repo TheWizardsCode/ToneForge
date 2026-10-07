@@ -93,6 +93,32 @@ The scenario lives in [`presets/runtime/footsteps.json`](presets/runtime/footste
 See [RUNTIME_PRD.md §19](docs/prd/RUNTIME_PRD.md) for the render/playback
 pipeline design.
 
+### Drive the runtime live
+
+`runtime start` opens a **live session** — the runtime embeds in a host and
+reacts to commands as they arrive, rendering each event through a bounded LRU
+buffer cache and scheduling it for playback at its sequence-relative time:
+
+```bash
+toneforge runtime start
+# runtime> state walk
+# runtime> context surface=gravel
+# runtime> state sprint
+# runtime> quit
+```
+
+For deterministic, non-interactive replay (and CI), use a command script —
+`--json` streams one JSON object per runtime event and performs no playback:
+
+```bash
+toneforge runtime start --script ./session.txt
+toneforge runtime start --script ./session.txt --json
+toneforge runtime start --cache-size 128
+```
+
+See [RUNTIME_PRD.md §19](docs/prd/RUNTIME_PRD.md) and
+[Browser Runtime Usage](docs/browser-usage.md).
+
 ### Browser support
 
 ToneForge is Runtime-aware: the Runtime, renderer, and recipe registry run in

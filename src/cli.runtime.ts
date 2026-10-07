@@ -24,7 +24,9 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync, realpathSync } from "node:fs";
 import { dirname, resolve, basename, extname, join } from "node:path";
 import { execFile } from "node:child_process";
+import { createInterface } from "node:readline";
 import { renderRecipe } from "./core/renderer.js";
+import type { RenderResult } from "./core/renderer.js";
 import { registry, initializeRecipeRegistry } from "./recipes/index.js";
 import { playAudio, getPlayerCommand } from "./audio/player.js";
 import { encodeWav } from "./audio/wav-encoder.js";
@@ -84,6 +86,9 @@ import type { SequenceDefinition } from "./sequence/schema.js";
 import { loadRuntimeScenario } from "./runtime/scenario.js";
 import { runRuntimeScenario } from "./runtime/audio.js";
 import type { RuntimeAudioResult } from "./runtime/audio.js";
+import { createBufferCache } from "./runtime/buffer-cache.js";
+import { createRuntimeSession } from "./runtime/session.js";
+import type { RuntimeSession } from "./runtime/session.js";
 import { VISUAL_FORMATS, exportVisual, listPalettes } from "./visualizer/index.js";
 
 /** Parse command-line arguments into a structured map. */
@@ -156,7 +161,7 @@ async function printHelp(): Promise<void> {
 | **explore** | Discover, rank, and curate sounds across seed spaces |
 | **library** | Manage the curated sound library (list, search, export) |
 | **sequence** | Schedule and render temporal event patterns from presets |
-| **runtime** | Run a scripted, render-backed runtime audio demo |
+| **runtime** | Run the render-backed runtime (live session and scripted demo) |
 | **stack** | Compose layered sound events from multiple recipes |
 | **show** | Display recipe metadata and parameters |
 | **play** | Play a WAV file through the system audio player |
@@ -656,13 +661,62 @@ It never grows a second synthesis engine.
 
 | Subcommand | Description |
 |------------|-------------|
+| **start** | Start a live, interactive session (state/context commands, scheduled playback) |
 | **demo** | Run a scripted runtime scenario and play or export the rendered audio |
 
-Run \`toneforge runtime demo --help\` for subcommand-specific help.
+Run \`toneforge runtime start --help\` or \`toneforge runtime demo --help\` for
+subcommand-specific help.
 
 ## Reference
 
 - \`docs/prd/RUNTIME_PRD.md\` §19 (Runtime ↔ Render/Playback Pipeline)`;
+  await outputMarkdown(md);
+}
+
+/** Print help text for the runtime start subcommand. */
+async function printRuntimeStartHelp(): Promise<void> {
+  const md = `# ToneForge runtime start
+
+**Start a live, interactive runtime session**
+
+## Usage
+
+\`\`\`
+toneforge runtime start [--scenario <file>] [--seed <number>] [--script <file>] [--json] [--cache-size <n>]
+\`\`\`
+
+The session runs the runtime against a **live clock**: each command is applied
+immediately, resolved events are rendered through a bounded LRU buffer cache,
+and each rendered buffer is scheduled for playback at its sequence-relative
+time. Use it to drive behavioural audio by hand and hear the runtime react.
+
+## Commands (interactive)
+
+- \`state <name>\` — transition the state machine
+- \`context <dim>=<value> ...\` — update environment context
+- \`inspect\` — print the current runtime inspection
+- \`reset\` — reset state/context and restart
+- \`help\` — show command help
+- \`quit\` / \`exit\` — end the session
+
+## Options
+
+- \`--scenario <file>\` — Runtime scenario JSON (default: \`presets/runtime/footsteps.json\`)
+- \`--seed <number>\` — Override the scenario seed
+- \`--script <file>\` — Replay a command-per-line script non-interactively (deterministic clock) and exit
+- \`--json\` — Stream one JSON object per runtime event to stdout; no audio
+- \`--cache-size <n>\` — Maximum cached renders (default: 64)
+- \`--help\`, \`-h\` — Show this help message
+
+## Examples
+
+\`\`\`
+toneforge runtime start
+toneforge runtime start --script ./session.tf.txt
+toneforge runtime start --script ./session.tf.txt --json
+toneforge runtime start --cache-size 128 --json
+toneforge runtime start --seed 7
+\`\`\``;
   await outputMarkdown(md);
 }
 
@@ -1292,6 +1346,41 @@ async function writeRuntimeDemoOutputs(
 }
 
 /**
+ * Drive an interactive runtime session over stdin until `quit`/`exit` or EOF.
+ */
+async function runInteractiveRuntimeSession(
+  session: RuntimeSession,
+  opts: { jsonMode: boolean },
+): Promise<void> {
+  const isTty = process.stdin.isTTY === true;
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+    terminal: isTty,
+    ...(opts.jsonMode ? {} : { prompt: "runtime> " }),
+  });
+
+  if (!opts.jsonMode && isTty) rl.prompt();
+
+  try {
+    for await (const line of rl) {
+      const result = session.handleCommand(line);
+      if (!opts.jsonMode && result.message) {
+        if (result.ok) {
+          outputInfo(result.message);
+        } else {
+          outputError(result.message);
+        }
+      }
+      if (result.type === "quit") break;
+      if (!opts.jsonMode && isTty) rl.prompt();
+    }
+  } finally {
+    rl.close();
+  }
+}
+
+/**
  * Output a JSON object to stdout. Used by all commands when --json is active.
  */
 function jsonOut(data: Record<string, unknown>): void {
@@ -1517,6 +1606,8 @@ export async function dispatchCommand(
     } else if (command === "runtime") {
       if (subcommand === "demo") {
         await printRuntimeDemoHelp();
+      } else if (subcommand === "start") {
+        await printRuntimeStartHelp();
       } else {
         await printRuntimeHelp();
       }
@@ -4348,6 +4439,121 @@ export async function dispatchCommand(
           outputSuccess(`Wrote runtime demo to ${outputDir}`);
         }
 
+        return 0;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(message); } else { outputError(`Error: ${message}`); }
+        return 1;
+      }
+    }
+
+    if (subcommand === "start") {
+      if (flags["help"]) {
+        await printRuntimeStartHelp();
+        return 0;
+      }
+
+      const scenarioPath =
+        typeof flags["scenario"] === "string"
+          ? flags["scenario"]
+          : "presets/runtime/footsteps.json";
+      const scriptPath =
+        typeof flags["script"] === "string" ? flags["script"] : undefined;
+
+      let seedOverride: number | undefined;
+      const seedRaw = flags["seed"];
+      if (seedRaw !== undefined && seedRaw !== true) {
+        seedOverride = parseInt(seedRaw as string, 10);
+        if (Number.isNaN(seedOverride)) {
+          const msg = `--seed must be an integer, got '${seedRaw}'.`;
+          if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+          return 1;
+        }
+      }
+
+      let cacheSize = 64;
+      const cacheSizeRaw = flags["cache-size"];
+      if (cacheSizeRaw !== undefined && cacheSizeRaw !== true) {
+        cacheSize = parseInt(cacheSizeRaw as string, 10);
+        if (Number.isNaN(cacheSize) || cacheSize < 1) {
+          const msg = `--cache-size must be a positive integer, got '${cacheSizeRaw}'.`;
+          if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+          return 1;
+        }
+      }
+
+      try {
+        let scenario = await loadRuntimeScenario(scenarioPath);
+        if (seedOverride !== undefined) {
+          scenario = { ...scenario, seed: seedOverride };
+        }
+
+        const cache = createBufferCache({ maxEntries: cacheSize });
+        const session = createRuntimeSession({
+          scenario,
+          cache,
+          virtualClock: scriptPath !== undefined,
+          schedulePlayback: !jsonMode,
+          ...(jsonMode
+            ? {
+                onEvent: (entry) =>
+                  jsonOut({ command: "runtime event", ...entry }),
+              }
+            : {
+                play: (result: RenderResult) =>
+                  playAudio(result.samples, { sampleRate: result.sampleRate }),
+              }),
+        });
+
+        if (scriptPath !== undefined) {
+          let source: string;
+          try {
+            source = await readFile(resolve(scriptPath), "utf-8");
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            throw new Error(
+              `Failed to read runtime session script '${scriptPath}': ${message}`,
+            );
+          }
+          const results = session.runCommandScript(source);
+
+          if (jsonMode) {
+            session.stop();
+            jsonOut({
+              command: "runtime start",
+              script: scriptPath,
+              commands: results.length,
+              stats: session.stats(),
+            });
+          } else {
+            for (const result of results) {
+              if (!result.message) continue;
+              if (result.ok) outputInfo(result.message);
+              else outputError(result.message);
+            }
+            await session.waitForIdle();
+            session.stop();
+          }
+
+          return 0;
+        }
+
+        if (process.stdin.isTTY !== true) {
+          const msg =
+            "'runtime start' requires an interactive terminal or --script <file>.";
+          if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+          session.stop();
+          return 1;
+        }
+
+        if (!jsonMode) {
+          outputInfo(
+            `Runtime session '${scenario.name}' (seed ${scenario.seed}). ` +
+            `Type 'help' for commands.`,
+          );
+        }
+        await runInteractiveRuntimeSession(session, { jsonMode });
+        session.stop();
         return 0;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);

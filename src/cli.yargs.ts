@@ -228,6 +228,20 @@ export async function yargsMain(argv: string[] = process.argv): Promise<number> 
 
   // ── runtime ───────────────────────────────────────────────────────────────
   y.command(runtimeCmd.command, runtimeCmd.desc, (y2) => {
+    y2.command("start", "Start a live, interactive runtime session", (y3) => {
+      y3.option("scenario", { type: "string", describe: "Path to a runtime scenario JSON file" })
+        .option("seed", { type: "number", describe: "Override the scenario seed" })
+        .option("script", { type: "string", describe: "Replay a command-per-line script and exit" })
+        .option("json", { type: "boolean", describe: "Stream runtime events as JSON (no audio)" })
+        .option("cache-size", { type: "number", describe: "Maximum cached renders" });
+    }, async (argv) => {
+      exitCode = await dispatchCommand("runtime", "start", buildFlags(argv, {
+        ...(argv.scenario !== undefined ? { scenario: String(argv.scenario) } : {}),
+        ...(argv.seed !== undefined ? { seed: String(argv.seed) } : {}),
+        ...(argv.script !== undefined ? { script: String(argv.script) } : {}),
+        ...(argv["cache-size"] !== undefined ? { "cache-size": String(argv["cache-size"]) } : {}),
+      }), []);
+    });
     y2.command("demo", "Run a scripted runtime audio demo", (y3) => {
       y3.option("scenario", { type: "string", describe: "Path to a runtime scenario JSON file" })
         .option("seed", { type: "number", describe: "Override the scenario seed" })

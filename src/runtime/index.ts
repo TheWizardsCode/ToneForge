@@ -47,3 +47,20 @@ export {
   type SchedulableAudioContext,
   type ScheduleBufferOptions,
 } from "./audio.js";
+
+export {
+  createBufferCache,
+  type BufferCache,
+  type BufferCacheKey,
+  type BufferCacheOptions,
+  type BufferCacheStats,
+} from "./buffer-cache.js";
+
+export {
+  createRuntimeSession,
+  type RuntimeSession,
+  type RuntimeSessionOptions,
+  type RuntimeSessionStats,
+  type SessionCommandResult,
+  type SessionScheduler,
+} from "./session.js";
