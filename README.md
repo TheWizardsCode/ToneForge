@@ -140,6 +140,7 @@ toneforge library add --input sound.wav --tags "weapon,laser"
 - [Browser Runtime Usage](docs/browser-usage.md)
 - [Mixer Rules](docs/mixer-rules.md)
 - [Visualizer](docs/visualizer.md)
+- [Haptics](docs/haptics.md)
 - [All Module PRDs](docs/prd/)
 - [Research Questions](docs/prd/BRAINSTORM_QUESTIONS.md)
 
