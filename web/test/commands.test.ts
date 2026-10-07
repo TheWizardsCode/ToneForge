@@ -121,8 +121,9 @@ describe("Non-generate commands (all demos)", () => {
       ({ command }) => {
         // Non-generate commands should be valid shell invocations (npx, node, etc.)
         expect(command.trim().length).toBeGreaterThan(0);
-        // Should start with a recognizable command
-        expect(command).toMatch(/^(npx|node|npm|toneforge|for|ls|cat|grep|\.\/)/);
+        // Should start with a recognizable command (a bare builtin/CLI, or a
+        // path-like invocation such as ./script.sh or scripts/script.sh).
+        expect(command).toMatch(/^(npx|node|npm|toneforge|for|ls|cat|grep|\.\/|scripts\/)/);
       },
     );
   }

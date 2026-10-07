@@ -121,3 +121,4 @@ convention.
 | [`recipe-filtering.md`](recipe-filtering.md) | Filtering recipes by search, category, and tags, with JSON output for scripting. |
 | [`machine-use.md`](machine-use.md) | JSON-driven reporting batch script that discovers available sounds while filtering out already-used ones. |
 | [`sound-creation.md`](sound-creation.md) | Building a sound from sine wave to recipe. |
+| [Casual Game Recipe Book](../docs/recipe-book/index.md) | A guided, test-backed tour of 100 casual game recipes, from first blips to layered stings. |

@@ -196,6 +196,7 @@ toneforge library add --input sound.wav --tags "weapon,laser"
 - [System Architecture PRD](docs/prd/PRD.md)
 - [Core Module PRD](docs/prd/CORE_PRD.md)
 - [ToneGraph v0.1 Specification](docs/tonegraph.md)
+- [Casual Game Recipe Book](docs/recipe-book/index.md) — a guided tour of 100 procedural recipes, from single-oscillator blips to layered stings.
 - [Browser Runtime Usage](docs/browser-usage.md)
 - [Mixer Rules](docs/mixer-rules.md)
 - [Visualizer](docs/visualizer.md)
