@@ -1,0 +1,112 @@
+# Tier 7 — Multi-voice stings
+# Boss-appear dramatic sting (self-contained 2–3 voices, no stack required).
+
+version: '0.1'
+meta:
+  name: sting-boss-appear
+  description: Boss-appear dramatic sting
+  category: Sting
+  tags:
+  - casual
+  - fun
+  - sting
+  duration: 1.13
+  parameters:
+  - name: leadStart
+    type: number
+    min: 80
+    max: 150
+    unit: Hz
+    default: 110
+    overrides:
+    - target: lead.automation.frequency.0.value
+  - name: leadEnd
+    type: number
+    min: 60
+    max: 110
+    unit: Hz
+    default: 82
+    overrides:
+    - target: lead.automation.frequency.1.value
+  - name: noiseLevel
+    type: number
+    min: 0.15
+    max: 0.7
+    unit: amplitude
+    default: 0.4
+    overrides:
+    - target: noise.level
+  - name: filterFreq
+    type: number
+    min: 350
+    max: 1000
+    unit: Hz
+    default: 600
+    overrides:
+    - target: filter.frequency
+  - name: attack
+    type: number
+    min: 0.005
+    max: 0.03
+    unit: s
+    default: 0.01
+    overrides:
+    - target: env.attack
+  - name: decay
+    type: number
+    min: 0.4
+    max: 0.9
+    unit: s
+    default: 0.7
+    overrides:
+    - target: env.decay
+nodes:
+  lead:
+    kind: oscillator
+    params:
+      type: sawtooth
+      frequency: 110
+    automation:
+      frequency:
+      - kind: set
+        time: 0
+        value: 110
+      - kind: linearRamp
+        time: 0.7
+        value: 82
+  noise:
+    kind: noise
+    params:
+      color: brown
+      level: 0.4
+  filter:
+    kind: biquadFilter
+    params:
+      type: lowpass
+      frequency: 600
+      Q: 2
+  mix:
+    kind: gain
+    params:
+      gain: 0.32
+  env:
+    kind: envelope
+    params:
+      attack: 0.01
+      decay: 0.7
+      sustain: 0.0
+      release: 0.0
+  out:
+    kind: destination
+routing:
+- chain:
+  - lead
+  - mix
+- chain:
+  - noise
+  - filter
+  - mix
+- chain:
+  - mix
+  - env
+  - out

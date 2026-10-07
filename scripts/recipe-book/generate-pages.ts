@@ -463,6 +463,148 @@ const narratives: Record<string, Narrative> = {
     intent:
       "A quiet, still winter loop.",
   },
+
+  // \u2500\u2500\u2500 Tier 7: Multi-voice stings \u2500\u2500\u2500
+  "sting-victory-bright": {
+    overview:
+      "A self-contained, triumphant victory sting \u2014 a rising major arpeggio over a held harmony and bass. Nothing else is needed to make it sound complete.",
+    synthesis:
+      "Three voices are summed: a triangle lead steps C5\u2013E5\u2013G5 via scheduled set events, a triangle harmony holds G4 and a triangle bass holds C4. The shared envelope gives a quick 6 ms attack and a 450 ms decay.",
+    parameters:
+      "`leadLow`/`leadHigh` set the arpeggio endpoints; `harmonyFreq` and `bassFreq` place the chord; `attack`/`decay` shape the sting.",
+    intent:
+      "A bright, celebratory reward sting for wins and achievements.",
+  },
+  "sting-defeat-soft": {
+    overview:
+      "A soft, two-voice defeat sting \u2014 a descending sigh over a low pedal.",
+    synthesis:
+      "A sine lead glides A4\u2192F4 over 500 ms while a sine bass holds F3. The minor fall and slow 20 ms attack keep the sting resigned rather than harsh.",
+    parameters:
+      "`leadStart`/`leadEnd` set the fall; `bassFreq` sets the pedal; `attack`/`decay` shape the fade.",
+    intent:
+      "A gentle losing cue that closes a round without punishing the player.",
+  },
+  "sting-level-complete": {
+    overview:
+      "A level-complete sting built from a bright FM lead and a triangle harmony.",
+    synthesis:
+      "An `fmPattern` voice (carrier 660 Hz, modulator 990 Hz, index 4) gives a bell-like lead, while a triangle at 523 Hz holds a consonant harmony beneath it.",
+    parameters:
+      "`carrierFreq`/`modulatorFreq`/`modIndex` shape the lead timbre; `harmonyFreq` sets the chord; `attack`/`decay` trim the sting.",
+    intent:
+      "A satisfying completion cue for levels and chapters.",
+  },
+  "sting-boss-appear": {
+    overview:
+      "A dramatic boss-appear sting \u2014 a low descending growl with a noise swell.",
+    synthesis:
+      "A sawtooth lead falls 110\u219282 Hz over 700 ms while brown noise through a 600 Hz lowpass (Q 2) swells beneath it. The low register signals size and threat.",
+    parameters:
+      "`leadStart`/`leadEnd` set the fall; `noiseLevel` the swell; `filterFreq` the darkness; `attack`/`decay` the shape.",
+    intent:
+      "An imposing entrance cue for bosses and major threats.",
+  },
+  "sting-puzzle-solved": {
+    overview:
+      "A puzzle-solved sting \u2014 a rising chime with a consonant harmony.",
+    synthesis:
+      "A sine lead rises 880\u21921175 Hz over 180 ms while a triangle holds 659 Hz. The fast rise and short decay read as a clean, clever \"aha\".",
+    parameters:
+      "`leadStart`/`leadEnd` set the rise; `harmonyFreq` the chord; `attack`/`decay` the length.",
+    intent:
+      "A crisp reward for solving a puzzle or unlocking a mechanism.",
+  },
+  "sting-game-over-gentle": {
+    overview:
+      "A gentle game-over sting \u2014 a descending three-note chord.",
+    synthesis:
+      "Three sines at G4, E4 and C4 sound together under a shared slow envelope, giving a soft major-to-melancholy resolution rather than a jarring end.",
+    parameters:
+      "`voice1`/`voice2`/`voice3` set the three chord tones; `attack`/`decay` shape the fade.",
+    intent:
+      "A kind, unhurried end-of-run cue.",
+  },
+  "sting-treasure-found": {
+    overview:
+      "A treasure-found sting \u2014 a shimmering FM lead, a bass anchor and a sparkle of noise.",
+    synthesis:
+      "An `fmPattern` voice (carrier 1200 Hz, modulator 1800 Hz, index 3) supplies the shimmer, a triangle holds 262 Hz and a light white-noise layer adds sparkle. All three are summed before one envelope.",
+    parameters:
+      "`carrierFreq`/`modulatorFreq`/`modIndex` shape the shimmer; `bassFreq` the anchor; `noiseLevel` the sparkle; `attack`/`decay` the shape.",
+    intent:
+      "A rewarding discovery sting for loot, chests and secrets.",
+  },
+  "sting-powerup-major": {
+    overview:
+      "A major power-up sting \u2014 a four-note rising figure over a bass pedal.",
+    synthesis:
+      "A triangle lead steps G4\u2013C5\u2013E5\u2013G5 via scheduled set events while a sine bass holds G3. The fast, upward line signals growing strength.",
+    parameters:
+      "`noteLow`/`noteHigh` set the figure endpoints; `bassFreq` the pedal; `attack`/`decay` the shape.",
+    intent:
+      "An energising reward for power-ups and upgrades.",
+  },
+  "sting-danger-warning": {
+    overview:
+      "A danger-warning sting \u2014 two detuned saws and a noise haze.",
+    synthesis:
+      "Two sawtooths at 220 Hz and 233 Hz beat against each other for an uneasy roughness, lowpassed at 900 Hz (Q 2) with a white-noise layer adding urgency.",
+    parameters:
+      "`voice1`/`voice2` set the detuned pair; `filterFreq` the bite; `noiseLevel` the haze; `attack`/`decay` the shape.",
+    intent:
+      "An alarming cue for hazards, timers and low health.",
+  },
+  "sting-mystery-reveal": {
+    overview:
+      "A mystery-reveal sting \u2014 a suspended two-note chord.",
+    synthesis:
+      "Two sines at A4 and C5 form a suspended interval that never quite resolves, with a slow 40 ms attack and long decay that feel curious rather than final.",
+    parameters:
+      "`voice1`/`voice2` set the suspended interval; `attack`/`decay` the slow swell.",
+    intent:
+      "A curious, unresolved cue for discoveries and secrets.",
+  },
+  "sting-celebration-pop": {
+    overview:
+      "A celebration-pop sting \u2014 a fast rising figure with a noise pop.",
+    synthesis:
+      "A triangle lead runs C5\u2013E5\u2013G5\u2013C6 in 240 ms while a white-noise layer pops alongside it. A very fast 4 ms attack makes it feel explosive.",
+    parameters:
+      "`noteLow`/`noteHigh` set the run; `noiseLevel` the pop; `attack`/`decay` the punch.",
+    intent:
+      "A jubilant reward for big wins and combos.",
+  },
+  "sting-sad-trombone-soft": {
+    overview:
+      "A soft sad-trombone sting \u2014 a descending saw lead over a low pedal.",
+    synthesis:
+      "A sawtooth lead falls C4\u2192G3 over 550 ms through an 800 Hz lowpass (Q 1.5) for a brassy, muted wail, with a sine bass holding G3 beneath it.",
+    parameters:
+      "`leadStart`/`leadEnd` set the fall; `filterFreq` the brass tone; `bassFreq` the pedal; `attack`/`decay` the fade.",
+    intent:
+      "A comic-but-kind \"wah wah\" failure cue.",
+  },
+  "sting-adventure-call": {
+    overview:
+      "An adventure-call sting \u2014 a bright major triad fanfare.",
+    synthesis:
+      "Three triangles at G4, C5 and E5 sound together as a major triad under a shared envelope, giving a bold, open call to action.",
+    parameters:
+      "`voice1`/`voice2`/`voice3` set the triad; `attack`/`decay` shape the fanfare.",
+    intent:
+      "A rousing cue for quest starts and new areas.",
+  },
+  "sting-finale-short": {
+    overview:
+      "A short finale sting \u2014 a fast rising lead with a bass anchor.",
+    synthesis:
+      "A triangle lead climbs C5\u2013G5\u2013C6 in 200 ms while a sine bass holds C4. The compact, upward gesture closes a moment decisively.",
+    parameters:
+      "`noteLow`/`noteHigh` set the run; `bassFreq` the anchor; `attack`/`decay` the shape.",
+    intent:
+      "A concise closing flourish for level ends and reveals.",
+  },
 };
 
 function describeContour(contour: ContourEvent[]): string {

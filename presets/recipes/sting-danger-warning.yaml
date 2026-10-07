@@ -1,0 +1,112 @@
+# Tier 7 — Multi-voice stings
+# Danger-warning sting (self-contained 2–3 voices, no stack required).
+
+version: '0.1'
+meta:
+  name: sting-danger-warning
+  description: Danger-warning sting
+  category: Sting
+  tags:
+  - casual
+  - fun
+  - sting
+  duration: 0.775
+  parameters:
+  - name: voice1
+    type: number
+    min: 160
+    max: 300
+    unit: Hz
+    default: 220
+    overrides:
+    - target: v1.frequency
+  - name: voice2
+    type: number
+    min: 170
+    max: 320
+    unit: Hz
+    default: 233
+    overrides:
+    - target: v2.frequency
+  - name: filterFreq
+    type: number
+    min: 500
+    max: 1400
+    unit: Hz
+    default: 900
+    overrides:
+    - target: filter.frequency
+  - name: noiseLevel
+    type: number
+    min: 0.05
+    max: 0.35
+    unit: amplitude
+    default: 0.2
+    overrides:
+    - target: noise.level
+  - name: attack
+    type: number
+    min: 0.004
+    max: 0.025
+    unit: s
+    default: 0.008
+    overrides:
+    - target: env.attack
+  - name: decay
+    type: number
+    min: 0.2
+    max: 0.55
+    unit: s
+    default: 0.4
+    overrides:
+    - target: env.decay
+nodes:
+  v1:
+    kind: oscillator
+    params:
+      type: sawtooth
+      frequency: 220
+  v2:
+    kind: oscillator
+    params:
+      type: sawtooth
+      frequency: 233
+  noise:
+    kind: noise
+    params:
+      color: white
+      level: 0.2
+  filter:
+    kind: biquadFilter
+    params:
+      type: lowpass
+      frequency: 900
+      Q: 2
+  mix:
+    kind: gain
+    params:
+      gain: 0.32
+  env:
+    kind: envelope
+    params:
+      attack: 0.008
+      decay: 0.4
+      sustain: 0.0
+      release: 0.0
+  out:
+    kind: destination
+routing:
+- chain:
+  - v1
+  - mix
+- chain:
+  - v2
+  - mix
+- chain:
+  - noise
+  - filter
+  - mix
+- chain:
+  - mix
+  - env
+  - out

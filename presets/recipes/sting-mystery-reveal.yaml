@@ -1,0 +1,81 @@
+# Tier 7 — Multi-voice stings
+# Mystery-reveal sting (self-contained 2–3 voices, no stack required).
+
+version: '0.1'
+meta:
+  name: sting-mystery-reveal
+  description: Mystery-reveal sting
+  category: Sting
+  tags:
+  - casual
+  - joy
+  - sting
+  duration: 1.18
+  parameters:
+  - name: voice1
+    type: number
+    min: 340
+    max: 540
+    unit: Hz
+    default: 440
+    overrides:
+    - target: v1.frequency
+  - name: voice2
+    type: number
+    min: 420
+    max: 640
+    unit: Hz
+    default: 523
+    overrides:
+    - target: v2.frequency
+  - name: attack
+    type: number
+    min: 0.02
+    max: 0.08
+    unit: s
+    default: 0.04
+    overrides:
+    - target: env.attack
+  - name: decay
+    type: number
+    min: 0.4
+    max: 0.9
+    unit: s
+    default: 0.7
+    overrides:
+    - target: env.decay
+nodes:
+  v1:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 440
+  v2:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 523
+  mix:
+    kind: gain
+    params:
+      gain: 0.32
+  env:
+    kind: envelope
+    params:
+      attack: 0.04
+      decay: 0.7
+      sustain: 0.0
+      release: 0.0
+  out:
+    kind: destination
+routing:
+- chain:
+  - v1
+  - mix
+- chain:
+  - v2
+  - mix
+- chain:
+  - mix
+  - env
+  - out
