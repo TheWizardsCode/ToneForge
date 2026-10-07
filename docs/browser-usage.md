@@ -342,9 +342,3 @@ renders a non-zero buffer, and produces no Node-only console errors.
 The Playwright web server binds the first free port at or after 3000 so the
 suite still runs when the default port is occupied (for example by another
 dev server). Set `PORT=<n>` to pin a specific port.
-
-The `Web Playwright E2E` workflow (`.github/workflows/web-playwright.yml`) runs
-the suite on pushes and pull requests that touch `web/`, `presets/`, or `src/`.
-On CI the config retries failures twice and writes an HTML report plus failure
-traces, which the workflow uploads as `playwright-report` and
-`playwright-test-results` artifacts.
