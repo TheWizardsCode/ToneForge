@@ -33,6 +33,20 @@ export interface CommandSpec {
  */
 export const ACTIONABLE_COMMAND_SPECS: readonly CommandSpec[] = [
   {
+    path: ["intelligence", "recommend"],
+    options: ["use-case", "max-results", "library", "use-memory", "dry-run", "json"],
+    required: ["use-case"],
+  },
+  {
+    path: ["intelligence", "audit"],
+    options: ["library", "use-memory", "dry-run", "json"],
+  },
+  {
+    path: ["intelligence", "suggest-exploration"],
+    options: ["recipe", "library", "use-memory", "dry-run", "json"],
+    required: ["recipe"],
+  },
+  {
     path: ["explore", "sweep"],
     options: ["recipe", "seed-range", "rank-by", "keep-top", "clusters", "concurrency", "output", "json"],
     required: ["recipe"],

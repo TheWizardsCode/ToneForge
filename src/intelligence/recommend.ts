@@ -18,6 +18,8 @@ import type { LibraryEntry } from "../library/types.js";
 import { librarySimilarCommand } from "./commands.js";
 import { clamp, loadLibraryEntries, roundTo, slugify } from "./library.js";
 import type { IntensityBucket } from "./library.js";
+import { isOverRepresented, memoryNotesForEntry } from "./memory-context.js";
+import type { MemoryContextSummary } from "./memory-context.js";
 import type { RecommendReport, Recommendation } from "./types.js";
 import { INTELLIGENCE_VERSION } from "./types.js";
 
@@ -25,6 +27,14 @@ import { INTELLIGENCE_VERSION } from "./types.js";
 export interface RecommendOptions {
   /** Maximum number of recommendations. Default: 5. */
   maxResults?: number;
+
+  /**
+   * Additive historical context (from `--use-memory`). When supplied,
+   * over-represented seeds are demoted and each recommendation carries
+   * `memoryNotes`. When omitted, output is unchanged from the no-flag
+   * behaviour.
+   */
+  memoryContext?: MemoryContextSummary;
 }
 
 /** Scoring weights; their sum bounds the raw score to ~1. */
@@ -219,11 +229,17 @@ export function buildRecommendations(
 ): RecommendReport {
   const maxResults = Math.max(0, options?.maxResults ?? 5);
   const intent = parseUseCase(useCase);
+  const memoryContext = options?.memoryContext;
+  // Deterministic penalty for over-represented seeds (only under --use-memory).
+  const overRepPenalty = 0.05;
 
   const scored = [...entries]
     .map((entry) => {
       const { score, reasons } = scoreEntry(entry, intent);
-      return { entry, score, reasons };
+      const overRepresented =
+        memoryContext !== undefined && isOverRepresented(entry, memoryContext);
+      const adjusted = overRepresented ? score - overRepPenalty : score;
+      return { entry, score: adjusted, reasons };
     })
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
@@ -237,7 +253,7 @@ export function buildRecommendations(
       item.reasons.length > 0
         ? item.reasons.join("; ")
         : `selected as a fallback candidate for '${useCase}'`;
-    return {
+    const recommendation: Recommendation = {
       rank: index + 1,
       entryId: item.entry.id,
       recipe: item.entry.recipe,
@@ -248,9 +264,14 @@ export function buildRecommendations(
       rationale,
       suggestedCommand: librarySimilarCommand(item.entry.id, 5),
     };
+    if (memoryContext) {
+      const notes = memoryNotesForEntry(item.entry, memoryContext);
+      if (notes.length > 0) recommendation.memoryNotes = notes;
+    }
+    return recommendation;
   });
 
-  return {
+  const report: RecommendReport = {
     command: "intelligence recommend",
     version: INTELLIGENCE_VERSION,
     readOnly: true,
@@ -259,6 +280,8 @@ export function buildRecommendations(
     maxResults,
     recommendations,
   };
+  if (memoryContext) report.memoryContext = memoryContext;
+  return report;
 }
 
 /**

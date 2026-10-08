@@ -50,3 +50,11 @@ export type { LibrarySnapshot } from "./read-only.js";
 
 export { logIntelligenceEvent } from "./logging.js";
 export type { IntelligenceLogEvent } from "./logging.js";
+
+export {
+  deriveMemoryContext,
+  memoryNotesForEntry,
+  isOverRepresented,
+  OVER_REPRESENTED_THRESHOLD,
+} from "./memory-context.js";
+export type { MemoryContextSummary } from "./memory-context.js";

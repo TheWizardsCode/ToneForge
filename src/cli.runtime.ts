@@ -78,6 +78,26 @@ import { recommendSounds } from "./intelligence/recommend.js";
 import { suggestExploration } from "./intelligence/suggest-exploration.js";
 import { withReadOnlyGuard } from "./intelligence/read-only.js";
 import { logIntelligenceEvent } from "./intelligence/logging.js";
+import { deriveMemoryContext } from "./intelligence/memory-context.js";
+import {
+  resolveIntent,
+  UnknownIntentError,
+  UnknownIntentIdError,
+  INTENT_PRIORITIES,
+  INTENT_VOCABULARY,
+  INTENT_VERSION,
+  submitIntent,
+} from "./intent/index.js";
+import type { IntentConstraints, IntentPriority } from "./intent/index.js";
+import {
+  createMemoryStore,
+  resolveMemoryDir,
+  queryMemory,
+  exportMemory,
+  clearMemory,
+  MEMORY_VERSION,
+} from "./memory/index.js";
+import type { MemoryTimeRange } from "./memory/types.js";
 import { searchEntries } from "./library/search.js";
 import type { SearchQuery } from "./library/search.js";
 import { findSimilar } from "./library/similarity.js";
@@ -1194,6 +1214,118 @@ toneforge intelligence suggest-exploration --recipe weapon-laser-zap --json
   await outputMarkdown(md);
 }
 
+/** Build the project-local Memory store for the current invocation. */
+function memoryStoreFor(flags: Record<string, string | boolean>) {
+  const dir =
+    typeof flags["memory-dir"] === "string"
+      ? (flags["memory-dir"] as string)
+      : resolveMemoryDir();
+  return createMemoryStore({ dir });
+}
+
+/** Load additive Memory context when `--use-memory` is set. */
+async function loadMemoryContext(
+  flags: Record<string, string | boolean>,
+): Promise<ReturnType<typeof deriveMemoryContext> | undefined> {
+  if (flags["use-memory"] !== true) return undefined;
+  const store = memoryStoreFor(flags);
+  const records = await store.readAll();
+  return deriveMemoryContext(records, store.location);
+}
+
+/** Parse a `--time-range` value into an inclusive time range. */
+function parseTimeRange(raw: string | undefined): MemoryTimeRange | undefined {
+  if (raw === undefined || raw === "all") return undefined;
+  if (raw.includes(":")) {
+    const [from, to] = raw.split(":", 2);
+    const range: MemoryTimeRange = {};
+    if (from !== undefined && from.length > 0) range.from = from;
+    if (to !== undefined && to.length > 0) range.to = to;
+    return range;
+  }
+  throw new Error(`Invalid --time-range '${raw}'. Use <from>:<to> ISO dates, or 'all'.`);
+}
+
+/** Parse repeated `key=value` constraint flags. */
+function parseConstraints(raw: unknown): IntentConstraints {
+  const constraints: IntentConstraints = {};
+  let entries: unknown[];
+  if (Array.isArray(raw)) entries = raw;
+  else if (typeof raw === "string") entries = raw.split("\n");
+  else entries = raw === undefined ? [] : [raw];
+  for (const entry of entries) {
+    const text = String(entry);
+    const eq = text.indexOf("=");
+    if (eq <= 0) throw new Error(`Invalid --constraint '${text}'. Use key=value.`);
+    const key = text.slice(0, eq);
+    const value = text.slice(eq + 1);
+    if (value === "true" || value === "false") constraints[key] = value === "true";
+    else if (value !== "" && !Number.isNaN(Number(value))) constraints[key] = Number(value);
+    else constraints[key] = value;
+  }
+  return constraints;
+}
+
+/** Print help text for the intent command group. */
+async function printIntentHelp(): Promise<void> {
+  const md = `# ToneForge intent
+
+**Submit structured intents that route through Intelligence behind a human approval gate**
+
+Intent is advisory: it never mutates systems directly. Every suggestion
+references a runnable \`toneforge\` command.
+
+## Usage
+
+\`\`\`
+toneforge intent submit --goal <desc> --scope <scope> [options]
+toneforge intent vocabulary
+\`\`\`
+
+## Approval gate
+
+- \`--dry-run\` never executes anything.
+- Non-interactive / \`--json\` runs print suggestions only unless \`--approve\` is passed.
+- Interactive runs prompt per suggestion and execute only confirmed commands.`;
+  await outputMarkdown(md);
+}
+
+/** Print help text for `intent submit`. */
+async function printIntentSubmitHelp(): Promise<void> {
+  const md = `# ToneForge intent submit
+
+\`\`\`
+toneforge intent submit --goal <desc> --scope <scope> [--intent <id>] [--priority <p>] [--constraint k=v] [--library <dir>] [--approve] [--dry-run] [--json]
+\`\`\`
+
+## Examples
+
+\`\`\`
+toneforge intent submit --goal "reduce repetition in footstep sounds" --scope footsteps
+toneforge intent submit --intent calm_ui --scope ui --approve --json
+\`\`\``;
+  await outputMarkdown(md);
+}
+
+/** Print help text for the memory command group. */
+async function printMemoryHelp(): Promise<void> {
+  const md = `# ToneForge memory
+
+**Query, export and clear the project-local append-only Memory store**
+
+Memory is project-local and append-only. It never makes decisions and never
+mutates library assets. Queries are read-only.
+
+## Usage
+
+\`\`\`
+toneforge memory query --scope <scope> --time-range <range> [--json]
+toneforge memory export [--json]
+toneforge memory clear
+\`\`\``;
+  await outputMarkdown(md);
+}
+
 /** Print help text for the tui command. */
 async function printTuiHelp(): Promise<void> {
   const md = `# ToneForge tui
@@ -1837,6 +1969,14 @@ export async function dispatchCommand(
       } else {
         await printIntelligenceHelp();
       }
+    } else if (command === "intent") {
+      if (subcommand === "submit") {
+        await printIntentSubmitHelp();
+      } else {
+        await printIntentHelp();
+      }
+    } else if (command === "memory") {
+      await printMemoryHelp();
     } else if (command === "tui") {
       await printTuiHelp();
     } else if (command === "visualize") {
@@ -4310,6 +4450,8 @@ export async function dispatchCommand(
         const report = await withReadOnlyGuard(libraryDir, "intelligence audit", () =>
           auditLibrary(libraryDir),
         );
+        const memoryContext = await loadMemoryContext(flags);
+        if (memoryContext) report.memoryContext = memoryContext;
 
         for (const finding of report.findings) {
           logIntelligenceEvent({
@@ -4384,8 +4526,12 @@ export async function dispatchCommand(
         typeof flags["library"] === "string" ? flags["library"] : DEFAULT_LIBRARY_DIR;
 
       try {
+        const memoryContext = await loadMemoryContext(flags);
         const report = await withReadOnlyGuard(libraryDir, "intelligence recommend", () =>
-          recommendSounds(libraryDir, useCase, { maxResults }),
+          recommendSounds(libraryDir, useCase, {
+            maxResults,
+            ...(memoryContext ? { memoryContext } : {}),
+          }),
         );
 
         for (const rec of report.recommendations) {
@@ -4452,6 +4598,8 @@ export async function dispatchCommand(
         const report = await withReadOnlyGuard(libraryDir, "intelligence suggest-exploration", () =>
           suggestExploration(recipeName, libraryDir),
         );
+        const memoryContext = await loadMemoryContext(flags);
+        if (memoryContext) report.memoryContext = memoryContext;
 
         for (const suggestion of report.suggestions) {
           logIntelligenceEvent({
@@ -4495,6 +4643,219 @@ export async function dispatchCommand(
     }
 
     await printIntelligenceHelp();
+    return 0;
+  }
+
+  // ── Intent command ───────────────────────────────────────────────
+  if (command === "intent") {
+    if (flags["help"] && subcommand === undefined) {
+      await printIntentHelp();
+      return 0;
+    }
+
+    if (subcommand === "vocabulary") {
+      if (flags["help"]) {
+        await printIntentHelp();
+        return 0;
+      }
+      const vocabulary = INTENT_VOCABULARY.map((definition) => ({
+        id: definition.id,
+        description: definition.description,
+        defaultPriority: definition.defaultPriority,
+        defaultScope: definition.defaultScope,
+        keywords: definition.keywords,
+      }));
+      if (jsonMode) {
+        jsonOut({ command: "intent vocabulary", version: INTENT_VERSION, vocabulary });
+      } else {
+        outputInfo("Controlled intent vocabulary:");
+        for (const entry of vocabulary) {
+          outputInfo(`  ${entry.id} — ${entry.description} (priority: ${entry.defaultPriority}, scope: ${entry.defaultScope})`);
+        }
+      }
+      return 0;
+    }
+
+    if (subcommand === "submit") {
+      if (flags["help"]) {
+        await printIntentSubmitHelp();
+        return 0;
+      }
+
+      const goal = typeof flags["goal"] === "string" ? flags["goal"] : undefined;
+      const intentId = typeof flags["intent"] === "string" ? flags["intent"] : undefined;
+      const scope = typeof flags["scope"] === "string" ? flags["scope"] : "project";
+      const priorityRaw = typeof flags["priority"] === "string" ? flags["priority"] : undefined;
+
+      if (intentId === undefined && (goal === undefined || goal.trim().length === 0)) {
+        const msg = "--goal or --intent is required. Run 'toneforge intent submit --help' for usage.";
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+      if (priorityRaw !== undefined && !(INTENT_PRIORITIES as readonly string[]).includes(priorityRaw)) {
+        const msg = `--priority must be one of: ${INTENT_PRIORITIES.join(", ")}.`;
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      let constraints: IntentConstraints;
+      try {
+        constraints = parseConstraints(flags["constraint"]);
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      let intent;
+      try {
+        intent = resolveIntent({
+          ...(goal !== undefined ? { goal } : {}),
+          ...(intentId !== undefined ? { intent: intentId } : {}),
+          scope,
+          ...(priorityRaw !== undefined ? { priority: priorityRaw as IntentPriority } : {}),
+          constraints,
+        });
+      } catch (error) {
+        if (error instanceof UnknownIntentError || error instanceof UnknownIntentIdError) {
+          if (jsonMode) { jsonErr(error.message); } else { outputError(`Error: ${error.message}`); }
+          return 1;
+        }
+        throw error;
+      }
+
+      const libraryDir =
+        typeof flags["library"] === "string" ? flags["library"] : DEFAULT_LIBRARY_DIR;
+      try {
+        const report = await submitIntent(intent, {
+          libraryDir,
+          approve: flags["approve"] === true,
+          dryRun: flags["dry-run"] === true,
+          interactive: false,
+        });
+        if (jsonMode) {
+          jsonOut({ ...report });
+        } else {
+          outputInfo(`Intent analysis — ${report.intent.intent} [${report.intent.scope}]`);
+          outputInfo(`  goal: ${report.intent.goal ?? "(explicit)"}`);
+          outputInfo(`  priority: ${report.intent.priority}`);
+          outputInfo("");
+          for (const suggestion of report.suggestions) {
+            outputInfo(`  - ${suggestion.rationale} (confidence: ${suggestion.confidence.toFixed(2)})`);
+            outputInfo(`    Try: ${suggestion.suggestedCommand}`);
+          }
+          outputInfo("");
+          if (report.executed.length > 0) {
+            outputSuccess(`Approved — executed ${report.executed.length} command(s).`);
+          } else {
+            outputWarning("Approval gate: no action executed. Re-run with --approve to execute.");
+          }
+        }
+        return 0;
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+    }
+
+    if (subcommand !== undefined) {
+      const msg = `Unknown intent subcommand '${subcommand}'. Run 'toneforge intent --help' for usage.`;
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+    await printIntentHelp();
+    return 0;
+  }
+
+  // ── Memory command ───────────────────────────────────────────────
+  if (command === "memory") {
+    if (flags["help"] && subcommand === undefined) {
+      await printMemoryHelp();
+      return 0;
+    }
+
+    const store = memoryStoreFor(flags);
+
+    if (subcommand === "query") {
+      let timeRange: MemoryTimeRange | undefined;
+      try {
+        timeRange = parseTimeRange(
+          typeof flags["time-range"] === "string" ? flags["time-range"] : undefined,
+        );
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+      const scope = typeof flags["scope"] === "string" ? flags["scope"] : undefined;
+      try {
+        const report = await queryMemory(store, {
+          ...(scope !== undefined ? { scope } : {}),
+          ...(timeRange !== undefined ? { timeRange } : {}),
+        });
+        if (jsonMode) {
+          jsonOut({ ...report });
+        } else {
+          outputInfo(`Memory report${report.scope ? ` — scope '${report.scope}'` : ""} (${report.total} record(s))`);
+          outputInfo(`  generated: ${report.counts.generated}, promoted: ${report.counts.promoted}, rejected: ${report.counts.rejected}, overrides: ${report.counts.overrides}`);
+          if (report.mostUsedSeeds.length > 0) {
+            outputInfo("  most-used seeds:");
+            for (const seed of report.mostUsedSeeds) outputInfo(`    ${seed.recipe}#${seed.seed}: ${seed.count}`);
+          }
+          if (report.rejectedIntents.length > 0) {
+            outputInfo("  rejected intents:");
+            for (const item of report.rejectedIntents) outputInfo(`    ${item.intent} (${item.scope}): ${item.reason}`);
+          }
+          if (report.recurringIssues.length > 0) {
+            outputInfo("  recurring issues:");
+            for (const issue of report.recurringIssues) outputInfo(`    ${issue.issue}: ${issue.count}`);
+          }
+        }
+        return 0;
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+    }
+
+    if (subcommand === "export") {
+      try {
+        const records = await exportMemory(store);
+        if (jsonMode) {
+          jsonOut({ command: "memory export", version: MEMORY_VERSION, total: records.length, records });
+        } else {
+          outputInfo(`Exported ${records.length} memory record(s) from ${store.location}`);
+          for (const record of records) outputInfo(JSON.stringify(record));
+        }
+        return 0;
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+    }
+
+    if (subcommand === "clear") {
+      try {
+        await clearMemory(store);
+        if (jsonMode) jsonOut({ command: "memory clear", cleared: true, location: store.location });
+        else outputSuccess("Memory cleared.");
+        return 0;
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+    }
+
+    if (subcommand !== undefined) {
+      const msg = `Unknown memory subcommand '${subcommand}'. Run 'toneforge memory --help' for usage.`;
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+    await printMemoryHelp();
     return 0;
   }
 

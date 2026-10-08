@@ -19,6 +19,8 @@
  * §10 (Determinism & Safety).
  */
 
+import type { MemoryContextSummary } from "./memory-context.js";
+
 /** Current Intelligence output schema version. */
 export const INTELLIGENCE_VERSION = "1.0";
 
@@ -121,6 +123,9 @@ export interface AuditReport {
 
   /** Aggregate finding counts. */
   summary: AuditSummary;
+
+  /** Additive historical context when `--use-memory` is supplied. */
+  memoryContext?: MemoryContextSummary;
 }
 
 /**
@@ -144,6 +149,9 @@ export interface Recommendation extends ExplainedFinding {
 
   /** Raw relevance score before confidence normalisation (higher is better). */
   score: number;
+
+  /** Historical notes derived from Memory when `--use-memory` is supplied. */
+  memoryNotes?: string[];
 }
 
 /** Structured result of `toneforge intelligence recommend`. */
@@ -168,6 +176,9 @@ export interface RecommendReport {
 
   /** Ranked recommendations, highest confidence first. */
   recommendations: Recommendation[];
+
+  /** Additive historical context when `--use-memory` is supplied. */
+  memoryContext?: MemoryContextSummary;
 }
 
 /**
@@ -200,6 +211,9 @@ export interface SuggestExplorationReport {
 
   /** Deterministically ordered suggestions. */
   suggestions: ExplorationSuggestion[];
+
+  /** Additive historical context when `--use-memory` is supplied. */
+  memoryContext?: MemoryContextSummary;
 }
 
 /**
