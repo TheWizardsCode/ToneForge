@@ -74,6 +74,7 @@ import {
   DEFAULT_LIBRARY_DIR,
 } from "./library/index.js";
 import { auditLibrary } from "./intelligence/audit.js";
+import { recommendSounds } from "./intelligence/recommend.js";
 import { searchEntries } from "./library/search.js";
 import type { SearchQuery } from "./library/search.js";
 import { findSimilar } from "./library/similarity.js";
@@ -1057,6 +1058,7 @@ modifies library data.
 | Subcommand | Description |
 |------------|-------------|
 | **audit** | Report coverage gaps, redundancy and quality issues |
+| **recommend** | Rank library sounds for a specific use case |
 
 ## Options
 
@@ -1109,6 +1111,42 @@ Every finding carries a confidence in [0, 1], a rationale, and an actionable
 \`\`\`
 toneforge intelligence audit --library ./library
 toneforge intelligence audit --library ./library --json
+\`\`\``;
+  await outputMarkdown(md);
+}
+
+/** Print help text for the intelligence recommend subcommand. */
+async function printIntelligenceRecommendHelp(): Promise<void> {
+  const md = `# ToneForge intelligence recommend
+
+**Recommend ranked library sounds for a use case**
+
+Maps a natural-language use case onto category, intensity, texture and tag
+preferences, then ranks library entries deterministically. It is strictly
+read-only.
+
+## Usage
+
+\`\`\`
+toneforge intelligence recommend --use-case <desc> [--max-results <n>] [--library <dir>] [--json]
+\`\`\`
+
+## Options
+
+- \`--use-case <desc>\` — Natural-language use case *(required)*
+- \`--max-results <n>\` — Maximum number of recommendations (default: 5)
+- \`--library <dir>\` — Library directory to search (default: \`${DEFAULT_LIBRARY_DIR}\`)
+- \`--json\` — Output structured JSON to stdout
+- \`--help\`, \`-h\` — Show this help message
+
+Each recommendation carries a \`confidence\` in [0, 1] and a human-readable
+\`rationale\`, and references an actionable command.
+
+## Examples
+
+\`\`\`
+toneforge intelligence recommend --use-case "sci-fi menu navigation" --max-results 5
+toneforge intelligence recommend --use-case "aggressive weapon" --json
 \`\`\``;
   await outputMarkdown(md);
 }
@@ -1749,6 +1787,8 @@ export async function dispatchCommand(
     } else if (command === "intelligence") {
       if (subcommand === "audit") {
         await printIntelligenceAuditHelp();
+      } else if (subcommand === "recommend") {
+        await printIntelligenceRecommendHelp();
       } else {
         await printIntelligenceHelp();
       }
@@ -4243,6 +4283,55 @@ export async function dispatchCommand(
               `${report.summary.redundancies} redundancy cluster(s), ` +
               `${report.summary.qualityIssues} quality issue(s)`,
           );
+        }
+        return 0;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(message); } else { outputError(`Error: ${message}`); }
+        return 1;
+      }
+    }
+
+    // ── intelligence recommend ────────────────────────────────
+    if (subcommand === "recommend") {
+      if (flags["help"]) {
+        await printIntelligenceRecommendHelp();
+        return 0;
+      }
+
+      const useCase = typeof flags["use-case"] === "string" ? flags["use-case"] : undefined;
+      if (useCase === undefined) {
+        const msg = "--use-case is required. Run 'toneforge intelligence recommend --help' for usage.";
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      const maxResultsRaw = flags["max-results"];
+      const maxResults = typeof maxResultsRaw === "string" ? parseInt(maxResultsRaw, 10) : 5;
+      if (Number.isNaN(maxResults) || maxResults < 0) {
+        const msg = `--max-results must be a non-negative integer, got '${String(maxResultsRaw)}'.`;
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      const libraryDir =
+        typeof flags["library"] === "string" ? flags["library"] : DEFAULT_LIBRARY_DIR;
+
+      try {
+        const report = await recommendSounds(libraryDir, useCase, { maxResults });
+
+        if (jsonMode) {
+          jsonOut({ ...report });
+        } else {
+          outputInfo(`Recommendations for "${useCase}":`);
+          if (report.recommendations.length === 0) {
+            outputInfo("  No matching sounds found.");
+          }
+          for (const rec of report.recommendations) {
+            outputInfo(`  ${rec.rank}. ${rec.entryId} (confidence: ${rec.confidence.toFixed(2)})`);
+            outputInfo(`     ${rec.rationale}`);
+            outputInfo(`     Try: ${rec.suggestedCommand}`);
+          }
         }
         return 0;
       } catch (error) {

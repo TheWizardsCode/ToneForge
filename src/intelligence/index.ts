@@ -23,6 +23,9 @@ export type {
 export { auditLibrary, buildAuditReport } from "./audit.js";
 export type { AuditOptions } from "./audit.js";
 
+export { recommendSounds, buildRecommendations, parseUseCase } from "./recommend.js";
+export type { RecommendOptions, UseCaseIntent } from "./recommend.js";
+
 export { loadLibraryEntries, intensityBucket } from "./library.js";
 
 export {

@@ -15,6 +15,7 @@ Reference: [`docs/prd/INTELLIGENCE_PRD.md`](./prd/INTELLIGENCE_PRD.md).
 
 ```bash
 toneforge intelligence audit --library <dir>
+toneforge intelligence recommend --use-case <desc> --max-results <n>
 ```
 
 ## `intelligence audit`
@@ -79,9 +80,56 @@ byte-identical JSON (no wall-clock timestamps or random ordering).
 }
 ```
 
+## `intelligence recommend`
+
+Ranks library sounds for a natural-language use case. The use case is mapped
+onto category, intensity, texture and tag preferences, then every entry is
+scored and ranked deterministically.
+
+### Usage
+
+```bash
+toneforge intelligence recommend --use-case <desc> [--max-results <n>] [--library <dir>] [--json]
+```
+
+- `--use-case <desc>` — natural-language use case (required)
+- `--max-results <n>` — maximum recommendations (default: 5)
+- `--library <dir>` — library directory (default: `.toneforge-library`)
+- `--json` — emit a structured `RecommendReport`
+
+Every recommendation carries a `confidence` in `[0, 1]` and a
+human-readable `rationale` referencing the supporting labels/metrics, plus
+an actionable command.
+
+### JSON shape
+
+```jsonc
+{
+  "command": "intelligence recommend",
+  "version": "1.0",
+  "useCase": "sci-fi menu navigation",
+  "maxResults": 5,
+  "recommendations": [
+    {
+      "rank": 1,
+      "entryId": "lib-ui-scifi-confirm_seed-00042",
+      "recipe": "ui-scifi-confirm",
+      "seed": 42,
+      "category": "ui",
+      "score": 0.85,
+      "confidence": 0.85,
+      "rationale": "category 'ui' matches...; intensity 'soft' matches 'soft'; ...",
+      "suggestedCommand": "toneforge library similar --id lib-ui-scifi-confirm_seed-00042 --limit 5"
+    }
+  ]
+}
+```
+
 ## Examples
 
 ```bash
 toneforge intelligence audit --library ./library
 toneforge intelligence audit --library ./library --json
+toneforge intelligence recommend --use-case "sci-fi menu navigation" --max-results 5
+toneforge intelligence recommend --use-case "aggressive weapon" --json
 ```

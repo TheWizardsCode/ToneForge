@@ -16,5 +16,11 @@ export function builder(yargs: any) {
     .command("audit", "Audit a library for coverage gaps, redundancy, and quality issues", (y: any) => {
       y.option("library", { type: "string", describe: "Library directory to audit" })
         .option("json", { type: "boolean", describe: "Output JSON" });
+    })
+    .command("recommend", "Recommend ranked sounds for a use case", (y: any) => {
+      y.option("use-case", { type: "string", describe: "Use case description" })
+        .option("max-results", { type: "number", default: 5, describe: "Maximum recommendations" })
+        .option("library", { type: "string", describe: "Library directory to search" })
+        .option("json", { type: "boolean", describe: "Output JSON" });
     });
 }

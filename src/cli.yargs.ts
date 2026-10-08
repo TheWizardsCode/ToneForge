@@ -465,6 +465,18 @@ export async function yargsMain(argv: string[] = process.argv): Promise<number> 
         ...(argv.library !== undefined ? { library: String(argv.library) } : {}),
       }), []);
     });
+    y2.command("recommend", "Recommend ranked sounds for a use case", (y3) => {
+      y3.option("use-case", { type: "string", describe: "Use case description" })
+        .option("max-results", { type: "number", default: 5, describe: "Maximum recommendations" })
+        .option("library", { type: "string", describe: "Library directory to search" })
+        .option("json", { type: "boolean", describe: "Output JSON" });
+    }, async (argv) => {
+      exitCode = await dispatchCommand("intelligence", "recommend", buildFlags(argv, {
+        ...(argv["use-case"] !== undefined ? { "use-case": String(argv["use-case"]) } : {}),
+        ...(argv["max-results"] !== undefined ? { "max-results": String(argv["max-results"]) } : {}),
+        ...(argv.library !== undefined ? { library: String(argv.library) } : {}),
+      }), []);
+    });
   }, async (_argv) => {
     // Re-parse raw argv so dispatchCommand receives the unknown subcommand name
     // for proper error output. yargs only calls this handler when no subcommand

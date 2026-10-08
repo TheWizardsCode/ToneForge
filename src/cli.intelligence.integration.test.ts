@@ -12,7 +12,7 @@ import { join } from "node:path";
 import { main } from "./cli.js";
 import { clearIndexCache } from "./library/index-store.js";
 import { makeEntry, sampleLibrary } from "./intelligence/__tests__/helpers.js";
-import type { AuditReport } from "./intelligence/types.js";
+import type { AuditReport, RecommendReport } from "./intelligence/types.js";
 
 let libraryDir: string;
 
@@ -127,5 +127,41 @@ describe("toneforge intelligence audit", () => {
 
     expect(code).toBe(1);
     expect(stderr).toContain("Unknown intelligence subcommand");
+  });
+});
+
+describe("toneforge intelligence recommend", () => {
+  it("emits ranked JSON recommendations honouring --max-results", async () => {
+    writeLibrary(sampleLibrary());
+
+    const { code, stdout } = await captureOutput(() =>
+      main(argv(
+        "intelligence", "recommend",
+        "--use-case", "sci-fi menu navigation",
+        "--max-results", "3",
+        "--library", libraryDir,
+        "--json",
+      )),
+    );
+
+    expect(code).toBe(0);
+    const report = JSON.parse(stdout) as RecommendReport;
+    expect(report.command).toBe("intelligence recommend");
+    expect(report.maxResults).toBe(3);
+    expect(report.recommendations.length).toBeLessThanOrEqual(3);
+    for (const rec of report.recommendations) {
+      expect(rec.confidence).toBeGreaterThanOrEqual(0);
+      expect(rec.confidence).toBeLessThanOrEqual(1);
+      expect(rec.rationale.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("requires --use-case", async () => {
+    const { code, stderr } = await captureOutput(() =>
+      main(argv("intelligence", "recommend", "--library", libraryDir, "--json")),
+    );
+
+    expect(code).toBe(1);
+    expect(stderr).toContain("--use-case is required");
   });
 });
