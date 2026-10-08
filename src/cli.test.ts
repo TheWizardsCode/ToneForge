@@ -161,6 +161,92 @@ describe("CLI", () => {
       expect(stdout).toContain("Done.");
     });
 
+    it("displays seed-derived parameter values with units", async () => {
+      const { code, stdout } = await captureOutput(
+        () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "7")),
+      );
+      expect(code).toBe(0);
+      expect(stdout).toContain("Parameters:");
+      expect(stdout).toMatch(/frequency: [\d.]+ Hz/);
+      expect(stdout).toMatch(/attack: [\d.]+ s/);
+      expect(stdout).toMatch(/filterCutoff: [\d.]+ Hz/);
+    });
+
+    it("outputs a params object in JSON mode", async () => {
+      const { code, stdout } = await captureOutput(
+        () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "7", "--json")),
+      );
+      expect(code).toBe(0);
+      const data = JSON.parse(stdout);
+      expect(data.recipe).toBe("ui-scifi-confirm");
+      expect(data.seed).toBe(7);
+      expect(typeof data.duration).toBe("number");
+      expect(typeof data.params).toBe("object");
+      expect(data.params).not.toBeNull();
+      for (const value of Object.values(data.params)) {
+        expect(typeof value).toBe("number");
+      }
+      const { registry } = await import("./recipes/index.js");
+      const reg = registry.getRegistration("ui-scifi-confirm")!;
+      expect(data.params).toEqual(reg.getRenderParams!(7));
+    });
+
+    it("displays the random seed and its parameters", async () => {
+      const { code, stdout } = await captureOutput(
+        () => main(argv("generate", "--recipe", "ui-scifi-confirm")),
+      );
+      expect(code).toBe(0);
+      expect(stdout).toContain("Using random seed:");
+      expect(stdout).toContain("Parameters:");
+    });
+
+    it("reports file-backed params that match the render values, not defaults", async () => {
+      // ui-scifi-confirm declares defaults that differ from the seed-derived
+      // values applied by the render path; the reported params must be the
+      // rendered values so a seed can be reproduced.
+      const { registry } = await import("./recipes/index.js");
+      const { createRng } = await import("./core/rng.js");
+      const reg = registry.getRegistration("ui-scifi-confirm")!;
+      const defaults = reg.getParams(createRng(7));
+      const renderParams = reg.getRenderParams!(7);
+      expect(renderParams).not.toEqual(defaults);
+
+      const { code, stdout } = await captureOutput(
+        () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "7", "--json")),
+      );
+      expect(code).toBe(0);
+      expect(JSON.parse(stdout).params).toEqual(renderParams);
+    });
+
+    it("keeps --output working while reporting parameters", async () => {
+      const outPath = join(tmpdir(), `toneforge-params-${Date.now()}.wav`);
+      try {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "42", "--output", outPath)),
+        );
+        expect(code).toBe(0);
+        expect(existsSync(outPath)).toBe(true);
+        expect(stdout).toContain("Parameters:");
+      } finally {
+        try { unlinkSync(outPath); } catch { /* ignore */ }
+      }
+    });
+
+    it("displays the random seed when writing to a file without --seed", async () => {
+      const outPath = join(tmpdir(), `toneforge-random-seed-${Date.now()}.wav`);
+      try {
+        const { code, stdout } = await captureOutput(
+          () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--output", outPath)),
+        );
+        expect(code).toBe(0);
+        expect(stdout).toMatch(/Using random seed: \d+/);
+        expect(stdout).toContain("Parameters:");
+        expect(existsSync(outPath)).toBe(true);
+      } finally {
+        try { unlinkSync(outPath); } catch { /* ignore */ }
+      }
+    });
+
     it("completes in under 5 seconds", async () => {
       const start = performance.now();
       const { code } = await captureOutput(
@@ -947,6 +1033,35 @@ describe("CLI", () => {
         expect(data.length).toBeGreaterThan(44);
       }
     });
+
+    it("displays per-seed parameters in human-readable mode", async () => {
+      const outDir = tempDir + "/";
+      const { code, stdout } = await captureOutput(
+        () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed-range", "1:2", "--output", outDir)),
+      );
+      expect(code).toBe(0);
+      expect(stdout).toMatch(/Seed 1: .*frequency: [\d.]+ Hz/);
+      expect(stdout).toMatch(/Seed 2: .*frequency: [\d.]+ Hz/);
+    });
+
+    it("includes per-seed params in batch JSON output", async () => {
+      const outDir = tempDir + "/";
+      const { code, stdout } = await captureOutput(
+        () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed-range", "1:2", "--output", outDir, "--json")),
+      );
+      expect(code).toBe(0);
+      const data = JSON.parse(stdout);
+      expect(Array.isArray(data.files)).toBe(true);
+      expect(data.files).toHaveLength(2);
+
+      const { registry } = await import("./recipes/index.js");
+      const reg = registry.getRegistration("ui-scifi-confirm")!;
+      for (const file of data.files) {
+        expect(typeof file.seed).toBe("number");
+        expect(typeof file.duration).toBe("number");
+        expect(file.params).toEqual(reg.getRenderParams!(file.seed));
+      }
+    });
   });
 
   describe("play command", () => {
@@ -1354,6 +1469,24 @@ describe("CLI", () => {
             expect(v).toBeGreaterThanOrEqual(p.min);
             expect(v).toBeLessThan(p.max);
           }
+        }
+      }
+    });
+
+    it("getRenderParams keys match descriptors and stay within ranges", async () => {
+      const { registry } = await import("./recipes/index.js");
+      const { createRng } = await import("./core/rng.js");
+
+      for (const name of registry.list()) {
+        const reg = registry.getRegistration(name)!;
+        const values = reg.getRenderParams
+          ? reg.getRenderParams(42)
+          : reg.getParams(createRng(42));
+        expect(Object.keys(values).sort()).toEqual(reg.params.map((p) => p.name).sort());
+        for (const p of reg.params) {
+          const v = values[p.name]!;
+          expect(v).toBeGreaterThanOrEqual(p.min);
+          expect(v).toBeLessThan(p.max);
         }
       }
     });

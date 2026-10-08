@@ -738,6 +738,18 @@ routing:
       expect(jsonReg).toBeDefined();
       expect(jsonReg!.params.map((p) => p.name).sort()).toEqual(["frequency", "gain"]);
       expect(jsonReg!.getParams(createRng(7))).toEqual({ frequency: 550, gain: 0.2 });
+
+      // getRenderParams reports the seed-derived values the graph builder
+      // applies, so it must ignore the declared defaults surfaced by getParams.
+      const expectedRenderRng = createRng(7);
+      const expectedRenderParams = {
+        frequency: 220 + (880 - 220) * expectedRenderRng(),
+        gain: 0.1 + (0.8 - 0.1) * expectedRenderRng(),
+      };
+      expect(jsonReg!.getRenderParams).toBeDefined();
+      expect(jsonReg!.getRenderParams!(7)).toEqual(expectedRenderParams);
+      expect(jsonReg!.getRenderParams!(7)).not.toEqual(jsonReg!.getParams(createRng(7)));
+
       expect(jsonReg!.getDuration(createRng(1))).toBeCloseTo(0.08, 6);
 
       const yamlReg = registry.getRegistration("file-backed-yaml");

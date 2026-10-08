@@ -34,7 +34,7 @@ import { VERSION } from "./index.js";
 import { createRng } from "./core/rng.js";
 import { profiler } from "./core/profiler.js";
 import { outputMarkdown, outputError, outputWarning, outputSuccess, outputInfo, outputTable, COLORS, ansiWidth, stripAnsi, isStdoutTty } from "./output.js";
-import { truncateTags } from "./cli/helpers.js";
+import { truncateTags, seedParams, formatParams } from "./cli/helpers.js";
 import type { RecipeRegistration, RecipeFilterQuery } from "./core/recipe.js";
 import { renderStack } from "./stack/renderer.js";
 import type { StackDefinition } from "./stack/renderer.js";
@@ -4901,6 +4901,8 @@ export async function dispatchCommand(
         const wavBuffer = encodeWav(result.samples, { sampleRate: result.sampleRate });
         await writeFile(filePath, wavBuffer);
         if (!jsonMode) {
+          const params = formatParams(registry.getRegistration(recipeName as string)!, seed);
+          outputInfo(`Seed ${seed}: ${params.join(", ")}`);
           outputSuccess(`Wrote ${filePath}`);
         }
         batchFiles.push({
@@ -4922,12 +4924,17 @@ export async function dispatchCommand(
     }
 
     if (jsonMode) {
+      const reg = registry.getRegistration(recipeName as string)!;
+      const filesWithParams = batchFiles.map((f) => ({
+        ...f,
+        params: seedParams(reg, f.seed),
+      }));
       jsonOut({
         command: "generate",
         recipe: recipeName,
         seedRange: [seedRangeStart!, seedRangeEnd!],
         output: outputPath,
-        files: batchFiles,
+        files: filesWithParams,
       });
     }
 
@@ -4949,7 +4956,9 @@ export async function dispatchCommand(
       }
     } else {
       seed = Math.floor(Math.random() * 2147483647);
-      if (!outputPath && !jsonMode) {
+      // Always surface a randomly chosen seed (in human-readable mode) so the
+      // generated sound can be reproduced, even when writing straight to disk.
+      if (!jsonMode) {
         outputInfo(`Using random seed: ${seed}`);
     }
   }
@@ -4980,6 +4989,7 @@ export async function dispatchCommand(
         profiler.mark("wav_encode");
         await writeFile(outputPath, wavBuffer);
         profiler.mark("file_write");
+        const reg = registry.getRegistration(recipeName as string)!;
         if (jsonMode) {
           jsonOut({
             command: "generate",
@@ -4989,8 +4999,11 @@ export async function dispatchCommand(
             duration: result.duration,
             sampleRate: result.sampleRate,
             samples: result.samples.length,
+            params: seedParams(reg, seed),
           });
         } else {
+          const params = formatParams(reg, seed);
+          outputInfo(`Parameters: ${params.join(", ")}`);
           outputSuccess(`Wrote ${outputPath}`);
         }
       } catch (error) {
@@ -5012,6 +5025,7 @@ export async function dispatchCommand(
         profiler.mark("wav_encode");
         await writeFile(filePath, wavBuffer);
         profiler.mark("file_write");
+        const reg = registry.getRegistration(recipeName as string)!;
         if (jsonMode) {
           jsonOut({
             command: "generate",
@@ -5021,8 +5035,11 @@ export async function dispatchCommand(
             duration: result.duration,
             sampleRate: result.sampleRate,
             samples: result.samples.length,
+            params: seedParams(reg, seed),
           });
         } else {
+          const params = formatParams(reg, seed);
+          outputInfo(`Parameters: ${params.join(", ")}`);
           outputSuccess(`Wrote ${filePath}`);
         }
       } catch (error) {
@@ -5036,6 +5053,7 @@ export async function dispatchCommand(
       }
     } else {
       // Play audio (default when --output is not specified)
+      const reg = registry.getRegistration(recipeName as string)!;
       if (!jsonMode) {
         outputInfo("Playing...");
       }
@@ -5049,8 +5067,11 @@ export async function dispatchCommand(
           sampleRate: result.sampleRate,
           samples: result.samples.length,
           played: true,
+          params: seedParams(reg, seed),
         });
       } else {
+        const params = formatParams(reg, seed);
+        outputInfo(`Parameters: ${params.join(", ")}`);
         outputSuccess("Done.");
       }
     }
