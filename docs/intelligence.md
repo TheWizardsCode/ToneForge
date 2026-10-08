@@ -165,6 +165,26 @@ command.
 }
 ```
 
+## Conformance harness
+
+Every Intelligence engine is validated by one deterministic harness
+(`src/intelligence/__tests__/conformance.test.ts`) against a committed
+fixture library (`src/test-utils/fixtures/intelligence/`). The harness asserts:
+
+1. **Determinism** — byte-identical output across two consecutive runs;
+2. **Read-only** — the fixture library is byte-identical before/after running
+   all three engines;
+3. **JSON contract** — required keys and types for `audit`, `recommend` and
+   `suggest-exploration`, with `confidence` always in `[0, 1]`;
+4. **Plant detection** — the fixture really contains the coverage,
+   redundancy and quality issues the audit is expected to find.
+
+Run it with:
+
+```bash
+npx vitest run src/intelligence/__tests__/conformance.test.ts
+```
+
 ## Examples
 
 ```bash

@@ -2,7 +2,14 @@
  * Buffer Comparison Utilities
  *
  * Provides diagnostic comparison of audio buffers for determinism testing.
+ *
+ * Also provides SHA-256 directory snapshot helpers used by the Intelligence
+ * conformance harness to prove read-only behaviour.
  */
+
+import { createHash } from "node:crypto";
+import { readdirSync, readFileSync } from "node:fs";
+import { join, relative } from "node:path";
 
 /** Result of comparing two audio buffers. */
 export interface BufferCompareResult {
@@ -81,4 +88,71 @@ export function formatCompareResult(result: BufferCompareResult): string {
     `  B[${result.firstDivergentIndex}] = ${result.valueB}`,
     `  delta = ${result.delta}`,
   ].join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// Directory snapshots (read-only conformance checks)
+// ---------------------------------------------------------------------------
+
+/** SHA-256 hash of a buffer, as a lowercase hex string. */
+export function hashBuffer(buffer: Buffer | Uint8Array): string {
+  return createHash("sha256").update(buffer).digest("hex");
+}
+
+/** SHA-256 hash of a file's contents. */
+export function hashFile(path: string): string {
+  return hashBuffer(readFileSync(path));
+}
+
+/**
+ * Snapshot every file under `dir`, keyed by its path relative to `dir`.
+ *
+ * Traversal is sorted so the snapshot itself is deterministic.
+ */
+export function snapshotDirectory(dir: string): Record<string, string> {
+  const files: Record<string, string> = {};
+
+  const walk = (current: string): void => {
+    const entries = readdirSync(current, { withFileTypes: true }).sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
+    for (const entry of entries) {
+      const full = join(current, entry.name);
+      if (entry.isDirectory()) {
+        walk(full);
+      } else if (entry.isFile()) {
+        files[relative(dir, full)] = hashFile(full);
+      }
+    }
+  };
+
+  walk(dir);
+  return files;
+}
+
+/** Result of comparing two directory snapshots. */
+export interface SnapshotDiff {
+  equal: boolean;
+  added: string[];
+  removed: string[];
+  changed: string[];
+}
+
+/** Compare two snapshots produced by {@link snapshotDirectory}. */
+export function compareSnapshots(
+  before: Record<string, string>,
+  after: Record<string, string>,
+): SnapshotDiff {
+  const added = Object.keys(after).filter((path) => !(path in before));
+  const removed = Object.keys(before).filter((path) => !(path in after));
+  const changed = Object.keys(before).filter(
+    (path) => path in after && before[path] !== after[path],
+  );
+
+  return {
+    equal: added.length === 0 && removed.length === 0 && changed.length === 0,
+    added,
+    removed,
+    changed,
+  };
 }
