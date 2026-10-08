@@ -1,0 +1,95 @@
+{
+  "name": "walk-run-transition",
+  "description": "Behavioural event sequence: walk → run transition with context change and late-join stream segments.",
+  "version": "1.0",
+  "events": [
+    {
+      "id": "evt-001",
+      "event": "state-transition",
+      "state": "walk",
+      "seed": 42,
+      "time": 0,
+      "context": { "surface": "grass" }
+    },
+    {
+      "id": "evt-002",
+      "event": "footstep",
+      "state": "walk",
+      "seed": 42,
+      "time": 1.0,
+      "context": { "surface": "grass" },
+      "stepIndex": 0
+    },
+    {
+      "id": "evt-003",
+      "event": "footstep",
+      "state": "walk",
+      "seed": 43,
+      "time": 1.5,
+      "context": { "surface": "grass" },
+      "stepIndex": 1
+    },
+    {
+      "id": "evt-004",
+      "event": "state-transition",
+      "state": "run",
+      "seed": 44,
+      "time": 3.0,
+      "context": { "surface": "gravel" }
+    },
+    {
+      "id": "evt-005",
+      "event": "footstep",
+      "state": "run",
+      "seed": 44,
+      "time": 3.2,
+      "context": { "surface": "gravel" },
+      "stepIndex": 0
+    },
+    {
+      "id": "evt-006",
+      "event": "footstep",
+      "state": "run",
+      "seed": 45,
+      "time": 3.4,
+      "context": { "surface": "gravel" },
+      "stepIndex": 1
+    },
+    {
+      "id": "evt-007",
+      "event": "context-change",
+      "state": "run",
+      "seed": 46,
+      "time": 5.0,
+      "context": { "surface": "stone", "weather": "rain" }
+    },
+    {
+      "id": "evt-008",
+      "event": "footstep",
+      "state": "run",
+      "seed": 46,
+      "time": 5.2,
+      "context": { "surface": "stone", "weather": "rain" },
+      "stepIndex": 0
+    },
+    {
+      "id": "evt-009",
+      "event": "late-join",
+      "state": "run",
+      "seed": 47,
+      "time": 6.0,
+      "context": { "surface": "stone", "weather": "rain" },
+      "snapshotTime": 5.5,
+      "notes": "Late-joining client receives state snapshot from 5.5s"
+    },
+    {
+      "id": "evt-010",
+      "event": "footstep",
+      "state": "run",
+      "seed": 47,
+      "time": 6.2,
+      "context": { "surface": "stone", "weather": "rain" },
+      "stepIndex": 0
+    }
+  ]
+}
