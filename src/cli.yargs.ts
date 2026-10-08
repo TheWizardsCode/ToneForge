@@ -22,6 +22,8 @@ import * as intentCmd from "./cli/commands/intent.js";
 import * as memoryCmd from "./cli/commands/memory.js";
 import * as tuiCmd from "./cli/commands/tui.js";
 import * as visualizeCmd from "./cli/commands/visualize.js";
+import * as validateCmd from "./cli/commands/validate.js";
+import * as compileCmd from "./cli/commands/compile.js";
 
 export const FRAMEWORK_COMMANDS = [
   "generate",
@@ -41,6 +43,8 @@ export const FRAMEWORK_COMMANDS = [
   "memory",
   "tui",
   "visualize",
+  "validate",
+  "compile",
 ];
 
 /**
@@ -618,6 +622,26 @@ export async function yargsMain(argv: string[] = process.argv): Promise<number> 
     // matched, so `argv._` isn't reliable; `raw` (captured in outer scope) is.
     const parsed = parseArgs(["node", "cli.ts", ...raw]);
     exitCode = await dispatchCommand(parsed.command, parsed.subcommand, parsed.flags, parsed.layers);
+  });
+
+  // ── validate ──────────────────────────────────────────────────────────────
+  y.command(validateCmd.command, validateCmd.desc, validateCmd.builder, async (argv) => {
+    exitCode = await dispatchCommand("validate", undefined, buildFlags(argv, {
+      ...(argv.library !== undefined ? { library: String(argv.library) } : {}),
+      ...(argv.ruleset !== undefined ? { ruleset: String(argv.ruleset) } : {}),
+      ...(argv.strictness !== undefined ? { strictness: String(argv.strictness) } : {}),
+    }), []);
+  });
+
+  // ── compile ───────────────────────────────────────────────────────────────
+  y.command(compileCmd.command, compileCmd.desc, compileCmd.builder, async (argv) => {
+    exitCode = await dispatchCommand("compile", undefined, buildFlags(argv, {
+      ...(argv.library !== undefined ? { library: String(argv.library) } : {}),
+      ...(argv.target !== undefined ? { target: String(argv.target) } : {}),
+      ...(argv.rules !== undefined ? { rules: String(argv.rules) } : {}),
+      ...(argv.output !== undefined ? { output: String(argv.output) } : {}),
+      ...(argv["dry-run"] === true ? { "dry-run": true } : {}),
+    }), []);
   });
 
   try {

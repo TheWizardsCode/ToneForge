@@ -156,3 +156,32 @@ Validation is a separate concern (see [`docs/validator.md`](./validator.md)).
 Callers that want a quality gate should run the Validator over the same entries
 and treat a `blocking` report as a reason not to compile; the compiler core
 itself is decision-only and does not silently drop failing assets.
+
+## CLI
+
+`toneforge compile` applies a ruleset to a library on disk and writes the
+artifacts:
+
+```bash
+toneforge compile --library ./library --target web --rules web_defaults --output ./dist/web/
+toneforge compile --library ./library --target mobile --rules ./mobile.json --output ./dist/mobile/
+toneforge compile --library ./library --target web --dry-run --json
+```
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--library <dir>` | Library directory to compile | `.toneforge-library` |
+| `--target <platform>` | Target name; overrides the ruleset's `target` | — |
+| `--rules <name\|file>` | Built-in name (`web_defaults`, `mobile_aggressive`) or a JSON ruleset file | — |
+| `--output <dir>` | Output directory for WAVs + `manifest.json` | required unless `--dry-run` |
+| `--dry-run` | Report decisions without writing files | off |
+| `--json` | Emit the structured result as JSON | off |
+
+At least one of `--target` or `--rules` is required. A `--target` on its own
+produces a procedural-only plan (no WAVs); combine it with `--rules` to bake or
+hybridise. The JSON output is the compiler's `CompileResult` plus `command`
+and `library` fields.
+
+Example rulesets mirroring the built-ins are provided in
+`presets/compile/web_defaults.json` and
+`presets/compile/mobile_aggressive.json`.

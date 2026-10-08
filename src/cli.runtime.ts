@@ -117,6 +117,10 @@ import type { RuntimeSession } from "./runtime/session.js";
 import { createRuntimeService } from "./runtime/service.js";
 import type { RuntimeService } from "./runtime/service.js";
 import { VISUAL_FORMATS, exportVisual, listPalettes } from "./visualizer/index.js";
+import { STRICTNESS_LEVELS, listRulesets } from "./validator/index.js";
+import { listCompileRulesets } from "./compiler/index.js";
+import * as validateCmd from "./cli/commands/validate.js";
+import * as compileCmd from "./cli/commands/compile.js";
 
 /** Parse command-line arguments into a structured map. */
 export function parseArgs(argv: string[]): {
@@ -196,6 +200,8 @@ async function printHelp(): Promise<void> {
 | **list** | List available resources (e.g. recipes) |
 | **tui** | Interactive wizard for building sound palettes |
 | **visualize** | Generate deterministic, audio-synchronised visual effects |
+| **validate** | Validate library assets against platform quality rules |
+| **compile** | Compile library assets into platform-ready artifacts |
 | **version** | Print the ToneForge version |
 
 ## Options
@@ -336,6 +342,83 @@ audio's amplitude envelope, so effects stay synchronised to the sound.
 \`\`\`
 toneforge visualize export --recipe weapon-laser-zap --seed 42 --format spritesheet --output ./vfx/
 toneforge visualize export --recipe ui-scifi-confirm --seed 7 --palette sci_fi_neon --output ./vfx/
+\`\`\``;
+  await outputMarkdown(md);
+}
+
+/** Print help text for the validate command. */
+async function printValidateHelp(): Promise<void> {
+  const rulesets = listRulesets();
+  const md = `# ToneForge validate
+
+**Validate library assets against platform quality rules**
+
+Runs the Validator check engine over every entry in a library and reports
+peak clipping, duration bounds, and silence-ratio violations. The command is
+strictly read-only and produces a deterministic, machine-readable report.
+
+## Usage
+
+\`\`\`
+toneforge validate --library <dir> --ruleset <name> --strictness <level>
+\`\`\`
+
+## Options
+
+- \`--library <dir>\` — Library directory to validate (default: \`${DEFAULT_LIBRARY_DIR}\`)
+- \`--ruleset <name>\` — Platform ruleset: ${rulesets.join(", ")} (default: \`web\`)
+- \`--strictness <level>\` — Severity for violations: ${STRICTNESS_LEVELS.join(", ")} (default: \`warning\`)
+- \`--json\` — Output the structured report as JSON
+- \`--help\`, \`-h\` — Show this help message
+
+## Exit codes
+
+- \`0\` — validation ran; no error-level findings
+- \`1\` — usage/IO error, or the report is build-blocking (\`--strictness error\` with an error-level finding)
+
+## Examples
+
+\`\`\`
+toneforge validate --library ./library --ruleset mobile --strictness warning
+toneforge validate --library ./library --ruleset console --strictness error --json
+\`\`\``;
+  await outputMarkdown(md);
+}
+
+/** Print help text for the compile command. */
+async function printCompileHelp(): Promise<void> {
+  const rulesets = listCompileRulesets();
+  const md = `# ToneForge compile
+
+**Compile library assets into platform-ready artifacts**
+
+Applies a declarative compilation ruleset to every entry in a library and
+either writes baked/hybrid WAVs plus a deterministic \`manifest.json\`, or
+reports the per-asset decisions without touching disk (\`--dry-run\`).
+
+## Usage
+
+\`\`\`
+toneforge compile --library <dir> --target <platform> --rules <name|file> --output <dir>
+toneforge compile --library <dir> --target <platform> --dry-run
+\`\`\`
+
+## Options
+
+- \`--library <dir>\` — Library directory to compile (default: \`${DEFAULT_LIBRARY_DIR}\`)
+- \`--target <platform>\` — Platform target (web, mobile, console, desktop); overrides the ruleset target
+- \`--rules <name|file>\` — Built-in ruleset (${rulesets.join(", ")}) or a path to a JSON ruleset file
+- \`--output <dir>\` — Output directory for compiled artifacts (required unless \`--dry-run\`)
+- \`--dry-run\` — Show decisions without writing any files
+- \`--json\` — Output the structured result as JSON
+- \`--help\`, \`-h\` — Show this help message
+
+## Examples
+
+\`\`\`
+toneforge compile --library ./library --target web --rules web_defaults --output ./dist/web/
+toneforge compile --library ./library --target mobile --rules ./mobile.json --output ./dist/mobile/
+toneforge compile --library ./library --target web --dry-run --json
 \`\`\``;
   await outputMarkdown(md);
 }
@@ -1981,6 +2064,10 @@ export async function dispatchCommand(
       await printTuiHelp();
     } else if (command === "visualize") {
       await printVisualizeHelp();
+    } else if (command === "validate") {
+      await printValidateHelp();
+    } else if (command === "compile") {
+      await printCompileHelp();
     } else if (command === "sequence") {
       if (subcommand === "generate") {
         await printSequenceGenerateHelp();
@@ -2147,6 +2234,30 @@ export async function dispatchCommand(
       }
       return 1;
     }
+  }
+
+  // ── validate command ─────────────────────────────────────────────
+
+  if (command === "validate") {
+    return validateCmd.handler({
+      library: flags["library"],
+      ruleset: flags["ruleset"],
+      strictness: flags["strictness"],
+      json: jsonMode,
+    });
+  }
+
+  // ── compile command ──────────────────────────────────────────────
+
+  if (command === "compile") {
+    return compileCmd.handler({
+      library: flags["library"],
+      target: flags["target"],
+      rules: flags["rules"],
+      output: flags["output"],
+      "dry-run": flags["dry-run"],
+      json: jsonMode,
+    });
   }
 
   // ── stack command ────────────────────────────────────────────────

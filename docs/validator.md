@@ -116,3 +116,25 @@ const diskReport = await validateLibraryDir("./library", {
 | `computeSilenceRatio`, `extractAudioFacts` | Metric extraction helpers |
 | `checkPeakClipping`, `checkDurationBounds`, `checkSilenceRatio`, `runChecks` | Individual and combined checks |
 | `validateLibrary`, `validateLibraryDir` | Report engines |
+
+## CLI
+
+`toneforge validate` runs the Validator over a library on disk and emits the
+report either as human-readable text or as JSON (`--json`):
+
+```bash
+toneforge validate --library ./library --ruleset mobile --strictness warning
+toneforge validate --library ./library --ruleset console --strictness error --json
+```
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--library <dir>` | Library directory to validate | `.toneforge-library` |
+| `--ruleset <name>` | Platform ruleset (`mobile`, `web`, `console`, `desktop`) | `web` |
+| `--strictness <level>` | Severity for violations (`info`, `warning`, `error`) | `warning` |
+| `--json` | Emit the structured report as JSON | off |
+
+The JSON output is the engine's `ValidationReport` plus `command` and
+`library` fields. The command exits `1` when the report is build-blocking
+(`--strictness error` with an error-level finding), so it can gate a CI
+pipeline directly; it exits `0` otherwise.

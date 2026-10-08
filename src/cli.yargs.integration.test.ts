@@ -223,6 +223,28 @@ describe("yargs CLI entrypoint integration", () => {
     expect(Array.isArray(data.entries)).toBe(true);
   });
 
+  it("supports validate --json via yargs entrypoint", async () => {
+    const { code, stdout } = await runCli([
+      "validate", "--library", "./tmp-nonexistent-library", "--json",
+    ]);
+    expect(code).toBe(0);
+    const data = JSON.parse(stdout);
+    expect(data.command).toBe("validate");
+    expect(data.entryCount).toBe(0);
+    expect(data.blocking).toBe(false);
+  });
+
+  it("supports compile --dry-run --json via yargs entrypoint", async () => {
+    const { code, stdout } = await runCli([
+      "compile", "--library", "./tmp-nonexistent-library", "--target", "web", "--dry-run", "--json",
+    ]);
+    expect(code).toBe(0);
+    const data = JSON.parse(stdout);
+    expect(data.command).toBe("compile");
+    expect(data.dryRun).toBe(true);
+    expect(data.written).toEqual([]);
+  });
+
   it("preserves TUI non-interactive error behavior via yargs entrypoint", async () => {
     const { code, stderr } = await runCli(["tui"]);
     expect(code).toBe(1);
