@@ -119,8 +119,10 @@ import type { RuntimeService } from "./runtime/service.js";
 import { VISUAL_FORMATS, exportVisual, listPalettes } from "./visualizer/index.js";
 import { STRICTNESS_LEVELS, listRulesets } from "./validator/index.js";
 import { listCompileRulesets } from "./compiler/index.js";
+import { listTargets } from "./integrations/index.js";
 import * as validateCmd from "./cli/commands/validate.js";
 import * as compileCmd from "./cli/commands/compile.js";
+import * as syncCmd from "./cli/commands/sync.js";
 
 /** Parse command-line arguments into a structured map. */
 export function parseArgs(argv: string[]): {
@@ -202,6 +204,7 @@ async function printHelp(): Promise<void> {
 | **visualize** | Generate deterministic, audio-synchronised visual effects |
 | **validate** | Validate library assets against platform quality rules |
 | **compile** | Compile library assets into platform-ready artifacts |
+| **sync** | Sync library assets to a game-engine target |
 | **version** | Print the ToneForge version |
 
 ## Options
@@ -419,6 +422,46 @@ toneforge compile --library <dir> --target <platform> --dry-run
 toneforge compile --library ./library --target web --rules web_defaults --output ./dist/web/
 toneforge compile --library ./library --target mobile --rules ./mobile.json --output ./dist/mobile/
 toneforge compile --library ./library --target web --dry-run --json
+\`\`\``;
+  await outputMarkdown(md);
+}
+
+/** Print help text for the sync command. */
+async function printSyncHelp(): Promise<void> {
+  const targets = listTargets();
+  const md = `# ToneForge sync
+
+**Sync library assets to a game-engine target**
+
+Validates a library, compiles it to deterministic WAVs, and maps it into a
+engine-specific layout with an idempotent \`manifest.json\` (categories →
+audio groups, tags → mixer buses).
+
+## Usage
+
+\`\`\`
+toneforge sync --target <engine> --library <dir> --output <dir>
+\`\`\`
+
+## Options
+
+- \`--target <engine>\` — Engine target: ${targets.join(", ")} *(required)*
+- \`--library <dir>\` — Library directory to sync (default: \`${DEFAULT_LIBRARY_DIR}\`)
+- \`--output <dir>\` — Output directory for engine assets *(required)*
+- \`--json\` — Output the structured result as JSON
+- \`--help\`, \`-h\` — Show this help message
+
+## Exit codes
+
+- \`0\` — sync completed
+- \`1\` — usage/IO error, unsupported target, or a blocking validation finding
+
+## Examples
+
+\`\`\`
+toneforge sync --target unity --library ./library --output ./unity-project/Assets/Audio/
+toneforge sync --target web --library ./library --output ./dist/web/audio/
+toneforge sync --target unity --library ./library --output ./out/ --json
 \`\`\``;
   await outputMarkdown(md);
 }
@@ -2068,6 +2111,8 @@ export async function dispatchCommand(
       await printValidateHelp();
     } else if (command === "compile") {
       await printCompileHelp();
+    } else if (command === "sync") {
+      await printSyncHelp();
     } else if (command === "sequence") {
       if (subcommand === "generate") {
         await printSequenceGenerateHelp();
@@ -2256,6 +2301,17 @@ export async function dispatchCommand(
       rules: flags["rules"],
       output: flags["output"],
       "dry-run": flags["dry-run"],
+      json: jsonMode,
+    });
+  }
+
+  // ── sync command ─────────────────────────────────────────────────
+
+  if (command === "sync") {
+    return syncCmd.handler({
+      target: flags["target"],
+      library: flags["library"],
+      output: flags["output"],
       json: jsonMode,
     });
   }

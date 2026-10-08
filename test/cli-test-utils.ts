@@ -78,6 +78,10 @@ export interface CandidateSpec {
   peak?: number;
   /** Fraction of leading samples that are silent (0-1). */
   silentFraction?: number;
+  /** Classification category (drives the entry's category when set). */
+  category?: string;
+  /** Classification tags (drives the entry's tags when set). */
+  tags?: string[];
 }
 
 /**
@@ -113,6 +117,19 @@ export async function addLibraryEntry(
     libraryId: null,
     params: {},
   };
+
+  if (spec.category) {
+    candidate.classification = {
+      source: spec.id,
+      category: spec.category,
+      intensity: "medium",
+      texture: [],
+      material: null,
+      tags: spec.tags ?? [],
+      embedding: [],
+      analysisRef: "",
+    };
+  }
 
   const silent = Math.round(sampleCount * (spec.silentFraction ?? 0));
   const samples = new Float32Array(sampleCount);

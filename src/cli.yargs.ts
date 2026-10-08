@@ -24,6 +24,7 @@ import * as tuiCmd from "./cli/commands/tui.js";
 import * as visualizeCmd from "./cli/commands/visualize.js";
 import * as validateCmd from "./cli/commands/validate.js";
 import * as compileCmd from "./cli/commands/compile.js";
+import * as syncCmd from "./cli/commands/sync.js";
 
 export const FRAMEWORK_COMMANDS = [
   "generate",
@@ -45,6 +46,7 @@ export const FRAMEWORK_COMMANDS = [
   "visualize",
   "validate",
   "compile",
+  "sync",
 ];
 
 /**
@@ -641,6 +643,15 @@ export async function yargsMain(argv: string[] = process.argv): Promise<number> 
       ...(argv.rules !== undefined ? { rules: String(argv.rules) } : {}),
       ...(argv.output !== undefined ? { output: String(argv.output) } : {}),
       ...(argv["dry-run"] === true ? { "dry-run": true } : {}),
+    }), []);
+  });
+
+  // ── sync ──────────────────────────────────────────────────────────────────
+  y.command(syncCmd.command, syncCmd.desc, syncCmd.builder, async (argv) => {
+    exitCode = await dispatchCommand("sync", undefined, buildFlags(argv, {
+      ...(argv.target !== undefined ? { target: String(argv.target) } : {}),
+      ...(argv.library !== undefined ? { library: String(argv.library) } : {}),
+      ...(argv.output !== undefined ? { output: String(argv.output) } : {}),
     }), []);
   });
 
