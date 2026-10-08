@@ -73,6 +73,7 @@ import {
   countEntries,
   DEFAULT_LIBRARY_DIR,
 } from "./library/index.js";
+import { auditLibrary } from "./intelligence/audit.js";
 import { searchEntries } from "./library/search.js";
 import type { SearchQuery } from "./library/search.js";
 import { findSimilar } from "./library/similarity.js";
@@ -162,6 +163,7 @@ async function printHelp(): Promise<void> {
 | **classify** | Assign semantic labels to analyzed sounds |
 | **explore** | Discover, rank, and curate sounds across seed spaces |
 | **library** | Manage the curated sound library (list, search, export) |
+| **intelligence** | Assistive, read-only library audit and recommendations |
 | **sequence** | Schedule and render temporal event patterns from presets |
 | **runtime** | Run the render-backed runtime (live session and scripted demo) |
 | **stack** | Compose layered sound events from multiple recipes |
@@ -1039,6 +1041,78 @@ toneforge generate --recipe game-weapon --seed 42 --output ./game-weapon.wav
   await outputMarkdown(md);
 }
 
+/** Print help text for the intelligence command group. */
+async function printIntelligenceHelp(): Promise<void> {
+  const md = `# ToneForge intelligence
+
+**Assistive reasoning over the sound library**
+
+Intelligence is the reasoning layer that synthesises analysis,
+classification and library data into actionable, explainable suggestions.
+It is **assistive**: it suggests, the human decides, and it **never**
+modifies library data.
+
+## Subcommands
+
+| Subcommand | Description |
+|------------|-------------|
+| **audit** | Report coverage gaps, redundancy and quality issues |
+
+## Options
+
+- \`--json\` — Output structured JSON to stdout
+- \`--help\`, \`-h\` — Show this help message
+
+Run \`toneforge intelligence <subcommand> --help\` for subcommand-specific help.
+
+## Reference
+
+- \`docs/prd/INTELLIGENCE_PRD.md\``;
+  await outputMarkdown(md);
+}
+
+/** Print help text for the intelligence audit subcommand. */
+async function printIntelligenceAuditHelp(): Promise<void> {
+  const md = `# ToneForge intelligence audit
+
+**Audit a library for coverage gaps, redundancy and quality issues**
+
+Reads the library index at \`<library>/index.json\` using existing analysis
+and classification data. It is strictly read-only: auditing never writes to
+the library.
+
+## Usage
+
+\`\`\`
+toneforge intelligence audit [--library <dir>] [--json]
+\`\`\`
+
+## Options
+
+- \`--library <dir>\` — Library directory to audit (default: \`${DEFAULT_LIBRARY_DIR}\`)
+- \`--json\` — Output structured JSON to stdout
+- \`--help\`, \`-h\` — Show this help message
+
+## Findings
+
+| Kind | Meaning |
+|------|---------|
+| **coverage-gap** | A category is missing a canonical intensity bucket or material variety |
+| **redundancy** | A cluster of near-identical entries that could be pruned |
+| **quality** | Clipping, silence, or out-of-bounds duration |
+
+Every finding carries a confidence in [0, 1], a rationale, and an actionable
+\`toneforge\` command.
+
+## Examples
+
+\`\`\`
+toneforge intelligence audit --library ./library
+toneforge intelligence audit --library ./library --json
+\`\`\``;
+  await outputMarkdown(md);
+}
+
 /** Print help text for the tui command. */
 async function printTuiHelp(): Promise<void> {
   const md = `# ToneForge tui
@@ -1672,6 +1746,12 @@ export async function dispatchCommand(
       }
     } else if (command === "library") {
       await printLibraryHelp();
+    } else if (command === "intelligence") {
+      if (subcommand === "audit") {
+        await printIntelligenceAuditHelp();
+      } else {
+        await printIntelligenceHelp();
+      }
     } else if (command === "tui") {
       await printTuiHelp();
     } else if (command === "visualize") {
@@ -4113,6 +4193,72 @@ export async function dispatchCommand(
     }
 
     await printLibraryHelp();
+    return 0;
+  }
+
+  // ── Intelligence Command ─────────────────────────────────────────
+  if (command === "intelligence") {
+    if (flags["help"] && subcommand === undefined) {
+      await printIntelligenceHelp();
+      return 0;
+    }
+
+    // ── intelligence audit ────────────────────────────────────
+    if (subcommand === "audit") {
+      if (flags["help"]) {
+        await printIntelligenceAuditHelp();
+        return 0;
+      }
+
+      const libraryDir =
+        typeof flags["library"] === "string" ? flags["library"] : DEFAULT_LIBRARY_DIR;
+
+      try {
+        const report = await auditLibrary(libraryDir);
+
+        if (jsonMode) {
+          jsonOut({ ...report });
+        } else {
+          outputInfo(`Library Audit Report — ${libraryDir}`);
+          outputInfo(
+            `Coverage: ${report.totalEntries} entr${report.totalEntries === 1 ? "y" : "ies"} ` +
+              `across ${report.categories.length} categor${report.categories.length === 1 ? "y" : "ies"}`,
+          );
+
+          if (report.findings.length === 0) {
+            outputSuccess("No issues found.");
+          } else {
+            for (const finding of report.findings) {
+              outputInfo(
+                `[${finding.kind}] ${finding.summary} ` +
+                  `(confidence: ${finding.confidence.toFixed(2)})`,
+              );
+              outputInfo(`    ${finding.rationale}`);
+              outputInfo(`    Try: ${finding.suggestedCommand}`);
+            }
+          }
+
+          outputInfo(
+            `\nSummary: ${report.summary.coverageGaps} coverage gap(s), ` +
+              `${report.summary.redundancies} redundancy cluster(s), ` +
+              `${report.summary.qualityIssues} quality issue(s)`,
+          );
+        }
+        return 0;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(message); } else { outputError(`Error: ${message}`); }
+        return 1;
+      }
+    }
+
+    if (subcommand !== undefined) {
+      const msg = `Unknown intelligence subcommand '${subcommand}'. Run 'toneforge intelligence --help' for usage.`;
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+
+    await printIntelligenceHelp();
     return 0;
   }
 

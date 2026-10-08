@@ -17,6 +17,7 @@ import * as analyzeCmd from "./cli/commands/analyze.js";
 import * as classifyCmd from "./cli/commands/classify.js";
 import * as exploreCmd from "./cli/commands/explore.js";
 import * as libraryCmd from "./cli/commands/library.js";
+import * as intelligenceCmd from "./cli/commands/intelligence.js";
 import * as tuiCmd from "./cli/commands/tui.js";
 import * as visualizeCmd from "./cli/commands/visualize.js";
 
@@ -33,6 +34,7 @@ export const FRAMEWORK_COMMANDS = [
   "classify",
   "explore",
   "library",
+  "intelligence",
   "tui",
   "visualize",
 ];
@@ -443,6 +445,24 @@ export async function yargsMain(argv: string[] = process.argv): Promise<number> 
         ...(argv.stdin === true ? { stdin: true } : {}),
         ...(argv.name !== undefined ? { name: String(argv.name) } : {}),
         ...(argv.destination !== undefined ? { destination: String(argv.destination) } : {}),
+      }), []);
+    });
+  }, async (_argv) => {
+    // Re-parse raw argv so dispatchCommand receives the unknown subcommand name
+    // for proper error output. yargs only calls this handler when no subcommand
+    // matched, so `argv._` isn't reliable; `raw` (captured in outer scope) is.
+    const parsed = parseArgs(["node", "cli.ts", ...raw]);
+    exitCode = await dispatchCommand(parsed.command, parsed.subcommand, parsed.flags, parsed.layers);
+  });
+
+  // ── intelligence ──────────────────────────────────────────────────────────
+  y.command(intelligenceCmd.command, intelligenceCmd.desc, (y2) => {
+    y2.command("audit", "Audit a library for coverage gaps, redundancy, and quality issues", (y3) => {
+      y3.option("library", { type: "string", describe: "Library directory to audit" })
+        .option("json", { type: "boolean", describe: "Output JSON" });
+    }, async (argv) => {
+      exitCode = await dispatchCommand("intelligence", "audit", buildFlags(argv, {
+        ...(argv.library !== undefined ? { library: String(argv.library) } : {}),
       }), []);
     });
   }, async (_argv) => {
