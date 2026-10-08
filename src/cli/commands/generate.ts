@@ -4,8 +4,8 @@ import { dirname } from "node:path";
 import { renderRecipe } from "../../core/renderer.js";
 import { registry } from "../../recipes/index.js";
 import { encodeWav } from "../../audio/wav-encoder.js";
-import { outputInfo, outputError } from "../../output.js";
-import { formatParams, seedParams } from "../helpers.js";
+import { outputInfo, outputError, outputTable } from "../../output.js";
+import { buildParamsTable, seedParams } from "../helpers.js";
 
 export const command = "generate";
 export const desc = "Render and export procedural sounds";
@@ -64,9 +64,9 @@ export async function handler(argv: Arguments) {
         }) + "\n",
       );
     } else if (registration) {
-      outputInfo(
-        `Parameters: ${formatParams(registration, resolvedSeed).join(", ")}`,
-      );
+      const table = buildParamsTable(registration, resolvedSeed);
+      outputInfo("Parameters:");
+      outputTable(table.columns, table.rows, { rowSeparators: false });
     }
 
     return 0;

@@ -504,6 +504,33 @@ describe("output", () => {
       expect(lines[5]).toMatch(/^\| -{10} \| -{20} \|$/);
     });
 
+    it("omits row separators when rowSeparators is false in non-TTY mode", () => {
+      const result = formatTable(
+        cols,
+        [["a", "desc a"], ["b", "desc b"], ["c", "desc c"]],
+        false,
+        { rowSeparators: false },
+      );
+      const lines = result.split("\n");
+      // Header, header-sep, row-a, row-b, row-c = 5 lines (no inter-row rules)
+      expect(lines).toHaveLength(5);
+      expect(lines[2]).toContain("desc a");
+      expect(lines[3]).toContain("desc b");
+      expect(lines[4]).toContain("desc c");
+    });
+
+    it("omits row separators when rowSeparators is false in TTY mode", () => {
+      const result = formatTable(
+        cols,
+        [["a", "desc a"], ["b", "desc b"]],
+        true,
+        { rowSeparators: false },
+      );
+      // Only the header separator (one mid-rule) remains
+      const midLeftCount = (result.match(/\u251c/g) || []).length;
+      expect(midLeftCount).toBe(1);
+    });
+
     it("does not add separator after the last data row in non-TTY mode", () => {
       const result = formatTable(cols, [["a", "one"], ["b", "two"]], false);
       const lines = result.split("\n");

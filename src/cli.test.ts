@@ -161,15 +161,30 @@ describe("CLI", () => {
       expect(stdout).toContain("Done.");
     });
 
-    it("displays seed-derived parameter values with units", async () => {
+    it("displays seed-derived parameter values as an aligned table", async () => {
       const { code, stdout } = await captureOutput(
         () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed", "7")),
       );
       expect(code).toBe(0);
       expect(stdout).toContain("Parameters:");
-      expect(stdout).toMatch(/frequency: [\d.]+ Hz/);
-      expect(stdout).toMatch(/attack: [\d.]+ s/);
-      expect(stdout).toMatch(/filterCutoff: [\d.]+ Hz/);
+      expect(stdout).toContain("Parameter");
+      expect(stdout).toContain("Value");
+      expect(stdout).toContain("Unit");
+      expect(stdout).toMatch(/\|\s*frequency\s*\|\s*[\d.]+\s*\|\s*Hz\s*\|/);
+      expect(stdout).toMatch(/\|\s*attack\s*\|\s*[\d.]+\s*\|\s*s\s*\|/);
+      expect(stdout).toMatch(/\|\s*filterCutoff\s*\|\s*[\d.]+\s*\|\s*Hz\s*\|/);
+
+      // Column separators must line up across every row of the table.
+      const tableLines = stdout
+        .split("\n")
+        .filter((line) => line.trimStart().startsWith("|"));
+      expect(tableLines.length).toBeGreaterThan(1);
+      const pipePositions = tableLines.map((line) =>
+        [...line].reduce<number[]>((acc, ch, i) => (ch === "|" ? [...acc, i] : acc), []),
+      );
+      for (const positions of pipePositions) {
+        expect(positions).toEqual(pipePositions[0]);
+      }
     });
 
     it("outputs a params object in JSON mode", async () => {
@@ -198,6 +213,8 @@ describe("CLI", () => {
       expect(code).toBe(0);
       expect(stdout).toContain("Using random seed:");
       expect(stdout).toContain("Parameters:");
+      expect(stdout).toContain("Parameter");
+      expect(stdout).toContain("Unit");
     });
 
     it("reports file-backed params that match the render values, not defaults", async () => {
@@ -1034,14 +1051,27 @@ describe("CLI", () => {
       }
     });
 
-    it("displays per-seed parameters in human-readable mode", async () => {
+    it("displays per-seed parameters as aligned tables in human-readable mode", async () => {
       const outDir = tempDir + "/";
       const { code, stdout } = await captureOutput(
         () => main(argv("generate", "--recipe", "ui-scifi-confirm", "--seed-range", "1:2", "--output", outDir)),
       );
       expect(code).toBe(0);
-      expect(stdout).toMatch(/Seed 1: .*frequency: [\d.]+ Hz/);
-      expect(stdout).toMatch(/Seed 2: .*frequency: [\d.]+ Hz/);
+      expect(stdout).toContain("Seed 1");
+      expect(stdout).toContain("Seed 2");
+      // One table block per seed, each with its own header row.
+      expect(stdout.split("Parameter").length - 1).toBe(2);
+      expect(stdout).toMatch(/\|\s*frequency\s*\|\s*[\d.]+\s*\|\s*Hz\s*\|/);
+
+      const tableLines = stdout
+        .split("\n")
+        .filter((line) => line.trimStart().startsWith("|"));
+      const pipePositions = tableLines.map((line) =>
+        [...line].reduce<number[]>((acc, ch, i) => (ch === "|" ? [...acc, i] : acc), []),
+      );
+      for (const positions of pipePositions) {
+        expect(positions).toEqual(pipePositions[0]);
+      }
     });
 
     it("includes per-seed params in batch JSON output", async () => {

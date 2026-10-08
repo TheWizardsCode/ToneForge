@@ -34,7 +34,7 @@ import { VERSION } from "./index.js";
 import { createRng } from "./core/rng.js";
 import { profiler } from "./core/profiler.js";
 import { outputMarkdown, outputError, outputWarning, outputSuccess, outputInfo, outputTable, COLORS, ansiWidth, stripAnsi, isStdoutTty } from "./output.js";
-import { truncateTags, seedParams, formatParams } from "./cli/helpers.js";
+import { truncateTags, seedParams, buildParamsTable } from "./cli/helpers.js";
 import type { RecipeRegistration, RecipeFilterQuery } from "./core/recipe.js";
 import { renderStack } from "./stack/renderer.js";
 import type { StackDefinition } from "./stack/renderer.js";
@@ -4891,6 +4891,7 @@ export async function dispatchCommand(
     }
 
     const batchFiles: Array<{ seed: number; output: string; duration: number; sampleRate: number; samples: number }> = [];
+    const batchRegistration = registry.getRegistration(recipeName as string)!;
 
     for (let seed = seedRangeStart!; seed <= seedRangeEnd!; seed++) {
       const fileName = `${recipeName}-seed-${seed}.wav`;
@@ -4901,8 +4902,10 @@ export async function dispatchCommand(
         const wavBuffer = encodeWav(result.samples, { sampleRate: result.sampleRate });
         await writeFile(filePath, wavBuffer);
         if (!jsonMode) {
-          const params = formatParams(registry.getRegistration(recipeName as string)!, seed);
-          outputInfo(`Seed ${seed}: ${params.join(", ")}`);
+          // One aligned table block per seed (AC3).
+          outputInfo(`Seed ${seed}`);
+          const table = buildParamsTable(batchRegistration, seed);
+          outputTable(table.columns, table.rows, { rowSeparators: false });
           outputSuccess(`Wrote ${filePath}`);
         }
         batchFiles.push({
@@ -5002,8 +5005,9 @@ export async function dispatchCommand(
             params: seedParams(reg, seed),
           });
         } else {
-          const params = formatParams(reg, seed);
-          outputInfo(`Parameters: ${params.join(", ")}`);
+          const table = buildParamsTable(reg, seed);
+          outputInfo("Parameters:");
+          outputTable(table.columns, table.rows, { rowSeparators: false });
           outputSuccess(`Wrote ${outputPath}`);
         }
       } catch (error) {
@@ -5038,8 +5042,9 @@ export async function dispatchCommand(
             params: seedParams(reg, seed),
           });
         } else {
-          const params = formatParams(reg, seed);
-          outputInfo(`Parameters: ${params.join(", ")}`);
+          const table = buildParamsTable(reg, seed);
+          outputInfo("Parameters:");
+          outputTable(table.columns, table.rows, { rowSeparators: false });
           outputSuccess(`Wrote ${filePath}`);
         }
       } catch (error) {
@@ -5070,8 +5075,9 @@ export async function dispatchCommand(
           params: seedParams(reg, seed),
         });
       } else {
-        const params = formatParams(reg, seed);
-        outputInfo(`Parameters: ${params.join(", ")}`);
+        const table = buildParamsTable(reg, seed);
+        outputInfo("Parameters:");
+        outputTable(table.columns, table.rows, { rowSeparators: false });
         outputSuccess("Done.");
       }
     }

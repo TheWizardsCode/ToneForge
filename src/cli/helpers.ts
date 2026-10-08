@@ -1,4 +1,5 @@
 import { COLORS, ansiWidth, stripAnsi, isStdoutTty } from "../output.js";
+import type { TableColumn } from "../output.js";
 import { createRng } from "../core/rng.js";
 import type { ParamDescriptor, RecipeRegistration } from "../core/recipe.js";
 
@@ -21,34 +22,53 @@ export function seedParams(
 }
 
 /**
- * Format a single parameter as "name: value unit" for human-readable output.
+ * Render a parameter value to a compact, meaningful string.
  *
- * Values are rendered to four significant figures so small values (for
- * example an attack of 0.0011s) stay meaningful instead of rounding to 0.00.
+ * Values use up to four significant figures so small values (for example an
+ * attack of 0.0011s) stay meaningful instead of rounding to 0.00.
  */
-export function formatParam(
-  name: string,
-  value: number,
-  unit: string,
-): string {
-  const formatted = Number.isInteger(value)
+export function formatParamValue(value: number): string {
+  return Number.isInteger(value)
     ? value.toString()
     : Number(value.toPrecision(4)).toString();
-  return `${name}: ${formatted} ${unit}`;
+}
+
+/** An aligned parameter table for a recipe at a given seed. */
+export interface ParamsTable {
+  columns: TableColumn[];
+  rows: string[][];
 }
 
 /**
- * Format every declared parameter for `seed` as "name: value unit" strings.
- * Parameters are listed in the recipe's declared order.
+ * Build aligned `Parameter | Value | Unit` rows for a recipe's parameters.
+ *
+ * Both the human-readable `generate` output and the newer command module
+ * share this builder, so the columns line up regardless of entry point. Each
+ * column is sized to its widest cell to avoid wrapping or ragged edges.
  */
-export function formatParams(
+export function buildParamsTable(
   registration: RecipeRegistration,
   seed: number,
-): string[] {
+): ParamsTable {
   const params = seedParams(registration, seed);
-  return registration.params.map((p: ParamDescriptor) =>
-    formatParam(p.name, params[p.name], p.unit),
-  );
+  const rows = registration.params.map((p: ParamDescriptor) => [
+    p.name,
+    formatParamValue(params[p.name]),
+    p.unit,
+  ]);
+
+  const nameWidth = Math.max("Parameter".length, ...rows.map((r) => r[0].length));
+  const valueWidth = Math.max("Value".length, ...rows.map((r) => r[1].length));
+  const unitWidth = Math.max("Unit".length, ...rows.map((r) => r[2].length));
+
+  return {
+    columns: [
+      { header: "Parameter", width: nameWidth },
+      { header: "Value", width: valueWidth },
+      { header: "Unit", width: unitWidth },
+    ],
+    rows,
+  };
 }
 
 /**
@@ -140,4 +160,4 @@ export function truncateTags(
   return result + "\u2026";
 }
 
-export default { truncateTags, seedParams, formatParam, formatParams };
+export default { truncateTags, seedParams, formatParamValue, buildParamsTable };
