@@ -312,6 +312,8 @@ export function buildAuditReport(
   return {
     command: "intelligence audit",
     version: INTELLIGENCE_VERSION,
+    readOnly: true,
+    dryRun: true,
     library,
     totalEntries: sortedEntries.length,
     categories: [...byCategory.keys()].sort(),

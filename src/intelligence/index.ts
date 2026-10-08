@@ -15,6 +15,8 @@ export type {
   ExplainedFinding,
   ExplorationSuggestion,
   IntelligenceOptions,
+  IntelligenceReport,
+  IntelligenceSuggestion,
   RecommendReport,
   Recommendation,
   SuggestExplorationReport,
@@ -37,3 +39,14 @@ export {
   ACTIONABLE_COMMAND_SPECS,
 } from "./commands.js";
 export type { CommandSpec, ParsedCommand } from "./commands.js";
+
+export {
+  snapshotLibrary,
+  assertLibraryUnchanged,
+  withReadOnlyGuard,
+  ReadOnlyViolationError,
+} from "./read-only.js";
+export type { LibrarySnapshot } from "./read-only.js";
+
+export { logIntelligenceEvent } from "./logging.js";
+export type { IntelligenceLogEvent } from "./logging.js";

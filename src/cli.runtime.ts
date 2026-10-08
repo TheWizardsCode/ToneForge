@@ -76,6 +76,8 @@ import {
 import { auditLibrary } from "./intelligence/audit.js";
 import { recommendSounds } from "./intelligence/recommend.js";
 import { suggestExploration } from "./intelligence/suggest-exploration.js";
+import { withReadOnlyGuard } from "./intelligence/read-only.js";
+import { logIntelligenceEvent } from "./intelligence/logging.js";
 import { searchEntries } from "./library/search.js";
 import type { SearchQuery } from "./library/search.js";
 import { findSimilar } from "./library/similarity.js";
@@ -1094,6 +1096,7 @@ toneforge intelligence audit [--library <dir>] [--json]
 ## Options
 
 - \`--library <dir>\` — Library directory to audit (default: \`${DEFAULT_LIBRARY_DIR}\`)
+- \`--dry-run\` — read-only dry-run (always on; \`--no-dry-run\` is refused)
 - \`--json\` — Output structured JSON to stdout
 - \`--help\`, \`-h\` — Show this help message
 
@@ -1138,6 +1141,7 @@ toneforge intelligence recommend --use-case <desc> [--max-results <n>] [--librar
 - \`--use-case <desc>\` — Natural-language use case *(required)*
 - \`--max-results <n>\` — Maximum number of recommendations (default: 5)
 - \`--library <dir>\` — Library directory to search (default: \`${DEFAULT_LIBRARY_DIR}\`)
+- \`--dry-run\` — read-only dry-run (always on; \`--no-dry-run\` is refused)
 - \`--json\` — Output structured JSON to stdout
 - \`--help\`, \`-h\` — Show this help message
 
@@ -1173,6 +1177,7 @@ toneforge intelligence suggest-exploration --recipe <r> [--library <dir>] [--jso
 
 - \`--recipe <r>\` — recipe to explore *(required)*
 - \`--library <dir>\` — library directory to inspect (default: \`${DEFAULT_LIBRARY_DIR}\`)
+- \`--dry-run\` — read-only dry-run (always on; \`--no-dry-run\` is refused)
 - \`--json\` — Output structured JSON to stdout
 - \`--help\`, \`-h\` — Show this help message
 
@@ -4283,6 +4288,14 @@ export async function dispatchCommand(
       return 0;
     }
 
+    // Intelligence is always read-only; refusing to disable the dry-run
+    // guarantee makes the human-in-the-loop rule explicit.
+    if (flags["dry-run"] === false) {
+      const msg = "Intelligence is always read-only; '--no-dry-run' is not supported.";
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+
     // ── intelligence audit ────────────────────────────────────
     if (subcommand === "audit") {
       if (flags["help"]) {
@@ -4294,7 +4307,20 @@ export async function dispatchCommand(
         typeof flags["library"] === "string" ? flags["library"] : DEFAULT_LIBRARY_DIR;
 
       try {
-        const report = await auditLibrary(libraryDir);
+        const report = await withReadOnlyGuard(libraryDir, "intelligence audit", () =>
+          auditLibrary(libraryDir),
+        );
+
+        for (const finding of report.findings) {
+          logIntelligenceEvent({
+            action: "audit",
+            summary: finding.summary,
+            rationale: finding.rationale,
+            assets: finding.assets,
+            confidence: finding.confidence,
+            suggestedCommand: finding.suggestedCommand,
+          });
+        }
 
         if (jsonMode) {
           jsonOut({ ...report });
@@ -4358,7 +4384,20 @@ export async function dispatchCommand(
         typeof flags["library"] === "string" ? flags["library"] : DEFAULT_LIBRARY_DIR;
 
       try {
-        const report = await recommendSounds(libraryDir, useCase, { maxResults });
+        const report = await withReadOnlyGuard(libraryDir, "intelligence recommend", () =>
+          recommendSounds(libraryDir, useCase, { maxResults }),
+        );
+
+        for (const rec of report.recommendations) {
+          logIntelligenceEvent({
+            action: "recommend",
+            summary: `${rec.rank}. ${rec.entryId}`,
+            rationale: rec.rationale,
+            assets: [rec.entryId],
+            confidence: rec.confidence,
+            suggestedCommand: rec.suggestedCommand,
+          });
+        }
 
         if (jsonMode) {
           jsonOut({ ...report });
@@ -4410,7 +4449,20 @@ export async function dispatchCommand(
         typeof flags["library"] === "string" ? flags["library"] : DEFAULT_LIBRARY_DIR;
 
       try {
-        const report = await suggestExploration(recipeName, libraryDir);
+        const report = await withReadOnlyGuard(libraryDir, "intelligence suggest-exploration", () =>
+          suggestExploration(recipeName, libraryDir),
+        );
+
+        for (const suggestion of report.suggestions) {
+          logIntelligenceEvent({
+            action: "suggest-exploration",
+            summary: `${suggestion.recipe} seeds ${suggestion.seedRange.start}-${suggestion.seedRange.end}`,
+            rationale: suggestion.rationale,
+            assets: [suggestion.recipe],
+            confidence: suggestion.confidence,
+            suggestedCommand: suggestion.suggestedCommand,
+          });
+        }
 
         if (jsonMode) {
           jsonOut({ ...report });

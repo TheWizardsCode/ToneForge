@@ -101,6 +101,12 @@ export interface AuditReport {
   /** Intelligence schema version. */
   version: string;
 
+  /** Intelligence is always read-only; included as an explicit contract. */
+  readOnly: true;
+
+  /** Intelligence always operates in dry-run mode; included as an explicit contract. */
+  dryRun: true;
+
   /** Library directory that was audited. */
   library: string;
 
@@ -148,6 +154,12 @@ export interface RecommendReport {
   /** Intelligence schema version. */
   version: string;
 
+  /** Intelligence is always read-only; included as an explicit contract. */
+  readOnly: true;
+
+  /** Intelligence always operates in dry-run mode; included as an explicit contract. */
+  dryRun: true;
+
   /** The requested use case. */
   useCase: string;
 
@@ -177,6 +189,12 @@ export interface SuggestExplorationReport {
   /** Intelligence schema version. */
   version: string;
 
+  /** Intelligence is always read-only; included as an explicit contract. */
+  readOnly: true;
+
+  /** Intelligence always operates in dry-run mode; included as an explicit contract. */
+  dryRun: true;
+
   /** Recipe the suggestions apply to. */
   recipe: string;
 
@@ -191,3 +209,18 @@ export interface IntelligenceOptions {
   /** Emit machine-readable JSON. */
   json?: boolean;
 }
+
+/**
+ * Union of every Intelligence report.
+ *
+ * All members share `command`, `version`, `readOnly`, and `dryRun`.
+ */
+export type IntelligenceReport = AuditReport | RecommendReport | SuggestExplorationReport;
+
+/**
+ * Union of every explainable Intelligence suggestion.
+ *
+ * All members share the {@link ExplainedFinding} contract (`confidence`,
+ * `rationale`, `suggestedCommand`).
+ */
+export type IntelligenceSuggestion = AuditFinding | Recommendation | ExplorationSuggestion;

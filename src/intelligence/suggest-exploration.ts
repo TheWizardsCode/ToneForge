@@ -94,6 +94,8 @@ export function buildExplorationSuggestions(
     return {
       command: "intelligence suggest-exploration",
       version: INTELLIGENCE_VERSION,
+      readOnly: true,
+      dryRun: true,
       recipe,
       suggestions,
     };
@@ -164,6 +166,8 @@ export function buildExplorationSuggestions(
   return {
     command: "intelligence suggest-exploration",
     version: INTELLIGENCE_VERSION,
+    readOnly: true,
+    dryRun: true,
     recipe,
     suggestions,
   };

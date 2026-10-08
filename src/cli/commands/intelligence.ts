@@ -15,17 +15,20 @@ export function builder(yargs: any) {
   return yargs
     .command("audit", "Audit a library for coverage gaps, redundancy, and quality issues", (y: any) => {
       y.option("library", { type: "string", describe: "Library directory to audit" })
+        .option("dry-run", { type: "boolean", default: true, describe: "Read-only dry-run (always on)" })
         .option("json", { type: "boolean", describe: "Output JSON" });
     })
     .command("recommend", "Recommend ranked sounds for a use case", (y: any) => {
       y.option("use-case", { type: "string", describe: "Use case description" })
         .option("max-results", { type: "number", default: 5, describe: "Maximum recommendations" })
         .option("library", { type: "string", describe: "Library directory to search" })
+        .option("dry-run", { type: "boolean", default: true, describe: "Read-only dry-run (always on)" })
         .option("json", { type: "boolean", describe: "Output JSON" });
     })
     .command("suggest-exploration", "Suggest exploration targets for a recipe", (y: any) => {
       y.option("recipe", { type: "string", describe: "Recipe to explore" })
         .option("library", { type: "string", describe: "Library directory to inspect" })
+        .option("dry-run", { type: "boolean", default: true, describe: "Read-only dry-run (always on)" })
         .option("json", { type: "boolean", describe: "Output JSON" });
     });
 }

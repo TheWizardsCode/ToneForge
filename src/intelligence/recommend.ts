@@ -253,6 +253,8 @@ export function buildRecommendations(
   return {
     command: "intelligence recommend",
     version: INTELLIGENCE_VERSION,
+    readOnly: true,
+    dryRun: true,
     useCase,
     maxResults,
     recommendations,

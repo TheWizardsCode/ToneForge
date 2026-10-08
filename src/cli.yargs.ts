@@ -459,32 +459,38 @@ export async function yargsMain(argv: string[] = process.argv): Promise<number> 
   y.command(intelligenceCmd.command, intelligenceCmd.desc, (y2) => {
     y2.command("audit", "Audit a library for coverage gaps, redundancy, and quality issues", (y3) => {
       y3.option("library", { type: "string", describe: "Library directory to audit" })
+        .option("dry-run", { type: "boolean", default: true, describe: "Read-only dry-run (always on)" })
         .option("json", { type: "boolean", describe: "Output JSON" });
     }, async (argv) => {
       exitCode = await dispatchCommand("intelligence", "audit", buildFlags(argv, {
         ...(argv.library !== undefined ? { library: String(argv.library) } : {}),
+        ...(argv["dry-run"] === false ? { "dry-run": false } : {}),
       }), []);
     });
     y2.command("recommend", "Recommend ranked sounds for a use case", (y3) => {
       y3.option("use-case", { type: "string", describe: "Use case description" })
         .option("max-results", { type: "number", default: 5, describe: "Maximum recommendations" })
         .option("library", { type: "string", describe: "Library directory to search" })
+        .option("dry-run", { type: "boolean", default: true, describe: "Read-only dry-run (always on)" })
         .option("json", { type: "boolean", describe: "Output JSON" });
     }, async (argv) => {
       exitCode = await dispatchCommand("intelligence", "recommend", buildFlags(argv, {
         ...(argv["use-case"] !== undefined ? { "use-case": String(argv["use-case"]) } : {}),
         ...(argv["max-results"] !== undefined ? { "max-results": String(argv["max-results"]) } : {}),
         ...(argv.library !== undefined ? { library: String(argv.library) } : {}),
+        ...(argv["dry-run"] === false ? { "dry-run": false } : {}),
       }), []);
     });
     y2.command("suggest-exploration", "Suggest exploration targets for a recipe", (y3) => {
       y3.option("recipe", { type: "string", describe: "Recipe to explore" })
         .option("library", { type: "string", describe: "Library directory to inspect" })
+        .option("dry-run", { type: "boolean", default: true, describe: "Read-only dry-run (always on)" })
         .option("json", { type: "boolean", describe: "Output JSON" });
     }, async (argv) => {
       exitCode = await dispatchCommand("intelligence", "suggest-exploration", buildFlags(argv, {
         ...(argv.recipe !== undefined ? { recipe: String(argv.recipe) } : {}),
         ...(argv.library !== undefined ? { library: String(argv.library) } : {}),
+        ...(argv["dry-run"] === false ? { "dry-run": false } : {}),
       }), []);
     });
   }, async (_argv) => {

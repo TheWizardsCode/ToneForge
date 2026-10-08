@@ -11,6 +11,25 @@ Intelligence **never mutates library data**. Every command in the
 
 Reference: [`docs/prd/INTELLIGENCE_PRD.md`](./prd/INTELLIGENCE_PRD.md).
 
+## Safety guarantees
+
+- **Read-only, enforced at runtime.** Every CLI command runs its engine
+  inside a read-only guard that hashes the library directory before and
+  after the action and fails loudly if any file changed. Directory-hash tests
+  in `src/intelligence/__tests__/read-only.test.ts` prove the guarantee.
+- **Human in the loop.** Intelligence *suggests*; it never promotes, prunes,
+  deletes, or otherwise mutates assets. Acting on a suggestion always
+  requires a separate, explicit human command.
+- **Dry-run by default.** `--dry-run` is accepted (and always on).
+  `--no-dry-run` is refused with an error — there is no mutation path to
+  enable.
+- **Every suggestion is logged.** Each audit finding, recommendation and
+  exploration suggestion is written as a single JSON object to stderr with
+  its rationale, affected assets, confidence, and referenced command.
+- **One explainability contract.** All engines emit `confidence` in `[0, 1]`,
+  a `rationale`, and a `suggestedCommand`; all reports include
+  `readOnly: true` and `dryRun: true`.
+
 ## Commands
 
 ```bash
@@ -32,11 +51,12 @@ Audits a curated library for three classes of issue:
 ### Usage
 
 ```bash
-toneforge intelligence audit [--library <dir>] [--json]
+toneforge intelligence audit [--library <dir>] [--dry-run] [--json]
 ```
 
 - `--library <dir>` — library directory containing `index.json`
   (default: `.toneforge-library`)
+- `--dry-run` — read-only dry-run (always on; `--no-dry-run` is refused)
 - `--json` — emit a structured `AuditReport` to stdout
 
 ### Explainability contract
@@ -56,6 +76,8 @@ byte-identical JSON (no wall-clock timestamps or random ordering).
 {
   "command": "intelligence audit",
   "version": "1.0",
+  "readOnly": true,
+  "dryRun": true,
   "library": "./library",
   "totalEntries": 48,
   "categories": ["footstep", "ui", "weapon"],
@@ -90,12 +112,13 @@ scored and ranked deterministically.
 ### Usage
 
 ```bash
-toneforge intelligence recommend --use-case <desc> [--max-results <n>] [--library <dir>] [--json]
+toneforge intelligence recommend --use-case <desc> [--max-results <n>] [--library <dir>] [--dry-run] [--json]
 ```
 
 - `--use-case <desc>` — natural-language use case (required)
 - `--max-results <n>` — maximum recommendations (default: 5)
 - `--library <dir>` — library directory (default: `.toneforge-library`)
+- `--dry-run` — read-only dry-run (always on; `--no-dry-run` is refused)
 - `--json` — emit a structured `RecommendReport`
 
 Every recommendation carries a `confidence` in `[0, 1]` and a
@@ -135,11 +158,12 @@ diversity, and parameter jitter for tightly clustered entries.
 ### Usage
 
 ```bash
-toneforge intelligence suggest-exploration --recipe <r> [--library <dir>] [--json]
+toneforge intelligence suggest-exploration --recipe <r> [--library <dir>] [--dry-run] [--json]
 ```
 
 - `--recipe <r>` — recipe to explore (required)
 - `--library <dir>` — library directory (default: `.toneforge-library`)
+- `--dry-run` — read-only dry-run (always on; `--no-dry-run` is refused)
 - `--json` — emit a structured `SuggestExplorationReport`
 
 Every suggestion names the recipe, gives an explicit seed range, a
