@@ -9,6 +9,18 @@ description: "Quest-accept motif"
 
 **Category: UI** · Tags: casual, joy, motif
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Motif Quest Accept |
+| **Common uses** | Quest acceptance, mission start, objective pickup |
+| **Default frequency** | 349 Hz |
+| **Default duration** | 0.59 s |
+| **Tier** | 4 — Melodic motifs |
+| **Category** | UI |
+| **Tags** | casual, joy, motif |
+
 ## Sound design
 
 ### Overview

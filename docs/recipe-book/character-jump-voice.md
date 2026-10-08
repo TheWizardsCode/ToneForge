@@ -9,6 +9,18 @@ description: "Character jump voice"
 
 **Category: Character** · Tags: casual, fun, character
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Character Jump Voice |
+| **Common uses** | Character jumps, vocal effort, movement grunts |
+| **Default frequency** | 180 Hz |
+| **Default duration** | 0.34 s |
+| **Tier** | 5 — Character & critter voices |
+| **Category** | Character |
+| **Tags** | casual, fun, character |
+
 ## Sound design
 
 ### Overview

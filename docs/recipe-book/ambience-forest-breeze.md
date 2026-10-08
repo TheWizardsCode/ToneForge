@@ -9,6 +9,18 @@ description: "Forest breeze ambience"
 
 **Category: Ambience** · Tags: casual, joy, ambience
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Ambience Forest Breeze |
+| **Common uses** | Forests, wooded levels, nature scenes |
+| **Default frequency** | 600 Hz (filter) |
+| **Default duration** | 1.9 s |
+| **Tier** | 6 — Ambience & loops |
+| **Category** | Ambience |
+| **Tags** | casual, joy, ambience |
+
 ## Sound design
 
 ### Overview

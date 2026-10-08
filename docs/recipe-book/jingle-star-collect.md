@@ -9,6 +9,18 @@ description: "Star-collect jingle"
 
 **Category: Collect** · Tags: casual, joy, jingle
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Jingle Star Collect |
+| **Common uses** | Star collection, collect-a-thon rewards, completions |
+| **Default frequency** | 440 Hz |
+| **Default duration** | 0.59 s |
+| **Tier** | 4 — Melodic motifs |
+| **Category** | Collect |
+| **Tags** | casual, joy, jingle |
+
 ## Sound design
 
 ### Overview

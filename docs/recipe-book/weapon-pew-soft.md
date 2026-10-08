@@ -9,6 +9,18 @@ description: "Soft laser pew with pitch drop"
 
 **Category: Weapon** · Tags: casual, fun, weapon
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Weapon Pew Soft |
+| **Common uses** | Soft projectiles, laser fire, casual combat |
+| **Default frequency** | 900 Hz |
+| **Default duration** | 0.3 s |
+| **Tier** | 2 — Shaped events |
+| **Category** | Weapon |
+| **Tags** | casual, fun, weapon |
+
 ## Sound design
 
 ### Overview

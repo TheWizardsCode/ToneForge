@@ -9,6 +9,18 @@ description: "Daytime meadow ambience"
 
 **Category: Ambience** · Tags: casual, joy, ambience
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Ambience Meadow Day |
+| **Common uses** | Outdoor daytime scenes, meadows, peaceful levels |
+| **Default frequency** | 520 Hz |
+| **Default duration** | 2.4 s |
+| **Tier** | 6 — Ambience & loops |
+| **Category** | Ambience |
+| **Tags** | casual, joy, ambience |
+
 ## Sound design
 
 ### Overview

@@ -9,6 +9,18 @@ description: "Frog croak"
 
 **Category: Creature** · Tags: casual, fun, creature
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Creature Frog Croak |
+| **Common uses** | Frog enemies, swamp critters, pond creatures |
+| **Default frequency** | 140 Hz (FM carrier) |
+| **Default duration** | 0.43 s |
+| **Tier** | 5 — Character & critter voices |
+| **Category** | Creature |
+| **Tags** | casual, fun, creature |
+
 ## Sound design
 
 ### Overview

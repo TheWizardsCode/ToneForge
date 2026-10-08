@@ -9,6 +9,18 @@ description: "Character hurt voice"
 
 **Category: Character** · Tags: casual, fun, character
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Character Hurt Voice |
+| **Common uses** | Taking damage, pain reactions, combat feedback |
+| **Default frequency** | 300 Hz (FM carrier) |
+| **Default duration** | 0.43 s |
+| **Tier** | 5 — Character & critter voices |
+| **Category** | Character |
+| **Tags** | casual, fun, character |
+
 ## Sound design
 
 ### Overview

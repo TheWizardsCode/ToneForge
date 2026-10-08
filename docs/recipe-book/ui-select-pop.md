@@ -9,6 +9,18 @@ description: "Pop-like selection tone"
 
 **Category: UI** · Tags: casual, fun, ui
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Ui Select Pop |
+| **Common uses** | Menu selection, option confirmation, list picks |
+| **Default frequency** | 520 Hz |
+| **Default duration** | 0.067 s |
+| **Tier** | 1 — Pure tones & blips |
+| **Category** | UI |
+| **Tags** | casual, fun, ui |
+
 ## Sound design
 
 ### Overview

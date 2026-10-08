@@ -9,6 +9,18 @@ description: "Power-up arpeggio"
 
 **Category: Collect** · Tags: casual, joy, collect
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Collect Powerup Arpeggio |
+| **Common uses** | Power-ups, ability unlocks, buff pickups |
+| **Default frequency** | 262 Hz |
+| **Default duration** | 0.77 s |
+| **Tier** | 4 — Melodic motifs |
+| **Category** | Collect |
+| **Tags** | casual, joy, collect |
+
 ## Sound design
 
 ### Overview

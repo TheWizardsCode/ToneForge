@@ -9,6 +9,17 @@ description: "Casual coin reward stack: a bright pickup tick, an arcing coin con
 
 **Capstone Stack** · presets/stacks
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Casual Coin Reward Stack |
+| **Common uses** | Coin rewards, loot pickups, collection celebrations |
+| **Default frequency** | 659–1560 Hz |
+| **Default duration** | 0.77 s |
+| **Type** | Stack (3 voices) |
+| **Recipes** | `collect-pickup-coin`, `collect-coin-arc`, `jingle-coin-chain` |
+
 ## Sound design
 
 ### Overview

@@ -9,6 +9,18 @@ description: "Short square-wave blip for retro feedback"
 
 **Category: UI** · Tags: casual, fun, ui
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Blip Square Short |
+| **Common uses** | Retro UI feedback, arcade menus, button presses |
+| **Default frequency** | 440 Hz |
+| **Default duration** | 0.053 s |
+| **Tier** | 1 — Pure tones & blips |
+| **Category** | UI |
+| **Tags** | casual, fun, ui |
+
 ## Sound design
 
 ### Overview

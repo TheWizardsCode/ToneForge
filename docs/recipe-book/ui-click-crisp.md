@@ -9,6 +9,18 @@ description: "Crisp click for button presses"
 
 **Category: UI** · Tags: casual, fun, ui
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Ui Click Crisp |
+| **Common uses** | Button presses, menu clicks, pointer interactions |
+| **Default frequency** | 700 Hz |
+| **Default duration** | 0.041 s |
+| **Tier** | 1 — Pure tones & blips |
+| **Category** | UI |
+| **Tags** | casual, fun, ui |
+
 ## Sound design
 
 ### Overview

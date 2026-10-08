@@ -9,6 +9,18 @@ description: "Space hum ambience"
 
 **Category: Ambience** · Tags: casual, fun, ambience
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Ambience Space Hum |
+| **Common uses** | Space stations, sci-fi scenes, cosmic settings |
+| **Default frequency** | 60 Hz |
+| **Default duration** | 2.1 s |
+| **Tier** | 6 — Ambience & loops |
+| **Category** | Ambience |
+| **Tags** | casual, fun, ambience |
+
 ## Sound design
 
 ### Overview

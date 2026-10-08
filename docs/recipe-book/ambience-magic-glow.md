@@ -9,6 +9,18 @@ description: "Magic glow ambience"
 
 **Category: Ambience** · Tags: casual, joy, ambience
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Ambience Magic Glow |
+| **Common uses** | Magical areas, enchanted scenes, mysterious rooms |
+| **Default frequency** | 900 Hz (FM carrier) |
+| **Default duration** | 2 s |
+| **Tier** | 6 — Ambience & loops |
+| **Category** | Ambience |
+| **Tags** | casual, joy, ambience |
+
 ## Sound design
 
 ### Overview

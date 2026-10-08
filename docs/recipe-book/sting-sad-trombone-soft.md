@@ -9,6 +9,18 @@ description: "Soft sad-trombone sting"
 
 **Category: Sting** · Tags: casual, fun, sting
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Sting Sad Trombone Soft |
+| **Common uses** | Sad moments, failures, comedic defeat |
+| **Default frequency** | 262 Hz |
+| **Default duration** | 1.04 s |
+| **Tier** | 7 — Multi-voice stings |
+| **Category** | Sting |
+| **Tags** | casual, fun, sting |
+
 ## Sound design
 
 ### Overview

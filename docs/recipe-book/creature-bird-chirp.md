@@ -9,6 +9,18 @@ description: "Bird chirp"
 
 **Category: Creature** · Tags: casual, joy, creature
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Creature Bird Chirp |
+| **Common uses** | Birds, forest critters, cheerful wildlife |
+| **Default frequency** | 2200 Hz |
+| **Default duration** | 0.315 s |
+| **Tier** | 5 — Character & critter voices |
+| **Category** | Creature |
+| **Tags** | casual, joy, creature |
+
 ## Sound design
 
 ### Overview

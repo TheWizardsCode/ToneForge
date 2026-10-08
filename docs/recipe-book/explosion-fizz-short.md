@@ -9,6 +9,18 @@ description: "Short fizzing explosion tail"
 
 **Category: Impact** · Tags: casual, fun, impact
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Explosion Fizz Short |
+| **Common uses** | Fizzing explosions, spark tails, magic bursts |
+| **Default frequency** | 2200 Hz (filter) |
+| **Default duration** | 0.486 s |
+| **Tier** | 3 — Textured & filtered |
+| **Category** | Impact |
+| **Tags** | casual, fun, impact |
+
 ## Sound design
 
 ### Overview

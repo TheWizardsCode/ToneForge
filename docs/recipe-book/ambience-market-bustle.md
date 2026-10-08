@@ -9,6 +9,18 @@ description: "Market bustle ambience"
 
 **Category: Ambience** · Tags: casual, fun, ambience
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Ambience Market Bustle |
+| **Common uses** | Towns, markets, busy public spaces |
+| **Default frequency** | 300 Hz |
+| **Default duration** | 1.6 s |
+| **Tier** | 6 — Ambience & loops |
+| **Category** | Ambience |
+| **Tags** | casual, fun, ambience |
+
 ## Sound design
 
 ### Overview

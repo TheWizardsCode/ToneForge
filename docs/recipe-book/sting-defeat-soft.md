@@ -9,6 +9,18 @@ description: "Soft multi-voice defeat sting"
 
 **Category: Sting** · Tags: casual, fun, sting
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Sting Defeat Soft |
+| **Common uses** | Defeat screens, losses, gentle failures |
+| **Default frequency** | 440 Hz |
+| **Default duration** | 0.94 s |
+| **Tier** | 7 — Multi-voice stings |
+| **Category** | Sting |
+| **Tags** | casual, fun, sting |
+
 ## Sound design
 
 ### Overview

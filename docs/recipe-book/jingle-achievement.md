@@ -9,6 +9,18 @@ description: "Achievement jingle"
 
 **Category: UI** · Tags: casual, joy, jingle
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Jingle Achievement |
+| **Common uses** | Achievements, badges, milestone unlocks |
+| **Default frequency** | 523 Hz |
+| **Default duration** | 0.59 s |
+| **Tier** | 4 — Melodic motifs |
+| **Category** | UI |
+| **Tags** | casual, joy, jingle |
+
 ## Sound design
 
 ### Overview

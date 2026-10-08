@@ -9,6 +9,18 @@ description: "Dialog-open motif"
 
 **Category: UI** · Tags: casual, joy, ui
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Ui Dialog Open Motif |
+| **Common uses** | Dialog boxes, popups, story text |
+| **Default frequency** | 262 Hz |
+| **Default duration** | 0.41 s |
+| **Tier** | 4 — Melodic motifs |
+| **Category** | UI |
+| **Tags** | casual, joy, ui |
+
 ## Sound design
 
 ### Overview

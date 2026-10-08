@@ -9,6 +9,17 @@ description: "Casual character-jump stack: a rising hop blip, a character jump v
 
 **Capstone Stack** · presets/stacks
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Casual Character Jump Stack |
+| **Common uses** | Character jumps, platforming movement, hops |
+| **Default frequency** | 180–500 Hz |
+| **Default duration** | 0.46 s |
+| **Type** | Stack (3 voices) |
+| **Recipes** | `jump-hop-blip`, `character-jump-voice`, `whoosh-air-swish` |
+
 ## Sound design
 
 ### Overview

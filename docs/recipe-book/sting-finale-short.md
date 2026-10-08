@@ -9,6 +9,18 @@ description: "Short finale sting"
 
 **Category: Sting** · Tags: casual, fun, sting
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Sting Finale Short |
+| **Common uses** | Endings, finales, closing flourishes |
+| **Default frequency** | 523 Hz |
+| **Default duration** | 0.715 s |
+| **Tier** | 7 — Multi-voice stings |
+| **Category** | Sting |
+| **Tags** | casual, fun, sting |
+
 ## Sound design
 
 ### Overview

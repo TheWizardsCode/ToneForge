@@ -9,6 +9,18 @@ description: "Single-note chime for notifications"
 
 **Category: UI** · Tags: casual, joy, ui
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Tone Chime Single |
+| **Common uses** | Notifications, rewards, achievement chimes |
+| **Default frequency** | 1320 Hz |
+| **Default duration** | 0.274 s |
+| **Tier** | 1 — Pure tones & blips |
+| **Category** | UI |
+| **Tags** | casual, joy, ui |
+
 ## Sound design
 
 ### Overview

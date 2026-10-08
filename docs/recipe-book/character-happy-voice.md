@@ -9,6 +9,18 @@ description: "Character happy voice"
 
 **Category: Character** · Tags: casual, joy, character
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Character Happy Voice |
+| **Common uses** | Celebrations, cheerful reactions, positive events |
+| **Default frequency** | 520 Hz (FM carrier) |
+| **Default duration** | 0.36 s |
+| **Tier** | 5 — Character & critter voices |
+| **Category** | Character |
+| **Tags** | casual, joy, character |
+
 ## Sound design
 
 ### Overview

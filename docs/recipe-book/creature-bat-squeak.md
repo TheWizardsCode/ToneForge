@@ -9,6 +9,18 @@ description: "Bat squeak"
 
 **Category: Creature** · Tags: casual, fun, creature
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Creature Bat Squeak |
+| **Common uses** | Bat creatures, small flyers, cave critters |
+| **Default frequency** | 1800 Hz |
+| **Default duration** | 0.315 s |
+| **Tier** | 5 — Character & critter voices |
+| **Category** | Creature |
+| **Tags** | casual, fun, creature |
+
 ## Sound design
 
 ### Overview

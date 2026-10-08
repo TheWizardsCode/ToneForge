@@ -9,6 +9,18 @@ description: "Toggle-off confirmation blip"
 
 **Category: UI** · Tags: casual, fun, ui
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Ui Toggle Off |
+| **Common uses** | Disabling settings, switching off, deactivating modes |
+| **Default frequency** | 440 Hz |
+| **Default duration** | 0.063 s |
+| **Tier** | 1 — Pure tones & blips |
+| **Category** | UI |
+| **Tags** | casual, fun, ui |
+
 ## Sound design
 
 ### Overview

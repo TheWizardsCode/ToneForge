@@ -9,6 +9,17 @@ description: "Casual adventure intro: an adventure-call sting, a short start-gam
 
 **Capstone Sequence** · presets/sequences
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Casual Adventure Intro Sequence |
+| **Common uses** | Game intros, world openings, chapter starts |
+| **Default frequency** | 262–500 Hz |
+| **Default duration** | 1.19 s |
+| **Type** | Sequence (3 events) |
+| **Recipes** | `sting-adventure-call`, `motif-start-game-fanfare-short`, `whoosh-air-swish` |
+
 ## Sound design
 
 ### Overview

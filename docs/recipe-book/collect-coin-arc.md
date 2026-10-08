@@ -9,6 +9,18 @@ description: "Arcing coin pickup contour"
 
 **Category: Collect** · Tags: casual, joy, collect
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Collect Coin Arc |
+| **Common uses** | Coin pickups, reward arcs, combo collection |
+| **Default frequency** | 800 Hz |
+| **Default duration** | 0.35 s |
+| **Tier** | 2 — Shaped events |
+| **Category** | Collect |
+| **Tags** | casual, joy, collect |
+
 ## Sound design
 
 ### Overview

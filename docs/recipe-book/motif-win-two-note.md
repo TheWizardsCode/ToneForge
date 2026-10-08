@@ -9,6 +9,18 @@ description: "Two-note victory motif"
 
 **Category: UI** · Tags: casual, joy, motif
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Motif Win Two Note |
+| **Common uses** | Victory jingles, win screens, reward motifs |
+| **Default frequency** | 523 Hz |
+| **Default duration** | 0.41 s |
+| **Tier** | 4 — Melodic motifs |
+| **Category** | UI |
+| **Tags** | casual, joy, motif |
+
 ## Sound design
 
 ### Overview

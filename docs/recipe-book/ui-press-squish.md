@@ -9,6 +9,18 @@ description: "Squishy press shape for button actuation"
 
 **Category: UI** · Tags: casual, fun, ui
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Ui Press Squish |
+| **Common uses** | Button actuation, pressure feedback, press confirmations |
+| **Default frequency** | 500 Hz |
+| **Default duration** | 0.23 s |
+| **Tier** | 2 — Shaped events |
+| **Category** | UI |
+| **Tags** | casual, fun, ui |
+
 ## Sound design
 
 ### Overview

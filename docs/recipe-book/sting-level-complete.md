@@ -9,6 +9,18 @@ description: "Level-complete sting"
 
 **Category: Sting** · Tags: casual, joy, sting
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Sting Level Complete |
+| **Common uses** | Level completion, stage clear, progression |
+| **Default frequency** | 523 Hz |
+| **Default duration** | 0.82 s |
+| **Tier** | 7 — Multi-voice stings |
+| **Category** | Sting |
+| **Tags** | casual, joy, sting |
+
 ## Sound design
 
 ### Overview

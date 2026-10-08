@@ -9,6 +9,18 @@ description: "Metal crash with resonant ring"
 
 **Category: Impact** · Tags: casual, fun, impact
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Impact Crash Metal |
+| **Common uses** | Metal collisions, clangs, destructive impacts |
+| **Default frequency** | 3200 Hz (filter) |
+| **Default duration** | 0.356 s |
+| **Tier** | 3 — Textured & filtered |
+| **Category** | Impact |
+| **Tags** | casual, fun, impact |
+
 ## Sound design
 
 ### Overview

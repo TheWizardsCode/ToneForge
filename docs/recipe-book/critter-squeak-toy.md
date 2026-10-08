@@ -9,6 +9,18 @@ description: "Toy critter squeak"
 
 **Category: Critter** · Tags: casual, joy, critter
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Critter Squeak Toy |
+| **Common uses** | Toy critters, pet creatures, playful squeaks |
+| **Default frequency** | 1200 Hz (FM carrier) |
+| **Default duration** | 0.315 s |
+| **Tier** | 5 — Character & critter voices |
+| **Category** | Critter |
+| **Tags** | casual, joy, critter |
+
 ## Sound design
 
 ### Overview

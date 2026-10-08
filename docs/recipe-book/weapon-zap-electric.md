@@ -9,6 +9,18 @@ description: "Electric weapon zap"
 
 **Category: Weapon** · Tags: casual, fun, weapon
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Weapon Zap Electric |
+| **Common uses** | Electric weapons, zaps, energy attacks |
+| **Default frequency** | 1200 Hz (FM carrier) |
+| **Default duration** | 0.226 s |
+| **Tier** | 3 — Textured & filtered |
+| **Category** | Weapon |
+| **Tags** | casual, fun, weapon |
+
 ## Sound design
 
 ### Overview

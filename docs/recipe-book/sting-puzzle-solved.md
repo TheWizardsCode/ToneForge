@@ -9,6 +9,18 @@ description: "Puzzle-solved sting"
 
 **Category: Sting** · Tags: casual, joy, sting
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Sting Puzzle Solved |
+| **Common uses** | Puzzle solved, riddle completion, eureka moments |
+| **Default frequency** | 880 Hz |
+| **Default duration** | 0.77 s |
+| **Tier** | 7 — Multi-voice stings |
+| **Category** | Sting |
+| **Tags** | casual, joy, sting |
+
 ## Sound design
 
 ### Overview

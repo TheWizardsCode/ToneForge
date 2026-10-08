@@ -9,6 +9,18 @@ description: "Robotic FM beep"
 
 **Category: UI** · Tags: casual, fun, ui
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Ui Robot Beep |
+| **Common uses** | Robotic UI, droid speech, sci-fi confirmations |
+| **Default frequency** | 440 Hz (FM carrier) |
+| **Default duration** | 0.188 s |
+| **Tier** | 3 — Textured & filtered |
+| **Category** | UI |
+| **Tags** | casual, fun, ui |
+
 ## Sound design
 
 ### Overview

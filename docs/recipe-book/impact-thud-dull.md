@@ -9,6 +9,18 @@ description: "Dull thud for soft impacts"
 
 **Category: Impact** · Tags: casual, fun, impact
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Impact Thud Dull |
+| **Common uses** | Soft impacts, landing, low-energy collisions |
+| **Default frequency** | 200 Hz |
+| **Default duration** | 0.3 s |
+| **Tier** | 2 — Shaped events |
+| **Category** | Impact |
+| **Tags** | casual, fun, impact |
+
 ## Sound design
 
 ### Overview

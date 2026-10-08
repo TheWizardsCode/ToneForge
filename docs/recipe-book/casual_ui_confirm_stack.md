@@ -9,6 +9,17 @@ description: "Casual UI confirm stack: a crisp selection pop, a rising confirmat
 
 **Capstone Stack** · presets/stacks
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Casual Ui Confirm Stack |
+| **Common uses** | Menu confirmation, dialogue choices, interface rewards |
+| **Default frequency** | 500–1800 Hz |
+| **Default duration** | 0.505 s |
+| **Type** | Stack (3 voices) |
+| **Recipes** | `ui-select-pop`, `ui-confirm-rise`, `sparkle-magic-shimmer` |
+
 ## Sound design
 
 ### Overview

@@ -9,6 +9,18 @@ description: "Ghost whisper"
 
 **Category: Creature** · Tags: casual, fun, creature
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Creature Ghost Whisper |
+| **Common uses** | Ghost enemies, haunted areas, spectral presences |
+| **Default frequency** | 600 Hz |
+| **Default duration** | 0.8 s |
+| **Tier** | 5 — Character & critter voices |
+| **Category** | Creature |
+| **Tags** | casual, fun, creature |
+
 ## Sound design
 
 ### Overview

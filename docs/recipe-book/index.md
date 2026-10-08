@@ -10,6 +10,10 @@ description: "100 documented casual game sound recipes, ascending from single-os
 A curated collection of **100 procedural sound recipes** for casual and arcade games,
 organised into seven ascending tiers of increasing complexity:
 
+Every recipe page opens with an **At a glance** metadata table — title, common uses,
+default frequency and duration — so a recipe can be scanned before reading its full
+sound-design notes and ToneForge CLI commands.
+
 ## Tier 1: Pure tones & blips
 
 1. [`blip-sine-ping`](./blip-sine-ping.md) — Short sine blip for UI confirmations

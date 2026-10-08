@@ -9,6 +9,18 @@ description: "Sand crunch footstep"
 
 **Category: Footstep** · Tags: casual, joy, footstep
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Footstep Sand Crunch |
+| **Common uses** | Footsteps on sand, beach walking, desert terrain |
+| **Default frequency** | 1400 Hz (filter) |
+| **Default duration** | 0.188 s |
+| **Tier** | 3 — Textured & filtered |
+| **Category** | Footstep |
+| **Tags** | casual, joy, footstep |
+
 ## Sound design
 
 ### Overview

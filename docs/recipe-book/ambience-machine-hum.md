@@ -9,6 +9,18 @@ description: "Machine hum ambience"
 
 **Category: Ambience** · Tags: casual, fun, ambience
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Ambience Machine Hum |
+| **Common uses** | Machine rooms, factories, industrial areas |
+| **Default frequency** | 55 Hz |
+| **Default duration** | 1.7 s |
+| **Tier** | 6 — Ambience & loops |
+| **Category** | Ambience |
+| **Tags** | casual, fun, ambience |
+
 ## Sound design
 
 ### Overview

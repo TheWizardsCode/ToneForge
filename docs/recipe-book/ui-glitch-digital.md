@@ -9,6 +9,18 @@ description: "Digital glitch UI effect"
 
 **Category: UI** · Tags: casual, fun, ui
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Ui Glitch Digital |
+| **Common uses** | Digital glitches, error states, sci-fi interfaces |
+| **Default frequency** | 300 Hz (FM carrier) |
+| **Default duration** | 0.135 s |
+| **Tier** | 3 — Textured & filtered |
+| **Category** | UI |
+| **Tags** | casual, fun, ui |
+
 ## Sound design
 
 ### Overview

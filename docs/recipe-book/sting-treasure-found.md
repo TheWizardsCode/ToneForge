@@ -9,6 +9,18 @@ description: "Treasure-found sting"
 
 **Category: Sting** · Tags: casual, joy, sting
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Sting Treasure Found |
+| **Common uses** | Treasure discovery, secret reveals, loot |
+| **Default frequency** | 262 Hz |
+| **Default duration** | 0.87 s |
+| **Tier** | 7 — Multi-voice stings |
+| **Category** | Sting |
+| **Tags** | casual, joy, sting |
+
 ## Sound design
 
 ### Overview

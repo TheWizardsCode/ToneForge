@@ -9,6 +9,18 @@ description: "Short gem collection tick"
 
 **Category: Collect** · Tags: casual, joy, collect
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Collect Gem Tick |
+| **Common uses** | Gem collection, collectible pickup, score ticks |
+| **Default frequency** | 1980 Hz |
+| **Default duration** | 0.082 s |
+| **Tier** | 1 — Pure tones & blips |
+| **Category** | Collect |
+| **Tags** | casual, joy, collect |
+
 ## Sound design
 
 ### Overview

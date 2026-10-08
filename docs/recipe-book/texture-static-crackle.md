@@ -9,6 +9,18 @@ description: "Static crackle texture"
 
 **Category: Texture** · Tags: casual, fun, texture
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Texture Static Crackle |
+| **Common uses** | Static textures, glitches, electrical ambience |
+| **Default frequency** | 5000 Hz (filter) |
+| **Default duration** | 0.421 s |
+| **Tier** | 3 — Textured & filtered |
+| **Category** | Texture |
+| **Tags** | casual, fun, texture |
+
 ## Sound design
 
 ### Overview

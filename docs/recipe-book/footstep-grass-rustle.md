@@ -9,6 +9,18 @@ description: "Grass rustle footstep"
 
 **Category: Footstep** · Tags: casual, joy, footstep
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Footstep Grass Rustle |
+| **Common uses** | Footsteps on grass, foliage movement, outdoor walking |
+| **Default frequency** | 2500 Hz (filter) |
+| **Default duration** | 0.228 s |
+| **Tier** | 3 — Textured & filtered |
+| **Category** | Footstep |
+| **Tags** | casual, joy, footstep |
+
 ## Sound design
 
 ### Overview

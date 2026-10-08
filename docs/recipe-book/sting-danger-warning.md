@@ -9,6 +9,18 @@ description: "Danger-warning sting"
 
 **Category: Sting** · Tags: casual, fun, sting
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Sting Danger Warning |
+| **Common uses** | Danger alerts, warnings, low health |
+| **Default frequency** | 220 Hz |
+| **Default duration** | 0.775 s |
+| **Tier** | 7 — Multi-voice stings |
+| **Category** | Sting |
+| **Tags** | casual, fun, sting |
+
 ## Sound design
 
 ### Overview

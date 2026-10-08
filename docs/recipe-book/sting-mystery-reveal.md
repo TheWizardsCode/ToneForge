@@ -9,6 +9,18 @@ description: "Mystery-reveal sting"
 
 **Category: Sting** · Tags: casual, joy, sting
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Sting Mystery Reveal |
+| **Common uses** | Mystery reveals, plot twists, discoveries |
+| **Default frequency** | 440 Hz |
+| **Default duration** | 1.18 s |
+| **Tier** | 7 — Multi-voice stings |
+| **Category** | Sting |
+| **Tags** | casual, joy, sting |
+
 ## Sound design
 
 ### Overview

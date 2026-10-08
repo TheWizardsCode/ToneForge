@@ -9,6 +9,18 @@ description: "Soft falling pitch sweep for wind-downs"
 
 **Category: UI** · Tags: casual, joy, sweep
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Sweep Fall Soft |
+| **Common uses** | Wind-downs, losing a life, closing menus |
+| **Default frequency** | 900 Hz |
+| **Default duration** | 0.6 s |
+| **Tier** | 2 — Shaped events |
+| **Category** | UI |
+| **Tags** | casual, joy, sweep |
+
 ## Sound design
 
 ### Overview

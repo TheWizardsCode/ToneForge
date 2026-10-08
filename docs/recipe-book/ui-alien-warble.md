@@ -9,6 +9,18 @@ description: "Alien warbling tone"
 
 **Category: UI** · Tags: casual, fun, ui
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Ui Alien Warble |
+| **Common uses** | Alien voices, sci-fi signals, creature tech |
+| **Default frequency** | 500 Hz (FM carrier) |
+| **Default duration** | 0.43 s |
+| **Tier** | 3 — Textured & filtered |
+| **Category** | UI |
+| **Tags** | casual, fun, ui |
+
 ## Sound design
 
 ### Overview

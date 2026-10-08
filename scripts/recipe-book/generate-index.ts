@@ -33,7 +33,7 @@ if (!match) {
 // Each entry looks like: { name: "...", tier: N, family: "...", intent: "..." },
 function parseRosterEntries(text: string): Array<{ name: string; tier: number; family: string; intent: string }> {
   const entries: Array<{ name: string; tier: number; family: string; intent: string }> = [];
-  const entryRegex = /\{\s*name:\s*["']([^"']+)["'],\s*tier:\s*(\d),\s*family:\s*["']([^"']+)["'],\s*intent:\s*["']([^"']+)["']\s*\}/g;
+  const entryRegex = /\{\s*name:\s*["']([^"']+)["'],\s*tier:\s*(\d),\s*family:\s*["']([^"']+)["'],\s*intent:\s*["']([^"']+)["'][^}]*\}/g;
   let m: RegExpExecArray | null;
   while ((m = entryRegex.exec(text)) !== null) {
     entries.push({ name: m[1], tier: Number(m[2]), family: m[3], intent: m[4] });
@@ -79,6 +79,10 @@ lines.push("# Casual Game Recipe Book");
 lines.push("");
 lines.push("A curated collection of **100 procedural sound recipes** for casual and arcade games,");
 lines.push("organised into seven ascending tiers of increasing complexity:");
+lines.push("");
+lines.push("Every recipe page opens with an **At a glance** metadata table — title, common uses,");
+lines.push("default frequency and duration — so a recipe can be scanned before reading its full");
+lines.push("sound-design notes and ToneForge CLI commands.");
 lines.push("");
 
 let idx = 1;

@@ -9,6 +9,18 @@ description: "Rattle-drop collectible"
 
 **Category: Collect** · Tags: casual, joy, collect
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Collect Rattle Drop |
+| **Common uses** | Collectible drops, item rattles, loot pickup |
+| **Default frequency** | 900 Hz (FM carrier) |
+| **Default duration** | 0.292 s |
+| **Tier** | 3 — Textured & filtered |
+| **Category** | Collect |
+| **Tags** | casual, joy, collect |
+
 ## Sound design
 
 ### Overview

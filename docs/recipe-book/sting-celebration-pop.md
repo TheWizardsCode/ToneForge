@@ -9,6 +9,18 @@ description: "Celebration pop sting"
 
 **Category: Sting** · Tags: casual, joy, sting
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Sting Celebration Pop |
+| **Common uses** | Celebrations, party moments, confetti |
+| **Default frequency** | 523 Hz |
+| **Default duration** | 0.815 s |
+| **Tier** | 7 — Multi-voice stings |
+| **Category** | Sting |
+| **Tags** | casual, joy, sting |
+
 ## Sound design
 
 ### Overview

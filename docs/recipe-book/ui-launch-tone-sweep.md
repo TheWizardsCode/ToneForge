@@ -9,6 +9,18 @@ description: "Launch tone with an upward sweep"
 
 **Category: UI** · Tags: casual, joy, ui
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Ui Launch Tone Sweep |
+| **Common uses** | Game launch, level start, activation cues |
+| **Default frequency** | 200 Hz |
+| **Default duration** | 0.7 s |
+| **Tier** | 2 — Shaped events |
+| **Category** | UI |
+| **Tags** | casual, joy, ui |
+
 ## Sound design
 
 ### Overview

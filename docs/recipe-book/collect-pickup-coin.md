@@ -9,6 +9,18 @@ description: "Bright coin pickup sparkle"
 
 **Category: Collect** · Tags: casual, joy, collect
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Collect Pickup Coin |
+| **Common uses** | Coin collection, currency pickup, loot drops |
+| **Default frequency** | 1560 Hz |
+| **Default duration** | 0.102 s |
+| **Tier** | 1 — Pure tones & blips |
+| **Category** | Collect |
+| **Tags** | casual, joy, collect |
+
 ## Sound design
 
 ### Overview

@@ -9,6 +9,18 @@ description: "Bubbly pop for UI reveal"
 
 **Category: UI** · Tags: casual, fun, ui
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Ui Pop Bubble |
+| **Common uses** | UI reveals, popups, tooltip appearance |
+| **Default frequency** | 400 Hz |
+| **Default duration** | 0.18 s |
+| **Tier** | 2 — Shaped events |
+| **Category** | UI |
+| **Tags** | casual, fun, ui |
+
 ## Sound design
 
 ### Overview

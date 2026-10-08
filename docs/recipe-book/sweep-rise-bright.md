@@ -9,6 +9,18 @@ description: "Bright rising pitch sweep for positive cues"
 
 **Category: UI** · Tags: casual, joy, sweep
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Sweep Rise Bright |
+| **Common uses** | Positive transitions, power-ups, reward reveals |
+| **Default frequency** | 300 Hz |
+| **Default duration** | 0.6 s |
+| **Tier** | 2 — Shaped events |
+| **Category** | UI |
+| **Tags** | casual, joy, sweep |
+
 ## Sound design
 
 ### Overview

@@ -9,6 +9,18 @@ description: "Falling cancellation tone"
 
 **Category: UI** · Tags: casual, fun, ui
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Ui Cancel Fall |
+| **Common uses** | Cancellations, declining prompts, negative acknowledgements |
+| **Default frequency** | 700 Hz |
+| **Default duration** | 0.32 s |
+| **Tier** | 2 — Shaped events |
+| **Category** | UI |
+| **Tags** | casual, fun, ui |
+
 ## Sound design
 
 ### Overview

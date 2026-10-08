@@ -9,6 +9,17 @@ description: "Casual victory stack: a two-note victory motif, a level-up jingle 
 
 **Capstone Stack** · presets/stacks
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Casual Victory Stack |
+| **Common uses** | Victory screens, level wins, triumph celebrations |
+| **Default frequency** | 392–523 Hz |
+| **Default duration** | 1.42 s |
+| **Type** | Stack (3 voices) |
+| **Recipes** | `motif-win-two-note`, `jingle-level-up`, `sting-victory-bright` |
+
 ## Sound design
 
 ### Overview

@@ -9,6 +9,18 @@ description: "Two-note losing motif"
 
 **Category: UI** · Tags: casual, fun, motif
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Motif Lose Two Note |
+| **Common uses** | Losing jingles, fail states, gentle defeat |
+| **Default frequency** | 440 Hz |
+| **Default duration** | 0.41 s |
+| **Tier** | 4 — Melodic motifs |
+| **Category** | UI |
+| **Tags** | casual, fun, motif |
+
 ## Sound design
 
 ### Overview

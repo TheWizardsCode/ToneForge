@@ -9,6 +9,18 @@ description: "Gentle game-over sting"
 
 **Category: Sting** · Tags: casual, fun, sting
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Sting Game Over Gentle |
+| **Common uses** | Game over, run ends, soft conclusions |
+| **Default frequency** | 392 Hz |
+| **Default duration** | 1.04 s |
+| **Tier** | 7 — Multi-voice stings |
+| **Category** | Sting |
+| **Tags** | casual, fun, sting |
+
 ## Sound design
 
 ### Overview

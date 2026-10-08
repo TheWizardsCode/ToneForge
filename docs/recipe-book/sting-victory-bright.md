@@ -9,6 +9,18 @@ description: "Bright multi-voice victory sting"
 
 **Category: Sting** · Tags: casual, joy, sting
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Sting Victory Bright |
+| **Common uses** | Victory screens, wins, triumph cues |
+| **Default frequency** | 523 Hz |
+| **Default duration** | 0.82 s |
+| **Tier** | 7 — Multi-voice stings |
+| **Category** | Sting |
+| **Tags** | casual, joy, sting |
+
 ## Sound design
 
 ### Overview

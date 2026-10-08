@@ -9,6 +9,18 @@ description: "Soft triangle-wave blip for gentle cues"
 
 **Category: UI** · Tags: casual, joy, ui
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Blip Triangle Soft |
+| **Common uses** | Gentle notifications, cosy menus, soft toggles |
+| **Default frequency** | 350 Hz |
+| **Default duration** | 0.086 s |
+| **Tier** | 1 — Pure tones & blips |
+| **Category** | UI |
+| **Tags** | casual, joy, ui |
+
 ## Sound design
 
 ### Overview

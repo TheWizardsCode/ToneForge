@@ -9,6 +9,18 @@ description: "Dragon huff"
 
 **Category: Creature** · Tags: casual, fun, creature
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Creature Dragon Huff |
+| **Common uses** | Dragon enemies, boss creatures, large beast breathing |
+| **Default frequency** | 80 Hz |
+| **Default duration** | 0.64 s |
+| **Tier** | 5 — Character & critter voices |
+| **Category** | Creature |
+| **Tags** | casual, fun, creature |
+
 ## Sound design
 
 ### Overview

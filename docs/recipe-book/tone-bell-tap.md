@@ -9,6 +9,18 @@ description: "Bell-like tapped tone for rewards"
 
 **Category: Collect** · Tags: casual, joy, collect
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Tone Bell Tap |
+| **Common uses** | Reward collection, treasure pickup, bell cues |
+| **Default frequency** | 990 Hz |
+| **Default duration** | 0.323 s |
+| **Tier** | 1 — Pure tones & blips |
+| **Category** | Collect |
+| **Tags** | casual, joy, collect |
+
 ## Sound design
 
 ### Overview

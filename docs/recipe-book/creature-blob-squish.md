@@ -9,6 +9,18 @@ description: "Blob squish"
 
 **Category: Creature** · Tags: casual, fun, creature
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Creature Blob Squish |
+| **Common uses** | Blob creatures, squishy impacts, gelatinous enemies |
+| **Default frequency** | 900 Hz (sweep start) |
+| **Default duration** | 0.32 s |
+| **Tier** | 5 — Character & critter voices |
+| **Category** | Creature |
+| **Tags** | casual, fun, creature |
+
 ## Sound design
 
 ### Overview

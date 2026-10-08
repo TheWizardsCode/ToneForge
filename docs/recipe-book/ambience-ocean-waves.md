@@ -9,6 +9,18 @@ description: "Ocean waves ambience"
 
 **Category: Ambience** · Tags: casual, joy, ambience
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Ambience Ocean Waves |
+| **Common uses** | Beaches, oceans, coastal levels |
+| **Default frequency** | 1200 Hz (filter) |
+| **Default duration** | 1.9 s |
+| **Tier** | 6 — Ambience & loops |
+| **Category** | Ambience |
+| **Tags** | casual, joy, ambience |
+
 ## Sound design
 
 ### Overview

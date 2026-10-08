@@ -9,6 +9,17 @@ description: "Casual coin run: four rapid coin pickups building into an arcing r
 
 **Capstone Sequence** · presets/sequences
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Casual Coin Run Sequence |
+| **Common uses** | Coin streaks, collection combos, reward loops |
+| **Default frequency** | 800–1560 Hz |
+| **Default duration** | 0.95 s |
+| **Type** | Sequence (5 events) |
+| **Recipes** | `collect-pickup-coin`, `collect-pickup-coin`, `collect-pickup-coin`, `collect-pickup-coin`, `collect-coin-arc` |
+
 ## Sound design
 
 ### Overview

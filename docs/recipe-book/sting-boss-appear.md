@@ -9,6 +9,18 @@ description: "Boss-appear dramatic sting"
 
 **Category: Sting** · Tags: casual, fun, sting
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Sting Boss Appear |
+| **Common uses** | Boss entrances, dramatic reveals, threats |
+| **Default frequency** | 110 Hz |
+| **Default duration** | 1.13 s |
+| **Tier** | 7 — Multi-voice stings |
+| **Category** | Sting |
+| **Tags** | casual, fun, sting |
+
 ## Sound design
 
 ### Overview

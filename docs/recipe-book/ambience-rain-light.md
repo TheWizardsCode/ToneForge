@@ -9,6 +9,18 @@ description: "Light rain ambience"
 
 **Category: Ambience** · Tags: casual, joy, ambience
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Ambience Rain Light |
+| **Common uses** | Light rain, weather ambience, outdoor scenes |
+| **Default frequency** | 3000 Hz (filter) |
+| **Default duration** | 1.5 s |
+| **Tier** | 6 — Ambience & loops |
+| **Category** | Ambience |
+| **Tags** | casual, joy, ambience |
+
 ## Sound design
 
 ### Overview

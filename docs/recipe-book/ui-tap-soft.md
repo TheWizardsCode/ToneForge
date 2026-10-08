@@ -9,6 +9,18 @@ description: "Soft tap for light UI interactions"
 
 **Category: UI** · Tags: casual, joy, ui
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Ui Tap Soft |
+| **Common uses** | Hover feedback, soft toggles, gentle taps |
+| **Default frequency** | 300 Hz |
+| **Default duration** | 0.074 s |
+| **Tier** | 1 — Pure tones & blips |
+| **Category** | UI |
+| **Tags** | casual, joy, ui |
+
 ## Sound design
 
 ### Overview

@@ -9,6 +9,18 @@ description: "Magical shimmer sparkle"
 
 **Category: Magic** · Tags: casual, joy, sparkle
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Sparkle Magic Shimmer |
+| **Common uses** | Magic effects, power-ups, sparkle rewards |
+| **Default frequency** | 1800 Hz (FM carrier) |
+| **Default duration** | 0.425 s |
+| **Tier** | 3 — Textured & filtered |
+| **Category** | Magic |
+| **Tags** | casual, joy, sparkle |
+
 ## Sound design
 
 ### Overview

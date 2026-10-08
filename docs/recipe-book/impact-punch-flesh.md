@@ -9,6 +9,18 @@ description: "Fleshy punch impact"
 
 **Category: Impact** · Tags: casual, fun, impact
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Impact Punch Flesh |
+| **Common uses** | Melee hits, punch impacts, combat feedback |
+| **Default frequency** | 250 Hz (filter) |
+| **Default duration** | 0.188 s |
+| **Tier** | 3 — Textured & filtered |
+| **Category** | Impact |
+| **Tags** | casual, fun, impact |
+
 ## Sound design
 
 ### Overview

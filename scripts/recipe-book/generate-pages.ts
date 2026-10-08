@@ -17,14 +17,19 @@
  *   tsx scripts/recipe-book/generate-pages.ts <name>...  # specific recipes
  */
 
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import yaml from "js-yaml";
+import {
+  loadRecipeMeta,
+  defaultFrequencyLabel,
+  formatDuration,
+  type RecipeMeta,
+  type ContourEvent,
+} from "./recipe-meta.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..", "..");
-const RECIPES_DIR = resolve(ROOT, "presets", "recipes");
 const DOCS_DIR = resolve(ROOT, "docs", "recipe-book");
 
 interface Narrative {
@@ -650,110 +655,26 @@ function fallbackNarrative(name: string, meta: RecipeMeta): Narrative {
 
 // ── Data loading ─────────────────────────────────────────────────────────────
 
-function parseRosterNames(): string[] {
+interface RosterInfo {
+  name: string;
+  tier: number;
+  uses: string;
+}
+
+/** Parse the roster manifest for names, tiers and common-uses text. */
+function parseRoster(): RosterInfo[] {
   const rosterPath = resolve(ROOT, "src", "recipes", "recipe-book", "roster.ts");
   const source = readFileSync(rosterPath, "utf-8");
-  const names: string[] = [];
-  const re = /\{\s*name:\s*["']([^"']+)["']/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(source)) !== null) {
-    names.push(m[1]);
-  }
-  return names;
-}
-
-interface ContourEvent {
-  kind: string;
-  time: number;
-  value: number;
-}
-
-interface EnvelopeShape {
-  attack?: number;
-  decay?: number;
-  sustain?: number;
-  release?: number;
-}
-
-interface RecipeMeta {
-  description: string;
-  tags: string[];
-  kind: string;
-  category: string;
-  waveform?: string;
-  parameters: Array<{ name: string; type: string; min?: number; max?: number; unit?: string; default?: unknown }>;
-  contour?: ContourEvent[];
-  envelope?: EnvelopeShape;
-  sourceKind?: string;
-  noiseColor?: string;
-  filterType?: string;
-  filterQ?: number;
-}
-
-function loadRecipe(name: string): RecipeMeta | null {
-  const filePath = resolve(RECIPES_DIR, `${name}.yaml`);
-  if (!existsSync(filePath)) return null;
-  const doc = yaml.load(readFileSync(filePath, "utf-8")) as Record<string, unknown>;
-  const meta = (doc.meta ?? {}) as Record<string, unknown>;
-  const nodes = (doc.nodes ?? {}) as Record<string, any>;
-  const kinds = Object.values(nodes).map((n) => (n && typeof n === "object" ? n.kind : "") ?? "");
-  const kind =
-    kinds.find((k) => ["oscillator", "noise", "fmPattern", "bufferSource", "lfo"].includes(k)) ??
-    "oscillator";
-
-  // First oscillator/noise/FM source, plus any frequency automation and envelope
-  let waveform: string | undefined;
-  let noiseColor: string | undefined;
-  let filterType: string | undefined;
-  let filterQ: number | undefined;
-  let fmIndex: number | undefined;
-  let contour: ContourEvent[] | undefined;
-  let envelope: EnvelopeShape | undefined;
-  const extractContour = (events: unknown): ContourEvent[] | undefined => {
-    if (!Array.isArray(events)) return undefined;
-    const out = events
-      .filter((e: any) => e && typeof e.value === "number")
-      .map((e: any) => ({ kind: String(e.kind), time: Number(e.time), value: Number(e.value) }));
-    return out.length > 1 ? out : undefined;
-  };
-  for (const node of Object.values(nodes)) {
-    if (!node || typeof node !== "object") continue;
-    if (node.kind === "oscillator" && waveform === undefined) {
-      waveform = node.params?.type;
-    }
-    if (node.kind === "noise" && noiseColor === undefined) {
-      noiseColor = node.params?.color;
-    }
-    if (node.kind === "fmPattern" && fmIndex === undefined) {
-      fmIndex = node.params?.modulationIndex;
-    }
-    if (node.kind === "biquadFilter" && filterType === undefined) {
-      filterType = node.params?.type;
-      filterQ = node.params?.Q;
-    }
-    if (contour === undefined) {
-      contour = extractContour(node.automation?.frequency);
-    }
-    if (node.kind === "envelope" && !envelope) {
-      envelope = node.params as EnvelopeShape;
+  const entries: RosterInfo[] = [];
+  for (const line of source.split("\n")) {
+    const m = line.match(
+      /\{\s*name:\s*["']([^"']+)["'],\s*tier:\s*(\d),[\s\S]*?uses:\s*["']([^"']+)["']/,
+    );
+    if (m) {
+      entries.push({ name: m[1]!, tier: Number(m[2]), uses: m[3]! });
     }
   }
-
-  const params = (meta.parameters as RecipeMeta["parameters"]) ?? [];
-  return {
-    description: String(meta.description ?? name),
-    tags: (meta.tags as string[]) ?? [],
-    kind: kind === "oscillator" ? "oscillator" : kind,
-    category: String(meta.category ?? "UI"),
-    waveform: waveform ?? noiseColor ?? (fmIndex !== undefined ? "fmPattern" : undefined),
-    parameters: params,
-    contour,
-    envelope,
-    sourceKind: kind,
-    noiseColor,
-    filterType,
-    filterQ,
-  };
+  return entries;
 }
 
 function generateCliBlock(name: string): string {
@@ -790,7 +711,42 @@ function renderParameters(params: RecipeMeta["parameters"]): string {
   ].join("\n");
 }
 
-function renderPage(name: string, order: number, meta: RecipeMeta, narrative: Narrative): string {
+const TIER_NAMES: Record<number, string> = {
+  1: "Pure tones & blips",
+  2: "Shaped events",
+  3: "Textured & filtered",
+  4: "Melodic motifs",
+  5: "Character & critter voices",
+  6: "Ambience & loops",
+  7: "Multi-voice stings",
+};
+
+/** Render the leading `## At a glance` metadata table for a recipe page. */
+function renderAtAGlance(name: string, meta: RecipeMeta, uses: string, tier: number): string {
+  const tierLabel = TIER_NAMES[tier] ? `${tier} — ${TIER_NAMES[tier]}` : String(tier);
+  return [
+    "## At a glance",
+    "",
+    "| Field | Value |",
+    "|-------|-------|",
+    `| **Title** | ${titleCase(name)} |`,
+    `| **Common uses** | ${uses} |`,
+    `| **Default frequency** | ${defaultFrequencyLabel(meta)} |`,
+    `| **Default duration** | ${formatDuration(meta.duration)} |`,
+    `| **Tier** | ${tierLabel} |`,
+    `| **Category** | ${meta.category} |`,
+    `| **Tags** | ${meta.tags.join(", ")} |`,
+  ].join("\n");
+}
+
+function renderPage(
+  name: string,
+  order: number,
+  meta: RecipeMeta,
+  narrative: Narrative,
+  uses: string,
+  tier: number,
+): string {
   const markerStart = `<!-- CLI_BLOCK_START — regenerate with: tsx scripts/recipe-book/generate-cli-blocks.ts ${name} -->`;
   const markerEnd = `<!-- CLI_BLOCK_END -->`;
   const cliBlock = generateCliBlock(name);
@@ -805,6 +761,8 @@ function renderPage(name: string, order: number, meta: RecipeMeta, narrative: Na
     `# ${titleCase(name)}`,
     "",
     `**Category: ${meta.category}** · Tags: ${meta.tags.join(", ")}`,
+    "",
+    renderAtAGlance(name, meta, uses, tier),
     "",
     "## Sound design",
     "",
@@ -845,21 +803,31 @@ function renderPage(name: string, order: number, meta: RecipeMeta, narrative: Na
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 const requested = process.argv.slice(2).filter((a) => !a.startsWith("--"));
-const rosterNames = parseRosterNames();
+const roster = parseRoster();
+const rosterNames = roster.map((entry) => entry.name);
 const orderIndex = new Map(rosterNames.map((n, i) => [n, i + 1]));
+const rosterByName = new Map(roster.map((entry) => [entry.name, entry]));
 
 const targets = requested.length > 0 ? requested : rosterNames;
 let written = 0;
 let skipped = 0;
 
 for (const name of targets) {
-  const meta = loadRecipe(name);
+  const meta = loadRecipeMeta(name);
   if (!meta) {
     skipped++;
     continue;
   }
+  const rosterEntry = rosterByName.get(name);
   const narrative = narratives[name] ?? fallbackNarrative(name, meta);
-  const page = renderPage(name, orderIndex.get(name) ?? 0, meta, narrative);
+  const page = renderPage(
+    name,
+    orderIndex.get(name) ?? 0,
+    meta,
+    narrative,
+    rosterEntry?.uses ?? "",
+    rosterEntry?.tier ?? 0,
+  );
   writeFileSync(resolve(DOCS_DIR, `${name}.md`), page, "utf-8");
   written++;
 }

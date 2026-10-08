@@ -9,6 +9,18 @@ description: "Slime bounce"
 
 **Category: Creature** · Tags: casual, fun, creature
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Creature Slime Bounce |
+| **Common uses** | Slime enemies, bouncy creatures, gelatinous movement |
+| **Default frequency** | 400 Hz |
+| **Default duration** | 0.32 s |
+| **Tier** | 5 — Character & critter voices |
+| **Category** | Creature |
+| **Tags** | casual, fun, creature |
+
 ## Sound design
 
 ### Overview

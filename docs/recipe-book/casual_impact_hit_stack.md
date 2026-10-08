@@ -9,6 +9,17 @@ description: "Casual impact-hit stack: a dull thud, a fleshy punch and a metalli
 
 **Capstone Stack** · presets/stacks
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Casual Impact Hit Stack |
+| **Common uses** | Combat hits, collisions, damage feedback |
+| **Default frequency** | 200–3200 Hz |
+| **Default duration** | 0.396 s |
+| **Type** | Stack (3 voices) |
+| **Recipes** | `impact-thud-dull`, `impact-punch-flesh`, `impact-crash-metal` |
+
 ## Sound design
 
 ### Overview

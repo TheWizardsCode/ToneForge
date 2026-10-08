@@ -9,6 +9,18 @@ description: "Adventure-call sting"
 
 **Category: Sting** · Tags: casual, joy, sting
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Sting Adventure Call |
+| **Common uses** | Adventure starts, new journeys, exploration |
+| **Default frequency** | 392 Hz |
+| **Default duration** | 0.93 s |
+| **Tier** | 7 — Multi-voice stings |
+| **Category** | Sting |
+| **Tags** | casual, joy, sting |
+
 ## Sound design
 
 ### Overview

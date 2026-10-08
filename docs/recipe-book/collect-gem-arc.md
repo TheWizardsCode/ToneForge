@@ -9,6 +9,18 @@ description: "Arcing gem pickup contour"
 
 **Category: Collect** · Tags: casual, joy, collect
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Collect Gem Arc |
+| **Common uses** | Gem pickups, collectible arcs, score rewards |
+| **Default frequency** | 1200 Hz |
+| **Default duration** | 0.25 s |
+| **Tier** | 2 — Shaped events |
+| **Category** | Collect |
+| **Tags** | casual, joy, collect |
+
 ## Sound design
 
 ### Overview

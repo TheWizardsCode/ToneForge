@@ -9,6 +9,18 @@ description: "Gravel crunch impact"
 
 **Category: Impact** · Tags: casual, fun, impact
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Impact Crunch Gravel |
+| **Common uses** | Gravel impacts, debris, rough terrain landings |
+| **Default frequency** | 900 Hz (filter) |
+| **Default duration** | 0.266 s |
+| **Tier** | 3 — Textured & filtered |
+| **Category** | Impact |
+| **Tags** | casual, fun, impact |
+
 ## Sound design
 
 ### Overview

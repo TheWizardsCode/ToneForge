@@ -9,6 +9,18 @@ description: "Snowfall hush ambience"
 
 **Category: Ambience** · Tags: casual, joy, ambience
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Ambience Snowfall Hush |
+| **Common uses** | Snowy scenes, quiet winter, calm environments |
+| **Default frequency** | 120 Hz |
+| **Default duration** | 2 s |
+| **Tier** | 6 — Ambience & loops |
+| **Category** | Ambience |
+| **Tags** | casual, joy, ambience |
+
 ## Sound design
 
 ### Overview

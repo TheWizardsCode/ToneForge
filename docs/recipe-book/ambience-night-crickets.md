@@ -9,6 +9,18 @@ description: "Night crickets ambience"
 
 **Category: Ambience** · Tags: casual, fun, ambience
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Ambience Night Crickets |
+| **Common uses** | Night scenes, summer evenings, outdoor night |
+| **Default frequency** | 4200 Hz |
+| **Default duration** | 1.6 s |
+| **Tier** | 6 — Ambience & loops |
+| **Category** | Ambience |
+| **Tags** | casual, fun, ambience |
+
 ## Sound design
 
 ### Overview

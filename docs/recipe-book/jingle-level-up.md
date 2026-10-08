@@ -9,6 +9,18 @@ description: "Level-up jingle"
 
 **Category: UI** · Tags: casual, joy, jingle
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Jingle Level Up |
+| **Common uses** | Level-ups, rank increases, progression rewards |
+| **Default frequency** | 392 Hz |
+| **Default duration** | 0.77 s |
+| **Tier** | 4 — Melodic motifs |
+| **Category** | UI |
+| **Tags** | casual, joy, jingle |
+
 ## Sound design
 
 ### Overview

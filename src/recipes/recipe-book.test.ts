@@ -74,6 +74,13 @@ function makeLinkPattern(name: string): string {
   return "\\[`" + name + "`\\]\\(";
 }
 
+/** Extract a value from a page's `## At a glance` metadata table. */
+function metadataValue(content: string, field: string): string | undefined {
+  const re = new RegExp(`\\|\\s*\\*\\*${field}\\*\\*\\s*\\|\\s*([^|]+?)\\s*\\|`);
+  const m = content.match(re);
+  return m ? m[1]!.trim() : undefined;
+}
+
 function loadAndValidateRecipe(name: string): ReturnType<typeof validateToneGraph> {
   const filePath = resolve(RECIPES_DIR, name + ".yaml");
   expect(existsSync(filePath), "Recipe file " + filePath + " does not exist").toBe(true);
@@ -117,6 +124,11 @@ function expectPageExists(name: string): void {
   expect(content).toContain("description:");
   expect(content).toContain("## Sound design");
   expect(content).toContain("## ToneForge CLI");
+  expect(content).toContain("## At a glance");
+  expect(metadataValue(content, "Title")).toBeTruthy();
+  expect(metadataValue(content, "Common uses")).toBeTruthy();
+  expect(metadataValue(content, "Default frequency")).toBeTruthy();
+  expect(metadataValue(content, "Default duration")).toBeTruthy();
 }
 
 function expectInIndex(name: string, roster: RosterEntry[]): void {
@@ -195,6 +207,16 @@ describe("Recipe Book Roster", () => {
     var unique = new Set(names);
     expect(unique.size).toBe(100);
   });
+
+  it("declares common uses for every recipe", () => {
+    for (const entry of recipeRoster) {
+      expect(entry.uses, entry.name + " is missing common uses").toBeTruthy();
+      expect(
+        entry.uses.split(",").length,
+        entry.name + " should list at least two common uses",
+      ).toBeGreaterThanOrEqual(2);
+    }
+  });
 });
 
 describe("Recipe Book Gates", () => {
@@ -225,6 +247,34 @@ describe("Recipe Book Gates", () => {
 
       it("has a matching recipe page", () => {
         expectPageExists(recipeName);
+      });
+
+      it("has an At a glance metadata section consistent with the recipe", () => {
+        const pagePath = resolve(DOCS_DIR, recipeName + ".md");
+        const content = readFileSync(pagePath, "utf-8");
+
+        // Common uses: a comma-separated list of at least two entries.
+        const uses = metadataValue(content, "Common uses");
+        expect(uses, recipeName + " must declare common uses").toBeTruthy();
+        expect(uses!.split(",").length).toBeGreaterThanOrEqual(2);
+
+        // Default frequency must be a non-empty label (Hz, sweep or broadband).
+        expect(metadataValue(content, "Default frequency")).toBeTruthy();
+
+        // Default duration must agree with the recipe's declared duration.
+        const recipeDoc = yaml.load(
+          readFileSync(resolve(RECIPES_DIR, recipeName + ".yaml"), "utf-8"),
+        ) as { meta?: { duration?: number } };
+        const declared = recipeDoc?.meta?.duration;
+        const cell = metadataValue(content, "Default duration");
+        expect(cell, recipeName + " must declare a default duration").toBeTruthy();
+        if (typeof declared === "number") {
+          const parsed = Number(cell!.replace(/[^0-9.]/g, ""));
+          expect(parsed, recipeName + " default duration must match the recipe").toBeCloseTo(
+            declared,
+            2,
+          );
+        }
       });
 
       it("appears in index.md in roster order", () => {
@@ -331,6 +381,32 @@ describe("Recipe Book completion gate", () => {
     const tiers = tierMatches.map((m: RegExpMatchArray) => Number(m[1]));
     for (let p = 1; p < tiers.length; p++) {
       expect(tiers[p]!).toBeGreaterThan(tiers[p - 1]!);
+    }
+  });
+
+  it("documents every recipe-book page with a leading At a glance metadata section", () => {
+    const pages = readdirSync(DOCS_DIR).filter(
+      (f) => f.endsWith(".md") && f !== "index.md" && f !== "_template.md",
+    );
+    expect(pages.length).toBeGreaterThanOrEqual(110);
+    for (const page of pages) {
+      const content = readFileSync(resolve(DOCS_DIR, page), "utf-8");
+      expect(content, page + " is missing the At a glance metadata section").toContain(
+        "## At a glance",
+      );
+      expect(metadataValue(content, "Title"), page + " is missing a Title field").toBeTruthy();
+      expect(
+        metadataValue(content, "Common uses"),
+        page + " is missing a Common uses field",
+      ).toBeTruthy();
+      expect(
+        metadataValue(content, "Default frequency"),
+        page + " is missing a Default frequency field",
+      ).toBeTruthy();
+      expect(
+        metadataValue(content, "Default duration"),
+        page + " is missing a Default duration field",
+      ).toBeTruthy();
     }
   });
 });

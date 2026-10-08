@@ -9,6 +9,18 @@ description: "Character effort grunt"
 
 **Category: Character** · Tags: casual, fun, character
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Character Effort Grunt |
+| **Common uses** | Physical effort, attacks, pushing and lifting |
+| **Default frequency** | 120 Hz |
+| **Default duration** | 0.35 s |
+| **Tier** | 5 — Character & critter voices |
+| **Category** | Character |
+| **Tags** | casual, fun, character |
+
 ## Sound design
 
 ### Overview

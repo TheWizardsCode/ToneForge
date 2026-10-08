@@ -21,6 +21,11 @@
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  loadRecipeMeta,
+  defaultFrequencyHz,
+  formatDuration,
+} from "./recipe-meta.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..", "..");
@@ -54,6 +59,20 @@ interface CapstoneSpec {
   synthesis: string;
   intent: string;
 }
+
+/** Common in-game uses for each capstone, keyed by the preset id. */
+const CAPSTONE_USES: Record<string, string> = {
+  casual_ui_confirm_stack: "Menu confirmation, dialogue choices, interface rewards",
+  casual_coin_reward_stack: "Coin rewards, loot pickups, collection celebrations",
+  casual_victory_stack: "Victory screens, level wins, triumph celebrations",
+  casual_character_jump_stack: "Character jumps, platforming movement, hops",
+  casual_impact_hit_stack: "Combat hits, collisions, damage feedback",
+  casual_menu_flow_sequence: "Menu navigation, tutorials, interface demos",
+  casual_coin_run_sequence: "Coin streaks, collection combos, reward loops",
+  casual_level_complete_sequence: "Level completion, stage endings, celebrations",
+  casual_game_over_sequence: "Game over, run endings, defeat screens",
+  casual_adventure_intro_sequence: "Game intros, world openings, chapter starts",
+};
 
 const CAPSTONES: CapstoneSpec[] = [
   {
@@ -233,6 +252,59 @@ function renderCli(spec: CapstoneSpec): string {
   ].join("\n");
 }
 
+function constituentRecipes(spec: CapstoneSpec, preset: PresetJson): string[] {
+  return spec.kind === "stack"
+    ? (preset.layers ?? []).map((l) => l.recipe)
+    : (preset.events ?? []).map((e) => e.event);
+}
+
+/** Arrangement length: the latest (start time + recipe duration) across voices. */
+function arrangementDuration(spec: CapstoneSpec, preset: PresetJson): number | undefined {
+  const entries =
+    spec.kind === "stack"
+      ? (preset.layers ?? []).map((l) => ({ recipe: l.recipe, start: l.startTime }))
+      : (preset.events ?? []).map((e) => ({ recipe: e.event, start: e.time }));
+  let max: number | undefined;
+  for (const { recipe, start } of entries) {
+    const duration = loadRecipeMeta(recipe)?.duration ?? 0;
+    const end = start + duration;
+    if (max === undefined || end > max) max = end;
+  }
+  return max;
+}
+
+/** Frequency span covered by the arrangement's constituent recipes. */
+function arrangementFrequency(spec: CapstoneSpec, preset: PresetJson): string {
+  const freqs = constituentRecipes(spec, preset)
+    .map((recipe) => loadRecipeMeta(recipe))
+    .filter((m): m is NonNullable<typeof m> => m !== null)
+    .map((m) => defaultFrequencyHz(m))
+    .filter((f): f is number => f !== undefined);
+  if (freqs.length === 0) return "— (broadband)";
+  const min = Math.min(...freqs);
+  const max = Math.max(...freqs);
+  return min === max ? `${min} Hz` : `${min}–${max} Hz`;
+}
+
+/** Render the leading `## At a glance` metadata table for a capstone page. */
+function renderAtAGlance(spec: CapstoneSpec, preset: PresetJson): string {
+  const kindLabel = spec.kind === "stack" ? "Stack" : "Sequence";
+  const voices = constituentRecipes(spec, preset);
+  const voiceLabel = spec.kind === "stack" ? "voices" : "events";
+  return [
+    "## At a glance",
+    "",
+    "| Field | Value |",
+    "|-------|-------|",
+    `| **Title** | ${titleCase(spec.id)} |`,
+    `| **Common uses** | ${CAPSTONE_USES[spec.id] ?? "—"} |`,
+    `| **Default frequency** | ${arrangementFrequency(spec, preset)} |`,
+    `| **Default duration** | ${formatDuration(arrangementDuration(spec, preset))} |`,
+    `| **Type** | ${kindLabel} (${voices.length} ${voiceLabel}) |`,
+    `| **Recipes** | ${voices.map((r) => `\`${r}\``).join(", ")} |`,
+  ].join("\n");
+}
+
 function renderPage(spec: CapstoneSpec, order: number, preset: PresetJson): string {
   const kindLabel = spec.kind === "stack" ? "Stack" : "Sequence";
   return [
@@ -246,6 +318,8 @@ function renderPage(spec: CapstoneSpec, order: number, preset: PresetJson): stri
     `# ${titleCase(spec.id)}`,
     "",
     `**Capstone ${kindLabel}** · ${spec.kind === "stack" ? "presets/stacks" : "presets/sequences"}`,
+    "",
+    renderAtAGlance(spec, preset),
     "",
     "## Sound design",
     "",

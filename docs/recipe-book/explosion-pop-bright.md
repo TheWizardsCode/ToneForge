@@ -9,6 +9,18 @@ description: "Bright explosion pop"
 
 **Category: Impact** · Tags: casual, fun, explosion
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Explosion Pop Bright |
+| **Common uses** | Explosions, bomb blasts, bright impacts |
+| **Default frequency** | 5000 Hz (sweep start) |
+| **Default duration** | 0.551 s |
+| **Tier** | 3 — Textured & filtered |
+| **Category** | Impact |
+| **Tags** | casual, fun, explosion |
+
 ## Sound design
 
 ### Overview

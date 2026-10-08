@@ -9,6 +9,18 @@ description: "Major power-up sting"
 
 **Category: Sting** · Tags: casual, joy, sting
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Sting Powerup Major |
+| **Common uses** | Major power-ups, transformations, upgrades |
+| **Default frequency** | 392 Hz |
+| **Default duration** | 0.87 s |
+| **Tier** | 7 — Multi-voice stings |
+| **Category** | Sting |
+| **Tags** | casual, joy, sting |
+
 ## Sound design
 
 ### Overview

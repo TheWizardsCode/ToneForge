@@ -9,6 +9,18 @@ description: "Downward-feeling cancel blip"
 
 **Category: UI** · Tags: casual, fun, ui
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Ui Cancel Blip |
+| **Common uses** | Cancel actions, back buttons, dismissal cues |
+| **Default frequency** | 420 Hz |
+| **Default duration** | 0.073 s |
+| **Tier** | 1 — Pure tones & blips |
+| **Category** | UI |
+| **Tags** | casual, fun, ui |
+
 ## Sound design
 
 ### Overview

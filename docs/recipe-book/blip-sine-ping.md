@@ -9,6 +9,18 @@ description: "Short, bright sine blip for UI confirmations"
 
 **Category: UI** · Tags: casual, fun, ui
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Blip Sine Ping |
+| **Common uses** | UI confirmations, menu selection, coin pickup |
+| **Default frequency** | 880 Hz |
+| **Default duration** | 0.06 s |
+| **Tier** | 1 — Pure tones & blips |
+| **Category** | UI |
+| **Tags** | casual, fun, ui |
+
 ## Sound design
 
 ### Overview

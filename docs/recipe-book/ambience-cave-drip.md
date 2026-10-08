@@ -9,6 +9,18 @@ description: "Cave drip ambience"
 
 **Category: Ambience** · Tags: casual, fun, ambience
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Ambience Cave Drip |
+| **Common uses** | Caves, underground levels, damp environments |
+| **Default frequency** | 90 Hz |
+| **Default duration** | 1.7 s |
+| **Tier** | 6 — Ambience & loops |
+| **Category** | Ambience |
+| **Tags** | casual, fun, ambience |
+
 ## Sound design
 
 ### Overview

@@ -9,6 +9,17 @@ description: "Casual game over: a soft defeat sting, a gentle game-over sting an
 
 **Capstone Sequence** · presets/sequences
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Casual Game Over Sequence |
+| **Common uses** | Game over, run endings, defeat screens |
+| **Default frequency** | 392–700 Hz |
+| **Default duration** | 1.39 s |
+| **Type** | Sequence (3 events) |
+| **Recipes** | `sting-defeat-soft`, `sting-game-over-gentle`, `ui-cancel-fall` |
+
 ## Sound design
 
 ### Overview

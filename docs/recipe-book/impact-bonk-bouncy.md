@@ -9,6 +9,18 @@ description: "Bouncy bonk for cartoon impacts"
 
 **Category: Impact** · Tags: casual, fun, impact
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Impact Bonk Bouncy |
+| **Common uses** | Cartoon impacts, bumping into objects, comedic hits |
+| **Default frequency** | 180 Hz |
+| **Default duration** | 0.23 s |
+| **Tier** | 2 — Shaped events |
+| **Category** | Impact |
+| **Tags** | casual, fun, impact |
+
 ## Sound design
 
 ### Overview

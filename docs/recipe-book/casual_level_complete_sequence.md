@@ -9,6 +9,17 @@ description: "Casual level complete: a quest-complete motif, a level-up jingle a
 
 **Capstone Sequence** · presets/sequences
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Casual Level Complete Sequence |
+| **Common uses** | Level completion, stage endings, celebrations |
+| **Default frequency** | 392–523 Hz |
+| **Default duration** | 1.42 s |
+| **Type** | Sequence (3 events) |
+| **Recipes** | `motif-quest-complete`, `jingle-level-up`, `sting-level-complete` |
+
 ## Sound design
 
 ### Overview

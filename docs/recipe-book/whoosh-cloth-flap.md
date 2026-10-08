@@ -9,6 +9,18 @@ description: "Cloth flap whoosh"
 
 **Category: Impact** · Tags: casual, fun, whoosh
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Whoosh Cloth Flap |
+| **Common uses** | Cloth movement, cape flaps, soft transitions |
+| **Default frequency** | 2500 Hz (sweep start) |
+| **Default duration** | 0.3 s |
+| **Tier** | 3 — Textured & filtered |
+| **Category** | Impact |
+| **Tags** | casual, fun, whoosh |
+
 ## Sound design
 
 ### Overview

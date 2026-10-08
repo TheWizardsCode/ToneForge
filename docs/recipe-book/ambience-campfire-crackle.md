@@ -9,6 +9,18 @@ description: "Campfire crackle ambience"
 
 **Category: Ambience** · Tags: casual, fun, ambience
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Ambience Campfire Crackle |
+| **Common uses** | Campfires, camp scenes, rest areas |
+| **Default frequency** | 2200 Hz (filter) |
+| **Default duration** | 1.6 s |
+| **Tier** | 6 — Ambience & loops |
+| **Category** | Ambience |
+| **Tags** | casual, fun, ambience |
+
 ## Sound design
 
 ### Overview

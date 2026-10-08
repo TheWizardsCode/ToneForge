@@ -9,6 +9,18 @@ description: "Tab-switch motif"
 
 **Category: UI** · Tags: casual, fun, ui
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Ui Tab Switch Motif |
+| **Common uses** | Tab switching, panel changes, navigation feedback |
+| **Default frequency** | 294 Hz |
+| **Default duration** | 0.41 s |
+| **Tier** | 4 — Melodic motifs |
+| **Category** | UI |
+| **Tags** | casual, fun, ui |
+
 ## Sound design
 
 ### Overview

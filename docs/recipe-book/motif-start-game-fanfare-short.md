@@ -9,6 +9,18 @@ description: "Short game-start fanfare"
 
 **Category: UI** · Tags: casual, joy, motif
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Motif Start Game Fanfare Short |
+| **Common uses** | Game start, level intro, begin prompts |
+| **Default frequency** | 262 Hz |
+| **Default duration** | 0.77 s |
+| **Tier** | 4 — Melodic motifs |
+| **Category** | UI |
+| **Tags** | casual, joy, motif |
+
 ## Sound design
 
 ### Overview

@@ -9,6 +9,18 @@ description: "Soft waterfall ambience"
 
 **Category: Ambience** · Tags: casual, fun, ambience
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Ambience Waterfall Soft |
+| **Common uses** | Waterfalls, rivers, watery environments |
+| **Default frequency** | 2500 Hz (filter) |
+| **Default duration** | 1.7 s |
+| **Tier** | 6 — Ambience & loops |
+| **Category** | Ambience |
+| **Tags** | casual, fun, ambience |
+
 ## Sound design
 
 ### Overview

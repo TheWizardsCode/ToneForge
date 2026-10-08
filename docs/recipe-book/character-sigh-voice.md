@@ -9,6 +9,18 @@ description: "Character sigh"
 
 **Category: Character** · Tags: casual, fun, character
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Character Sigh Voice |
+| **Common uses** | Exhaustion, relief, disappointment |
+| **Default frequency** | 320 Hz |
+| **Default duration** | 0.62 s |
+| **Tier** | 5 — Character & critter voices |
+| **Category** | Character |
+| **Tags** | casual, fun, character |
+
 ## Sound design
 
 ### Overview

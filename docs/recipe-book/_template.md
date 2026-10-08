@@ -9,6 +9,10 @@ description: "{{ description }}"
 
 **Tier {{ tier }}** · {{ family }} · Tags: {{ tags }}
 
+## At a glance
+
+{{ at_a_glance }}
+
 ## Sound design
 
 {{ sound_design }}

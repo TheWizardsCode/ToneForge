@@ -9,6 +9,18 @@ description: "Double-bounce jump with a springy pitch hop"
 
 **Category: Character** · Tags: casual, fun, jump
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Jump Double Boing |
+| **Common uses** | Double jumps, springy hops, bounce pads |
+| **Default frequency** | 250 Hz |
+| **Default duration** | 0.39 s |
+| **Tier** | 2 — Shaped events |
+| **Category** | Character |
+| **Tags** | casual, fun, jump |
+
 ## Sound design
 
 ### Overview

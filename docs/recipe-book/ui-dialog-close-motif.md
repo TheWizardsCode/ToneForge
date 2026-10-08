@@ -9,6 +9,18 @@ description: "Dialog-close motif"
 
 **Category: UI** · Tags: casual, fun, ui
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Ui Dialog Close Motif |
+| **Common uses** | Dialog dismissal, closing popups, story advances |
+| **Default frequency** | 392 Hz |
+| **Default duration** | 0.41 s |
+| **Tier** | 4 — Melodic motifs |
+| **Category** | UI |
+| **Tags** | casual, fun, ui |
+
 ## Sound design
 
 ### Overview

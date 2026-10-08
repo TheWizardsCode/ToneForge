@@ -9,6 +9,18 @@ description: "Buzzy sawtooth blip for crisp alerts"
 
 **Category: UI** · Tags: casual, fun, ui
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Blip Saw Buzz |
+| **Common uses** | Error alerts, warning cues, crisp notifications |
+| **Default frequency** | 180 Hz |
+| **Default duration** | 0.072 s |
+| **Tier** | 1 — Pure tones & blips |
+| **Category** | UI |
+| **Tags** | casual, fun, ui |
+
 ## Sound design
 
 ### Overview

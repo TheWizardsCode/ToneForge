@@ -66,6 +66,11 @@ function expectCapstonePage(name: string): void {
   expect(content).toContain(`id: "${name}"`);
   expect(content).toContain("## Sound design");
   expect(content).toContain("## ToneForge CLI");
+  expect(content).toContain("## At a glance");
+  expect(content).toContain("**Common uses**");
+  expect(content).toContain("**Default frequency**");
+  expect(content).toContain("**Default duration**");
+  expect(content).toContain("**Recipes**");
 }
 
 describe("Capstone stacks", () => {

@@ -9,6 +9,18 @@ description: "Rising hop blip for character jumps"
 
 **Category: Character** · Tags: casual, fun, jump
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Jump Hop Blip |
+| **Common uses** | Character jumps, hops, platforming movement |
+| **Default frequency** | 300 Hz |
+| **Default duration** | 0.25 s |
+| **Tier** | 2 — Shaped events |
+| **Category** | Character |
+| **Tags** | casual, fun, jump |
+
 ## Sound design
 
 ### Overview

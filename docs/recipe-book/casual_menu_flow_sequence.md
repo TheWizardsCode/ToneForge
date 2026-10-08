@@ -9,6 +9,17 @@ description: "Casual menu flow: a click, a selection pop, a rising confirm and a
 
 **Capstone Sequence** · presets/sequences
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Casual Menu Flow Sequence |
+| **Common uses** | Menu navigation, tutorials, interface demos |
+| **Default frequency** | 262–700 Hz |
+| **Default duration** | 1.11 s |
+| **Type** | Sequence (4 events) |
+| **Recipes** | `ui-click-crisp`, `ui-select-pop`, `ui-confirm-rise`, `ui-dialog-open-motif` |
+
 ## Sound design
 
 ### Overview

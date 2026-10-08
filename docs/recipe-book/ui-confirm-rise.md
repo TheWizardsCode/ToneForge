@@ -9,6 +9,18 @@ description: "Rising confirmation tone"
 
 **Category: UI** · Tags: casual, joy, ui
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Ui Confirm Rise |
+| **Common uses** | Confirmations, accepting prompts, positive acknowledgements |
+| **Default frequency** | 500 Hz |
+| **Default duration** | 0.3 s |
+| **Tier** | 2 — Shaped events |
+| **Category** | UI |
+| **Tags** | casual, joy, ui |
+
 ## Sound design
 
 ### Overview

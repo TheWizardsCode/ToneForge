@@ -9,6 +9,18 @@ description: "Desert wind ambience"
 
 **Category: Ambience** · Tags: casual, fun, ambience
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Ambience Desert Wind |
+| **Common uses** | Deserts, arid levels, dusty winds |
+| **Default frequency** | 500 Hz (filter) |
+| **Default duration** | 2 s |
+| **Tier** | 6 — Ambience & loops |
+| **Category** | Ambience |
+| **Tags** | casual, fun, ambience |
+
 ## Sound design
 
 ### Overview

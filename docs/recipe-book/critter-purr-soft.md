@@ -9,6 +9,18 @@ description: "Soft critter purr"
 
 **Category: Critter** · Tags: casual, joy, critter
 
+## At a glance
+
+| Field | Value |
+|-------|-------|
+| **Title** | Critter Purr Soft |
+| **Common uses** | Pet creatures, friendly critters, cosy companions |
+| **Default frequency** | 90 Hz |
+| **Default duration** | 0.75 s |
+| **Tier** | 5 — Character & critter voices |
+| **Category** | Critter |
+| **Tags** | casual, joy, critter |
+
 ## Sound design
 
 ### Overview
