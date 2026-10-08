@@ -75,6 +75,7 @@ import {
 } from "./library/index.js";
 import { auditLibrary } from "./intelligence/audit.js";
 import { recommendSounds } from "./intelligence/recommend.js";
+import { suggestExploration } from "./intelligence/suggest-exploration.js";
 import { searchEntries } from "./library/search.js";
 import type { SearchQuery } from "./library/search.js";
 import { findSimilar } from "./library/similarity.js";
@@ -1059,6 +1060,7 @@ modifies library data.
 |------------|-------------|
 | **audit** | Report coverage gaps, redundancy and quality issues |
 | **recommend** | Rank library sounds for a specific use case |
+| **suggest-exploration** | Suggest seed ranges and variants for a recipe |
 
 ## Options
 
@@ -1147,6 +1149,42 @@ Each recommendation carries a \`confidence\` in [0, 1] and a human-readable
 \`\`\`
 toneforge intelligence recommend --use-case "sci-fi menu navigation" --max-results 5
 toneforge intelligence recommend --use-case "aggressive weapon" --json
+\`\`\``;
+  await outputMarkdown(md);
+}
+
+/** Print help text for the intelligence suggest-exploration subcommand. */
+async function printIntelligenceSuggestExplorationHelp(): Promise<void> {
+  const md = `# ToneForge intelligence suggest-exploration
+
+**Suggest exploration targets for a recipe**
+
+Inspects how a recipe is currently represented in the library and proposes
+adjacent seed windows, a distant seed region for diversity, and parameter
+jitter for tightly clustered entries. It is strictly read-only.
+
+## Usage
+
+\`\`\`
+toneforge intelligence suggest-exploration --recipe <r> [--library <dir>] [--json]
+\`\`\`
+
+## Options
+
+- \`--recipe <r>\` — recipe to explore *(required)*
+- \`--library <dir>\` — library directory to inspect (default: \`${DEFAULT_LIBRARY_DIR}\`)
+- \`--json\` — Output structured JSON to stdout
+- \`--help\`, \`-h\` — Show this help message
+
+Every suggestion names the recipe, gives an explicit seed range, a
+\`confidence\` in [0, 1], a \`rationale\`, and a runnable
+\`toneforge explore ...\` command.
+
+## Examples
+
+\`\`\`
+toneforge intelligence suggest-exploration --recipe footstep-stone
+toneforge intelligence suggest-exploration --recipe weapon-laser-zap --json
 \`\`\``;
   await outputMarkdown(md);
 }
@@ -1789,6 +1827,8 @@ export async function dispatchCommand(
         await printIntelligenceAuditHelp();
       } else if (subcommand === "recommend") {
         await printIntelligenceRecommendHelp();
+      } else if (subcommand === "suggest-exploration") {
+        await printIntelligenceSuggestExplorationHelp();
       } else {
         await printIntelligenceHelp();
       }
@@ -4331,6 +4371,61 @@ export async function dispatchCommand(
             outputInfo(`  ${rec.rank}. ${rec.entryId} (confidence: ${rec.confidence.toFixed(2)})`);
             outputInfo(`     ${rec.rationale}`);
             outputInfo(`     Try: ${rec.suggestedCommand}`);
+          }
+        }
+        return 0;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(message); } else { outputError(`Error: ${message}`); }
+        return 1;
+      }
+    }
+
+    // ── intelligence suggest-exploration ───────────────────
+    if (subcommand === "suggest-exploration") {
+      if (flags["help"]) {
+        await printIntelligenceSuggestExplorationHelp();
+        return 0;
+      }
+
+      const recipeName = typeof flags["recipe"] === "string" ? flags["recipe"] : undefined;
+      if (recipeName === undefined) {
+        const msg = "--recipe is required. Run 'toneforge intelligence suggest-exploration --help' for usage.";
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      if (!registry.getRegistration(recipeName)) {
+        const allNames = registry.list();
+        const suggestions = suggestRecipes(recipeName, allNames);
+        let msg = `Unknown recipe '${recipeName}'.`;
+        if (suggestions.length > 0) {
+          msg += ` Did you mean: ${suggestions.join(", ")}?`;
+        }
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      const libraryDir =
+        typeof flags["library"] === "string" ? flags["library"] : DEFAULT_LIBRARY_DIR;
+
+      try {
+        const report = await suggestExploration(recipeName, libraryDir);
+
+        if (jsonMode) {
+          jsonOut({ ...report });
+        } else {
+          outputInfo(`Exploration suggestions for ${recipeName}:`);
+          if (report.suggestions.length === 0) {
+            outputInfo("  No suggestions available.");
+          }
+          for (const suggestion of report.suggestions) {
+            outputInfo(
+              `  - seeds ${suggestion.seedRange.start}-${suggestion.seedRange.end} ` +
+                `(confidence: ${suggestion.confidence.toFixed(2)})`,
+            );
+            outputInfo(`    ${suggestion.rationale}`);
+            outputInfo(`    Try: ${suggestion.suggestedCommand}`);
           }
         }
         return 0;

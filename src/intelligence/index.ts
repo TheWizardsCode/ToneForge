@@ -26,6 +26,9 @@ export type { AuditOptions } from "./audit.js";
 export { recommendSounds, buildRecommendations, parseUseCase } from "./recommend.js";
 export type { RecommendOptions, UseCaseIntent } from "./recommend.js";
 
+export { suggestExploration, buildExplorationSuggestions } from "./suggest-exploration.js";
+export type { SuggestExplorationOptions } from "./suggest-exploration.js";
+
 export { loadLibraryEntries, intensityBucket } from "./library.js";
 
 export {

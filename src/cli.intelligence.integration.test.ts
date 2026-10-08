@@ -12,7 +12,7 @@ import { join } from "node:path";
 import { main } from "./cli.js";
 import { clearIndexCache } from "./library/index-store.js";
 import { makeEntry, sampleLibrary } from "./intelligence/__tests__/helpers.js";
-import type { AuditReport, RecommendReport } from "./intelligence/types.js";
+import type { AuditReport, RecommendReport, SuggestExplorationReport } from "./intelligence/types.js";
 
 let libraryDir: string;
 
@@ -163,5 +163,44 @@ describe("toneforge intelligence recommend", () => {
 
     expect(code).toBe(1);
     expect(stderr).toContain("--use-case is required");
+  });
+});
+
+describe("toneforge intelligence suggest-exploration", () => {
+  it("emits JSON suggestions referencing the recipe and explicit seed ranges", async () => {
+    writeLibrary(sampleLibrary());
+
+    const { code, stdout } = await captureOutput(() =>
+      main(argv(
+        "intelligence", "suggest-exploration",
+        "--recipe", "ui-scifi-confirm",
+        "--library", libraryDir,
+        "--json",
+      )),
+    );
+
+    expect(code).toBe(0);
+    const report = JSON.parse(stdout) as SuggestExplorationReport;
+    expect(report.command).toBe("intelligence suggest-exploration");
+    expect(report.recipe).toBe("ui-scifi-confirm");
+    expect(report.suggestions.length).toBeGreaterThan(0);
+    for (const suggestion of report.suggestions) {
+      expect(suggestion.recipe).toBe("ui-scifi-confirm");
+      expect(typeof suggestion.seedRange.start).toBe("number");
+      expect(typeof suggestion.seedRange.end).toBe("number");
+      expect(suggestion.confidence).toBeGreaterThanOrEqual(0);
+      expect(suggestion.confidence).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("rejects an unknown recipe", async () => {
+    writeLibrary(sampleLibrary());
+
+    const { code, stderr } = await captureOutput(() =>
+      main(argv("intelligence", "suggest-exploration", "--recipe", "no-such-recipe", "--json")),
+    );
+
+    expect(code).toBe(1);
+    expect(stderr).toContain("Unknown recipe");
   });
 });
