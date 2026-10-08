@@ -69,6 +69,63 @@ const { events, warnings } = decodeEventStream([wire]);
 network.onReceive((event) => runtime.execute(event));
 ```
 
+## Transport & sessions
+
+The session layer (`src/network/session.ts`) is **transport-agnostic**: it
+only knows about the injectable [`Transport`](../src/network/transport.ts)
+interface, so the core never depends on a WebSocket library.
+
+```js
+import { host, join } from "./network/session.js";
+
+// Host: starts a listener and owns authority.
+const hostSession = await host({ port: 8080 });
+
+// Client: connects and completes the welcome handshake.
+const client = await join("127.0.0.1:8080");
+client.onReceive((event) => runtime.execute(event));
+
+// Only the host may emit authoritative events.
+hostSession.emit({ event: "footstep", seed: 1042, time: 1.2, state: "run", context: {} });
+```
+
+- `host({ port, host?, transport? })` returns a session with `role: "host"`.
+- `join("host:port", { transport? })` returns a session with `role: "client"`
+  and a host-assigned `peerId`.
+- `peers()` lists connected peer ids; `onPeerConnect` / `onPeerDisconnect`
+  report lifecycle changes; the host also removes dropped peers.
+- `emit()` on a **client** throws `NotAuthoritativeError`.
+- Received events are delivered in deterministic, sequence-numbered order,
+  even if the transport reorders frames.
+
+### Authority model
+
+The demo uses **host-authoritative** synchronisation (NETWORK_PRD §4.3): the
+host is the only writer, and clients relay/receive. Authority decides *who
+emits events*, never how they are resolved — every peer resolves the same
+event locally, deterministically.
+
+### Transports
+
+| Adapter | Where | Notes |
+|---|---|---|
+| `createInMemoryTransport(network?)` | tests, local use | Synchronous, in-process, offline. |
+| `createWebSocketTransport(library)` | runtime (browser/Node) | Real sockets; the WebSocket implementation is **injected**. |
+
+The WebSocket adapter reuses the repository's existing `ws` dependency without
+adding one to the core:
+
+```js
+import { WebSocket, WebSocketServer } from "ws";
+import { createWebSocketTransport } from "./network/ws-transport.js";
+
+const transport = createWebSocketTransport({ WebSocket, WebSocketServer });
+const hostSession = await host({ port: 8080, transport });
+```
+
+A browser client injects the platform WebSocket (`{ WebSocket: globalThis.WebSocket }`)
+and only needs `WebSocketServer` when hosting.
+
 ## Related work
 
 - `src/network/resolver.ts` / `harness.ts` — deterministic resolver and
