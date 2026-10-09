@@ -327,10 +327,22 @@ produces identical listings. The same seed renders byte-identical output, so a
 recipe authored locally and the same recipe installed from a package behave
 identically.
 
-> **Process scope.** Registration today applies to the installing process's
-> active recipe registry and records metadata in the local library index; a
-> separate `toneforge` process does not yet rediscover marketplace-installed
-> recipes. Tracked by `TF-0MV13N9GI0060F8E`.
+Install also **materialises** recipe assets into the discoverable external
+recipe directory (`TONEFORGE_RECIPE_DIR` when set, else
+`~/.toneforge/recipes/`) — the same location `toneforge library add` writes
+to. A separate `toneforge` process therefore rediscovers installed recipes
+through the normal file-backed recipe path, so the documented post-install
+workflow works:
+
+```bash
+toneforge marketplace install ui_chimes@1.0.0
+toneforge generate --recipe ui-chime --seed 42   # resolves in a new process
+toneforge stack render --preset ./assets/stacks/plasma-rifle.json --seed 42 --output out.wav
+```
+
+Materialisation is atomic (temporary file + rename) and idempotent: a
+re-install overwrites the same bytes, so cross-process discovery never sees a
+partial file and never duplicates a registration.
 
 ## Programmatic use
 

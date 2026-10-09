@@ -26,8 +26,10 @@
 
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -241,8 +243,10 @@ describe("marketplace registrar — recipes (AC1, AC3, AC5)", () => {
       { [recipeRel]: JSON.stringify(toneGraphRecipe()) },
     );
     const libraryDir = tempDir("tf-mp-lib-");
+    const recipeDirectory = tempDir("tf-mp-recipes-");
     const registrar = createRegistrar(globalRegistry, {
       libraryBaseDir: libraryDir,
+      recipeDirectory,
     });
 
     const result = installPackage(pkgName, "1.0.0", {
@@ -256,6 +260,14 @@ describe("marketplace registrar — recipes (AC1, AC3, AC5)", () => {
 
     // The recipe is in the reused registry immediately (AC1, AC3).
     expect(globalRegistry.getRegistration(recipeName)).toBeDefined();
+
+    // The recipe is materialised into the discoverable external directory so
+    // a separate process can rediscover it (AC2).
+    const materialised = join(recipeDirectory, `${recipeName}.json`);
+    expect(existsSync(materialised)).toBe(true);
+    expect(JSON.parse(readFileSync(materialised, "utf-8"))).toEqual(
+      toneGraphRecipe(),
+    );
 
     // `generate --recipe <installed>` uses renderRecipe(); assert it renders
     // non-silent audio of the declared duration (AC1, AC5).
@@ -291,6 +303,7 @@ describe("marketplace registrar — stacks (AC2, AC5)", () => {
     const libraryDir = tempDir("tf-mp-stack-lib-");
     const registrar = createRegistrar(globalRegistry, {
       libraryBaseDir: libraryDir,
+      recipeDirectory: tempDir("tf-mp-stack-recipes-"),
     });
 
     const result = installPackage(pkgName, "1.0.0", {
@@ -337,6 +350,7 @@ describe("marketplace registrar — library index (AC3)", () => {
     const libraryDir = tempDir("tf-mp-lib-index-");
     const registrar = createRegistrar(globalRegistry, {
       libraryBaseDir: libraryDir,
+      recipeDirectory: tempDir("tf-mp-lib-index-recipes-"),
     });
 
     installPackage(pkgName, "1.0.0", {
@@ -375,6 +389,7 @@ describe("marketplace registrar — library index (AC3)", () => {
     const libraryDir = tempDir("tf-mp-idem-lib-");
     const registrar = createRegistrar(globalRegistry, {
       libraryBaseDir: libraryDir,
+      recipeDirectory: tempDir("tf-mp-idem-recipes-"),
     });
     const registry = registryFor({ name: pkgName, recipes: [recipeRel] }, dir);
 
@@ -417,6 +432,7 @@ describe("marketplace registrar — determinism (AC4)", () => {
     const libraryDir = tempDir("tf-mp-det-lib-");
     const registrar = createRegistrar(globalRegistry, {
       libraryBaseDir: libraryDir,
+      recipeDirectory: tempDir("tf-mp-det-recipes-"),
     });
     installPackage(pkgName, "1.0.0", {
       registry: registryFor({ name: pkgName, recipes: [recipeRel] }, dir),
@@ -462,6 +478,7 @@ describe("marketplace registrar — determinism (AC4)", () => {
     const libraryDir = tempDir("tf-mp-det-stack-lib-");
     const registrar = createRegistrar(globalRegistry, {
       libraryBaseDir: libraryDir,
+      recipeDirectory: tempDir("tf-mp-det-stack-recipes-"),
     });
     installPackage(pkgName, "1.0.0", {
       registry: registryFor(

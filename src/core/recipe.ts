@@ -618,7 +618,7 @@ export interface ResolveExternalRecipeDirectoryOptions {
 }
 
 /** Default external recipe directory relative to the OS home directory. */
-const DEFAULT_EXTERNAL_RECIPE_SUBDIR = [".toneforge", "recipes"];
+export const DEFAULT_EXTERNAL_RECIPE_SUBDIR = [".toneforge", "recipes"];
 
 /**
  * Resolve the directory that holds externally registered recipes.

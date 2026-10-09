@@ -12,7 +12,16 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { cpSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -27,11 +36,19 @@ describe("marketplace CLI integration", () => {
   let tempDir: string;
   /** A writable copy of the demo registry used by every invocation. */
   let registryDir: string;
+  /**
+   * Isolated external recipe directory. Installs materialise recipe assets
+   * here and a later process rediscovers them from here. Passing it explicitly
+   * keeps every invocation away from the real `~/.toneforge/recipes/`.
+   */
+  let recipeDir: string;
 
   beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), "toneforge-marketplace-"));
     registryDir = join(tempDir, "registry");
     cpSync(REPO_FIXTURES, registryDir, { recursive: true });
+    recipeDir = join(tempDir, "recipes");
+    mkdirSync(recipeDir, { recursive: true });
   });
 
   afterEach(() => {
@@ -40,7 +57,12 @@ describe("marketplace CLI integration", () => {
 
   /** Run a marketplace CLI command against the temp registry. */
   function runMarketplace(args: string[]) {
-    return runCli(args, { env: { TONEFORGE_MARKETPLACE_DIR: registryDir } });
+    return runCli(args, {
+      env: {
+        TONEFORGE_MARKETPLACE_DIR: registryDir,
+        TONEFORGE_RECIPE_DIR: recipeDir,
+      },
+    });
   }
 
   /** Read the temp registry index as JSON. */
@@ -203,6 +225,114 @@ describe("marketplace CLI integration", () => {
     const before = readTempIndex();
     await runMarketplace(["marketplace", "install", "ui_chimes@1.0.0"]);
     expect(readTempIndex()).toEqual(before);
+  });
+
+  // -----------------------------------------------------------------
+  // Cross-process discovery (AC1, AC2, AC4)
+  // -----------------------------------------------------------------
+
+  it("a new process renders an installed recipe deterministically (AC1, AC2, AC4)", async () => {
+    // Process 1: install. This must materialise the recipe into the
+    // discoverable external recipe directory, not merely the installing
+    // process's in-memory registry.
+    const install = await runMarketplace([
+      "marketplace",
+      "install",
+      "ui_chimes@1.0.0",
+      "--json",
+    ]);
+    expect(install.code).toBe(0);
+    expect(JSON.parse(install.stdout).installed).toBe(true);
+    expect(existsSync(join(recipeDir, "ui-chime.json"))).toBe(true);
+
+    // Process 2 and 3: render the installed recipe in fresh processes. No
+    // live network is involved at any point.
+    const outA = join(tempDir, "ui-chime-a.wav");
+    const outB = join(tempDir, "ui-chime-b.wav");
+    const first = await runMarketplace([
+      "generate",
+      "--recipe",
+      "ui-chime",
+      "--seed",
+      "42",
+      "--output",
+      outA,
+      "--json",
+    ]);
+    expect(first.code, first.stderr).toBe(0);
+    const firstData = JSON.parse(first.stdout);
+    expect(firstData.command).toBe("generate");
+    expect(firstData.recipe).toBe("ui-chime");
+    expect(firstData.duration).toBeGreaterThan(0);
+    expect(firstData.samples).toBeGreaterThan(0);
+
+    const second = await runMarketplace([
+      "generate",
+      "--recipe",
+      "ui-chime",
+      "--seed",
+      "42",
+      "--output",
+      outB,
+      "--json",
+    ]);
+    expect(second.code, second.stderr).toBe(0);
+
+    // Same seed => byte-identical output across separate processes.
+    expect(readFileSync(outA)).toEqual(readFileSync(outB));
+  });
+
+  it("a new process renders an installed stack (AC1, AC4)", async () => {
+    // The bundled `plasma_rifles` stack fixture is listing-only and does not
+    // use the renderable layer schema, so write a valid preset into the temp
+    // copy before installing.
+    const stackPath = join(
+      registryDir,
+      "packages",
+      "plasma_rifles",
+      "assets",
+      "stacks",
+      "plasma-rifle.json",
+    );
+    writeFileSync(
+      stackPath,
+      JSON.stringify({
+        version: "1.0",
+        name: "plasma-rifle",
+        layers: [{ recipe: "plasma-burst", startTime: 0, gain: 1.0 }],
+      }),
+    );
+
+    const install = await runMarketplace([
+      "marketplace",
+      "install",
+      "plasma_rifles@1.4.2",
+      "--json",
+    ]);
+    expect(install.code).toBe(0);
+    expect(JSON.parse(install.stdout).installed).toBe(true);
+
+    // A separate process renders the installed stack; its recipe resolves
+    // only because install materialised it for rediscovery.
+    const output = join(tempDir, "plasma-rifle.wav");
+    const render = await runMarketplace([
+      "stack",
+      "render",
+      "--preset",
+      stackPath,
+      "--seed",
+      "7",
+      "--output",
+      output,
+      "--json",
+    ]);
+    expect(render.code, render.stderr).toBe(0);
+    const renderData = JSON.parse(render.stdout);
+    expect(renderData.command).toBe("stack render");
+    expect(renderData.name).toBe("plasma-rifle");
+    expect(renderData.samples).toBeGreaterThan(0);
+    expect(existsSync(output)).toBe(true);
+    expect(statSync(output).size).toBeGreaterThan(0);
   });
 
   // -----------------------------------------------------------------
