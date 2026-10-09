@@ -115,9 +115,34 @@ export interface MarketplaceInstallStateStore {
  * Wired by F8 (`TF-0MUZX3ZIU008KIXL`); the pipeline itself only persists
  * marketplace install state and offers the record here. Implementations must
  * be idempotent for a given record (re-install is reproducible).
+ *
+ * The registrar is called with the installed record **before** the state
+ * store is updated, so an idempotent registrar can safely handle re-installs
+ * (the record is the same on every pass).
  */
 export interface MarketplaceAssetRegistrar {
   register(record: MarketplaceInstalledRecord): void;
+}
+
+/**
+ * Augmented installed record that includes the package directory.
+ *
+ * The registrar factory receives this so it can resolve asset file paths.
+ */
+export interface MarketplaceInstalledRecordWithPackageDirectory
+  extends MarketplaceInstalledRecord {
+  /** Absolute path to the installed package directory. */
+  packageDirectory: string;
+}
+
+/**
+ * Registration seam that also receives the package directory.
+ *
+ * This extended interface is used by the pipeline to give registrars
+ * access to the installed asset files on disk.
+ */
+export interface MarketplaceAssetRegistrarWithDirectory {
+  register(record: MarketplaceInstalledRecordWithPackageDirectory): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -176,8 +201,19 @@ export interface MarketplaceInstallOptions {
    * unsatisfiable dependency is rejected before registration.
    */
   dependencyProvider?: DependencyProvider;
-  /** Optional registration hook into the library/recipe registry (F8). */
+  /**
+   * Optional registration hook into the library/recipe registry (F8).
+   *
+   * Accepts both the basic registrar (for backwards compatibility) and the
+   * directory-aware variant so installers that need to resolve asset files
+   * on disk can do so without changing the pipeline contract.
+   */
   registrar?: MarketplaceAssetRegistrar;
+  /**
+   * Optional registration hook that also receives the package directory
+   * so it can resolve installed asset files on disk (F8 extended seam).
+   */
+  registrarWithDirectory?: MarketplaceAssetRegistrarWithDirectory;
   /** Registry name recorded in provenance (default: `"local"`). */
   registryName?: string;
 }
@@ -618,7 +654,16 @@ export function installPackage(
     assets: integrity.assets,
   };
 
+  // Enrich the record with the package directory for directory-aware registrars.
+  const recordWithDir: MarketplaceInstalledRecordWithPackageDirectory = {
+    ...record,
+    packageDirectory: resolve(bundle.directory),
+  };
+
   try {
+    // Call the extended registrar first (it has more context), then the basic
+    // registrar for backwards compatibility with older implementations.
+    options.registrarWithDirectory?.register(recordWithDir);
     options.registrar?.register(record);
   } catch (error) {
     return rejection(name, version, [

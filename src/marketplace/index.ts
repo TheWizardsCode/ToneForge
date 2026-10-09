@@ -101,7 +101,9 @@ export {
   serializeInstallState,
   toInstallOutcome,
   type MarketplaceAssetRegistrar,
+  type MarketplaceAssetRegistrarWithDirectory,
   type MarketplaceInstalledRecord,
+  type MarketplaceInstalledRecordWithPackageDirectory,
   type MarketplaceInstallOptions,
   type MarketplaceInstallResult,
   type MarketplaceInstallState,
@@ -111,6 +113,8 @@ export {
   type MarketplaceValidator,
   type MarketplaceValidatorFunction,
 } from "./install.js";
+
+export { createRegistrar } from "./registrar.js";
 
 export {
   publishPackage,

@@ -26,6 +26,10 @@ export {
   removeFromIndex,
   listFromIndex,
   clearIndexCache,
+  registeredAssetId,
+  addRegisteredAssetSync,
+  listRegisteredAssets,
+  removeRegisteredAsset,
 } from "./index-store.js";
 
 export { searchEntries } from "./search.js";
@@ -48,4 +52,6 @@ export type {
   LibraryProvenance,
   LibraryFiles,
   LibraryFilter,
+  LibraryRegisteredAsset,
+  RegisteredAssetFilter,
 } from "./types.js";
