@@ -38,6 +38,10 @@ State / Context
  Remote Runtime(s)
 ```
 
+*Implemented by the runtime bridge in `src/network/runtime-bridge.ts`: received
+behavioural events are reconciled with the local demo runtime so every client
+resolves identical playback (see `docs/network.md`).*
+
 Its purpose is to:
 - synchronize sound behavior across clients
 - preserve determinism in multiplayer or shared environments
@@ -175,6 +179,12 @@ Network supports selective replication.
 Runtime executes received events deterministically.
 
 Network never blocks Runtime execution.
+
+*Implemented by `createRuntimeBridge` (`src/network/runtime-bridge.ts`), which
+drives the Demo 9 runtime/state pipeline: state changes transition the machine,
+context changes re-resolve recipes, and discrete events re-fire the active
+sequence with the event's seed. The two-window browser demo is served by the
+existing web server's `/ws/network` relay (`web/server/network-relay.ts`).*
 
 ---
 

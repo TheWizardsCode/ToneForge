@@ -108,3 +108,15 @@ export {
   type WebSocketServerConstructor,
   type WebSocketServerLike,
 } from "./ws-transport.js";
+
+export {
+  DEFAULT_BANDWIDTH_BUDGET_BYTES_PER_SECOND,
+  canonicalEventByteSize,
+  createRuntimeBridge,
+  measureStreamBandwidth,
+  type BandwidthReport,
+  type ResolvedSoundEvent,
+  type RuntimeBridge,
+  type RuntimeBridgeOptions,
+  type RuntimeExecution,
+} from "./runtime-bridge.js";

@@ -186,9 +186,86 @@ client.onReceive((event) => {
 });
 ```
 
+## Runtime integration & the two-window demo
+
+Received behavioural events are executed by the **Demo 9 runtime/state
+pipeline** through `src/network/runtime-bridge.ts`. The bridge never forks
+runtime logic and never synthesises audio: it reconciles the runtime's state
+machine and context with each event and lets `createRuntime` resolve the active
+sequence's recipes.
+
+```js
+import { createRuntimeBridge } from "./network/runtime-bridge.js";
+
+const bridge = createRuntimeBridge({ scenario }); // a Demo 9 RuntimeScenario
+bridge.start();
+
+network.onReceive((event) => {
+  const execution = bridge.apply(event); // resolved recipes + seeds
+  for (const sound of execution.resolved) play(sound);
+});
+```
+
+Execution rules:
+
+- A **state change** transitions the runtime (`runtime.setState`) and fires the
+  new state's sequence.
+- A **context change** updates the runtime context (`runtime.setContext`) and
+  re-fires the active sequence with the new environment (the recipe resolver
+  switches, e.g. `footstep` + `gravel` → `footstep-gravel`).
+- A **discrete event** (state and context unchanged, e.g. a `footstep`) re-fires
+  the active sequence once, seeded by the event's own `seed`.
+
+The bridge records every resolved sound as a declarative
+`ResolvedSoundEvent` (recipe, state, sequence, seed, gain, timing). Two bridges
+configured with the same scenario and fed the same event stream produce the
+**byte-identical** resolved sequence — the property that makes multi-client
+playback deterministic without streaming audio.
+
+### Bandwidth
+
+`measureStreamBandwidth(events)` reports the canonical wire cost of a stream
+and projects its bandwidth (default one event per second, the 1 KB/s budget in
+1024-byte KB). A demo stream averages well under 1 KB/s:
+
+```js
+import { measureStreamBandwidth } from "./network/runtime-bridge.js";
+
+const report = measureStreamBandwidth(events);
+console.log(report.kilobytesPerSecond, report.withinBudget);
+```
+
+### Two-window browser demo (manual)
+
+The existing web server hosts a host-authoritative relay at `/ws/network`
+(`web/server/network-relay.ts`); every window resolves the relayed events
+locally through the bridge. To run it:
+
+```bash
+npm run dev:web
+```
+
+Then open two windows:
+
+1. Host: <http://localhost:5173/network-demo.html?role=host>
+2. Client: <http://localhost:5173/network-demo.html>
+
+Press the host's **state** (`walk`/`run`/`sprint`) and **surface**
+(`stone`/`gravel`/`grass`) buttons. Both windows play the resolved sound and
+must display the same **fingerprint**; the host window's event log and each
+window's bandwidth readout prove that only behavioural intent crossed the
+wire. You can also serve the production build directly:
+
+```bash
+npm run build --prefix web && npm start --prefix web
+# open http://localhost:3000/network-demo.html?role=host and http://localhost:3000/network-demo.html
+```
+
 ## Related work
 
 - `src/network/resolver.ts` / `harness.ts` — deterministic resolver and
   bandwidth conformance harness (`TF-0MUZYS1IL003MCKC`).
 - `TF-0MUZYS2JC001AHJQ` — transport (host/join, broadcast, authority).
 - `TF-0MUZYS377005ZSDT` — late-join snapshots and drift handling.
+- `TF-0MUZYS3UD00657Q3` — runtime/state bridge and the two-window demo
+  (`src/network/runtime-bridge.ts`, `web/server/network-relay.ts`).

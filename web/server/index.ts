@@ -8,6 +8,7 @@ import { execSync } from "node:child_process";
 import { writeFileSync, unlinkSync, existsSync } from "node:fs";
 import type { IncomingMessage } from "node:http";
 import type { Socket } from "node:net";
+import { createNetworkRelay } from "./network-relay.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -69,11 +70,20 @@ const httpServer = createServer(app);
 
 const wss = new WebSocketServer({ noServer: true });
 
+// Network demo relay: a host-authoritative behavioural-event fan-out serving
+// the two-window demo. Sound resolution stays client-side (see
+// src/network/runtime-bridge.ts); the relay only moves events.
+const networkWss = new WebSocketServer({ noServer: true });
+const networkRelay = createNetworkRelay();
+networkWss.on("connection", (ws: WebSocket) => {
+  networkRelay.handleConnection(ws);
+});
+
 httpServer.on("upgrade", (req: IncomingMessage, socket: Socket, head: Buffer) => {
   const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
   const origin = req.headers.origin;
 
-  if (url.pathname !== "/ws/terminal") {
+  if (url.pathname !== "/ws/terminal" && url.pathname !== "/ws/network") {
     socket.destroy();
     return;
   }
@@ -89,6 +99,14 @@ httpServer.on("upgrade", (req: IncomingMessage, socket: Socket, head: Buffer) =>
       "Forbidden: origin not allowed\r\n",
     );
     socket.destroy();
+    return;
+  }
+
+  if (url.pathname === "/ws/network") {
+    log("ACCEPTED", origin, "Network demo WebSocket upgrade");
+    networkWss.handleUpgrade(req, socket, head, (ws) => {
+      networkWss.emit("connection", ws, req);
+    });
     return;
   }
 
@@ -456,6 +474,7 @@ export {
   httpServer as server,
   isOriginAllowed,
   getAllowedOriginPatterns,
+  networkRelay,
   PORT_FILE_PATH,
   MAX_PORT_RETRIES,
   identifyPortHolder,
