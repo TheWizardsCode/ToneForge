@@ -3,18 +3,21 @@
  *
  * The Marketplace core depends only on the injectable {@link MarketplaceRegistry}
  * interface (search + fetch); the transport/backend is an implementation
- * detail. The demo ships a single *local* adapter that reads a registry index
- * from disk and resolves package bundles beneath a root directory — no network
- * access — matching `docs/prd/MARKETPLACE_PRD.md` Section 12 (private
- * registries and offline mirrors) and keeping tests deterministic. A remote
- * adapter delegating to the Demo 15 Network module can implement the same
- * interface later without touching callers.
+ * detail. Publishing adds the {@link MutableMarketplaceRegistry} extension
+ * (`register` + `has`) so the publish pipeline can persist a package without
+ * widening the read-only seam. The demo ships a single *local* adapter that
+ * reads a registry index from disk, resolves package bundles beneath a root
+ * directory and appends publishes back to the index — no network access —
+ * matching `docs/prd/MARKETPLACE_PRD.md` Section 12 (private registries and
+ * offline mirrors) and keeping tests deterministic. A remote adapter
+ * delegating to the Demo 15 Network module can implement the same interface
+ * later without touching callers.
  *
  * Reference: docs/prd/MARKETPLACE_PRD.md Sections 10, 12, 14.
- * Work item: TF-0MUZX3XWW008FO77.
+ * Work items: TF-0MUZX3XWW008FO77 (read seam), TF-0MUZX3YVJ001VHLN (publish).
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 
 import { parseManifest } from "./manifest.js";
@@ -36,7 +39,7 @@ import {
 // ---------------------------------------------------------------------------
 
 /**
- * A pluggable Marketplace package registry.
+ * A pluggable, read-only Marketplace package registry.
  *
  * Implementations may be local (directory-backed), in-memory or remote, as
  * long as `search` is deterministic and `fetch` resolves a published
@@ -49,6 +52,21 @@ export interface MarketplaceRegistry {
   searchResult(category?: string): MarketplaceSearchResult;
   /** Resolve a published package by exact name and version, or `null`. */
   fetch(name: string, version: string): MarketplacePackageBundle | null;
+}
+
+/**
+ * A Marketplace registry that accepts publishes.
+ *
+ * The publish pipeline depends only on this extension: `register` appends a
+ * published entry and `has` is the immutability probe used to reject a
+ * duplicate version. Read-only registries (the install/search seams) stay on
+ * {@link MarketplaceRegistry}.
+ */
+export interface MutableMarketplaceRegistry extends MarketplaceRegistry {
+  /** Register a published package entry in the registry index. */
+  register(entry: MarketplaceRegistryEntry): void;
+  /** Check if a `name@version` is already published. */
+  has(name: string, version: string): boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -237,14 +255,17 @@ export interface LocalRegistryOptions {
  *
  * Reads the registry index once at construction and resolves package bundles
  * beneath {@link LocalRegistryOptions.root}. No network access is performed.
+ * Publishing writes the updated index back to disk.
  */
-export class LocalDirectoryRegistry implements MarketplaceRegistry {
+export class LocalDirectoryRegistry implements MutableMarketplaceRegistry {
   private readonly index: MarketplaceRegistryIndex;
   private readonly root: string;
+  private readonly indexFile: string;
 
   constructor(options: LocalRegistryOptions) {
     this.index = loadRegistryIndex(options.indexFile);
     this.root = options.root;
+    this.indexFile = options.indexFile;
   }
 
   /** The loaded registry index (read-only view of the published packages). */
@@ -269,6 +290,21 @@ export class LocalDirectoryRegistry implements MarketplaceRegistry {
     const directory = this.resolvePackageDir(entry.path);
     const manifest = this.readManifest(directory);
     return { name: entry.name, version: entry.version, directory, manifest };
+  }
+
+  register(entry: MarketplaceRegistryEntry): void {
+    this.index.packages.push(entry);
+    writeFileSync(
+      this.indexFile,
+      `${JSON.stringify(this.index, null, 2)}\n`,
+      "utf-8",
+    );
+  }
+
+  has(name: string, version: string): boolean {
+    return this.index.packages.some(
+      (p) => p.name === name && p.version === version,
+    );
   }
 
   /** Resolve a package `path` (relative to the root, or absolute). */

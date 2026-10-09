@@ -5,8 +5,8 @@
  * conformance harness and its contract (work item TF-0MUZX3XAI003S1GN), the
  * manifest domain types and parser/validator (TF-0MUZX3XLO006D7HW), the
  * registry abstraction and search (TF-0MUZX3XWW008FO77), the semver/conflict
- * resolver (TF-0MUZX3Y8R008IPVP) and the install pipeline
- * (TF-0MUZX3YKC002LZYB); the publish module adds its own exports as it lands.
+ * resolver (TF-0MUZX3Y8R008IPVP), the install pipeline
+ * (TF-0MUZX3YKC002LZYB) and the publish pipeline (TF-0MUZX3YVJ001VHLN).
  *
  * Reference: docs/prd/MARKETPLACE_PRD.md.
  */
@@ -71,6 +71,7 @@ export {
   type LocalRegistryOptions,
   type MarketplaceRegistry,
   type MarketplaceRegistryErrorCode,
+  type MutableMarketplaceRegistry,
 } from "./registry.js";
 
 export {
@@ -110,3 +111,9 @@ export {
   type MarketplaceValidator,
   type MarketplaceValidatorFunction,
 } from "./install.js";
+
+export {
+  publishPackage,
+  type MarketplacePublishOptions,
+  type MarketplacePublishResult,
+} from "./publish.js";
