@@ -47,6 +47,70 @@ export interface MarketplaceListing {
   assets: Record<MarketplaceAssetKind, number>;
 }
 
+/**
+ * A listing enriched with a `name@version` display/JSON label.
+ *
+ * Structurally a {@link MarketplaceListing}, so registries can return these
+ * everywhere the conformance contract expects a plain listing.
+ */
+export interface MarketplaceSearchListing extends MarketplaceListing {
+  /** Convenience label: `name@version`. */
+  label: string;
+}
+
+/** A JSON-ready search result, as exposed by the registry `searchResult`. */
+export interface MarketplaceSearchResult {
+  /** The requested category, or `null` when the search was unfiltered. */
+  category: string | null;
+  /** Number of listings returned. */
+  count: number;
+  /** Listings in deterministic order. */
+  listings: MarketplaceSearchListing[];
+}
+
+/**
+ * A published package entry in a registry index — the search metadata plus the
+ * package directory used to resolve a fetch.
+ */
+export interface MarketplaceRegistryEntry {
+  name: string;
+  version: string;
+  type: string;
+  /** Search category (for example `combat`, `ui`, `ambience`). */
+  category: string;
+  author: string;
+  license: MarketplaceLicense;
+  /** Rating in the closed interval [0, 5]. */
+  rating: number;
+  /** Package directory, relative to the registry root (or absolute). */
+  path: string;
+  /** Contained asset counts by kind (search metadata). */
+  assets: Record<MarketplaceAssetKind, number>;
+}
+
+/** A package already present in the local install state. */
+export interface MarketplaceInstalledPackage {
+  name: string;
+  version: string;
+}
+
+/** Root index describing the published packages and installed state. */
+export interface MarketplaceRegistryIndex {
+  version: string;
+  packages: MarketplaceRegistryEntry[];
+  installed: MarketplaceInstalledPackage[];
+}
+
+/** A resolved package bundle returned by a registry `fetch`. */
+export interface MarketplacePackageBundle {
+  name: string;
+  version: string;
+  /** Absolute package directory holding `manifest.json` and `assets/`. */
+  directory: string;
+  /** The parsed, validated package manifest. */
+  manifest: MarketplaceManifest;
+}
+
 /** Explicit license declaration (for example `commercial`, `mit`, `internal`). */
 export type MarketplaceLicense = string;
 

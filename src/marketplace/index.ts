@@ -35,12 +35,39 @@ export {
   type ManifestParseResult,
   type ManifestSuccess,
   type MarketplaceAssetKind,
+  type MarketplaceInstalledPackage,
   type MarketplaceIssue,
   type MarketplaceLicense,
   type MarketplaceListing,
   type MarketplaceManifest,
   type MarketplaceManifestAssets,
+  type MarketplacePackageBundle,
   type MarketplaceProvenance,
+  type MarketplaceRegistryEntry,
+  type MarketplaceRegistryIndex,
+  type MarketplaceSearchListing,
+  type MarketplaceSearchResult,
 } from "./types.js";
 
 export { parseManifest, validateManifest } from "./manifest.js";
+
+export {
+  compareListingOrder,
+  compareVersionOrder,
+  createSearchResult,
+  registryEntryToListing,
+  searchEntries,
+  sortListings,
+  toSearchListing,
+} from "./search.js";
+
+export {
+  LocalDirectoryRegistry,
+  MarketplaceRegistryError,
+  coerceRegistryIndex,
+  createLocalRegistry,
+  loadRegistryIndex,
+  type LocalRegistryOptions,
+  type MarketplaceRegistry,
+  type MarketplaceRegistryErrorCode,
+} from "./registry.js";
