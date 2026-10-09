@@ -51,11 +51,14 @@ export function isSupportedEventVersion(version: unknown): version is number {
 // ---------------------------------------------------------------------------
 
 /**
- * A state snapshot: the behavioural state label at the moment the event was
+ * A state label: the behavioural state label at the moment the event was
  * emitted (for example `"walk"`). Resolving the event against local state is
  * what produces identical sound on every client.
+ *
+ * (A full late-join *snapshot* — label, context and seed together — is modelled
+ * separately by `StateSnapshot` in `./snapshot.js`.)
  */
-export type StateSnapshot = string;
+export type StateLabel = string;
 
 /**
  * A behavioural event as defined by NETWORK_PRD §4.1.
@@ -73,7 +76,7 @@ export interface BehaviouralEvent {
   /** Timestamp in seconds (monotonic session time). */
   time: number;
   /** State snapshot label. */
-  state: StateSnapshot;
+  state: StateLabel;
   /** Context snapshot — flat, string-valued dimensions. */
   context: ContextSnapshot;
 }

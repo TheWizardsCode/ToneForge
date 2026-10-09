@@ -24,6 +24,11 @@ import {
 } from "./types.js";
 import { canonicalStringify } from "./events.js";
 import {
+  SnapshotTracker,
+  validateSnapshot,
+  type StateSnapshot,
+} from "./snapshot.js";
+import {
   defaultTransport,
   type PeerConnection,
   type Transport,
@@ -99,6 +104,22 @@ export interface NetworkSession {
   /** Fires for each received behavioural event, in deterministic order. */
   onReceive(handler: (event: BehaviouralEvent) => void): Unsubscribe;
   /**
+   * The most recent state snapshot.
+   *
+   * On the host this is the snapshot captured from the last event it emitted;
+   * on a client it is the snapshot delivered in the join handshake. Returns
+   * `undefined` before any event has been captured/delivered.
+   */
+  snapshot(): StateSnapshot | undefined;
+  /**
+   * Fires when a state snapshot is captured (host) or applied (client).
+   *
+   * If a snapshot already exists the handler is invoked immediately with it, so
+   * a late joiner that registers after `join()` resolves still observes the
+   * current state. Returns an unsubscribe function.
+   */
+  onSnapshot(handler: (snapshot: StateSnapshot) => void): Unsubscribe;
+  /**
    * Broadcast a behavioural event to every peer.
    *
    * @throws {NotAuthoritativeError} on a client session.
@@ -122,6 +143,8 @@ interface WelcomeMessage {
   hostPeerId: string;
   /** Sequence number the host will use for the first event sent to this peer. */
   startSeq: number;
+  /** Late-join state snapshot, when the host has already emitted an event. */
+  snapshot?: StateSnapshot;
 }
 
 interface EventMessage {
@@ -151,11 +174,19 @@ function parseWireMessage(raw: string): WireMessage | undefined {
     ) {
       return undefined;
     }
+    // A corrupt snapshot must not block the join handshake: drop it and let
+    // the client wait for the next live event instead.
+    let snapshot: StateSnapshot | undefined;
+    if (message.snapshot !== undefined) {
+      const validated = validateSnapshot(message.snapshot);
+      if (validated.valid) snapshot = validated.snapshot;
+    }
     return {
       t: "welcome",
       peerId: message.peerId,
       hostPeerId: message.hostPeerId,
       startSeq: message.startSeq,
+      ...(snapshot ? { snapshot } : {}),
     };
   }
 
@@ -208,6 +239,8 @@ class HostSession implements NetworkSession {
   private readonly peerConnectHandlers = new HandlerSet<(peerId: string) => void>();
   private readonly peerDisconnectHandlers = new HandlerSet<(peerId: string) => void>();
   private readonly receiveHandlers = new HandlerSet<(event: BehaviouralEvent) => void>();
+  private readonly snapshotHandlers = new HandlerSet<(snapshot: StateSnapshot) => void>();
+  private readonly snapshotTracker = new SnapshotTracker();
   private nextPeerSeq = 1;
   private nextEventSeq = 1;
   private closed = false;
@@ -236,14 +269,27 @@ class HostSession implements NetworkSession {
     return this.receiveHandlers.add(handler);
   }
 
+  snapshot(): StateSnapshot | undefined {
+    return this.snapshotTracker.latest();
+  }
+
+  onSnapshot(handler: (snapshot: StateSnapshot) => void): Unsubscribe {
+    const unsubscribe = this.snapshotHandlers.add(handler);
+    const current = this.snapshotTracker.latest();
+    if (current) handler(current);
+    return unsubscribe;
+  }
+
   emit(input: BehaviouralEventInput): void {
     if (this.closed) throw new SessionClosedError();
     const event = createBehaviouralEvent(input);
+    const snapshot = this.snapshotTracker.capture(event);
     const seq = this.nextEventSeq++;
     const wire = canonicalStringify({ t: "event", seq, event });
 
     // The host is a participant: resolve locally first, then broadcast.
     this.deliver(event);
+    this.snapshotHandlers.emit((handler) => handler(snapshot));
     for (const connection of this.connections.values()) {
       connection.send(wire);
     }
@@ -259,6 +305,7 @@ class HostSession implements NetworkSession {
     this.peerConnectHandlers.clear();
     this.peerDisconnectHandlers.clear();
     this.receiveHandlers.clear();
+    this.snapshotHandlers.clear();
   }
 
   private addPeer(connection: PeerConnection): void {
@@ -278,6 +325,7 @@ class HostSession implements NetworkSession {
         peerId,
         hostPeerId: HOST_PEER_ID,
         startSeq: this.nextEventSeq,
+        snapshot: this.snapshotTracker.latest(),
       }),
     );
     this.peerConnectHandlers.emit((handler) => handler(peerId));
@@ -307,6 +355,8 @@ class ClientSession implements NetworkSession {
   private readonly peerConnectHandlers = new HandlerSet<(peerId: string) => void>();
   private readonly peerDisconnectHandlers = new HandlerSet<(peerId: string) => void>();
   private readonly receiveHandlers = new HandlerSet<(event: BehaviouralEvent) => void>();
+  private readonly snapshotHandlers = new HandlerSet<(snapshot: StateSnapshot) => void>();
+  private currentSnapshot: StateSnapshot | undefined;
   private readonly receiveBuffer = new Map<number, BehaviouralEvent>();
   private lastDeliveredSeq = 0;
   private resolveWelcome: (() => void) | undefined;
@@ -345,6 +395,16 @@ class ClientSession implements NetworkSession {
     return this.receiveHandlers.add(handler);
   }
 
+  snapshot(): StateSnapshot | undefined {
+    return this.currentSnapshot;
+  }
+
+  onSnapshot(handler: (snapshot: StateSnapshot) => void): Unsubscribe {
+    const unsubscribe = this.snapshotHandlers.add(handler);
+    if (this.currentSnapshot) handler(this.currentSnapshot);
+    return unsubscribe;
+  }
+
   emit(): never {
     throw new NotAuthoritativeError(this.peerId || "client");
   }
@@ -356,6 +416,7 @@ class ClientSession implements NetworkSession {
     this.peerConnectHandlers.clear();
     this.peerDisconnectHandlers.clear();
     this.receiveHandlers.clear();
+    this.snapshotHandlers.clear();
     this.receiveBuffer.clear();
   }
 
@@ -368,9 +429,13 @@ class ClientSession implements NetworkSession {
       this.peerId = message.peerId;
       this.lastDeliveredSeq = message.startSeq - 1;
       this.connectedToHost = true;
+      if (message.snapshot) this.currentSnapshot = message.snapshot;
       this.resolveWelcome?.();
       this.resolveWelcome = undefined;
       this.peerConnectHandlers.emit((handler) => handler(this.hostPeerId));
+      if (this.currentSnapshot) {
+        this.snapshotHandlers.emit((handler) => handler(this.currentSnapshot!));
+      }
       return;
     }
 

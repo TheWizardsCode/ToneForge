@@ -126,6 +126,66 @@ const hostSession = await host({ port: 8080, transport });
 A browser client injects the platform WebSocket (`{ WebSocket: globalThis.WebSocket }`)
 and only needs `WebSocketServer` when hosting.
 
+## Late-join snapshots
+
+The session layer tracks the current behavioural state on the host. When a peer
+joins after playback has started, the welcome handshake carries a
+`StateSnapshot` (`src/network/snapshot.ts`) — the state label, context, seed and
+session timestamp of the most recent authoritative event — so the joiner can
+resolve and play the *current* deterministic output immediately. Past events
+are never replayed.
+
+```js
+import { applySnapshot } from "./network/snapshot.js";
+
+const snapshot = client.snapshot();          // attached to the join handshake
+client.onSnapshot((s) => {                    // fires immediately if present
+  const event = applySnapshot(s);             // canonical, resolvable event
+  runtime.execute(event);
+});
+
+// The host exposes the same snapshot it attaches to new peers:
+hostSession.snapshot();
+```
+
+- `captureSnapshot(event)` produces a canonical snapshot from an emitted event;
+- `validateSnapshot(value)` / `applySnapshot(snapshot)` validate and resolve it;
+- `SnapshotTracker` is the small host-side helper that remembers the latest one;
+- `NetworkSession.snapshot()` and `onSnapshot(handler)` expose the current state
+  on both host and client (registering after `join()` still yields the current
+  snapshot).
+
+## Latency, ordering and drift
+
+The client-side sync primitives live in `src/network/sync.ts` and are pure
+functions of the delivered event order (no wall-clock reads, no hidden
+randomness):
+
+| Primitive | Responsibility | Documented bound |
+|---|---|---|
+| `TimestampCorrector` | Smooth, **bounded** host→local clock offset | `DEFAULT_MAX_CLOCK_OFFSET_SECONDS` (2 s) |
+| `EventSequencer` | Release events in timestamp order | `DEFAULT_REORDER_WINDOW_SECONDS` (100 ms) |
+| `DriftCompensator` | Bound the per-event timing adjustment | `DEFAULT_MAX_DRIFT_SECONDS` (250 ms) |
+| `SyncPipeline` | Correct → order → bound, in one pass | — |
+| `runJitterHarness` | Assert two jittery clients stay aligned | `DEFAULT_ALIGNMENT_TOLERANCE_SECONDS` (250 ms) |
+
+Events that arrive after their ordering slot has been released are dropped
+(graceful degradation) rather than replayed out of order; a drift request beyond
+the bound is clamped and reported as `degraded`, so a client can never be pushed
+by an unbounded state jump. Seed the clock estimate from the late-join snapshot:
+
+```js
+import { SyncPipeline } from "./network/sync.js";
+
+const pipeline = new SyncPipeline();
+pipeline.observeReference(snapshot.time, localNow);
+client.onReceive((event) => {
+  for (const scheduled of pipeline.ingest(event, localNow)) {
+    runtime.execute(scheduled.event, { playoutTime: scheduled.playoutTime });
+  }
+});
+```
+
 ## Related work
 
 - `src/network/resolver.ts` / `harness.ts` — deterministic resolver and

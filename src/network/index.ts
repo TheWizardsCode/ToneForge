@@ -24,7 +24,7 @@ export {
   type ContextSnapshot,
   type EventValidationError,
   type EventValidationResult,
-  type StateSnapshot,
+  type StateLabel,
 } from "./types.js";
 
 export {
@@ -66,6 +66,39 @@ export {
   type NetworkRole,
   type NetworkSession,
 } from "./session.js";
+
+export {
+  SnapshotTracker,
+  applySnapshot,
+  captureSnapshot,
+  validateSnapshot,
+  type SnapshotValidationResult,
+  type StateSnapshot,
+} from "./snapshot.js";
+
+export {
+  DEFAULT_ALIGNMENT_TOLERANCE_SECONDS,
+  DEFAULT_CLOCK_SMOOTHING,
+  DEFAULT_MAX_CLOCK_OFFSET_SECONDS,
+  DEFAULT_MAX_DRIFT_SECONDS,
+  DEFAULT_REORDER_WINDOW_SECONDS,
+  DriftCompensator,
+  EventSequencer,
+  SyncPipeline,
+  TimestampCorrector,
+  runJitterHarness,
+  type DriftCompensation,
+  type DriftCompensatorOptions,
+  type EventSequencerOptions,
+  type JitterAlignmentReport,
+  type JitterClientConfig,
+  type JitterClientReport,
+  type JitterHarnessOptions,
+  type ScheduledEvent,
+  type SequencedEvent,
+  type SyncPipelineOptions,
+  type TimestampCorrectorOptions,
+} from "./sync.js";
 
 export {
   createWebSocketTransport,
