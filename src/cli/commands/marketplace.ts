@@ -18,7 +18,7 @@ export function builder(yargs: any) {
       },
     )
     .command(
-      "install",
+      "install <package>",
       "Install a Marketplace package",
       (y: any) => {
         y.positional("package", {

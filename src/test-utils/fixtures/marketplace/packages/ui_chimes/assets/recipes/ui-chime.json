@@ -1,1 +1,19 @@
-{ "kind": "recipe", "name": "ui-chime", "seed": 11, "duration": 0.3, "voices": ["triangle"] }
+{
+  "version": "0.1",
+  "meta": {
+    "name": "ui-chime",
+    "description": "Sparkly UI confirmation chime.",
+    "category": "UI",
+    "tags": ["marketplace", "ui", "chime"],
+    "duration": 0.3,
+    "parameters": [
+      { "name": "freq", "type": "number", "min": 600, "max": 1400, "unit": "Hz", "default": 880 }
+    ]
+  },
+  "nodes": {
+    "osc": { "kind": "oscillator", "params": { "type": "triangle", "frequency": 880 } },
+    "gain": { "kind": "gain", "params": { "gain": 0.4 } },
+    "out": { "kind": "destination" }
+  },
+  "routing": [{ "chain": ["osc", "gain", "out"] }]
+}

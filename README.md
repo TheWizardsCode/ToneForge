@@ -16,6 +16,7 @@ ToneForge lets developers generate placeholder sounds from recipes and seeds dur
 - **Deploy** -- Real-time playback engine with seed-based variation and baked fallback, targeting browser and Node.js
 - **Sync** -- Deterministic multi-client behavioural synchronisation: compact events resolved locally, with no audio streaming
 - **Integrate** -- Non-interactive CI pipeline (`generate → validate → compile → export`) and engine export via `toneforge sync`
+- **Exchange** -- Browse, install and publish versioned, license-declared procedural packages via the `marketplace` command group
 
 ## What It Is Not
 
@@ -204,6 +205,22 @@ toneforge explore --recipe laser --sweep gain:0.1-1.0 --count 100
 toneforge library add --input sound.wav --tags "weapon,laser"
 ```
 
+## Marketplace
+
+The `marketplace` command group browses, installs and publishes procedural
+asset packages (recipes, stacks, sequences, palettes) — versioned,
+license-declared and Validator-gated:
+
+```
+toneforge marketplace search [--category <c>] [--json]
+toneforge marketplace install <package>@<version> [--json]
+toneforge marketplace publish --package <dir> --name <n> --version <v> [--json]
+```
+
+See the [Marketplace usage guide](docs/guides/marketplace.md) for runnable
+examples, and [`docs/prd/MARKETPLACE_PRD.md`](docs/prd/MARKETPLACE_PRD.md) for
+the authoritative specification.
+
 ## Documentation
 
 - [System Architecture PRD](docs/prd/PRD.md)
@@ -213,6 +230,7 @@ toneforge library add --input sound.wav --tags "weapon,laser"
 - [Network](docs/network.md) — deterministic behavioural sync: events, host/join, late join, and bounded drift handling
 - [Integrations](docs/integrations.md) — engine adapter mapping and `toneforge sync --target unity|web` (deterministic, idempotent export)
 - [Network & Integrations usage](docs/guides/network-integrations.md) — usage guide for the Network and Integrations modules
+- [Marketplace usage](docs/guides/marketplace.md) — the `toneforge marketplace` search/install/publish workflow, licensing, provenance and versioning
 - [ToneForge in CI](docs/guides/ci-integration.md) — the `toneforge pipeline` CI workflow
 - [ToneGraph v0.1 Specification](docs/tonegraph.md)
 - [Casual Game Recipe Book](docs/recipe-book/index.md) — a guided tour of 100 procedural recipes, from single-oscillator blips to layered stings.

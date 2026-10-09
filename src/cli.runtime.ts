@@ -21,7 +21,7 @@
  */
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { existsSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, resolve, basename, extname, join } from "node:path";
 import { execFile } from "node:child_process";
 import { createInterface } from "node:readline";
@@ -106,7 +106,11 @@ import {
   createInMemoryInstallStateStore,
   createRegistrar,
   installPackage,
+  loadRegistryIndex,
+  parseManifest,
   publishPackage,
+  type DependencyGraphNode,
+  type DependencyProvider,
   type MutableMarketplaceRegistry,
 } from "./marketplace/index.js";
 import { registry as recipeRegistry } from "./recipes/index.js";
@@ -522,6 +526,59 @@ toneforge pipeline --sounds ./sounds.json --library ./build/library --output ./b
 toneforge pipeline --sounds ./sounds.json --output ./build --json
 \`\`\``;
   await outputMarkdown(md);
+}
+
+/**
+ * Resolve the local Marketplace registry root and index file.
+ *
+ * Resolution order (first hit wins):
+ * 1. `TONEFORGE_MARKETPLACE_DIR` — an explicit registry root, when set and it
+ *    contains `registry/index.json`;
+ * 2. the project-local `.toneforge-marketplace` registry, when present;
+ * 3. the bundled demo registry under `src/test-utils/fixtures/marketplace`.
+ *
+ * A registry root holds `registry/index.json` plus a `packages/` tree of
+ * directory-bundle packages (`docs/prd/MARKETPLACE_PRD.md` Sections 5, 12).
+ * The bundled registry is read-only reference data; point
+ * `TONEFORGE_MARKETPLACE_DIR` at a writable directory to publish.
+ */
+function resolveMarketplaceRegistry(): { indexFile: string; root: string } {
+  const override = process.env.TONEFORGE_MARKETPLACE_DIR?.trim();
+  const candidates = [
+    ...(override ? [resolve(override)] : []),
+    resolve(process.cwd(), DEFAULT_MARKETPLACE_DIR),
+  ];
+  for (const root of candidates) {
+    const indexFile = join(root, "registry", "index.json");
+    if (existsSync(indexFile)) {
+      return { indexFile, root };
+    }
+  }
+  const root = resolve(import.meta.dirname, "../src/test-utils/fixtures/marketplace");
+  return { indexFile: join(root, "registry", "index.json"), root };
+}
+
+/**
+ * Build a dependency provider from a registry index so install/publish detect
+ * missing, incompatible or circular dependencies before registering
+ * (`docs/prd/MARKETPLACE_PRD.md` Sections 5, 7). Known versions come from the
+ * registry's published and installed packages.
+ */
+function registryDependencyProvider(indexFile: string): DependencyProvider {
+  const index = loadRegistryIndex(indexFile);
+  const nodes: DependencyGraphNode[] = [
+    ...index.packages.map((pkg) => ({
+      name: pkg.name,
+      version: pkg.version,
+      dependencies: [] as string[],
+    })),
+    ...index.installed.map((pkg) => ({
+      name: pkg.name,
+      version: pkg.version,
+      dependencies: [] as string[],
+    })),
+  ];
+  return (dependency) => nodes.filter((node) => node.name === dependency);
 }
 
 /** Print help text for the marketplace command group. */
@@ -2153,8 +2210,11 @@ export async function dispatchCommand(
   profiler.mark("cli_parse");
 
 
-  // --version flag or `version` command
-  if (flags["version"] || command === "version") {
+  // Global --version flag (boolean) or the `version` command. A string
+  // `--version <v>` belongs to a subcommand (for example
+  // `marketplace publish --version 1.0.0`) and must not be treated as a
+  // request for the CLI's own version.
+  if (flags["version"] === true || command === "version") {
     if (jsonMode) {
       jsonOut({ command: "version", version: VERSION });
     } else {
@@ -2455,15 +2515,9 @@ export async function dispatchCommand(
         return 0;
       }
 
-      // Resolve the registry path (default: test fixtures marketplace)
-      const registryIndexFile = resolve(
-        import.meta.dirname,
-        "../../src/test-utils/fixtures/marketplace/registry/index.json",
-      );
-      const registryRoot = resolve(
-        import.meta.dirname,
-        "../../src/test-utils/fixtures/marketplace",
-      );
+      // Resolve the registry (env override, project-local, or bundled demo).
+      const { indexFile: registryIndexFile, root: registryRoot } =
+        resolveMarketplaceRegistry();
 
       let registry: MutableMarketplaceRegistry;
       try {
@@ -2532,15 +2586,9 @@ export async function dispatchCommand(
       const packageName = packageArg.substring(0, atIdx);
       const packageVersion = packageArg.substring(atIdx + 1);
 
-      // Resolve the registry
-      const registryIndexFile = resolve(
-        import.meta.dirname,
-        "../../src/test-utils/fixtures/marketplace/registry/index.json",
-      );
-      const registryRoot = resolve(
-        import.meta.dirname,
-        "../../src/test-utils/fixtures/marketplace",
-      );
+      // Resolve the registry (env override, project-local, or bundled demo).
+      const { indexFile: registryIndexFile, root: registryRoot } =
+        resolveMarketplaceRegistry();
 
       let registry: MutableMarketplaceRegistry;
       try {
@@ -2555,8 +2603,10 @@ export async function dispatchCommand(
         return 1;
       }
 
-      // Create a registrar for the installed assets
+      // Create a registrar for the installed assets and a dependency provider
+      // so unsatisfiable dependencies are rejected before registration.
       const registrar = createRegistrar(recipeRegistry);
+      const dependencyProvider = registryDependencyProvider(registryIndexFile);
 
       // Run the install pipeline
       const installResult = installPackage(
@@ -2564,8 +2614,9 @@ export async function dispatchCommand(
         packageVersion,
         {
           registry,
-          registrar,
+          registrarWithDirectory: registrar,
           stateStore: createInMemoryInstallStateStore(),
+          dependencyProvider,
         },
       );
 
@@ -2630,15 +2681,53 @@ export async function dispatchCommand(
         return 1;
       }
 
-      // Resolve the registry
-      const registryIndexFile = resolve(
-        import.meta.dirname,
-        "../../src/test-utils/fixtures/marketplace/registry/index.json",
-      );
-      const registryRoot = resolve(
-        import.meta.dirname,
-        "../../src/test-utils/fixtures/marketplace",
-      );
+      // The package manifest is authoritative. Require --name/--version to
+      // agree with it so a published entry can never diverge from the package
+      // contents on disk (`docs/prd/MARKETPLACE_PRD.md` Sections 5, 9).
+      const manifestFile = resolve(packageDir, "manifest.json");
+      if (!existsSync(manifestFile)) {
+        const msg = `No manifest.json found in '${packageDir}'.`;
+        if (jsonMode) jsonErr(msg);
+        else outputError(`Error: ${msg}`);
+        return 1;
+      }
+
+      let manifestName: string;
+      let manifestVersion: string;
+      try {
+        const parsed = parseManifest(
+          JSON.parse(readFileSync(manifestFile, "utf-8")),
+        );
+        if (!parsed.ok) {
+          const detail = parsed.issues
+            .map((issue) => `${issue.field}: ${issue.message}`)
+            .join("; ");
+          const msg = `Invalid manifest in '${packageDir}': ${detail}`;
+          if (jsonMode) jsonErr(msg);
+          else outputError(`Error: ${msg}`);
+          return 1;
+        }
+        manifestName = parsed.manifest.name;
+        manifestVersion = parsed.manifest.version;
+      } catch (error) {
+        const msg = `Unable to read manifest in '${packageDir}': ${(error as Error).message}`;
+        if (jsonMode) jsonErr(msg);
+        else outputError(`Error: ${msg}`);
+        return 1;
+      }
+
+      if (manifestName !== name || manifestVersion !== version) {
+        const msg =
+          `--name/--version must match manifest.json ` +
+          `(${manifestName}@${manifestVersion}), got ${name}@${version}.`;
+        if (jsonMode) jsonErr(msg);
+        else outputError(`Error: ${msg}`);
+        return 1;
+      }
+
+      // Resolve the registry (env override, project-local, or bundled demo).
+      const { indexFile: registryIndexFile, root: registryRoot } =
+        resolveMarketplaceRegistry();
 
       let registry: MutableMarketplaceRegistry;
       try {
@@ -2656,6 +2745,7 @@ export async function dispatchCommand(
       // Run the publish pipeline
       const publishResult = publishPackage(packageDir, {
         registry,
+        dependencyProvider: registryDependencyProvider(registryIndexFile),
       });
 
       if (jsonMode) {

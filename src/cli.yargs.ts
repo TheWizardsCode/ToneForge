@@ -681,7 +681,7 @@ export async function yargsMain(argv: string[] = process.argv): Promise<number> 
         ...(argv.category !== undefined ? { category: String(argv.category) } : {}),
       }), []);
     });
-    y2.command("install", "Install a Marketplace package", (y3) => {
+    y2.command("install <package>", "Install a Marketplace package", (y3) => {
       y3.positional("package", { type: "string", describe: "Package name and version (e.g. industrial_lasers@2.1.0)" });
       y3.option("json", { type: "boolean", describe: "Output JSON" });
     }, async (argv) => {

@@ -1,1 +1,19 @@
-{ "kind": "recipe", "name": "plasma-burst", "seed": 7, "duration": 0.5, "voices": ["square"] }
+{
+  "version": "0.1",
+  "meta": {
+    "name": "plasma-burst",
+    "description": "Bright plasma rifle burst.",
+    "category": "Weapon",
+    "tags": ["marketplace", "plasma", "rifle"],
+    "duration": 0.5,
+    "parameters": [
+      { "name": "freq", "type": "number", "min": 300, "max": 900, "unit": "Hz", "default": 560 }
+    ]
+  },
+  "nodes": {
+    "osc": { "kind": "oscillator", "params": { "type": "square", "frequency": 560 } },
+    "gain": { "kind": "gain", "params": { "gain": 0.45 } },
+    "out": { "kind": "destination" }
+  },
+  "routing": [{ "chain": ["osc", "gain", "out"] }]
+}

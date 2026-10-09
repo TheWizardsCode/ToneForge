@@ -7,6 +7,13 @@ Below is a **complete, standalone Product Requirements Document (PRD)** for **To
 # 🛒 ToneForge Marketplace  
 ## Product Requirements Document (PRD)
 
+> **Implementation & usage.** The marketplace CLI
+> (`toneforge marketplace search|install|publish`) and the `src/marketplace/`
+> module implement this PRD. See the
+> [Marketplace usage guide](../guides/marketplace.md) for runnable examples,
+> the demo package layout (`manifest.json` + `assets/`) and the current demo
+> asset scope (recipes, stacks, sequences, palettes).
+
 ---
 
 ## 1. Product Overview

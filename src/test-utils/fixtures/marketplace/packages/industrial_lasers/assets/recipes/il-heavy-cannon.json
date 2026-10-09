@@ -1,1 +1,19 @@
-{ "kind": "recipe", "name": "il-heavy-cannon", "seed": 42, "duration": 0.85, "voices": ["sine", "noise"] }
+{
+  "version": "0.1",
+  "meta": {
+    "name": "il-heavy-cannon",
+    "description": "Heavy industrial laser cannon.",
+    "category": "Weapon",
+    "tags": ["marketplace", "laser", "cannon"],
+    "duration": 0.85,
+    "parameters": [
+      { "name": "freq", "type": "number", "min": 120, "max": 480, "unit": "Hz", "default": 220 }
+    ]
+  },
+  "nodes": {
+    "osc": { "kind": "oscillator", "params": { "type": "sine", "frequency": 220 } },
+    "gain": { "kind": "gain", "params": { "gain": 0.6 } },
+    "out": { "kind": "destination" }
+  },
+  "routing": [{ "chain": ["osc", "gain", "out"] }]
+}
