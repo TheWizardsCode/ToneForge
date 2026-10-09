@@ -109,6 +109,14 @@ export interface MarketplacePackageBundle {
   directory: string;
   /** The parsed, validated package manifest. */
   manifest: MarketplaceManifest;
+  /**
+   * Optional declared content hashes, keyed by asset path (relative to the
+   * package directory) or by content-addressed id (`<kind>:<path>`). When an
+   * entry is present the install pipeline verifies the asset's computed
+   * SHA-256 against it; absent a declaration only presence/readability is
+   * verified.
+   */
+  integrity?: Record<string, string>;
 }
 
 /** Explicit license declaration (for example `commercial`, `mit`, `internal`). */

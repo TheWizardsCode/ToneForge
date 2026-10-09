@@ -2,10 +2,11 @@
  * ToneForge Marketplace — public module surface.
  *
  * The Marketplace slice is built test-first. This module exposes the offline
- * conformance harness and its contract (work item TF-0MUZX3XAI003S1GN) plus the
- * manifest domain types and parser/validator (work item TF-0MUZX3XLO006D7HW);
- * the registry, versioning, install and publish modules add their own exports
- * as they land.
+ * conformance harness and its contract (work item TF-0MUZX3XAI003S1GN), the
+ * manifest domain types and parser/validator (TF-0MUZX3XLO006D7HW), the
+ * registry abstraction and search (TF-0MUZX3XWW008FO77), the semver/conflict
+ * resolver (TF-0MUZX3Y8R008IPVP) and the install pipeline
+ * (TF-0MUZX3YKC002LZYB); the publish module adds its own exports as it lands.
  *
  * Reference: docs/prd/MARKETPLACE_PRD.md.
  */
@@ -87,3 +88,25 @@ export {
   type ParsedVersion,
   type SelectedDependency,
 } from "./version.js";
+
+export {
+  MARKETPLACE_INSTALL_STATE_VERSION,
+  createFileInstallStateStore,
+  createInMemoryInstallStateStore,
+  createManifestValidator,
+  createValidatorGate,
+  installPackage,
+  normaliseInstallState,
+  serializeInstallState,
+  toInstallOutcome,
+  type MarketplaceAssetRegistrar,
+  type MarketplaceInstalledRecord,
+  type MarketplaceInstallOptions,
+  type MarketplaceInstallResult,
+  type MarketplaceInstallState,
+  type MarketplaceInstallStateStore,
+  type MarketplaceRegisteredAsset,
+  type MarketplaceValidationRequest,
+  type MarketplaceValidator,
+  type MarketplaceValidatorFunction,
+} from "./install.js";
