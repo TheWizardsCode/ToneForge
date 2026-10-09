@@ -25,6 +25,7 @@ import * as visualizeCmd from "./cli/commands/visualize.js";
 import * as validateCmd from "./cli/commands/validate.js";
 import * as compileCmd from "./cli/commands/compile.js";
 import * as syncCmd from "./cli/commands/sync.js";
+import * as pipelineCmd from "./cli/commands/pipeline.js";
 
 export const FRAMEWORK_COMMANDS = [
   "generate",
@@ -47,6 +48,7 @@ export const FRAMEWORK_COMMANDS = [
   "validate",
   "compile",
   "sync",
+  "pipeline",
 ];
 
 /**
@@ -652,6 +654,18 @@ export async function yargsMain(argv: string[] = process.argv): Promise<number> 
       ...(argv.target !== undefined ? { target: String(argv.target) } : {}),
       ...(argv.library !== undefined ? { library: String(argv.library) } : {}),
       ...(argv.output !== undefined ? { output: String(argv.output) } : {}),
+    }), []);
+  });
+
+  // ── pipeline ────────────────────────────────────────────────────────────
+  y.command(pipelineCmd.command, pipelineCmd.desc, pipelineCmd.builder, async (argv) => {
+    exitCode = await dispatchCommand("pipeline", undefined, buildFlags(argv, {
+      ...(argv.sounds !== undefined ? { sounds: String(argv.sounds) } : {}),
+      ...(argv.library !== undefined ? { library: String(argv.library) } : {}),
+      ...(argv.output !== undefined ? { output: String(argv.output) } : {}),
+      ...(argv["compile-dir"] !== undefined ? { "compile-dir": String(argv["compile-dir"]) } : {}),
+      ...(argv.ruleset !== undefined ? { ruleset: String(argv.ruleset) } : {}),
+      ...(argv.strictness !== undefined ? { strictness: String(argv.strictness) } : {}),
     }), []);
   });
 

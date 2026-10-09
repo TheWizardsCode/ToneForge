@@ -85,6 +85,22 @@ JSON errors carry a stable `code` (`unsupported_target`, `validation_failed`)
 plus actionable fields — for example unsupported targets include
 `supportedTargets`.
 
+## `toneforge pipeline` (CI)
+
+The CI pipeline runs every stage — **generate → validate → compile →
+export** — in one non-interactive command, fails fast on the first failing
+stage, and emits a structured JSON log. It reuses the same Library,
+Validator and Compiler APIs as the rest of ToneForge.
+
+```bash
+toneforge pipeline --sounds ./sounds.json --library ./build/library --output ./build/export --json
+```
+
+See the [CI integration guide](./guides/ci-integration.md) for the sounds
+manifest format, the structured log shape, exit codes and an example GitHub
+Actions workflow. To package the exported assets for a game engine, follow
+the pipeline with `toneforge sync` (above).
+
 ## Mapping
 
 Adapters map ToneForge metadata onto engine concepts:

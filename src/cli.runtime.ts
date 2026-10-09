@@ -123,6 +123,7 @@ import { listTargets } from "./integrations/index.js";
 import * as validateCmd from "./cli/commands/validate.js";
 import * as compileCmd from "./cli/commands/compile.js";
 import * as syncCmd from "./cli/commands/sync.js";
+import * as pipelineCmd from "./cli/commands/pipeline.js";
 
 /** Parse command-line arguments into a structured map. */
 export function parseArgs(argv: string[]): {
@@ -205,6 +206,7 @@ async function printHelp(): Promise<void> {
 | **validate** | Validate library assets against platform quality rules |
 | **compile** | Compile library assets into platform-ready artifacts |
 | **sync** | Sync library assets to a game-engine target |
+| **pipeline** | Run the generate → validate → compile → export CI pipeline |
 | **version** | Print the ToneForge version |
 
 ## Options
@@ -462,6 +464,50 @@ toneforge sync --target <engine> --library <dir> --output <dir>
 toneforge sync --target unity --library ./library --output ./unity-project/Assets/Audio/
 toneforge sync --target web --library ./library --output ./dist/web/audio/
 toneforge sync --target unity --library ./library --output ./out/ --json
+\`\`\``;
+  await outputMarkdown(md);
+}
+
+/** Print help text for the pipeline command. */
+async function printPipelineHelp(): Promise<void> {
+  const rulesets = listRulesets();
+  const md = `# ToneForge pipeline
+
+**Run the generate → validate → compile → export CI pipeline**
+
+Runs all four Integrations stages in one non-interactive invocation,
+fails fast on the first failing stage, and emits a structured JSON log
+suitable for CI. Each stage reuses the shipped Library, Validator and
+Compiler APIs.
+
+## Usage
+
+\`\`\`
+toneforge pipeline --sounds <manifest.json> --library <dir> --output <dir>
+toneforge pipeline --sounds <manifest.json> --output ./build --json
+\`\`\`
+
+## Options
+
+- \`--sounds <file>\` — Sounds manifest (JSON) describing entries to generate *(required)*
+- \`--library <dir>\` — Library directory written by generate (default: \`${DEFAULT_LIBRARY_DIR}\`)
+- \`--output <dir>\` — Export output directory *(required)*
+- \`--compile-dir <dir>\` — Compiled-artifact directory (default: \`<output>/compile\`)
+- \`--ruleset <name>\` — Validation ruleset override: ${rulesets.join(", ")}
+- \`--strictness <level>\` — Validation strictness override: ${STRICTNESS_LEVELS.join(", ")}
+- \`--json\` — Output the structured run result as JSON
+- \`--help\`, \`-h\` — Show this help message
+
+## Exit codes
+
+- \`0\` — every stage succeeded
+- \`1\` — usage/IO error, or a stage failed (later stages are not run)
+
+## Examples
+
+\`\`\`
+toneforge pipeline --sounds ./sounds.json --library ./build/library --output ./build/export
+toneforge pipeline --sounds ./sounds.json --output ./build --json
 \`\`\``;
   await outputMarkdown(md);
 }
@@ -2113,6 +2159,8 @@ export async function dispatchCommand(
       await printCompileHelp();
     } else if (command === "sync") {
       await printSyncHelp();
+    } else if (command === "pipeline") {
+      await printPipelineHelp();
     } else if (command === "sequence") {
       if (subcommand === "generate") {
         await printSequenceGenerateHelp();
@@ -2312,6 +2360,20 @@ export async function dispatchCommand(
       target: flags["target"],
       library: flags["library"],
       output: flags["output"],
+      json: jsonMode,
+    });
+  }
+
+  // ── pipeline command ────────────────────────────────────────────
+
+  if (command === "pipeline") {
+    return pipelineCmd.handler({
+      sounds: flags["sounds"],
+      library: flags["library"],
+      output: flags["output"],
+      "compile-dir": flags["compile-dir"],
+      ruleset: flags["ruleset"],
+      strictness: flags["strictness"],
       json: jsonMode,
     });
   }

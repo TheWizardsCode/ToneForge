@@ -71,6 +71,14 @@ export type {
   PipelineStage,
 } from "./harness.js";
 
+export { defaultCompileDir, runCiPipeline } from "./pipeline.js";
+export type {
+  PipelineOptions,
+  PipelineRunResult,
+  PipelineStageLog,
+  PipelineStageStatus,
+} from "./pipeline.js";
+
 import { registerAdapter } from "./adapter.js";
 import { unityAdapter } from "./unity.js";
 import { webAdapter } from "./web.js";
