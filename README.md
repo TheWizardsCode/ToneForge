@@ -14,6 +14,8 @@ ToneForge lets developers generate placeholder sounds from recipes and seeds dur
 - **Explore** -- Sweep parameter spaces, discover outliers, rank and cluster variants
 - **Store** -- Structured library with metadata indexing, similarity search, and deterministic regeneration
 - **Deploy** -- Real-time playback engine with seed-based variation and baked fallback, targeting browser and Node.js
+- **Sync** -- Deterministic multi-client behavioural synchronisation: compact events resolved locally, with no audio streaming
+- **Integrate** -- Non-interactive CI pipeline (`generate → validate → compile → export`) and engine export via `toneforge sync`
 
 ## What It Is Not
 
@@ -208,7 +210,10 @@ toneforge library add --input sound.wav --tags "weapon,laser"
 - [Intelligence](docs/intelligence.md) — assistive, read-only library audit, recommendations, and exploration suggestions (suggests, never mutates)
 - [Intent & Memory](docs/intent-memory.md) — structured goals behind a human approval gate, plus the append-only project-local memory store and `--use-memory` context
 - [Core Module PRD](docs/prd/CORE_PRD.md)
+- [Network](docs/network.md) — deterministic behavioural sync: events, host/join, late join, and bounded drift handling
 - [Integrations](docs/integrations.md) — engine adapter mapping and `toneforge sync --target unity|web` (deterministic, idempotent export)
+- [Network & Integrations usage](docs/guides/network-integrations.md) — usage guide for the Network and Integrations modules
+- [ToneForge in CI](docs/guides/ci-integration.md) — the `toneforge pipeline` CI workflow
 - [ToneGraph v0.1 Specification](docs/tonegraph.md)
 - [Casual Game Recipe Book](docs/recipe-book/index.md) — a guided tour of 100 procedural recipes, from single-oscillator blips to layered stings.
 - [Browser Runtime Usage](docs/browser-usage.md)
