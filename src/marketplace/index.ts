@@ -71,3 +71,19 @@ export {
   type MarketplaceRegistry,
   type MarketplaceRegistryErrorCode,
 } from "./registry.js";
+
+export {
+  compareVersions,
+  detectConflicts,
+  isValidVersion,
+  parseRequirement,
+  parseVersion,
+  resolveDependencies,
+  satisfiesRange,
+  type DependencyGraphNode,
+  type DependencyProvider,
+  type DependencyResolution,
+  type ParsedRequirement,
+  type ParsedVersion,
+  type SelectedDependency,
+} from "./version.js";

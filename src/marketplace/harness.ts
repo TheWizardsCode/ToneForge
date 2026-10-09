@@ -28,11 +28,19 @@ import type {
   MarketplaceAssetKind,
   MarketplaceIssue,
   MarketplaceListing,
+  VersionConflict,
+  VersionConflictKind,
 } from "./types.js";
 
 // Re-exported from the canonical domain types so the harness contract is
 // unchanged for existing importers.
-export type { MarketplaceAssetKind, MarketplaceIssue, MarketplaceListing };
+export type {
+  MarketplaceAssetKind,
+  MarketplaceIssue,
+  MarketplaceListing,
+  VersionConflict,
+  VersionConflictKind,
+};
 
 // ---------------------------------------------------------------------------
 // Live-network guard
@@ -188,22 +196,6 @@ export interface InstallOutcome {
   /** Content-addressed ids of the assets registered into the local registry. */
   registeredAssets: string[];
   issues: MarketplaceIssue[];
-}
-
-/** Classification of a dependency conflict. */
-export type VersionConflictKind =
-  | "missing-dependency"
-  | "incompatible-major"
-  | "circular-dependency";
-
-/** A detected dependency conflict. */
-export interface VersionConflict {
-  package: string;
-  dependency: string;
-  required: string;
-  available: string[];
-  kind: VersionConflictKind;
-  message: string;
 }
 
 /**

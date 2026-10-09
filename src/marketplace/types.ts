@@ -128,6 +128,35 @@ export interface MarketplaceProvenance {
   registry: string;
 }
 
+/**
+ * Classification of a dependency conflict detected during resolution.
+ *
+ * - `missing-dependency` — a required package is available in no version;
+ * - `incompatible-major` — versions exist but none satisfies the requirement;
+ * - `circular-dependency` — the dependency graph contains a cycle.
+ */
+export type VersionConflictKind =
+  | "missing-dependency"
+  | "incompatible-major"
+  | "circular-dependency";
+
+/**
+ * A detected dependency conflict.
+ *
+ * `package`/`dependency` name the edge that produced the conflict, `required`
+ * is the original requirement string (for example `core>=3.0`), `available`
+ * lists the candidate versions seen (sorted, empty when none exist) and
+ * `message` is the actionable, human-readable explanation.
+ */
+export interface VersionConflict {
+  package: string;
+  dependency: string;
+  required: string;
+  available: string[];
+  kind: VersionConflictKind;
+  message: string;
+}
+
 /** The asset inventory a manifest declares, keyed by asset kind. */
 export type MarketplaceManifestAssets = Record<MarketplaceAssetKind, string[]>;
 
