@@ -46,6 +46,11 @@ Start the web demo server:
 npm run dev:web
 ```
 
+To run the two windows from another device on the same network, start the
+dev stack with `npm run dev:web -- --host`: the launcher derives the host's
+own hostnames/IPs and passes them to the backend as `ALLOWED_ORIGINS`
+(dev-only).
+
 Open two browser windows side by side. In the **host window**, navigate
 to:
 

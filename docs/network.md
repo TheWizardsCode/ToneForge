@@ -245,6 +245,11 @@ locally through the bridge. To run it:
 npm run dev:web
 ```
 
+To run the two windows from another device on the same network, start the
+dev stack with `npm run dev:web -- --host`: the launcher derives the host's
+own hostnames/IPs and passes them to the backend as `ALLOWED_ORIGINS`
+(dev-only).
+
 Then open two windows:
 
 1. Host: <http://localhost:5173/network-demo.html?role=host>

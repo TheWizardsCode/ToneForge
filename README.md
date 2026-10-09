@@ -71,6 +71,11 @@ Starts the backend server and Vite dev server:
 npm run dev:web
 ```
 
+To open the demo from another device on the same LAN/Tailscale network, use
+`npm run dev:web -- --host`: the launcher derives the host's own hostnames/IPs
+and passes them to the backend as `ALLOWED_ORIGINS` (dev-only; production stays
+`localhost,127.0.0.1`). See [`web/README.md`](web/README.md) for details.
+
 ### Run the runtime audio demo
 
 The runtime is **render-backed**: a scripted session drives State and Context

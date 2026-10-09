@@ -94,6 +94,11 @@ time, so the same delivered order always produces the same result.
 npm run dev:web
 ```
 
+To run the two windows from another device on the same network, start the
+dev stack with `npm run dev:web -- --host`: the launcher derives the host's
+own hostnames/IPs and passes them to the backend as `ALLOWED_ORIGINS`
+(dev-only).
+
 Open a host window (<http://localhost:5173/network-demo.html?role=host>) and a
 client window (<http://localhost:5173/network-demo.html>). Both windows play
 the resolved sound and display the same fingerprint; the host's event log and

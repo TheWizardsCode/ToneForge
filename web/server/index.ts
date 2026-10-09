@@ -24,12 +24,27 @@ const PROJECT_ROOT = resolve(__dirname, "..", "..");
 
 const DEFAULT_ALLOWED_ORIGINS = "localhost,127.0.0.1";
 
+// In development the root `dev:web` script derives the host's own hostnames/IPs
+// (see scripts/allowed-origins.mjs) and passes them via ALLOWED_ORIGINS so a
+// remote browser can reach the PTY backend. Production (`npm start` / the
+// container) leaves ALLOWED_ORIGINS unset and therefore stays localhost-only.
+
 function getAllowedOriginPatterns(): string[] {
   const raw = process.env.ALLOWED_ORIGINS || DEFAULT_ALLOWED_ORIGINS;
   return raw
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+/**
+ * Normalise a hostname for comparison: strip IPv6 brackets and lower-case.
+ * `URL.hostname` renders IPv6 hosts as `[fd7a::1]`, while ALLOWED_ORIGINS
+ * entries are typically unbracketed (`fd7a::1`); hostnames are also
+ * case-insensitive, so both sides must be normalised before comparing.
+ */
+function normalizeHostname(hostname: string): string {
+  return hostname.replace(/^\[|\]$/g, "").toLowerCase();
 }
 
 /**
@@ -47,7 +62,8 @@ function isOriginAllowed(origin: string | undefined): boolean {
 
   try {
     const url = new URL(origin);
-    return patterns.some((p) => url.hostname === p);
+    const hostname = normalizeHostname(url.hostname);
+    return patterns.some((p) => normalizeHostname(p) === hostname);
   } catch {
     // Malformed origin — reject
     return false;

@@ -327,6 +327,10 @@ The demo runs the Terminal UI and wizard; when a `generate --recipe <name>
 browser and plays the result. Browser playback is implemented in
 `web/src/audio.ts`.
 
+To open the demo from another device on the same network, use
+`npm run dev:web -- --host`: the dev launcher derives the host's own
+hostnames/IPs and passes them to the backend as `ALLOWED_ORIGINS` (dev-only).
+
 ## Tests
 
 The browser behaviour is covered by Playwright end-to-end tests in
