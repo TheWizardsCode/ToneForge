@@ -24,12 +24,15 @@
 import http from "node:http";
 import https from "node:https";
 
-/** The four asset kinds a demo Marketplace package may contain. */
-export type MarketplaceAssetKind =
-  | "recipes"
-  | "stacks"
-  | "sequences"
-  | "palettes";
+import type {
+  MarketplaceAssetKind,
+  MarketplaceIssue,
+  MarketplaceListing,
+} from "./types.js";
+
+// Re-exported from the canonical domain types so the harness contract is
+// unchanged for existing importers.
+export type { MarketplaceAssetKind, MarketplaceIssue, MarketplaceListing };
 
 // ---------------------------------------------------------------------------
 // Live-network guard
@@ -168,23 +171,6 @@ export async function withNoNetwork<T>(
 // ---------------------------------------------------------------------------
 // Conformance contract
 // ---------------------------------------------------------------------------
-
-/** A search listing, as returned by the registry. */
-export interface MarketplaceListing {
-  name: string;
-  version: string;
-  author: string;
-  license: string;
-  category: string;
-  rating: number;
-  assets: Record<MarketplaceAssetKind, number>;
-}
-
-/** A structured manifest/publish/install issue. */
-export interface MarketplaceIssue {
-  field: string;
-  message: string;
-}
 
 /** Outcome of a publish attempt. */
 export interface PublishOutcome {
