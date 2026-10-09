@@ -73,6 +73,9 @@ import {
   countEntries,
   DEFAULT_LIBRARY_DIR,
 } from "./library/index.js";
+
+/** Default directory for the local Marketplace registry. */
+const DEFAULT_MARKETPLACE_DIR = ".toneforge-marketplace";
 import { auditLibrary } from "./intelligence/audit.js";
 import { recommendSounds } from "./intelligence/recommend.js";
 import { suggestExploration } from "./intelligence/suggest-exploration.js";
@@ -98,6 +101,15 @@ import {
   MEMORY_VERSION,
 } from "./memory/index.js";
 import type { MemoryTimeRange } from "./memory/types.js";
+import {
+  createLocalRegistry,
+  createInMemoryInstallStateStore,
+  createRegistrar,
+  installPackage,
+  publishPackage,
+  type MutableMarketplaceRegistry,
+} from "./marketplace/index.js";
+import { registry as recipeRegistry } from "./recipes/index.js";
 import { searchEntries } from "./library/search.js";
 import type { SearchQuery } from "./library/search.js";
 import { findSimilar } from "./library/similarity.js";
@@ -509,6 +521,60 @@ toneforge pipeline --sounds <manifest.json> --output ./build --json
 toneforge pipeline --sounds ./sounds.json --library ./build/library --output ./build/export
 toneforge pipeline --sounds ./sounds.json --output ./build --json
 \`\`\``;
+  await outputMarkdown(md);
+}
+
+/** Print help text for the marketplace command group. */
+async function printMarketplaceHelp(): Promise<void> {
+  const md = `# ToneForge marketplace
+
+**Browse, install and publish Marketplace packages**
+
+The Marketplace provides a local registry of procedural sound packages.
+Packages contain recipes, stacks, sequences and palettes — not static audio.
+
+## Usage
+
+\\
+
+toneforge marketplace search [--category <c>] [--json]
+toneforge marketplace install <package>@<version> [--json]
+toneforge marketplace publish --package <dir> --name <n> --version <v> [--json]
+\
+
+## Subcommands
+
+- **search** — Search the Marketplace for packages by category
+- **install** — Install a Marketplace package
+- **publish** — Publish a package to the Marketplace
+
+## Options
+
+- **search**
+  - \`--category <c>\` — Filter by category
+  - \`--json\` — Output JSON
+
+- **install**
+  - \`<package>@<version>\` — Package name and version (required, positional)
+  - \`--json\` — Output JSON
+
+- **publish**
+  - \`--package <dir>\` — Package directory containing manifest.json and assets/ (required)
+  - \`--name <n>\` — Package name (required)
+  - \`--version <v>\` — Package version, semver (required)
+  - \`--json\` — Output JSON
+
+## Examples
+
+\\
+
+toneforge marketplace search --category "sci-fi weapons"
+toneforge marketplace search --category combat --json
+toneforge marketplace install industrial_lasers@2.1.0
+toneforge marketplace install plasma_rifles@1.4.2 --json
+toneforge marketplace publish --package ./my-package --name my_package --version 1.0.0
+\
+`;
   await outputMarkdown(md);
 }
 
@@ -2161,6 +2227,8 @@ export async function dispatchCommand(
       await printSyncHelp();
     } else if (command === "pipeline") {
       await printPipelineHelp();
+    } else if (command === "marketplace") {
+      await printMarketplaceHelp();
     } else if (command === "sequence") {
       if (subcommand === "generate") {
         await printSequenceGenerateHelp();
@@ -2376,6 +2444,247 @@ export async function dispatchCommand(
       strictness: flags["strictness"],
       json: jsonMode,
     });
+  }
+
+  // ── marketplace command ─────────────────────────────────────────
+
+  if (command === "marketplace") {
+    if (subcommand === "search") {
+      if (flags["help"]) {
+        await printMarketplaceHelp();
+        return 0;
+      }
+
+      // Resolve the registry path (default: test fixtures marketplace)
+      const registryIndexFile = resolve(
+        import.meta.dirname,
+        "../../src/test-utils/fixtures/marketplace/registry/index.json",
+      );
+      const registryRoot = resolve(
+        import.meta.dirname,
+        "../../src/test-utils/fixtures/marketplace",
+      );
+
+      let registry: MutableMarketplaceRegistry;
+      try {
+        registry = createLocalRegistry({ indexFile: registryIndexFile, root: registryRoot });
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        if (jsonMode) {
+          jsonErr(`Registry error: ${msg}`);
+        } else {
+          outputError(`Registry error: ${msg}`);
+        }
+        return 1;
+      }
+
+      const category = typeof flags["category"] === "string" ? flags["category"] : undefined;
+      const result = registry.searchResult(category);
+
+      if (jsonMode) {
+        jsonOut({ command: "marketplace search", ...result });
+      } else {
+        if (result.count === 0) {
+          outputInfo(`No Marketplace packages found${category ? ` in category '${category}'` : "."}`);
+        } else {
+          outputInfo(`Marketplace Results: ${category ? `"${category}"` : "all categories"}`);
+          outputInfo(`Found ${result.count} package${result.count === 1 ? "" : "s"}.`);
+          for (const listing of result.listings) {
+            const assetParts = Object.entries(listing.assets)
+              .filter(([, count]) => count > 0)
+              .map(([kind, count]) => `${count} ${kind}`)
+              .join(", ");
+            outputInfo(
+              `  ${listing.name}@${listing.version} by ${listing.author}` +
+                (assetParts ? ` — ${assetParts}` : "") +
+                ` — ${listing.rating}/5`,
+            );
+          }
+        }
+      }
+
+      return 0;
+    }
+
+    if (subcommand === "install") {
+      if (flags["help"]) {
+        await printMarketplaceHelp();
+        return 0;
+      }
+
+      // Parse the package@version argument
+      const packageArg = typeof flags["package"] === "string" ? flags["package"] : undefined;
+      if (!packageArg) {
+        const msg = "Usage: toneforge marketplace install <package>@<version>. Run 'toneforge marketplace install --help' for usage.";
+        if (jsonMode) jsonErr(msg);
+        else outputError(`Error: ${msg}`);
+        return 1;
+      }
+
+      const atIdx = packageArg.lastIndexOf("@");
+      if (atIdx === -1 || atIdx === 0 || atIdx === packageArg.length - 1) {
+        const msg = `Invalid package argument '${packageArg}'. Expected format: name@version (e.g. industrial_lasers@2.1.0)`;
+        if (jsonMode) jsonErr(msg);
+        else outputError(`Error: ${msg}`);
+        return 1;
+      }
+
+      const packageName = packageArg.substring(0, atIdx);
+      const packageVersion = packageArg.substring(atIdx + 1);
+
+      // Resolve the registry
+      const registryIndexFile = resolve(
+        import.meta.dirname,
+        "../../src/test-utils/fixtures/marketplace/registry/index.json",
+      );
+      const registryRoot = resolve(
+        import.meta.dirname,
+        "../../src/test-utils/fixtures/marketplace",
+      );
+
+      let registry: MutableMarketplaceRegistry;
+      try {
+        registry = createLocalRegistry({ indexFile: registryIndexFile, root: registryRoot });
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        if (jsonMode) {
+          jsonErr(`Registry error: ${msg}`);
+        } else {
+          outputError(`Registry error: ${msg}`);
+        }
+        return 1;
+      }
+
+      // Create a registrar for the installed assets
+      const registrar = createRegistrar(recipeRegistry);
+
+      // Run the install pipeline
+      const installResult = installPackage(
+        packageName,
+        packageVersion,
+        {
+          registry,
+          registrar,
+          stateStore: createInMemoryInstallStateStore(),
+        },
+      );
+
+      if (jsonMode) {
+        jsonOut({
+          command: "marketplace install",
+          name: installResult.name,
+          version: installResult.version,
+          installed: installResult.installed,
+          lockedVersion: installResult.lockedVersion,
+          registeredAssets: installResult.registeredAssets.map((a) => ({
+            kind: a.kind,
+            id: a.id,
+            contentHash: a.contentHash,
+          })),
+          issues: installResult.issues,
+        });
+      } else {
+        if (installResult.installed) {
+          outputSuccess(
+            `Installed ${installResult.name}@${installResult.version} ` +
+              `(${installResult.registeredAssets.length} assets registered)`,
+          );
+          if (installResult.registeredAssets.length > 0) {
+            const recipeCount = installResult.registeredAssets.filter(
+              (a) => a.kind === "recipes",
+            ).length;
+            if (recipeCount > 0) {
+              outputInfo(
+                `Registered recipes: ${installResult.registeredAssets
+                  .filter((a) => a.kind === "recipes")
+                  .map((a) => a.path.replace(/\.[^.]+$/, ""))
+                  .join(", ")}`,
+              );
+            }
+          }
+        } else {
+          outputError(
+            `Install failed for ${installResult.name}@${installResult.version}: ` +
+              installResult.issues.map((i) => i.message).join("; "),
+          );
+        }
+      }
+
+      return installResult.installed ? 0 : 1;
+    }
+
+    if (subcommand === "publish") {
+      if (flags["help"]) {
+        await printMarketplaceHelp();
+        return 0;
+      }
+
+      const packageDir = typeof flags["package"] === "string" ? flags["package"] : undefined;
+      const name = typeof flags["name"] === "string" ? flags["name"] : undefined;
+      const version = typeof flags["version"] === "string" ? flags["version"] : undefined;
+
+      if (!packageDir || !name || !version) {
+        const msg = "Required arguments: --package <dir> --name <name> --version <semver>. Run 'toneforge marketplace publish --help' for usage.";
+        if (jsonMode) jsonErr(msg);
+        else outputError(`Error: ${msg}`);
+        return 1;
+      }
+
+      // Resolve the registry
+      const registryIndexFile = resolve(
+        import.meta.dirname,
+        "../../src/test-utils/fixtures/marketplace/registry/index.json",
+      );
+      const registryRoot = resolve(
+        import.meta.dirname,
+        "../../src/test-utils/fixtures/marketplace",
+      );
+
+      let registry: MutableMarketplaceRegistry;
+      try {
+        registry = createLocalRegistry({ indexFile: registryIndexFile, root: registryRoot });
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        if (jsonMode) {
+          jsonErr(`Registry error: ${msg}`);
+        } else {
+          outputError(`Registry error: ${msg}`);
+        }
+        return 1;
+      }
+
+      // Run the publish pipeline
+      const publishResult = publishPackage(packageDir, {
+        registry,
+      });
+
+      if (jsonMode) {
+        jsonOut({
+          command: "marketplace publish",
+          name: publishResult.name,
+          version: publishResult.version,
+          published: publishResult.published,
+          issues: publishResult.issues,
+        });
+      } else {
+        if (publishResult.published) {
+          outputSuccess(`Published ${publishResult.name}@${publishResult.version}`);
+        } else {
+          outputError(
+            `Publish failed for ${publishResult.name}@${publishResult.version}: ` +
+              publishResult.issues.map((i) => i.message).join("; "),
+          );
+        }
+      }
+
+      return publishResult.published ? 0 : 1;
+    }
+
+    // Unknown subcommand
+    const msg = `Unknown marketplace subcommand '${subcommand}'. Run 'toneforge marketplace --help' for usage.`;
+    if (jsonMode) jsonErr(msg);
+    else outputError(`Error: ${msg}`);
+    return 1;
   }
 
   // ── stack command ────────────────────────────────────────────────

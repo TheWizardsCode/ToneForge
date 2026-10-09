@@ -26,6 +26,7 @@ import * as validateCmd from "./cli/commands/validate.js";
 import * as compileCmd from "./cli/commands/compile.js";
 import * as syncCmd from "./cli/commands/sync.js";
 import * as pipelineCmd from "./cli/commands/pipeline.js";
+import * as marketplaceCmd from "./cli/commands/marketplace.js";
 
 export const FRAMEWORK_COMMANDS = [
   "generate",
@@ -49,6 +50,7 @@ export const FRAMEWORK_COMMANDS = [
   "compile",
   "sync",
   "pipeline",
+  "marketplace",
 ];
 
 /**
@@ -667,6 +669,41 @@ export async function yargsMain(argv: string[] = process.argv): Promise<number> 
       ...(argv.ruleset !== undefined ? { ruleset: String(argv.ruleset) } : {}),
       ...(argv.strictness !== undefined ? { strictness: String(argv.strictness) } : {}),
     }), []);
+  });
+
+  // ── marketplace ────────────────────────────────────────────────────────
+  y.command(marketplaceCmd.command, marketplaceCmd.desc, (y2) => {
+    y2.command("search", "Search the Marketplace for packages", (y3) => {
+      y3.option("category", { type: "string", describe: "Filter by category" })
+        .option("json", { type: "boolean", describe: "Output JSON" });
+    }, async (argv) => {
+      exitCode = await dispatchCommand("marketplace", "search", buildFlags(argv, {
+        ...(argv.category !== undefined ? { category: String(argv.category) } : {}),
+      }), []);
+    });
+    y2.command("install", "Install a Marketplace package", (y3) => {
+      y3.positional("package", { type: "string", describe: "Package name and version (e.g. industrial_lasers@2.1.0)" });
+      y3.option("json", { type: "boolean", describe: "Output JSON" });
+    }, async (argv) => {
+      exitCode = await dispatchCommand("marketplace", "install", buildFlags(argv, {
+        ...(argv.package !== undefined ? { package: String(argv.package) } : {}),
+      }), []);
+    });
+    y2.command("publish", "Publish a package to the Marketplace", (y3) => {
+      y3.option("package", { type: "string", describe: "Package directory" })
+        .option("name", { type: "string", describe: "Package name" })
+        .option("version", { type: "string", describe: "Package version (semver)" })
+        .option("json", { type: "boolean", describe: "Output JSON" });
+    }, async (argv) => {
+      exitCode = await dispatchCommand("marketplace", "publish", buildFlags(argv, {
+        ...(argv.package !== undefined ? { package: String(argv.package) } : {}),
+        ...(argv.name !== undefined ? { name: String(argv.name) } : {}),
+        ...(argv.version !== undefined ? { version: String(argv.version) } : {}),
+      }), []);
+    });
+  }, async (_argv) => {
+    const parsed = parseArgs(["node", "cli.ts", ...raw]);
+    exitCode = await dispatchCommand(parsed.command, parsed.subcommand, parsed.flags, parsed.layers);
   });
 
   try {
