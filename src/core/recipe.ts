@@ -402,6 +402,18 @@ function buildSignalChain(graph: ToneGraphDocument): string {
   return parts.join(" | ");
 }
 
+/**
+ * Whether the optional `TF_DIAG` render diagnostics are enabled.
+ *
+ * Browser-safe: the browser bundle has no `process` global, so a bare
+ * `process.env.TF_DIAG` read throws `ReferenceError: process is not defined`
+ * and aborts audio rendering before it starts (TF-0MV1GGPSY00773DT). The
+ * guard mirrors the runtime checks elsewhere in this module.
+ */
+export function isTfDiagnosticsEnabled(): boolean {
+  return typeof process !== "undefined" && process.env?.TF_DIAG === "1";
+}
+
 export function createFileBackedRegistration(
   recipeName: string,
   graph: ToneGraphDocument,
@@ -527,7 +539,7 @@ export function createFileBackedRegistration(
       // Optional diagnostics: set TF_DIAG=1 to print derived params and
       // cloned node parameter values before rendering. This is intentionally
       // gated by an env var to avoid noisy output in normal runs.
-      if (process.env.TF_DIAG === "1") {
+      if (isTfDiagnosticsEnabled()) {
         try {
           // Print derived params mapping and example node param values
           // (only a few common node ids are shown for readability).
