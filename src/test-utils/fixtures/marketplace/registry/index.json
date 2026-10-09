@@ -1,0 +1,52 @@
+{
+  "version": "1.0",
+  "packages": [
+    {
+      "name": "plasma_rifles",
+      "version": "1.4.2",
+      "type": "stack",
+      "category": "combat",
+      "author": "StudioX",
+      "license": "commercial",
+      "rating": 4.2,
+      "path": "packages/plasma_rifles",
+      "assets": { "recipes": 1, "stacks": 1, "sequences": 0, "palettes": 0 }
+    },
+    {
+      "name": "ui_chimes",
+      "version": "1.0.0",
+      "type": "recipe",
+      "category": "ui",
+      "author": "StudioX",
+      "license": "mit",
+      "rating": 4.1,
+      "path": "packages/ui_chimes",
+      "assets": { "recipes": 1, "stacks": 0, "sequences": 0, "palettes": 1 }
+    },
+    {
+      "name": "version_conflict",
+      "version": "1.0.0",
+      "type": "stack",
+      "category": "combat",
+      "author": "StudioX",
+      "license": "commercial",
+      "rating": 3.3,
+      "path": "packages/version_conflict",
+      "assets": { "recipes": 0, "stacks": 1, "sequences": 0, "palettes": 0 }
+    },
+    {
+      "name": "missing_dependency",
+      "version": "1.0.0",
+      "type": "recipe",
+      "category": "ambience",
+      "author": "StudioX",
+      "license": "commercial",
+      "rating": 3.0,
+      "path": "packages/missing_dependency",
+      "assets": { "recipes": 1, "stacks": 0, "sequences": 0, "palettes": 0 }
+    }
+  ],
+  "installed": [
+    { "name": "core", "version": "1.0.0" }
+  ]
+}

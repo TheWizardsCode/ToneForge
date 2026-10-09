@@ -1,0 +1,15 @@
+{
+  "name": "ui_chimes",
+  "version": "1.0.0",
+  "type": "recipe",
+  "description": "Sparkly UI confirmation chimes.",
+  "author": "StudioX",
+  "license": "mit",
+  "dependencies": [],
+  "assets": {
+    "recipes": ["assets/recipes/ui-chime.json"],
+    "stacks": [],
+    "sequences": [],
+    "palettes": ["assets/palettes/ui-chime-palette.json"]
+  }
+}

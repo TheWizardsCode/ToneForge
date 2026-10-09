@@ -1,0 +1,13 @@
+{
+  "name": "broken_manifest",
+  "version": "1.0",
+  "type": "recipe",
+  "author": "",
+  "dependencies": [],
+  "assets": {
+    "recipes": ["assets/recipes/broken.json"],
+    "stacks": [],
+    "sequences": [],
+    "palettes": []
+  }
+}

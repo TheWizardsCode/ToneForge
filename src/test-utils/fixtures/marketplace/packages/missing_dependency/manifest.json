@@ -1,0 +1,15 @@
+{
+  "name": "missing_dependency",
+  "version": "1.0.0",
+  "type": "recipe",
+  "description": "Recipe that depends on a package that does not exist.",
+  "author": "StudioX",
+  "license": "commercial",
+  "dependencies": ["does_not_exist>=1.0"],
+  "assets": {
+    "recipes": ["assets/recipes/orphan-recipe.json"],
+    "stacks": [],
+    "sequences": [],
+    "palettes": []
+  }
+}
