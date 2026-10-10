@@ -1,0 +1,115 @@
+# Tier 6 — Ambience & loops (noise bed + chatter LFO)
+# Market bustle ambience.
+
+version: '0.1'
+meta:
+  name: ambience-market-bustle
+  description: Market bustle ambience
+  category: Ambience
+  tags:
+  - casual
+  - fun
+  - ambience
+  duration: 1.6
+  parameters:
+  - name: chatterRate
+    type: number
+    min: 0.8
+    max: 5
+    unit: Hz
+    default: 2
+    overrides:
+    - target: filter.automation.frequency.0.rate
+  - name: chatterDepth
+    type: number
+    min: 150
+    max: 600
+    unit: Hz
+    default: 300
+    overrides:
+    - target: filter.automation.frequency.0.depth
+  - name: filterFreq
+    type: number
+    min: 550
+    max: 1600
+    unit: Hz
+    default: 1000
+    overrides:
+    - target: filter.frequency
+    - target: filter.automation.frequency.0.offset
+  - name: noiseLevel
+    type: number
+    min: 0.3
+    max: 0.8
+    unit: amplitude
+    default: 0.5
+    overrides:
+    - target: noise.level
+  - name: attack
+    type: number
+    min: 0.1
+    max: 0.4
+    unit: s
+    default: 0.25
+    overrides:
+    - target: env.attack
+  - name: release
+    type: number
+    min: 0.2
+    max: 0.6
+    unit: s
+    default: 0.5
+    overrides:
+    - target: env.release
+nodes:
+  noise:
+    kind: noise
+    params:
+      color: pink
+      level: 0.5
+  filter:
+    kind: biquadFilter
+    params:
+      type: bandpass
+      frequency: 1000
+      Q: 1
+    automation:
+      frequency:
+      - kind: lfo
+        rate: 2
+        depth: 300
+        offset: 1000
+        start: 0
+        end: 2.5
+        step: 0.01
+        wave: sine
+  osc:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 300
+  mix:
+    kind: gain
+    params:
+      gain: 0.55
+  env:
+    kind: envelope
+    params:
+      attack: 0.25
+      decay: 0.5
+      sustain: 0.8
+      release: 0.5
+  out:
+    kind: destination
+routing:
+- chain:
+  - noise
+  - filter
+  - mix
+- chain:
+  - osc
+  - mix
+- chain:
+  - mix
+  - env
+  - out

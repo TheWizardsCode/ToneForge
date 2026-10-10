@@ -1,0 +1,97 @@
+# Tier 7 — Multi-voice stings
+# Soft multi-voice defeat sting (self-contained 2–3 voices, no stack required).
+
+version: '0.1'
+meta:
+  name: sting-defeat-soft
+  description: Soft multi-voice defeat sting
+  category: Sting
+  tags:
+  - casual
+  - fun
+  - sting
+  duration: 0.94
+  parameters:
+  - name: leadStart
+    type: number
+    min: 360
+    max: 520
+    unit: Hz
+    default: 440
+    overrides:
+    - target: lead.automation.frequency.0.value
+  - name: leadEnd
+    type: number
+    min: 280
+    max: 400
+    unit: Hz
+    default: 349
+    overrides:
+    - target: lead.automation.frequency.1.value
+  - name: bassFreq
+    type: number
+    min: 130
+    max: 220
+    unit: Hz
+    default: 175
+    overrides:
+    - target: bass.frequency
+  - name: attack
+    type: number
+    min: 0.01
+    max: 0.04
+    unit: s
+    default: 0.02
+    overrides:
+    - target: env.attack
+  - name: decay
+    type: number
+    min: 0.3
+    max: 0.7
+    unit: s
+    default: 0.55
+    overrides:
+    - target: env.decay
+nodes:
+  lead:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 440
+    automation:
+      frequency:
+      - kind: set
+        time: 0
+        value: 440
+      - kind: linearRamp
+        time: 0.5
+        value: 349
+  bass:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 175
+  mix:
+    kind: gain
+    params:
+      gain: 0.32
+  env:
+    kind: envelope
+    params:
+      attack: 0.02
+      decay: 0.55
+      sustain: 0.0
+      release: 0.0
+  out:
+    kind: destination
+routing:
+- chain:
+  - lead
+  - mix
+- chain:
+  - bass
+  - mix
+- chain:
+  - mix
+  - env
+  - out

@@ -1,0 +1,75 @@
+# Tier 5 — Character & critter voices (FM)
+# Toy critter squeak.
+
+version: '0.1'
+meta:
+  name: critter-squeak-toy
+  description: Toy critter squeak
+  category: Critter
+  tags:
+  - casual
+  - joy
+  - critter
+  duration: 0.315
+  parameters:
+  - name: carrierFreq
+    type: number
+    min: 800
+    max: 1600
+    unit: Hz
+    default: 1200
+    overrides:
+    - target: fm.carrierFrequency
+  - name: modulatorFreq
+    type: number
+    min: 1200
+    max: 2600
+    unit: Hz
+    default: 1900
+    overrides:
+    - target: fm.modulatorFrequency
+  - name: modIndex
+    type: number
+    min: 3
+    max: 14
+    unit: ratio
+    default: 7
+    overrides:
+    - target: fm.modulationIndex
+  - name: attack
+    type: number
+    min: 0.002
+    max: 0.015
+    unit: s
+    default: 0.004
+    overrides:
+    - target: env.attack
+  - name: decay
+    type: number
+    min: 0.1
+    max: 0.3
+    unit: s
+    default: 0.2
+    overrides:
+    - target: env.decay
+nodes:
+  fm:
+    kind: fmPattern
+    params:
+      carrierFrequency: 1200
+      modulatorFrequency: 1900
+      modulationIndex: 7
+  env:
+    kind: envelope
+    params:
+      attack: 0.004
+      decay: 0.2
+      sustain: 0.0
+      release: 0.0
+  out:
+    kind: destination
+routing:
+- chain:
+  - fm
+  - env
+  - out

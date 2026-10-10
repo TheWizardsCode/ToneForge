@@ -1,0 +1,92 @@
+# Tier 5 — Character & critter voices (pitch movement)
+# Slime bounce.
+
+version: '0.1'
+meta:
+  name: creature-slime-bounce
+  description: Slime bounce
+  category: Creature
+  tags:
+  - casual
+  - fun
+  - creature
+  duration: 0.32
+  parameters:
+  - name: startFreq
+    type: number
+    min: 260
+    max: 520
+    unit: Hz
+    default: 400
+    overrides:
+    - target: osc.automation.frequency.0.value
+  - name: peakFreq
+    type: number
+    min: 500
+    max: 950
+    unit: Hz
+    default: 700
+    overrides:
+    - target: osc.automation.frequency.1.value
+  - name: filterFreq
+    type: number
+    min: 700
+    max: 1800
+    unit: Hz
+    default: 1200
+    overrides:
+    - target: filter.frequency
+  - name: attack
+    type: number
+    min: 0.002
+    max: 0.02
+    unit: s
+    default: 0.005
+    overrides:
+    - target: env.attack
+  - name: decay
+    type: number
+    min: 0.1
+    max: 0.3
+    unit: s
+    default: 0.2
+    overrides:
+    - target: env.decay
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 400
+    automation:
+      frequency:
+      - kind: set
+        time: 0.0
+        value: 400
+      - kind: linearRamp
+        time: 0.08
+        value: 700
+      - kind: linearRamp
+        time: 0.2
+        value: 300
+  filter:
+    kind: biquadFilter
+    params:
+      type: lowpass
+      frequency: 1200
+      Q: 3
+  env:
+    kind: envelope
+    params:
+      attack: 0.005
+      decay: 0.2
+      sustain: 0.0
+      release: 0.0
+  out:
+    kind: destination
+routing:
+- chain:
+  - osc
+  - filter
+  - env
+  - out

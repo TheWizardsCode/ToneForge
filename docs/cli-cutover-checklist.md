@@ -13,11 +13,18 @@ This checklist tracks ownership of user-facing CLI commands after the yargs cuto
 | `version` | yargs (`src/cli.yargs.ts`) | Flag and command paths covered. |
 | `stack` | yargs (`src/cli.yargs.ts`) | `render` and `inspect` subcommands registered under framework. |
 | `sequence` | yargs (`src/cli.yargs.ts`) | `generate`, `simulate`, `inspect` subcommands registered. |
+| `runtime` | yargs (`src/cli.yargs.ts`) | `start` (live interactive session) and `demo` (render-backed audio demo) subcommands. |
 | `analyze` | yargs (`src/cli.yargs.ts`) | Automation JSON contract path covered. |
 | `classify` | yargs (`src/cli.yargs.ts`) | Includes nested `search` subcommand. |
 | `explore` | yargs (`src/cli.yargs.ts`) | Includes `sweep`, `mutate`, `promote`, `show`, `runs`. |
 | `library` | yargs (`src/cli.yargs.ts`) | Includes `list`, `search`, `similar`, `export`, `regenerate`. |
+| `intelligence` | yargs (`src/cli.yargs.ts`) | Read-only `audit`, `recommend`, `suggest-exploration` subcommands. |
+| `intent` | yargs (`src/cli.yargs.ts`) | `submit` and `vocabulary` subcommands. |
+| `memory` | yargs (`src/cli.yargs.ts`) | `query`, `export`, `clear` subcommands. |
 | `tui` | yargs (`src/cli.yargs.ts`) | Non-TTY guard behavior preserved. |
+| `visualize` | yargs (`src/cli.yargs.ts`) | Deterministic, audio-synchronised visual export. |
+| `validate` | yargs (`src/cli.yargs.ts`) | Read-only validator report (text and JSON). |
+| `compile` | yargs (`src/cli.yargs.ts`) | Ruleset-driven compilation with `--dry-run`. |
 
 ## Cutover validation gates
 

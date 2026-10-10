@@ -1,0 +1,84 @@
+# Tier 5 — Character & critter voices (rapid pitch modulation)
+# Bat squeak.
+
+version: '0.1'
+meta:
+  name: creature-bat-squeak
+  description: Bat squeak
+  category: Creature
+  tags:
+  - casual
+  - fun
+  - creature
+  duration: 0.315
+  parameters:
+  - name: lfoRate
+    type: number
+    min: 18
+    max: 55
+    unit: Hz
+    default: 35
+    overrides:
+    - target: osc.automation.frequency.0.rate
+  - name: lfoDepth
+    type: number
+    min: 200
+    max: 800
+    unit: Hz
+    default: 500
+    overrides:
+    - target: osc.automation.frequency.0.depth
+  - name: lfoOffset
+    type: number
+    min: 1300
+    max: 2300
+    unit: Hz
+    default: 1800
+    overrides:
+    - target: osc.automation.frequency.0.offset
+  - name: attack
+    type: number
+    min: 0.002
+    max: 0.015
+    unit: s
+    default: 0.003
+    overrides:
+    - target: env.attack
+  - name: decay
+    type: number
+    min: 0.1
+    max: 0.3
+    unit: s
+    default: 0.18
+    overrides:
+    - target: env.decay
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 1800
+    automation:
+      frequency:
+      - kind: lfo
+        rate: 35
+        depth: 500
+        offset: 1800
+        start: 0
+        end: 0.18
+        step: 0.003
+        wave: sine
+  env:
+    kind: envelope
+    params:
+      attack: 0.003
+      decay: 0.18
+      sustain: 0.0
+      release: 0.0
+  out:
+    kind: destination
+routing:
+- chain:
+  - osc
+  - env
+  - out

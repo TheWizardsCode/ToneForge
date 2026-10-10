@@ -12,11 +12,21 @@ import * as playCmd from "./cli/commands/play.js";
 import * as versionCmd from "./cli/commands/version.js";
 import * as stackCmd from "./cli/commands/stack.js";
 import * as sequenceCmd from "./cli/commands/sequence.js";
+import * as runtimeCmd from "./cli/commands/runtime.js";
 import * as analyzeCmd from "./cli/commands/analyze.js";
 import * as classifyCmd from "./cli/commands/classify.js";
 import * as exploreCmd from "./cli/commands/explore.js";
 import * as libraryCmd from "./cli/commands/library.js";
+import * as intelligenceCmd from "./cli/commands/intelligence.js";
+import * as intentCmd from "./cli/commands/intent.js";
+import * as memoryCmd from "./cli/commands/memory.js";
 import * as tuiCmd from "./cli/commands/tui.js";
+import * as visualizeCmd from "./cli/commands/visualize.js";
+import * as validateCmd from "./cli/commands/validate.js";
+import * as compileCmd from "./cli/commands/compile.js";
+import * as syncCmd from "./cli/commands/sync.js";
+import * as pipelineCmd from "./cli/commands/pipeline.js";
+import * as marketplaceCmd from "./cli/commands/marketplace.js";
 
 export const FRAMEWORK_COMMANDS = [
   "generate",
@@ -26,11 +36,21 @@ export const FRAMEWORK_COMMANDS = [
   "version",
   "stack",
   "sequence",
+  "runtime",
   "analyze",
   "classify",
   "explore",
   "library",
+  "intelligence",
+  "intent",
+  "memory",
   "tui",
+  "visualize",
+  "validate",
+  "compile",
+  "sync",
+  "pipeline",
+  "marketplace",
 ];
 
 /**
@@ -99,6 +119,7 @@ export async function yargsMain(argv: string[] = process.argv): Promise<number> 
         ...(argv.search !== undefined ? { search: String(argv.search) } : {}),
         ...(argv.category !== undefined ? { category: String(argv.category) } : {}),
         ...(argv.tags !== undefined ? { tags: String(argv.tags) } : {}),
+        ...(argv.dir !== undefined ? { dir: String(argv.dir) } : {}),
       }),
       [],
     );
@@ -212,6 +233,48 @@ export async function yargsMain(argv: string[] = process.argv): Promise<number> 
       exitCode = await dispatchCommand("sequence", "inspect", buildFlags(argv, {
         ...(argv.preset !== undefined ? { preset: String(argv.preset) } : {}),
         ...(argv.validate === true ? { validate: true } : {}),
+      }), []);
+    });
+  }, async (_argv) => {
+    // Re-parse raw argv so dispatchCommand receives the unknown subcommand name
+    // for proper error output. yargs only calls this handler when no subcommand
+    // matched, so `argv._` isn't reliable; `raw` (captured in outer scope) is.
+    const parsed = parseArgs(["node", "cli.ts", ...raw]);
+    exitCode = await dispatchCommand(parsed.command, parsed.subcommand, parsed.flags, parsed.layers);
+  });
+
+  // ── runtime ───────────────────────────────────────────────────────────────
+  y.command(runtimeCmd.command, runtimeCmd.desc, (y2) => {
+    y2.command("start", "Start a live, interactive runtime session", (y3) => {
+      y3.option("scenario", { type: "string", describe: "Path to a runtime scenario JSON file" })
+        .option("seed", { type: "number", describe: "Override the scenario seed" })
+        .option("script", { type: "string", describe: "Replay a command-per-line script and exit" })
+        .option("serve", { type: "boolean", describe: "Run as a long-running service (no TTY; clean shutdown on SIGINT/SIGTERM)" })
+        .option("json", { type: "boolean", describe: "Stream runtime events as JSON (no audio)" })
+        .option("cache-size", { type: "number", describe: "Maximum cached renders" })
+        .option("iterations", { type: "number", describe: "Stop the transport after n loop iterations" })
+        .option("seed-variation", { type: "boolean", default: true, describe: "Vary the event seed on each transport iteration" });
+    }, async (argv) => {
+      exitCode = await dispatchCommand("runtime", "start", buildFlags(argv, {
+        ...(argv.scenario !== undefined ? { scenario: String(argv.scenario) } : {}),
+        ...(argv.seed !== undefined ? { seed: String(argv.seed) } : {}),
+        ...(argv.script !== undefined ? { script: String(argv.script) } : {}),
+        ...(argv.serve === true ? { serve: true } : {}),
+        ...(argv["cache-size"] !== undefined ? { "cache-size": String(argv["cache-size"]) } : {}),
+        ...(argv.iterations !== undefined ? { iterations: String(argv.iterations) } : {}),
+        ...(argv["seed-variation"] === false ? { "seed-variation": false } : {}),
+      }), []);
+    });
+    y2.command("demo", "Run a scripted runtime audio demo", (y3) => {
+      y3.option("scenario", { type: "string", describe: "Path to a runtime scenario JSON file" })
+        .option("seed", { type: "number", describe: "Override the scenario seed" })
+        .option("output", { type: "string", describe: "Directory to export rendered WAVs and the timeline" })
+        .option("json", { type: "boolean", describe: "Output JSON" });
+    }, async (argv) => {
+      exitCode = await dispatchCommand("runtime", "demo", buildFlags(argv, {
+        ...(argv.scenario !== undefined ? { scenario: String(argv.scenario) } : {}),
+        ...(argv.seed !== undefined ? { seed: String(argv.seed) } : {}),
+        ...(argv.output !== undefined ? { output: String(argv.output) } : {}),
       }), []);
     });
   }, async (_argv) => {
@@ -402,6 +465,243 @@ export async function yargsMain(argv: string[] = process.argv): Promise<number> 
     // Re-parse raw argv so dispatchCommand receives the unknown subcommand name
     // for proper error output. yargs only calls this handler when no subcommand
     // matched, so `argv._` isn't reliable; `raw` (captured in outer scope) is.
+    const parsed = parseArgs(["node", "cli.ts", ...raw]);
+    exitCode = await dispatchCommand(parsed.command, parsed.subcommand, parsed.flags, parsed.layers);
+  });
+
+  // ── intelligence ──────────────────────────────────────────────────────────
+  y.command(intelligenceCmd.command, intelligenceCmd.desc, (y2) => {
+    y2.command("audit", "Audit a library for coverage gaps, redundancy, and quality issues", (y3) => {
+      y3.option("library", { type: "string", describe: "Library directory to audit" })
+        .option("use-memory", { type: "boolean", describe: "Add historical context from the Memory store" })
+        .option("memory-dir", { type: "string", describe: "Override the project-local memory directory" })
+        .option("dry-run", { type: "boolean", default: true, describe: "Read-only dry-run (always on)" })
+        .option("json", { type: "boolean", describe: "Output JSON" });
+    }, async (argv) => {
+      exitCode = await dispatchCommand("intelligence", "audit", buildFlags(argv, {
+        ...(argv.library !== undefined ? { library: String(argv.library) } : {}),
+        ...(argv["use-memory"] === true ? { "use-memory": true } : {}),
+        ...(argv["memory-dir"] !== undefined ? { "memory-dir": String(argv["memory-dir"]) } : {}),
+        ...(argv["dry-run"] === false ? { "dry-run": false } : {}),
+      }), []);
+    });
+    y2.command("recommend", "Recommend ranked sounds for a use case", (y3) => {
+      y3.option("use-case", { type: "string", describe: "Use case description" })
+        .option("max-results", { type: "number", default: 5, describe: "Maximum recommendations" })
+        .option("library", { type: "string", describe: "Library directory to search" })
+        .option("use-memory", { type: "boolean", describe: "Add historical context from the Memory store" })
+        .option("memory-dir", { type: "string", describe: "Override the project-local memory directory" })
+        .option("dry-run", { type: "boolean", default: true, describe: "Read-only dry-run (always on)" })
+        .option("json", { type: "boolean", describe: "Output JSON" });
+    }, async (argv) => {
+      exitCode = await dispatchCommand("intelligence", "recommend", buildFlags(argv, {
+        ...(argv["use-case"] !== undefined ? { "use-case": String(argv["use-case"]) } : {}),
+        ...(argv["max-results"] !== undefined ? { "max-results": String(argv["max-results"]) } : {}),
+        ...(argv.library !== undefined ? { library: String(argv.library) } : {}),
+        ...(argv["use-memory"] === true ? { "use-memory": true } : {}),
+        ...(argv["memory-dir"] !== undefined ? { "memory-dir": String(argv["memory-dir"]) } : {}),
+        ...(argv["dry-run"] === false ? { "dry-run": false } : {}),
+      }), []);
+    });
+    y2.command("suggest-exploration", "Suggest exploration targets for a recipe", (y3) => {
+      y3.option("recipe", { type: "string", describe: "Recipe to explore" })
+        .option("library", { type: "string", describe: "Library directory to inspect" })
+        .option("use-memory", { type: "boolean", describe: "Add historical context from the Memory store" })
+        .option("memory-dir", { type: "string", describe: "Override the project-local memory directory" })
+        .option("dry-run", { type: "boolean", default: true, describe: "Read-only dry-run (always on)" })
+        .option("json", { type: "boolean", describe: "Output JSON" });
+    }, async (argv) => {
+      exitCode = await dispatchCommand("intelligence", "suggest-exploration", buildFlags(argv, {
+        ...(argv.recipe !== undefined ? { recipe: String(argv.recipe) } : {}),
+        ...(argv.library !== undefined ? { library: String(argv.library) } : {}),
+        ...(argv["use-memory"] === true ? { "use-memory": true } : {}),
+        ...(argv["memory-dir"] !== undefined ? { "memory-dir": String(argv["memory-dir"]) } : {}),
+        ...(argv["dry-run"] === false ? { "dry-run": false } : {}),
+      }), []);
+    });
+  }, async (_argv) => {
+    // Re-parse raw argv so dispatchCommand receives the unknown subcommand name
+    // for proper error output. yargs only calls this handler when no subcommand
+    // matched, so `argv._` isn't reliable; `raw` (captured in outer scope) is.
+    const parsed = parseArgs(["node", "cli.ts", ...raw]);
+    exitCode = await dispatchCommand(parsed.command, parsed.subcommand, parsed.flags, parsed.layers);
+  });
+
+  // ── intent ────────────────────────────────────────────────────────────────
+  y.command(intentCmd.command, intentCmd.desc, (y2) => {
+    y2.command("submit", "Submit an intent and receive an Intelligence analysis", (y3) => {
+      y3.option("goal", { type: "string", describe: "Freeform goal" })
+        .option("scope", { type: "string", describe: "Explicit scope" })
+        .option("intent", { type: "string", describe: "Explicit intent id override" })
+        .option("priority", { type: "string", describe: "Priority: low, medium or high" })
+        .option("constraint", { type: "array", describe: "Constraint as key=value (repeatable)" })
+        .option("library", { type: "string", describe: "Library directory" })
+        .option("memory-dir", { type: "string", describe: "Override the memory directory" })
+        .option("approve", { type: "boolean", describe: "Approve and execute suggestions" })
+        .option("dry-run", { type: "boolean", describe: "Never execute" })
+        .option("json", { type: "boolean", describe: "Output JSON" });
+    }, async (argv) => {
+      exitCode = await dispatchCommand("intent", "submit", buildFlags(argv, {
+        ...(argv.goal !== undefined ? { goal: String(argv.goal) } : {}),
+        ...(argv.scope !== undefined ? { scope: String(argv.scope) } : {}),
+        ...(argv.intent !== undefined ? { intent: String(argv.intent) } : {}),
+        ...(argv.priority !== undefined ? { priority: String(argv.priority) } : {}),
+        ...(argv.constraint !== undefined ? { constraint: (argv.constraint as string[]).join("\n") } : {}),
+        ...(argv.library !== undefined ? { library: String(argv.library) } : {}),
+        ...(argv["memory-dir"] !== undefined ? { "memory-dir": String(argv["memory-dir"]) } : {}),
+        ...(argv.approve === true ? { approve: true } : {}),
+        ...(argv["dry-run"] === true ? { "dry-run": true } : {}),
+      }), []);
+    });
+    y2.command("vocabulary", "List the controlled intent vocabulary", (y3) => {
+      y3.option("json", { type: "boolean", describe: "Output JSON" });
+    }, async (argv) => {
+      exitCode = await dispatchCommand("intent", "vocabulary", buildFlags(argv), []);
+    });
+  }, async (_argv) => {
+    const parsed = parseArgs(["node", "cli.ts", ...raw]);
+    exitCode = await dispatchCommand(parsed.command, parsed.subcommand, parsed.flags, parsed.layers);
+  });
+
+  // ── memory ────────────────────────────────────────────────────────────────
+  y.command(memoryCmd.command, memoryCmd.desc, (y2) => {
+    y2.command("query", "Query Memory by scope and time range", (y3) => {
+      y3.option("scope", { type: "string", describe: "Scope filter" })
+        .option("time-range", { type: "string", describe: "<from>:<to> ISO dates, or 'all'" })
+        .option("memory-dir", { type: "string", describe: "Override the memory directory" })
+        .option("json", { type: "boolean", describe: "Output JSON" });
+    }, async (argv) => {
+      exitCode = await dispatchCommand("memory", "query", buildFlags(argv, {
+        ...(argv.scope !== undefined ? { scope: String(argv.scope) } : {}),
+        ...(argv["time-range"] !== undefined ? { "time-range": String(argv["time-range"]) } : {}),
+        ...(argv["memory-dir"] !== undefined ? { "memory-dir": String(argv["memory-dir"]) } : {}),
+      }), []);
+    });
+    y2.command("export", "Export every Memory record", (y3) => {
+      y3.option("memory-dir", { type: "string", describe: "Override the memory directory" })
+        .option("json", { type: "boolean", describe: "Output JSON" });
+    }, async (argv) => {
+      exitCode = await dispatchCommand("memory", "export", buildFlags(argv, {
+        ...(argv["memory-dir"] !== undefined ? { "memory-dir": String(argv["memory-dir"]) } : {}),
+      }), []);
+    });
+    y2.command("clear", "Clear the Memory store", (y3) => {
+      y3.option("memory-dir", { type: "string", describe: "Override the memory directory" })
+        .option("json", { type: "boolean", describe: "Output JSON" });
+    }, async (argv) => {
+      exitCode = await dispatchCommand("memory", "clear", buildFlags(argv, {
+        ...(argv["memory-dir"] !== undefined ? { "memory-dir": String(argv["memory-dir"]) } : {}),
+      }), []);
+    });
+  }, async (_argv) => {
+    const parsed = parseArgs(["node", "cli.ts", ...raw]);
+    exitCode = await dispatchCommand(parsed.command, parsed.subcommand, parsed.flags, parsed.layers);
+  });
+
+  // ── visualize ─────────────────────────────────────────────────────────────
+  y.command(visualizeCmd.command, visualizeCmd.desc, (y2) => {
+    y2.command("export", "Export deterministic visual effects for a recipe", (y3) => {
+      y3.option("recipe", { type: "string", describe: "Recipe name" })
+        .option("seed", { type: "number", describe: "Seed for deterministic output" })
+        .option("format", { type: "string", describe: "Export format: spritesheet or frames" })
+        .option("output", { type: "string", describe: "Output directory" })
+        .option("palette", { type: "string", describe: "Aesthetic palette name" })
+        .option("frames", { type: "number", describe: "Number of animation frames" })
+        .option("width", { type: "number", describe: "Frame width in pixels" })
+        .option("height", { type: "number", describe: "Frame height in pixels" })
+        .option("json", { type: "boolean", describe: "Output JSON" });
+    }, async (argv) => {
+      exitCode = await dispatchCommand("visualize", "export", buildFlags(argv, {
+        ...(argv.recipe !== undefined ? { recipe: String(argv.recipe) } : {}),
+        ...(argv.seed !== undefined ? { seed: String(argv.seed) } : {}),
+        ...(argv.format !== undefined ? { format: String(argv.format) } : {}),
+        ...(argv.output !== undefined ? { output: String(argv.output) } : {}),
+        ...(argv.palette !== undefined ? { palette: String(argv.palette) } : {}),
+        ...(argv.frames !== undefined ? { frames: String(argv.frames) } : {}),
+        ...(argv.width !== undefined ? { width: String(argv.width) } : {}),
+        ...(argv.height !== undefined ? { height: String(argv.height) } : {}),
+      }), []);
+    });
+  }, async (_argv) => {
+    // Re-parse raw argv so dispatchCommand receives the unknown subcommand name
+    // for proper error output. yargs only calls this handler when no subcommand
+    // matched, so `argv._` isn't reliable; `raw` (captured in outer scope) is.
+    const parsed = parseArgs(["node", "cli.ts", ...raw]);
+    exitCode = await dispatchCommand(parsed.command, parsed.subcommand, parsed.flags, parsed.layers);
+  });
+
+  // ── validate ──────────────────────────────────────────────────────────────
+  y.command(validateCmd.command, validateCmd.desc, validateCmd.builder, async (argv) => {
+    exitCode = await dispatchCommand("validate", undefined, buildFlags(argv, {
+      ...(argv.library !== undefined ? { library: String(argv.library) } : {}),
+      ...(argv.ruleset !== undefined ? { ruleset: String(argv.ruleset) } : {}),
+      ...(argv.strictness !== undefined ? { strictness: String(argv.strictness) } : {}),
+    }), []);
+  });
+
+  // ── compile ───────────────────────────────────────────────────────────────
+  y.command(compileCmd.command, compileCmd.desc, compileCmd.builder, async (argv) => {
+    exitCode = await dispatchCommand("compile", undefined, buildFlags(argv, {
+      ...(argv.library !== undefined ? { library: String(argv.library) } : {}),
+      ...(argv.target !== undefined ? { target: String(argv.target) } : {}),
+      ...(argv.rules !== undefined ? { rules: String(argv.rules) } : {}),
+      ...(argv.output !== undefined ? { output: String(argv.output) } : {}),
+      ...(argv["dry-run"] === true ? { "dry-run": true } : {}),
+    }), []);
+  });
+
+  // ── sync ──────────────────────────────────────────────────────────────────
+  y.command(syncCmd.command, syncCmd.desc, syncCmd.builder, async (argv) => {
+    exitCode = await dispatchCommand("sync", undefined, buildFlags(argv, {
+      ...(argv.target !== undefined ? { target: String(argv.target) } : {}),
+      ...(argv.library !== undefined ? { library: String(argv.library) } : {}),
+      ...(argv.output !== undefined ? { output: String(argv.output) } : {}),
+    }), []);
+  });
+
+  // ── pipeline ────────────────────────────────────────────────────────────
+  y.command(pipelineCmd.command, pipelineCmd.desc, pipelineCmd.builder, async (argv) => {
+    exitCode = await dispatchCommand("pipeline", undefined, buildFlags(argv, {
+      ...(argv.sounds !== undefined ? { sounds: String(argv.sounds) } : {}),
+      ...(argv.library !== undefined ? { library: String(argv.library) } : {}),
+      ...(argv.output !== undefined ? { output: String(argv.output) } : {}),
+      ...(argv["compile-dir"] !== undefined ? { "compile-dir": String(argv["compile-dir"]) } : {}),
+      ...(argv.ruleset !== undefined ? { ruleset: String(argv.ruleset) } : {}),
+      ...(argv.strictness !== undefined ? { strictness: String(argv.strictness) } : {}),
+    }), []);
+  });
+
+  // ── marketplace ────────────────────────────────────────────────────────
+  y.command(marketplaceCmd.command, marketplaceCmd.desc, (y2) => {
+    y2.command("search", "Search the Marketplace for packages", (y3) => {
+      y3.option("category", { type: "string", describe: "Filter by category" })
+        .option("json", { type: "boolean", describe: "Output JSON" });
+    }, async (argv) => {
+      exitCode = await dispatchCommand("marketplace", "search", buildFlags(argv, {
+        ...(argv.category !== undefined ? { category: String(argv.category) } : {}),
+      }), []);
+    });
+    y2.command("install <package>", "Install a Marketplace package", (y3) => {
+      y3.positional("package", { type: "string", describe: "Package name and version (e.g. industrial_lasers@2.1.0)" });
+      y3.option("json", { type: "boolean", describe: "Output JSON" });
+    }, async (argv) => {
+      exitCode = await dispatchCommand("marketplace", "install", buildFlags(argv, {
+        ...(argv.package !== undefined ? { package: String(argv.package) } : {}),
+      }), []);
+    });
+    y2.command("publish", "Publish a package to the Marketplace", (y3) => {
+      y3.option("package", { type: "string", describe: "Package directory" })
+        .option("name", { type: "string", describe: "Package name" })
+        .option("version", { type: "string", describe: "Package version (semver)" })
+        .option("json", { type: "boolean", describe: "Output JSON" });
+    }, async (argv) => {
+      exitCode = await dispatchCommand("marketplace", "publish", buildFlags(argv, {
+        ...(argv.package !== undefined ? { package: String(argv.package) } : {}),
+        ...(argv.name !== undefined ? { name: String(argv.name) } : {}),
+        ...(argv.version !== undefined ? { version: String(argv.version) } : {}),
+      }), []);
+    });
+  }, async (_argv) => {
     const parsed = parseArgs(["node", "cli.ts", ...raw]);
     exitCode = await dispatchCommand(parsed.command, parsed.subcommand, parsed.flags, parsed.layers);
   });

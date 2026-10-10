@@ -1,0 +1,82 @@
+# Tier 6 — Ambience & loops (shimmering FM drone)
+# Magic glow ambience.
+
+version: '0.1'
+meta:
+  name: ambience-magic-glow
+  description: Magic glow ambience
+  category: Ambience
+  tags:
+  - casual
+  - joy
+  - ambience
+  duration: 2.0
+  parameters:
+  - name: carrierFreq
+    type: number
+    min: 500
+    max: 1300
+    unit: Hz
+    default: 900
+    overrides:
+    - target: fm.carrierFrequency
+  - name: modulatorFreq
+    type: number
+    min: 800
+    max: 2200
+    unit: Hz
+    default: 1400
+    overrides:
+    - target: fm.modulatorFrequency
+  - name: modIndex
+    type: number
+    min: 1
+    max: 7
+    unit: ratio
+    default: 3
+    overrides:
+    - target: fm.modulationIndex
+  - name: attack
+    type: number
+    min: 0.2
+    max: 0.7
+    unit: s
+    default: 0.45
+    overrides:
+    - target: env.attack
+  - name: release
+    type: number
+    min: 0.25
+    max: 0.7
+    unit: s
+    default: 0.55
+    overrides:
+    - target: env.release
+nodes:
+  fm:
+    kind: fmPattern
+    params:
+      carrierFrequency: 900
+      modulatorFrequency: 1400
+      modulationIndex: 3
+  filter:
+    kind: biquadFilter
+    params:
+      type: highpass
+      frequency: 500
+      Q: 0.7
+  env:
+    kind: envelope
+    params:
+      attack: 0.45
+      decay: 0.6
+      sustain: 0.8
+      release: 0.55
+  out:
+    kind: destination
+routing:
+- chain:
+  - fm
+  - filter
+  - env
+  - out

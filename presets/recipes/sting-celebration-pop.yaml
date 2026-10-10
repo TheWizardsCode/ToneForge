@@ -1,0 +1,103 @@
+# Tier 7 — Multi-voice stings
+# Celebration pop sting (self-contained 2–3 voices, no stack required).
+
+version: '0.1'
+meta:
+  name: sting-celebration-pop
+  description: Celebration pop sting
+  category: Sting
+  tags:
+  - casual
+  - joy
+  - sting
+  duration: 0.815
+  parameters:
+  - name: noteLow
+    type: number
+    min: 420
+    max: 620
+    unit: Hz
+    default: 523
+    overrides:
+    - target: lead.automation.frequency.0.value
+  - name: noteHigh
+    type: number
+    min: 880
+    max: 1300
+    unit: Hz
+    default: 1047
+    overrides:
+    - target: lead.automation.frequency.3.value
+  - name: noiseLevel
+    type: number
+    min: 0.1
+    max: 0.5
+    unit: amplitude
+    default: 0.3
+    overrides:
+    - target: noise.level
+  - name: attack
+    type: number
+    min: 0.002
+    max: 0.015
+    unit: s
+    default: 0.004
+    overrides:
+    - target: env.attack
+  - name: decay
+    type: number
+    min: 0.25
+    max: 0.6
+    unit: s
+    default: 0.45
+    overrides:
+    - target: env.decay
+nodes:
+  lead:
+    kind: oscillator
+    params:
+      type: triangle
+      frequency: 523
+    automation:
+      frequency:
+      - kind: set
+        time: 0
+        value: 523
+      - kind: set
+        time: 0.08
+        value: 659
+      - kind: set
+        time: 0.16
+        value: 784
+      - kind: set
+        time: 0.24
+        value: 1047
+  noise:
+    kind: noise
+    params:
+      color: white
+      level: 0.3
+  mix:
+    kind: gain
+    params:
+      gain: 0.32
+  env:
+    kind: envelope
+    params:
+      attack: 0.004
+      decay: 0.45
+      sustain: 0.0
+      release: 0.0
+  out:
+    kind: destination
+routing:
+- chain:
+  - lead
+  - mix
+- chain:
+  - noise
+  - mix
+- chain:
+  - mix
+  - env
+  - out

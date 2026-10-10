@@ -1,0 +1,103 @@
+# Tier 7 — Multi-voice stings
+# Major power-up sting (self-contained 2–3 voices, no stack required).
+
+version: '0.1'
+meta:
+  name: sting-powerup-major
+  description: Major power-up sting
+  category: Sting
+  tags:
+  - casual
+  - joy
+  - sting
+  duration: 0.87
+  parameters:
+  - name: noteLow
+    type: number
+    min: 320
+    max: 480
+    unit: Hz
+    default: 392
+    overrides:
+    - target: lead.automation.frequency.0.value
+  - name: noteHigh
+    type: number
+    min: 660
+    max: 950
+    unit: Hz
+    default: 784
+    overrides:
+    - target: lead.automation.frequency.3.value
+  - name: bassFreq
+    type: number
+    min: 150
+    max: 260
+    unit: Hz
+    default: 196
+    overrides:
+    - target: bass.frequency
+  - name: attack
+    type: number
+    min: 0.003
+    max: 0.02
+    unit: s
+    default: 0.005
+    overrides:
+    - target: env.attack
+  - name: decay
+    type: number
+    min: 0.25
+    max: 0.65
+    unit: s
+    default: 0.5
+    overrides:
+    - target: env.decay
+nodes:
+  lead:
+    kind: oscillator
+    params:
+      type: triangle
+      frequency: 392
+    automation:
+      frequency:
+      - kind: set
+        time: 0
+        value: 392
+      - kind: set
+        time: 0.1
+        value: 523
+      - kind: set
+        time: 0.2
+        value: 659
+      - kind: set
+        time: 0.3
+        value: 784
+  bass:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 196
+  mix:
+    kind: gain
+    params:
+      gain: 0.32
+  env:
+    kind: envelope
+    params:
+      attack: 0.005
+      decay: 0.5
+      sustain: 0.0
+      release: 0.0
+  out:
+    kind: destination
+routing:
+- chain:
+  - lead
+  - mix
+- chain:
+  - bass
+  - mix
+- chain:
+  - mix
+  - env
+  - out

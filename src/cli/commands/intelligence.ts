@@ -1,0 +1,34 @@
+/**
+ * `toneforge intelligence` command group.
+ *
+ * Intelligence is the assistive reasoning layer: it audits the library,
+ * recommends sounds for a use case, and suggests exploration targets.
+ * It is strictly read-only — it suggests, the human decides.
+ *
+ * The yargs builder is declared here and mirrored in `src/cli.yargs.ts`
+ * (the active registration path); both are kept in sync.
+ */
+export const command = "intelligence";
+export const desc = "Assistive reasoning over the sound library (read-only suggestions)";
+
+export function builder(yargs: any) {
+  return yargs
+    .command("audit", "Audit a library for coverage gaps, redundancy, and quality issues", (y: any) => {
+      y.option("library", { type: "string", describe: "Library directory to audit" })
+        .option("dry-run", { type: "boolean", default: true, describe: "Read-only dry-run (always on)" })
+        .option("json", { type: "boolean", describe: "Output JSON" });
+    })
+    .command("recommend", "Recommend ranked sounds for a use case", (y: any) => {
+      y.option("use-case", { type: "string", describe: "Use case description" })
+        .option("max-results", { type: "number", default: 5, describe: "Maximum recommendations" })
+        .option("library", { type: "string", describe: "Library directory to search" })
+        .option("dry-run", { type: "boolean", default: true, describe: "Read-only dry-run (always on)" })
+        .option("json", { type: "boolean", describe: "Output JSON" });
+    })
+    .command("suggest-exploration", "Suggest exploration targets for a recipe", (y: any) => {
+      y.option("recipe", { type: "string", describe: "Recipe to explore" })
+        .option("library", { type: "string", describe: "Library directory to inspect" })
+        .option("dry-run", { type: "boolean", default: true, describe: "Read-only dry-run (always on)" })
+        .option("json", { type: "boolean", describe: "Output JSON" });
+    });
+}

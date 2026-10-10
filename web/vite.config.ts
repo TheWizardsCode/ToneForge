@@ -164,6 +164,7 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, "src/index.html"),
         editorDemo: resolve(__dirname, "src/editor-demo.html"),
+        networkDemo: resolve(__dirname, "src/network-demo.html"),
       },
     },
   },

@@ -1,0 +1,75 @@
+# Tier 5 — Character & critter voices (FM)
+# Frog croak.
+
+version: '0.1'
+meta:
+  name: creature-frog-croak
+  description: Frog croak
+  category: Creature
+  tags:
+  - casual
+  - fun
+  - creature
+  duration: 0.43
+  parameters:
+  - name: carrierFreq
+    type: number
+    min: 90
+    max: 200
+    unit: Hz
+    default: 140
+    overrides:
+    - target: fm.carrierFrequency
+  - name: modulatorFreq
+    type: number
+    min: 55
+    max: 130
+    unit: Hz
+    default: 85
+    overrides:
+    - target: fm.modulatorFrequency
+  - name: modIndex
+    type: number
+    min: 6
+    max: 24
+    unit: ratio
+    default: 14
+    overrides:
+    - target: fm.modulationIndex
+  - name: attack
+    type: number
+    min: 0.004
+    max: 0.03
+    unit: s
+    default: 0.01
+    overrides:
+    - target: env.attack
+  - name: decay
+    type: number
+    min: 0.16
+    max: 0.4
+    unit: s
+    default: 0.3
+    overrides:
+    - target: env.decay
+nodes:
+  fm:
+    kind: fmPattern
+    params:
+      carrierFrequency: 140
+      modulatorFrequency: 85
+      modulationIndex: 14
+  env:
+    kind: envelope
+    params:
+      attack: 0.01
+      decay: 0.3
+      sustain: 0.0
+      release: 0.0
+  out:
+    kind: destination
+routing:
+- chain:
+  - fm
+  - env
+  - out

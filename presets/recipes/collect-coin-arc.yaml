@@ -1,0 +1,72 @@
+# Tier 2 — Shaped events (envelope + pitch movement)
+# Arcing coin pickup contour — linear pitch contour from 800 Hz to 1200 Hz.
+
+version: "0.1"
+meta:
+  name: collect-coin-arc
+  description: Arcing coin pickup contour
+  category: Collect
+  tags:
+    - casual
+    - joy
+    - collect
+  duration: 0.35
+  parameters:
+    - name: startFreq
+      type: number
+      min: 480
+      max: 1280
+      unit: Hz
+      default: 800
+    - name: midFreq
+      type: number
+      min: 979
+      max: 1959
+      unit: Hz
+      default: 1400
+    - name: endFreq
+      type: number
+      min: 720
+      max: 1920
+      unit: Hz
+      default: 1200
+    - name: attack
+      type: number
+      min: 0.001
+      max: 0.03
+      unit: s
+      default: 0.003
+    - name: decay
+      type: number
+      min: 0.03
+      max: 0.4
+      unit: s
+      default: 0.15
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 800
+    automation:
+      frequency:
+        - kind: set
+          time: 0
+          value: 800
+        - kind: linearRamp
+          time: 0.075
+          value: 1400
+        - kind: linearRamp
+          time: 0.15
+          value: 1200
+  env:
+    kind: envelope
+    params:
+      attack: 0.003
+      decay: 0.15
+      sustain: 0
+      release: 0
+  out:
+    kind: destination
+routing:
+  - chain: [osc, env, out]

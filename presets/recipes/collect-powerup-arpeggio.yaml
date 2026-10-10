@@ -1,0 +1,95 @@
+# Tier 4 — Melodic motifs (4-note figure)
+# Power-up arpeggio: a 4-note C major figure at 262, 330, 392, 523 Hz.
+
+version: "0.1"
+meta:
+  name: collect-powerup-arpeggio
+  description: Power-up arpeggio
+  category: Collect
+  tags:
+    - casual
+    - joy
+    - collect
+  duration: 0.77
+  parameters:
+    - name: note1
+      type: number
+      min: 183
+      max: 366
+      unit: Hz
+      default: 262
+    - name: note2
+      type: number
+      min: 230
+      max: 461
+      unit: Hz
+      default: 330
+    - name: note3
+      type: number
+      min: 274
+      max: 548
+      unit: Hz
+      default: 392
+    - name: note4
+      type: number
+      min: 366
+      max: 732
+      unit: Hz
+      default: 523
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: square
+      frequency: 262
+    automation:
+      frequency:
+        - kind: set
+          time: 0.0
+          value: 262
+        - kind: set
+          time: 0.18
+          value: 330
+        - kind: set
+          time: 0.36
+          value: 392
+        - kind: set
+          time: 0.54
+          value: 523
+  gate:
+    kind: gain
+    params:
+      gain: 0
+    automation:
+      gain:
+        - kind: set
+          time: 0
+          value: 0
+        - kind: linearRamp
+          time: 0.01
+          value: 0.8
+        - kind: linearRamp
+          time: 0.15
+          value: 0
+        - kind: linearRamp
+          time: 0.19
+          value: 0.8
+        - kind: linearRamp
+          time: 0.33
+          value: 0
+        - kind: linearRamp
+          time: 0.37
+          value: 0.8
+        - kind: linearRamp
+          time: 0.51
+          value: 0
+        - kind: linearRamp
+          time: 0.55
+          value: 0.8
+        - kind: linearRamp
+          time: 0.69
+          value: 0
+  out:
+    kind: destination
+routing:
+  - chain: [osc, gate, out]

@@ -79,6 +79,21 @@ A **sequence** is a timeline of **event triggers**, not audio clips.
 }
 ```
 
+The optional `loopInterval` (seconds) declares a **loop cadence** for the
+sequence, independent of event timing. It is read by the runtime transport
+(`toneforge runtime start`; see `docs/prd/RUNTIME_PRD.md` §19.10) so a
+single-event pattern loops at the intended rate — for example a lone
+`footstep` event with `"loopInterval": 0.6` (walk) or `0.25` (sprint). When
+omitted, the runtime derives the loop period from the event timing.
+
+```json
+{
+  "name": "footsteps_walk",
+  "loopInterval": 0.6,
+  "events": [{ "time": 0.0, "event": "footstep", "seedOffset": 0, "gain": 0.7 }]
+}
+```
+
 ---
 
 ### 4.2 Event Reference

@@ -1,0 +1,112 @@
+# Tier 5 — Character & critter voices (noise + tonal blend)
+# Dragon huff.
+
+version: '0.1'
+meta:
+  name: creature-dragon-huff
+  description: Dragon huff
+  category: Creature
+  tags:
+  - casual
+  - fun
+  - creature
+  duration: 0.64
+  parameters:
+  - name: toneFreq
+    type: number
+    min: 55
+    max: 120
+    unit: Hz
+    default: 80
+    overrides:
+    - target: osc.frequency
+  - name: noiseLevel
+    type: number
+    min: 0.25
+    max: 0.85
+    unit: amplitude
+    default: 0.6
+    overrides:
+    - target: noise.level
+  - name: filterStart
+    type: number
+    min: 250
+    max: 650
+    unit: Hz
+    default: 400
+    overrides:
+    - target: filter.automation.frequency.0.value
+  - name: filterEnd
+    type: number
+    min: 90
+    max: 240
+    unit: Hz
+    default: 150
+    overrides:
+    - target: filter.automation.frequency.1.value
+  - name: attack
+    type: number
+    min: 0.006
+    max: 0.04
+    unit: s
+    default: 0.02
+    overrides:
+    - target: env.attack
+  - name: decay
+    type: number
+    min: 0.3
+    max: 0.6
+    unit: s
+    default: 0.45
+    overrides:
+    - target: env.decay
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: sawtooth
+      frequency: 80
+  noise:
+    kind: noise
+    params:
+      color: brown
+      level: 0.6
+  filter:
+    kind: biquadFilter
+    params:
+      type: lowpass
+      frequency: 400
+      Q: 2
+    automation:
+      frequency:
+      - kind: set
+        time: 0.0
+        value: 400
+      - kind: exponentialRamp
+        time: 0.45
+        value: 150
+  mix:
+    kind: gain
+    params:
+      gain: 0.8
+  env:
+    kind: envelope
+    params:
+      attack: 0.02
+      decay: 0.45
+      sustain: 0.0
+      release: 0.0
+  out:
+    kind: destination
+routing:
+- chain:
+  - osc
+  - mix
+- chain:
+  - noise
+  - filter
+  - mix
+- chain:
+  - mix
+  - env
+  - out

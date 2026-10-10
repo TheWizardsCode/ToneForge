@@ -1,0 +1,80 @@
+# Tier 5 — Character & critter voices (rapid pitch modulation)
+# Bird chirp.
+
+version: '0.1'
+meta:
+  name: creature-bird-chirp
+  description: Bird chirp
+  category: Creature
+  tags:
+  - casual
+  - joy
+  - creature
+  duration: 0.315
+  parameters:
+  - name: chirpLow
+    type: number
+    min: 1600
+    max: 2600
+    unit: Hz
+    default: 2200
+    overrides:
+    - target: osc.automation.frequency.0.value
+  - name: chirpHigh
+    type: number
+    min: 2600
+    max: 3800
+    unit: Hz
+    default: 3200
+    overrides:
+    - target: osc.automation.frequency.1.value
+  - name: attack
+    type: number
+    min: 0.002
+    max: 0.015
+    unit: s
+    default: 0.004
+    overrides:
+    - target: env.attack
+  - name: decay
+    type: number
+    min: 0.1
+    max: 0.3
+    unit: s
+    default: 0.2
+    overrides:
+    - target: env.decay
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 2200
+    automation:
+      frequency:
+      - kind: set
+        time: 0.0
+        value: 2200
+      - kind: set
+        time: 0.05
+        value: 3200
+      - kind: set
+        time: 0.1
+        value: 2400
+      - kind: linearRamp
+        time: 0.2
+        value: 3000
+  env:
+    kind: envelope
+    params:
+      attack: 0.004
+      decay: 0.2
+      sustain: 0.0
+      release: 0.0
+  out:
+    kind: destination
+routing:
+- chain:
+  - osc
+  - env
+  - out

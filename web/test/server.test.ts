@@ -5,7 +5,7 @@
  * These tests start a real server instance on a random port and exercise
  * the actual HTTP and WebSocket endpoints.
  */
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { WebSocket } from "ws";
 import {
   app,
@@ -85,6 +85,61 @@ describe("Origin restriction", () => {
 
     expect(result.event).toBe("rejected");
     expect(result.code).toBe(403);
+  });
+});
+
+// ── Remote access: host-derived origins are accepted, others rejected ──
+
+describe("origin allowance with a host-derived ALLOWED_ORIGINS", () => {
+  const originalAllowedOrigins = process.env.ALLOWED_ORIGINS;
+
+  afterEach(() => {
+    if (originalAllowedOrigins === undefined) {
+      delete process.env.ALLOWED_ORIGINS;
+    } else {
+      process.env.ALLOWED_ORIGINS = originalAllowedOrigins;
+    }
+  });
+
+  it("allows a non-localhost host that is part of ALLOWED_ORIGINS", () => {
+    process.env.ALLOWED_ORIGINS =
+      "localhost,127.0.0.1,demo-host,100.106.5.111";
+
+    expect(isOriginAllowed("http://demo-host:5173")).toBe(true);
+    expect(isOriginAllowed("http://100.106.5.111:5174")).toBe(true);
+  });
+
+  it("still rejects an unrelated origin when host entries are allowed", () => {
+    process.env.ALLOWED_ORIGINS =
+      "localhost,127.0.0.1,demo-host,100.106.5.111";
+
+    expect(isOriginAllowed("http://evil.example.com")).toBe(false);
+  });
+
+  it("matches a bracketed IPv6 origin against an unbracketed entry", () => {
+    process.env.ALLOWED_ORIGINS = "localhost,127.0.0.1,fd7a:115c:a1e0::1";
+
+    expect(isOriginAllowed("http://[fd7a:115c:a1e0::1]:5173")).toBe(true);
+  });
+
+  it("accepts a WebSocket upgrade from a host-derived non-localhost origin", async () => {
+    process.env.ALLOWED_ORIGINS = "localhost,127.0.0.1,demo-host";
+
+    const ws = new WebSocket(`ws://localhost:${port}/ws/terminal`, {
+      headers: { Origin: "http://demo-host:5173" },
+    });
+
+    const connected = await new Promise<boolean>((resolve) => {
+      ws.on("open", () => resolve(true));
+      ws.on("error", () => resolve(false));
+      ws.on("unexpected-response", () => resolve(false));
+    });
+
+    expect(connected).toBe(true);
+
+    ws.close();
+    // Give the server a moment to clean up the PTY
+    await new Promise((r) => setTimeout(r, 200));
   });
 });
 

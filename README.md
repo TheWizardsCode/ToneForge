@@ -14,6 +14,9 @@ ToneForge lets developers generate placeholder sounds from recipes and seeds dur
 - **Explore** -- Sweep parameter spaces, discover outliers, rank and cluster variants
 - **Store** -- Structured library with metadata indexing, similarity search, and deterministic regeneration
 - **Deploy** -- Real-time playback engine with seed-based variation and baked fallback, targeting browser and Node.js
+- **Sync** -- Deterministic multi-client behavioural synchronisation: compact events resolved locally, with no audio streaming
+- **Integrate** -- Non-interactive CI pipeline (`generate → validate → compile → export`) and engine export via `toneforge sync`
+- **Exchange** -- Browse, install and publish versioned, license-declared procedural packages via the `marketplace` command group
 
 ## What It Is Not
 
@@ -51,6 +54,15 @@ tf generate --recipe ui-scifi-confirm --seed 42
 npm run demo
 ```
 
+The guided walkthroughs live in [`demos/`](demos/) -- see the
+[Demo Index](demos/README.md#demo-index) for the full list. For a
+machine-consumption example, [`demos/machine-use.md`](demos/machine-use.md)
+walks through [`scripts/report-available-sounds.sh`](scripts/report-available-sounds.sh),
+a reusable batch script that consumes `toneforge list recipes --json`,
+filters out already-used sounds, and reports the remaining candidates as
+text or JSON -- useful when automating asset discovery in a build or CI
+pipeline.
+
 ### Run the web demo
 
 Starts the backend server and Vite dev server:
@@ -58,6 +70,81 @@ Starts the backend server and Vite dev server:
 ```bash
 npm run dev:web
 ```
+
+To open the demo from another device on the same LAN/Tailscale network, use
+`npm run dev:web -- --host`: the launcher derives the host's own hostnames/IPs
+and passes them to the backend as `ALLOWED_ORIGINS` (dev-only; production stays
+`localhost,127.0.0.1`). See [`web/README.md`](web/README.md) for details.
+
+### Run the runtime audio demo
+
+The runtime is **render-backed**: a scripted session drives State and Context
+changes, each runtime event resolves to a recipe through a recipe resolver,
+and the existing offline renderer mixes the result — no second synthesis
+engine. Playing it lets you *hear* behaviour change (a footstep moving from
+stone to gravel, then walking to sprinting) instead of reading an event log:
+
+```bash
+toneforge runtime demo
+```
+
+The demo is deterministic (a fixed seed reproduces the same event log and the
+same rendered samples) and can be verified in CI without audio hardware:
+
+```bash
+toneforge runtime demo --json                 # print the resolved event timeline
+toneforge runtime demo --output ./runtime-demo/  # export WAVs + timeline.json
+toneforge runtime demo --seed 7 --json          # seed override
+```
+
+The scenario lives in [`presets/runtime/footsteps.json`](presets/runtime/footsteps.json).
+See [RUNTIME_PRD.md §19](docs/prd/RUNTIME_PRD.md) for the render/playback
+pipeline design.
+
+### Drive the runtime live
+
+`runtime start` opens a **live session** — the runtime embeds in a host and
+reacts to commands as they arrive, rendering each event through a bounded LRU
+buffer cache and scheduling it for playback at its sequence-relative time:
+
+```bash
+toneforge runtime start
+# runtime> start walk          # begin continuous footsteps
+# runtime> context surface=gravel
+# runtime> param footstep-gravel pitch 1.5   # audible on the next loop pass
+# runtime> state sprint
+# runtime> stop
+# runtime> quit
+```
+
+`start` runs a **continuous transport** that keeps the active sequence looping;
+`state`/`context` changes reconfigure it live and `stop` halts it. Each
+iteration uses a distinct deterministic seed, so the loop evolves rather than
+repeating identically. `param <id> <name> <value>` adjusts a continuous sound's
+`intensity`, `gain`, `pitch` or `filter`; because a whole WAV is rendered per
+event, the change is audible on the **next loop pass** (iteration-granular).
+
+For deterministic, non-interactive replay (and CI), use a command script —
+`--json` streams one JSON object per runtime event and performs no playback,
+and `--iterations` bounds the loop so it terminates:
+
+```bash
+toneforge runtime start --script ./session.txt
+toneforge runtime start --script ./session.txt --iterations 4
+toneforge runtime start --script ./session.txt --json --iterations 4
+toneforge runtime start --cache-size 128 --no-seed-variation
+```
+
+For a **long-running service**, `--serve` keeps the runtime alive and
+processing commands over time: it does not require a TTY, does not exit when
+stdin closes, and shuts down cleanly on `SIGINT`/`SIGTERM` or a `quit` command:
+
+```bash
+toneforge runtime start --serve
+```
+
+See [RUNTIME_PRD.md §19](docs/prd/RUNTIME_PRD.md) and
+[Browser Runtime Usage](docs/browser-usage.md).
 
 ### Browser support
 
@@ -123,13 +210,39 @@ toneforge explore --recipe laser --sweep gain:0.1-1.0 --count 100
 toneforge library add --input sound.wav --tags "weapon,laser"
 ```
 
+## Marketplace
+
+The `marketplace` command group browses, installs and publishes procedural
+asset packages (recipes, stacks, sequences, palettes) — versioned,
+license-declared and Validator-gated:
+
+```
+toneforge marketplace search [--category <c>] [--json]
+toneforge marketplace install <package>@<version> [--json]
+toneforge marketplace publish --package <dir> --name <n> --version <v> [--json]
+```
+
+See the [Marketplace usage guide](docs/guides/marketplace.md) for runnable
+examples, and [`docs/prd/MARKETPLACE_PRD.md`](docs/prd/MARKETPLACE_PRD.md) for
+the authoritative specification.
+
 ## Documentation
 
 - [System Architecture PRD](docs/prd/PRD.md)
+- [Intelligence](docs/intelligence.md) — assistive, read-only library audit, recommendations, and exploration suggestions (suggests, never mutates)
+- [Intent & Memory](docs/intent-memory.md) — structured goals behind a human approval gate, plus the append-only project-local memory store and `--use-memory` context
 - [Core Module PRD](docs/prd/CORE_PRD.md)
+- [Network](docs/network.md) — deterministic behavioural sync: events, host/join, late join, and bounded drift handling
+- [Integrations](docs/integrations.md) — engine adapter mapping and `toneforge sync --target unity|web` (deterministic, idempotent export)
+- [Network & Integrations usage](docs/guides/network-integrations.md) — usage guide for the Network and Integrations modules
+- [Marketplace usage](docs/guides/marketplace.md) — the `toneforge marketplace` search/install/publish workflow, licensing, provenance and versioning
+- [ToneForge in CI](docs/guides/ci-integration.md) — the `toneforge pipeline` CI workflow
 - [ToneGraph v0.1 Specification](docs/tonegraph.md)
+- [Casual Game Recipe Book](docs/recipe-book/index.md) — a guided tour of 100 procedural recipes, from single-oscillator blips to layered stings.
 - [Browser Runtime Usage](docs/browser-usage.md)
 - [Mixer Rules](docs/mixer-rules.md)
+- [Visualizer](docs/visualizer.md)
+- [Haptics](docs/haptics.md)
 - [All Module PRDs](docs/prd/)
 - [Research Questions](docs/prd/BRAINSTORM_QUESTIONS.md)
 

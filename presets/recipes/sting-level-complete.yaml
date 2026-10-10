@@ -1,0 +1,98 @@
+# Tier 7 — Multi-voice stings
+# Level-complete sting (self-contained 2–3 voices, no stack required).
+
+version: '0.1'
+meta:
+  name: sting-level-complete
+  description: Level-complete sting
+  category: Sting
+  tags:
+  - casual
+  - joy
+  - sting
+  duration: 0.82
+  parameters:
+  - name: carrierFreq
+    type: number
+    min: 500
+    max: 850
+    unit: Hz
+    default: 660
+    overrides:
+    - target: fm.carrierFrequency
+  - name: modulatorFreq
+    type: number
+    min: 800
+    max: 1300
+    unit: Hz
+    default: 990
+    overrides:
+    - target: fm.modulatorFrequency
+  - name: modIndex
+    type: number
+    min: 2
+    max: 9
+    unit: ratio
+    default: 4
+    overrides:
+    - target: fm.modulationIndex
+  - name: harmonyFreq
+    type: number
+    min: 420
+    max: 640
+    unit: Hz
+    default: 523
+    overrides:
+    - target: harmony.frequency
+  - name: attack
+    type: number
+    min: 0.003
+    max: 0.02
+    unit: s
+    default: 0.006
+    overrides:
+    - target: env.attack
+  - name: decay
+    type: number
+    min: 0.2
+    max: 0.6
+    unit: s
+    default: 0.45
+    overrides:
+    - target: env.decay
+nodes:
+  fm:
+    kind: fmPattern
+    params:
+      carrierFrequency: 660
+      modulatorFrequency: 990
+      modulationIndex: 4
+  harmony:
+    kind: oscillator
+    params:
+      type: triangle
+      frequency: 523
+  mix:
+    kind: gain
+    params:
+      gain: 0.32
+  env:
+    kind: envelope
+    params:
+      attack: 0.006
+      decay: 0.45
+      sustain: 0.0
+      release: 0.0
+  out:
+    kind: destination
+routing:
+- chain:
+  - fm
+  - mix
+- chain:
+  - harmony
+  - mix
+- chain:
+  - mix
+  - env
+  - out

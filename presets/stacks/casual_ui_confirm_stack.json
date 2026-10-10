@@ -1,0 +1,22 @@
+{
+  "version": "1.0",
+  "name": "casual_ui_confirm_stack",
+  "description": "Casual UI confirm stack: a crisp selection pop, a rising confirmation tone and a magic shimmer layered into one satisfying interface acknowledgement.",
+  "layers": [
+    {
+      "recipe": "ui-select-pop",
+      "startTime": 0.0,
+      "gain": 1.0
+    },
+    {
+      "recipe": "ui-confirm-rise",
+      "startTime": 0.02,
+      "gain": 0.8
+    },
+    {
+      "recipe": "sparkle-magic-shimmer",
+      "startTime": 0.08,
+      "gain": 0.5
+    }
+  ]
+}

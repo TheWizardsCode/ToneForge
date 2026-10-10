@@ -1,0 +1,89 @@
+# Tier 5 — Character & critter voices (pitch movement)
+# Character jump voice.
+
+version: '0.1'
+meta:
+  name: character-jump-voice
+  description: Character jump voice
+  category: Character
+  tags:
+  - casual
+  - fun
+  - character
+  duration: 0.34
+  parameters:
+  - name: startFreq
+    type: number
+    min: 120
+    max: 260
+    unit: Hz
+    default: 180
+    overrides:
+    - target: osc.automation.frequency.0.value
+  - name: endFreq
+    type: number
+    min: 360
+    max: 780
+    unit: Hz
+    default: 520
+    overrides:
+    - target: osc.automation.frequency.1.value
+  - name: filterFreq
+    type: number
+    min: 600
+    max: 1400
+    unit: Hz
+    default: 900
+    overrides:
+    - target: filter.frequency
+  - name: attack
+    type: number
+    min: 0.002
+    max: 0.02
+    unit: s
+    default: 0.005
+    overrides:
+    - target: env.attack
+  - name: decay
+    type: number
+    min: 0.12
+    max: 0.32
+    unit: s
+    default: 0.22
+    overrides:
+    - target: env.decay
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: sawtooth
+      frequency: 180
+    automation:
+      frequency:
+      - kind: set
+        time: 0.0
+        value: 180
+      - kind: exponentialRamp
+        time: 0.22
+        value: 520
+  filter:
+    kind: biquadFilter
+    params:
+      type: bandpass
+      frequency: 900
+      Q: 4
+  env:
+    kind: envelope
+    params:
+      attack: 0.005
+      decay: 0.22
+      sustain: 0.0
+      release: 0.0
+  out:
+    kind: destination
+routing:
+- chain:
+  - osc
+  - filter
+  - env
+  - out

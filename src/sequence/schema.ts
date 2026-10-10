@@ -64,6 +64,15 @@ export interface SequencePresetJson {
   /** Optional tempo in BPM. Used for beat-aligned quantization. */
   tempo?: number;
 
+  /**
+   * Optional loop cadence in seconds for continuous/runtime looping.
+   *
+   * When present, a live runtime transport loops the sequence at this
+   * interval (one pattern period per iteration). Useful for single-event
+   * patterns (e.g. a footstep) whose cadence is not encoded by event timing.
+   */
+  loopInterval?: number;
+
   /** Array of event definitions. */
   events: SequenceEventJson[];
 
@@ -107,6 +116,9 @@ export interface SequenceDefinition {
 
   /** Tempo in BPM, or undefined. */
   tempo?: number;
+
+  /** Loop cadence in seconds for continuous/runtime looping, or undefined. */
+  loopInterval?: number;
 
   /** Resolved events sorted by time. */
   events: SequenceEvent[];
@@ -187,6 +199,16 @@ export function validateSequencePreset(
       errors.push({
         field: "tempo",
         message: `Invalid 'tempo' field (expected positive number).`,
+      });
+    }
+  }
+
+  // loopInterval (optional, positive seconds)
+  if (obj["loopInterval"] !== undefined) {
+    if (typeof obj["loopInterval"] !== "number" || obj["loopInterval"] <= 0) {
+      errors.push({
+        field: "loopInterval",
+        message: `Invalid 'loopInterval' field (expected a positive number of seconds).`,
       });
     }
   }
@@ -347,6 +369,9 @@ export function parseSequencePreset(
     name: obj["name"] as string,
     description: obj["description"] as string | undefined,
     tempo: obj["tempo"] as number | undefined,
+    ...(obj["loopInterval"] !== undefined
+      ? { loopInterval: obj["loopInterval"] as number }
+      : {}),
     events,
   };
 

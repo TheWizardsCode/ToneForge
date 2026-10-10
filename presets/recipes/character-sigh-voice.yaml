@@ -1,0 +1,112 @@
+# Tier 5 — Character & critter voices (noise + tonal blend)
+# Character sigh.
+
+version: '0.1'
+meta:
+  name: character-sigh-voice
+  description: Character sigh
+  category: Character
+  tags:
+  - casual
+  - fun
+  - character
+  duration: 0.62
+  parameters:
+  - name: startFreq
+    type: number
+    min: 220
+    max: 420
+    unit: Hz
+    default: 320
+    overrides:
+    - target: osc.automation.frequency.0.value
+  - name: endFreq
+    type: number
+    min: 120
+    max: 240
+    unit: Hz
+    default: 180
+    overrides:
+    - target: osc.automation.frequency.1.value
+  - name: filterFreq
+    type: number
+    min: 450
+    max: 1100
+    unit: Hz
+    default: 700
+    overrides:
+    - target: filter.frequency
+  - name: noiseLevel
+    type: number
+    min: 0.15
+    max: 0.7
+    unit: amplitude
+    default: 0.35
+    overrides:
+    - target: noise.level
+  - name: attack
+    type: number
+    min: 0.01
+    max: 0.06
+    unit: s
+    default: 0.03
+    overrides:
+    - target: env.attack
+  - name: decay
+    type: number
+    min: 0.26
+    max: 0.56
+    unit: s
+    default: 0.4
+    overrides:
+    - target: env.decay
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 320
+    automation:
+      frequency:
+      - kind: set
+        time: 0.0
+        value: 320
+      - kind: linearRamp
+        time: 0.4
+        value: 180
+  noise:
+    kind: noise
+    params:
+      color: pink
+      level: 0.35
+  filter:
+    kind: biquadFilter
+    params:
+      type: bandpass
+      frequency: 700
+      Q: 2
+  mix:
+    kind: gain
+    params:
+      gain: 0.8
+  env:
+    kind: envelope
+    params:
+      attack: 0.03
+      decay: 0.4
+      sustain: 0.0
+      release: 0.0
+  out:
+    kind: destination
+routing:
+- chain:
+  - osc
+  - mix
+- chain:
+  - noise
+  - filter
+  - mix
+- chain:
+  - mix
+  - env
+  - out

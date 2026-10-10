@@ -1,0 +1,15 @@
+{
+  "name": "version_conflict",
+  "version": "1.0.0",
+  "type": "stack",
+  "description": "Combat stack requiring a newer core major.",
+  "author": "StudioX",
+  "license": "commercial",
+  "dependencies": ["core>=3.0"],
+  "assets": {
+    "recipes": [],
+    "stacks": ["assets/stacks/conflict-stack.json"],
+    "sequences": [],
+    "palettes": []
+  }
+}

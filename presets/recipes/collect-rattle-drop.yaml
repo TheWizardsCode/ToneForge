@@ -1,0 +1,62 @@
+# Tier 3 — Textured & filtered (FM)
+# Rattle-drop collectible: an fmPattern carrier at 900 Hz modulated at 1500 Hz (index 4).
+
+version: "0.1"
+meta:
+  name: collect-rattle-drop
+  description: Rattle-drop collectible
+  category: Collect
+  tags:
+    - casual
+    - joy
+    - collect
+  duration: 0.292
+  parameters:
+    - name: carrierFreq
+      type: number
+      min: 450
+      max: 1620
+      unit: Hz
+      default: 900
+    - name: modulatorFreq
+      type: number
+      min: 750
+      max: 2700
+      unit: Hz
+      default: 1500
+    - name: modIndex
+      type: number
+      min: 1
+      max: 12
+      unit: ratio
+      default: 4
+    - name: attack
+      type: number
+      min: 0.001
+      max: 0.03
+      unit: s
+      default: 0.002
+    - name: decay
+      type: number
+      min: 0.06
+      max: 0.26
+      unit: s
+      default: 0.2
+nodes:
+  fm:
+    kind: fmPattern
+    params:
+      carrierFrequency: 900
+      modulatorFrequency: 1500
+      modulationIndex: 4
+  env:
+    kind: envelope
+    params:
+      attack: 0.002
+      decay: 0.2
+      sustain: 0
+      release: 0
+  out:
+    kind: destination
+routing:
+  - chain: [fm, env, out]

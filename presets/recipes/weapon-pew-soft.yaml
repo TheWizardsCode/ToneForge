@@ -1,0 +1,63 @@
+# Tier 2 — Shaped events (envelope + pitch movement)
+# Soft laser pew with pitch drop — exponential pitch contour from 900 Hz to 200 Hz.
+
+version: "0.1"
+meta:
+  name: weapon-pew-soft
+  description: Soft laser pew with pitch drop
+  category: Weapon
+  tags:
+    - casual
+    - fun
+    - weapon
+  duration: 0.3
+  parameters:
+    - name: startFreq
+      type: number
+      min: 540
+      max: 1440
+      unit: Hz
+      default: 900
+    - name: endFreq
+      type: number
+      min: 120
+      max: 320
+      unit: Hz
+      default: 200
+    - name: attack
+      type: number
+      min: 0.001
+      max: 0.03
+      unit: s
+      default: 0.002
+    - name: decay
+      type: number
+      min: 0.03
+      max: 0.4
+      unit: s
+      default: 0.15
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: sawtooth
+      frequency: 900
+    automation:
+      frequency:
+        - kind: set
+          time: 0
+          value: 900
+        - kind: exponentialRamp
+          time: 0.1
+          value: 200
+  env:
+    kind: envelope
+    params:
+      attack: 0.002
+      decay: 0.15
+      sustain: 0
+      release: 0
+  out:
+    kind: destination
+routing:
+  - chain: [osc, env, out]

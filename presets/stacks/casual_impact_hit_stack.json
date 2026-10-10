@@ -1,0 +1,22 @@
+{
+  "version": "1.0",
+  "name": "casual_impact_hit_stack",
+  "description": "Casual impact-hit stack: a dull thud, a fleshy punch and a metallic crash layered into a single weighty hit.",
+  "layers": [
+    {
+      "recipe": "impact-thud-dull",
+      "startTime": 0.0,
+      "gain": 1.0
+    },
+    {
+      "recipe": "impact-punch-flesh",
+      "startTime": 0.01,
+      "gain": 0.8
+    },
+    {
+      "recipe": "impact-crash-metal",
+      "startTime": 0.04,
+      "gain": 0.6
+    }
+  ]
+}

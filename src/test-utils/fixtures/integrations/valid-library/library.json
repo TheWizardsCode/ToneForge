@@ -1,0 +1,69 @@
+{
+  "name": "integrations-valid-library",
+  "description": "Offline, deterministic fixture library for the Integrations conformance harness. Exercises the four pipeline stages (generate -> validate -> compile -> export) without network access or a system audio player.",
+  "version": "1.0",
+  "compile": {
+    "ruleset": {
+      "target": "web",
+      "maxVoices": 32,
+      "bake": { "category": ["Impact"] },
+      "hybrid": { "durationAbove": 0.25 }
+    }
+  },
+  "validation": {
+    "ruleset": "web",
+    "strictness": "warning"
+  },
+  "entries": [
+    {
+      "candidateId": "ui-confirm",
+      "recipe": "ui-notification-chime",
+      "seed": 42,
+      "duration": 0.3,
+      "category": "UI",
+      "tags": ["ui", "confirm"],
+      "peak": 0.6,
+      "rms": 0.3
+    },
+    {
+      "candidateId": "impact-crack",
+      "recipe": "impact-crack",
+      "seed": 7,
+      "duration": 0.25,
+      "category": "Impact",
+      "tags": ["impact", "heavy"],
+      "peak": 0.8,
+      "rms": 0.35
+    },
+    {
+      "candidateId": "footstep-stone",
+      "recipe": "footstep-stone",
+      "seed": 101,
+      "duration": 0.2,
+      "category": "Footstep",
+      "tags": ["footstep", "surface"],
+      "peak": 0.7,
+      "rms": 0.25
+    }
+  ],
+  "expected": {
+    "compileDecisions": {
+      "lib-ui-confirm": "hybrid",
+      "lib-impact-crack": "baked",
+      "lib-footstep-stone": "procedural"
+    },
+    "compileFiles": [
+      "Impact/lib-impact-crack.wav",
+      "UI/lib-ui-confirm.wav"
+    ],
+    "manifestFiles": [
+      "Impact/lib-impact-crack.wav",
+      "UI/lib-ui-confirm.wav"
+    ],
+    "exportFiles": [
+      "Footstep/lib-footstep-stone.wav",
+      "Impact/lib-impact-crack.wav",
+      "UI/lib-ui-confirm.wav"
+    ]
+  }
+}

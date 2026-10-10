@@ -1,0 +1,49 @@
+# Tier 1 — Pure tones & blips (single oscillator, simple envelope)
+# Bright coin pickup sparkle
+
+version: "0.1"
+meta:
+  name: collect-pickup-coin
+  description: Bright coin pickup sparkle
+  category: Collect
+  tags:
+    - casual
+    - joy
+    - collect
+  duration: 0.102
+  parameters:
+    - name: frequency
+      type: number
+      min: 1000
+      max: 2000
+      unit: Hz
+      default: 1560
+    - name: attack
+      type: number
+      min: 0.001
+      max: 0.02
+      unit: s
+      default: 0.002
+    - name: decay
+      type: number
+      min: 0.04
+      max: 0.16
+      unit: s
+      default: 0.08
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 1560
+  env:
+    kind: envelope
+    params:
+      attack: 0.002
+      decay: 0.08
+      sustain: 0
+      release: 0
+  out:
+    kind: destination
+routing:
+  - chain: [osc, env, out]

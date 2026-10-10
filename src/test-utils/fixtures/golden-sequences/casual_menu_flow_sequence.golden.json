@@ -1,0 +1,45 @@
+{
+  "name": "casual_menu_flow_sequence",
+  "seed": 42,
+  "sampleRate": 44100,
+  "totalDuration": 0.7,
+  "totalDuration_ms": 700,
+  "events": [
+    {
+      "time_ms": 0,
+      "sampleOffset": 0,
+      "event": "ui-click-crisp",
+      "seedOffset": 0,
+      "eventSeed": 42,
+      "gain": 1,
+      "repetition": 0
+    },
+    {
+      "time_ms": 180,
+      "sampleOffset": 7938,
+      "event": "ui-select-pop",
+      "seedOffset": 1,
+      "eventSeed": 43,
+      "gain": 0.95,
+      "repetition": 0
+    },
+    {
+      "time_ms": 420,
+      "sampleOffset": 18522,
+      "event": "ui-confirm-rise",
+      "seedOffset": 2,
+      "eventSeed": 44,
+      "gain": 1,
+      "repetition": 0
+    },
+    {
+      "time_ms": 700,
+      "sampleOffset": 30870,
+      "event": "ui-dialog-open-motif",
+      "seedOffset": 3,
+      "eventSeed": 45,
+      "gain": 0.85,
+      "repetition": 0
+    }
+  ]
+}

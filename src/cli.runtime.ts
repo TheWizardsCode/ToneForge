@@ -21,10 +21,12 @@
  */
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { existsSync, realpathSync } from "node:fs";
-import { dirname, resolve, basename, extname } from "node:path";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { dirname, resolve, basename, extname, join } from "node:path";
 import { execFile } from "node:child_process";
+import { createInterface } from "node:readline";
 import { renderRecipe } from "./core/renderer.js";
+import type { RenderResult } from "./core/renderer.js";
 import { registry, initializeRecipeRegistry } from "./recipes/index.js";
 import { playAudio, getPlayerCommand } from "./audio/player.js";
 import { encodeWav } from "./audio/wav-encoder.js";
@@ -32,7 +34,7 @@ import { VERSION } from "./index.js";
 import { createRng } from "./core/rng.js";
 import { profiler } from "./core/profiler.js";
 import { outputMarkdown, outputError, outputWarning, outputSuccess, outputInfo, outputTable, COLORS, ansiWidth, stripAnsi, isStdoutTty } from "./output.js";
-import { truncateTags } from "./cli/helpers.js";
+import { truncateTags, seedParams, buildParamsTable } from "./cli/helpers.js";
 import type { RecipeRegistration, RecipeFilterQuery } from "./core/recipe.js";
 import { renderStack } from "./stack/renderer.js";
 import type { StackDefinition } from "./stack/renderer.js";
@@ -71,6 +73,47 @@ import {
   countEntries,
   DEFAULT_LIBRARY_DIR,
 } from "./library/index.js";
+
+/** Default directory for the local Marketplace registry. */
+const DEFAULT_MARKETPLACE_DIR = ".toneforge-marketplace";
+import { auditLibrary } from "./intelligence/audit.js";
+import { recommendSounds } from "./intelligence/recommend.js";
+import { suggestExploration } from "./intelligence/suggest-exploration.js";
+import { withReadOnlyGuard } from "./intelligence/read-only.js";
+import { logIntelligenceEvent } from "./intelligence/logging.js";
+import { deriveMemoryContext } from "./intelligence/memory-context.js";
+import {
+  resolveIntent,
+  UnknownIntentError,
+  UnknownIntentIdError,
+  INTENT_PRIORITIES,
+  INTENT_VOCABULARY,
+  INTENT_VERSION,
+  submitIntent,
+} from "./intent/index.js";
+import type { IntentConstraints, IntentPriority } from "./intent/index.js";
+import {
+  createMemoryStore,
+  resolveMemoryDir,
+  queryMemory,
+  exportMemory,
+  clearMemory,
+  MEMORY_VERSION,
+} from "./memory/index.js";
+import type { MemoryTimeRange } from "./memory/types.js";
+import {
+  createLocalRegistry,
+  createInMemoryInstallStateStore,
+  createRegistrar,
+  installPackage,
+  loadRegistryIndex,
+  parseManifest,
+  publishPackage,
+  type DependencyGraphNode,
+  type DependencyProvider,
+  type MutableMarketplaceRegistry,
+} from "./marketplace/index.js";
+import { registry as recipeRegistry } from "./recipes/index.js";
 import { searchEntries } from "./library/search.js";
 import type { SearchQuery } from "./library/search.js";
 import { findSimilar } from "./library/similarity.js";
@@ -81,6 +124,22 @@ import { validateToneGraph } from "./core/tonegraph-schema.js";
 import { simulate, formatTimeline } from "./sequence/simulator.js";
 import { renderSequence } from "./sequence/renderer.js";
 import type { SequenceDefinition } from "./sequence/schema.js";
+import { loadRuntimeScenario } from "./runtime/scenario.js";
+import { runRuntimeScenario } from "./runtime/audio.js";
+import type { RuntimeAudioResult } from "./runtime/audio.js";
+import { createBufferCache } from "./runtime/buffer-cache.js";
+import { createRuntimeSession } from "./runtime/session.js";
+import type { RuntimeSession } from "./runtime/session.js";
+import { createRuntimeService } from "./runtime/service.js";
+import type { RuntimeService } from "./runtime/service.js";
+import { VISUAL_FORMATS, exportVisual, listPalettes } from "./visualizer/index.js";
+import { STRICTNESS_LEVELS, listRulesets } from "./validator/index.js";
+import { listCompileRulesets } from "./compiler/index.js";
+import { listTargets } from "./integrations/index.js";
+import * as validateCmd from "./cli/commands/validate.js";
+import * as compileCmd from "./cli/commands/compile.js";
+import * as syncCmd from "./cli/commands/sync.js";
+import * as pipelineCmd from "./cli/commands/pipeline.js";
 
 /** Parse command-line arguments into a structured map. */
 export function parseArgs(argv: string[]): {
@@ -151,12 +210,19 @@ async function printHelp(): Promise<void> {
 | **classify** | Assign semantic labels to analyzed sounds |
 | **explore** | Discover, rank, and curate sounds across seed spaces |
 | **library** | Manage the curated sound library (list, search, export) |
+| **intelligence** | Assistive, read-only library audit and recommendations |
 | **sequence** | Schedule and render temporal event patterns from presets |
+| **runtime** | Run the render-backed runtime (live session and scripted demo) |
 | **stack** | Compose layered sound events from multiple recipes |
 | **show** | Display recipe metadata and parameters |
 | **play** | Play a WAV file through the system audio player |
 | **list** | List available resources (e.g. recipes) |
 | **tui** | Interactive wizard for building sound palettes |
+| **visualize** | Generate deterministic, audio-synchronised visual effects |
+| **validate** | Validate library assets against platform quality rules |
+| **compile** | Compile library assets into platform-ready artifacts |
+| **sync** | Sync library assets to a game-engine target |
+| **pipeline** | Run the generate → validate → compile → export CI pipeline |
 | **version** | Print the ToneForge version |
 
 ## Options
@@ -257,6 +323,318 @@ toneforge analyze --input ./renders/ --output ./analysis/
   await outputMarkdown(md);
 }
 
+/** Print help text for the visualize command. */
+async function printVisualizeHelp(): Promise<void> {
+  const palettes = listPalettes();
+  const md = `# ToneForge visualize
+
+**Generate deterministic, audio-synchronised visual effects**
+
+## Usage
+
+\`\`\`
+toneforge visualize export --recipe <name> --seed <n> --format <f> --output <dir>
+\`\`\`
+
+## Options
+
+- \`--recipe <name>\` — Recipe name to visualise
+- \`--seed <number>\` — Seed for deterministic output
+- \`--format <spritesheet|frames>\` — Export format (default: \`spritesheet\`)
+- \`--output <dir>\` — Output directory (created if missing)
+- \`--palette <name>\` — Aesthetic palette (default: \`calm_ui\`)
+- \`--frames <n>\` — Number of animation frames (default: 8)
+- \`--width <n>\` / \`--height <n>\` — Frame size in pixels (default: 64)
+- \`--json\` — Output structured JSON to stdout
+- \`--help\`, \`-h\` — Show this help message
+
+## Palettes
+
+${palettes.map((p) => `- \`${p.name}\` — ${p.description}`).join("\n")}
+
+## Determinism
+
+Visual output is deterministic: the same recipe + seed + palette always
+produces byte-identical assets. Visual intensity follows the rendered
+audio's amplitude envelope, so effects stay synchronised to the sound.
+
+## Examples
+
+\`\`\`
+toneforge visualize export --recipe weapon-laser-zap --seed 42 --format spritesheet --output ./vfx/
+toneforge visualize export --recipe ui-scifi-confirm --seed 7 --palette sci_fi_neon --output ./vfx/
+\`\`\``;
+  await outputMarkdown(md);
+}
+
+/** Print help text for the validate command. */
+async function printValidateHelp(): Promise<void> {
+  const rulesets = listRulesets();
+  const md = `# ToneForge validate
+
+**Validate library assets against platform quality rules**
+
+Runs the Validator check engine over every entry in a library and reports
+peak clipping, duration bounds, and silence-ratio violations. The command is
+strictly read-only and produces a deterministic, machine-readable report.
+
+## Usage
+
+\`\`\`
+toneforge validate --library <dir> --ruleset <name> --strictness <level>
+\`\`\`
+
+## Options
+
+- \`--library <dir>\` — Library directory to validate (default: \`${DEFAULT_LIBRARY_DIR}\`)
+- \`--ruleset <name>\` — Platform ruleset: ${rulesets.join(", ")} (default: \`web\`)
+- \`--strictness <level>\` — Severity for violations: ${STRICTNESS_LEVELS.join(", ")} (default: \`warning\`)
+- \`--json\` — Output the structured report as JSON
+- \`--help\`, \`-h\` — Show this help message
+
+## Exit codes
+
+- \`0\` — validation ran; no error-level findings
+- \`1\` — usage/IO error, or the report is build-blocking (\`--strictness error\` with an error-level finding)
+
+## Examples
+
+\`\`\`
+toneforge validate --library ./library --ruleset mobile --strictness warning
+toneforge validate --library ./library --ruleset console --strictness error --json
+\`\`\``;
+  await outputMarkdown(md);
+}
+
+/** Print help text for the compile command. */
+async function printCompileHelp(): Promise<void> {
+  const rulesets = listCompileRulesets();
+  const md = `# ToneForge compile
+
+**Compile library assets into platform-ready artifacts**
+
+Applies a declarative compilation ruleset to every entry in a library and
+either writes baked/hybrid WAVs plus a deterministic \`manifest.json\`, or
+reports the per-asset decisions without touching disk (\`--dry-run\`).
+
+## Usage
+
+\`\`\`
+toneforge compile --library <dir> --target <platform> --rules <name|file> --output <dir>
+toneforge compile --library <dir> --target <platform> --dry-run
+\`\`\`
+
+## Options
+
+- \`--library <dir>\` — Library directory to compile (default: \`${DEFAULT_LIBRARY_DIR}\`)
+- \`--target <platform>\` — Platform target (web, mobile, console, desktop); overrides the ruleset target
+- \`--rules <name|file>\` — Built-in ruleset (${rulesets.join(", ")}) or a path to a JSON ruleset file
+- \`--output <dir>\` — Output directory for compiled artifacts (required unless \`--dry-run\`)
+- \`--dry-run\` — Show decisions without writing any files
+- \`--json\` — Output the structured result as JSON
+- \`--help\`, \`-h\` — Show this help message
+
+## Examples
+
+\`\`\`
+toneforge compile --library ./library --target web --rules web_defaults --output ./dist/web/
+toneforge compile --library ./library --target mobile --rules ./mobile.json --output ./dist/mobile/
+toneforge compile --library ./library --target web --dry-run --json
+\`\`\``;
+  await outputMarkdown(md);
+}
+
+/** Print help text for the sync command. */
+async function printSyncHelp(): Promise<void> {
+  const targets = listTargets();
+  const md = `# ToneForge sync
+
+**Sync library assets to a game-engine target**
+
+Validates a library, compiles it to deterministic WAVs, and maps it into a
+engine-specific layout with an idempotent \`manifest.json\` (categories →
+audio groups, tags → mixer buses).
+
+## Usage
+
+\`\`\`
+toneforge sync --target <engine> --library <dir> --output <dir>
+\`\`\`
+
+## Options
+
+- \`--target <engine>\` — Engine target: ${targets.join(", ")} *(required)*
+- \`--library <dir>\` — Library directory to sync (default: \`${DEFAULT_LIBRARY_DIR}\`)
+- \`--output <dir>\` — Output directory for engine assets *(required)*
+- \`--json\` — Output the structured result as JSON
+- \`--help\`, \`-h\` — Show this help message
+
+## Exit codes
+
+- \`0\` — sync completed
+- \`1\` — usage/IO error, unsupported target, or a blocking validation finding
+
+## Examples
+
+\`\`\`
+toneforge sync --target unity --library ./library --output ./unity-project/Assets/Audio/
+toneforge sync --target web --library ./library --output ./dist/web/audio/
+toneforge sync --target unity --library ./library --output ./out/ --json
+\`\`\``;
+  await outputMarkdown(md);
+}
+
+/** Print help text for the pipeline command. */
+async function printPipelineHelp(): Promise<void> {
+  const rulesets = listRulesets();
+  const md = `# ToneForge pipeline
+
+**Run the generate → validate → compile → export CI pipeline**
+
+Runs all four Integrations stages in one non-interactive invocation,
+fails fast on the first failing stage, and emits a structured JSON log
+suitable for CI. Each stage reuses the shipped Library, Validator and
+Compiler APIs.
+
+## Usage
+
+\`\`\`
+toneforge pipeline --sounds <manifest.json> --library <dir> --output <dir>
+toneforge pipeline --sounds <manifest.json> --output ./build --json
+\`\`\`
+
+## Options
+
+- \`--sounds <file>\` — Sounds manifest (JSON) describing entries to generate *(required)*
+- \`--library <dir>\` — Library directory written by generate (default: \`${DEFAULT_LIBRARY_DIR}\`)
+- \`--output <dir>\` — Export output directory *(required)*
+- \`--compile-dir <dir>\` — Compiled-artifact directory (default: \`<output>/compile\`)
+- \`--ruleset <name>\` — Validation ruleset override: ${rulesets.join(", ")}
+- \`--strictness <level>\` — Validation strictness override: ${STRICTNESS_LEVELS.join(", ")}
+- \`--json\` — Output the structured run result as JSON
+- \`--help\`, \`-h\` — Show this help message
+
+## Exit codes
+
+- \`0\` — every stage succeeded
+- \`1\` — usage/IO error, or a stage failed (later stages are not run)
+
+## Examples
+
+\`\`\`
+toneforge pipeline --sounds ./sounds.json --library ./build/library --output ./build/export
+toneforge pipeline --sounds ./sounds.json --output ./build --json
+\`\`\``;
+  await outputMarkdown(md);
+}
+
+/**
+ * Resolve the local Marketplace registry root and index file.
+ *
+ * Resolution order (first hit wins):
+ * 1. `TONEFORGE_MARKETPLACE_DIR` — an explicit registry root, when set and it
+ *    contains `registry/index.json`;
+ * 2. the project-local `.toneforge-marketplace` registry, when present;
+ * 3. the bundled demo registry under `src/test-utils/fixtures/marketplace`.
+ *
+ * A registry root holds `registry/index.json` plus a `packages/` tree of
+ * directory-bundle packages (`docs/prd/MARKETPLACE_PRD.md` Sections 5, 12).
+ * The bundled registry is read-only reference data; point
+ * `TONEFORGE_MARKETPLACE_DIR` at a writable directory to publish.
+ */
+function resolveMarketplaceRegistry(): { indexFile: string; root: string } {
+  const override = process.env.TONEFORGE_MARKETPLACE_DIR?.trim();
+  const candidates = [
+    ...(override ? [resolve(override)] : []),
+    resolve(process.cwd(), DEFAULT_MARKETPLACE_DIR),
+  ];
+  for (const root of candidates) {
+    const indexFile = join(root, "registry", "index.json");
+    if (existsSync(indexFile)) {
+      return { indexFile, root };
+    }
+  }
+  const root = resolve(import.meta.dirname, "../src/test-utils/fixtures/marketplace");
+  return { indexFile: join(root, "registry", "index.json"), root };
+}
+
+/**
+ * Build a dependency provider from a registry index so install/publish detect
+ * missing, incompatible or circular dependencies before registering
+ * (`docs/prd/MARKETPLACE_PRD.md` Sections 5, 7). Known versions come from the
+ * registry's published and installed packages.
+ */
+function registryDependencyProvider(indexFile: string): DependencyProvider {
+  const index = loadRegistryIndex(indexFile);
+  const nodes: DependencyGraphNode[] = [
+    ...index.packages.map((pkg) => ({
+      name: pkg.name,
+      version: pkg.version,
+      dependencies: [] as string[],
+    })),
+    ...index.installed.map((pkg) => ({
+      name: pkg.name,
+      version: pkg.version,
+      dependencies: [] as string[],
+    })),
+  ];
+  return (dependency) => nodes.filter((node) => node.name === dependency);
+}
+
+/** Print help text for the marketplace command group. */
+async function printMarketplaceHelp(): Promise<void> {
+  const md = `# ToneForge marketplace
+
+**Browse, install and publish Marketplace packages**
+
+The Marketplace provides a local registry of procedural sound packages.
+Packages contain recipes, stacks, sequences and palettes — not static audio.
+
+## Usage
+
+\\
+
+toneforge marketplace search [--category <c>] [--json]
+toneforge marketplace install <package>@<version> [--json]
+toneforge marketplace publish --package <dir> --name <n> --version <v> [--json]
+\
+
+## Subcommands
+
+- **search** — Search the Marketplace for packages by category
+- **install** — Install a Marketplace package
+- **publish** — Publish a package to the Marketplace
+
+## Options
+
+- **search**
+  - \`--category <c>\` — Filter by category
+  - \`--json\` — Output JSON
+
+- **install**
+  - \`<package>@<version>\` — Package name and version (required, positional)
+  - \`--json\` — Output JSON
+
+- **publish**
+  - \`--package <dir>\` — Package directory containing manifest.json and assets/ (required)
+  - \`--name <n>\` — Package name (required)
+  - \`--version <v>\` — Package version, semver (required)
+  - \`--json\` — Output JSON
+
+## Examples
+
+\\
+
+toneforge marketplace search --category "sci-fi weapons"
+toneforge marketplace search --category combat --json
+toneforge marketplace install industrial_lasers@2.1.0
+toneforge marketplace install plasma_rifles@1.4.2 --json
+toneforge marketplace publish --package ./my-package --name my_package --version 1.0.0
+\
+`;
+  await outputMarkdown(md);
+}
+
 /** Print help text for the classify command. */
 async function printClassifyHelp(): Promise<void> {
   const recipes = registry.list();
@@ -337,6 +715,8 @@ async function printListHelp(): Promise<void> {
 ## Resources
 
 - **recipes** — List all registered recipes with name, description, category, and tags *(default)*
+- **sequences** — List sequence presets from \`presets/sequences\`
+- **stacks** — List stack presets from \`presets/stacks\`
 
 ## Filtering
 
@@ -346,8 +726,22 @@ async function printListHelp(): Promise<void> {
 
 Filters combine with AND logic. Empty or whitespace-only values are ignored.
 
+## Preset directory override (sequences, stacks)
+
+The directory scanned by \`list sequences\` / \`list stacks\` is resolved in
+this order:
+
+1. \`--dir <path>\` — explicit override for this invocation
+2. \`TONEFORGE_SEQUENCES_DIR\` / \`TONEFORGE_STACKS_DIR\` — environment override
+3. the repo default (\`presets/sequences\` / \`presets/stacks\`)
+
+Relative paths are resolved against the current working directory. Files whose
+basename begins with \`__\` are treated as test/temp artefacts and are skipped,
+so a leaked fixture can never fail the command.
+
 ## Options
 
+- \`--dir <path>\` — Directory to list sequences/stacks from (default: \`TONEFORGE_SEQUENCES_DIR\` / \`TONEFORGE_STACKS_DIR\` or the repo presets directory)
 - \`--json\` — Output results in JSON format
 - \`--help\`, \`-h\` — Show this help message
 
@@ -361,6 +755,11 @@ toneforge list recipes --category weapon
 toneforge list recipes --tags sci-fi,laser
 toneforge list recipes --search beam --category weapon --tags laser
 toneforge list recipes --json
+toneforge list sequences
+toneforge list sequences --json
+toneforge list sequences --dir ./my-presets
+toneforge list stacks --dir ./my-presets --search victory
+TONEFORGE_SEQUENCES_DIR=./my-presets toneforge list sequences --json
 \`\`\``;
   await outputMarkdown(md);
 }
@@ -588,6 +987,124 @@ toneforge sequence inspect --preset <file> [--validate]
 \`\`\`
 toneforge sequence inspect --preset presets/sequences/weapon_burst.json
 toneforge sequence inspect --preset presets/sequences/weapon_burst.json --validate
+\`\`\``;
+  await outputMarkdown(md);
+}
+
+/** Print help text for the runtime command group. */
+async function printRuntimeHelp(): Promise<void> {
+  const md = `# ToneForge runtime
+
+**Render-backed runtime for audible, state- and context-driven playback**
+
+The runtime orchestrates State, Context, and Sequencer, resolves each event
+to a recipe, renders it with the existing offline renderer, and plays it.
+It never grows a second synthesis engine.
+
+## Subcommands
+
+| Subcommand | Description |
+|------------|-------------|
+| **start** | Start a live, interactive session (state/context commands, scheduled playback) |
+| **demo** | Run a scripted runtime scenario and play or export the rendered audio |
+
+Run \`toneforge runtime start --help\` or \`toneforge runtime demo --help\` for
+subcommand-specific help.
+
+## Reference
+
+- \`docs/prd/RUNTIME_PRD.md\` §19 (Runtime ↔ Render/Playback Pipeline)`;
+  await outputMarkdown(md);
+}
+
+/** Print help text for the runtime start subcommand. */
+async function printRuntimeStartHelp(): Promise<void> {
+  const md = `# ToneForge runtime start
+
+**Start a live, interactive runtime session**
+
+## Usage
+
+\`\`\`
+toneforge runtime start [--scenario <file>] [--seed <number>] [--script <file>] [--serve] [--json] [--cache-size <n>] [--iterations <n>] [--no-seed-variation]
+\`\`\`
+
+The session runs the runtime against a **live clock**: each command is applied
+immediately, resolved events are rendered through a bounded LRU buffer cache,
+and each rendered buffer is scheduled for playback at its sequence-relative
+time. \`start\` begins a **continuous transport** that keeps the active sequence
+looping while \`state\`/\`context\` changes reconfigure it live.
+
+## Commands (interactive)
+
+- \`state <name>\` — transition the state machine
+- \`context <dim>=<value> ...\` — update environment context
+- \`param <id> <name> <value>\` — adjust a continuous sound parameter (\`intensity\`, \`gain\`, \`pitch\`, \`filter\`); audible on the next loop pass
+- \`start [state]\` — start the continuous transport (optionally setting a state)
+- \`stop\` — stop the continuous transport
+- \`inspect\` — print the current runtime inspection
+- \`reset\` — reset state/context and restart
+- \`help\` — show command help
+- \`quit\` / \`exit\` — end the session
+
+## Options
+
+- \`--scenario <file>\` — Runtime scenario JSON (default: \`presets/runtime/footsteps.json\`)
+- \`--seed <number>\` — Override the scenario seed
+- \`--script <file>\` — Replay a command-per-line script non-interactively (deterministic clock) and exit
+- \`--serve\` — Run as a long-running service (no TTY required; stays alive after stdin closes; clean shutdown on SIGINT/SIGTERM or \`quit\`)
+- \`--json\` — Stream one JSON object per runtime event to stdout; no audio
+- \`--cache-size <n>\` — Maximum cached renders (default: 64)
+- \`--iterations <n>\` — Stop the transport after n loop iterations (default: 0 = unbounded)
+- \`--no-seed-variation\` — Use the same seeds for every transport iteration (default: vary per iteration)
+- \`--help\`, \`-h\` — Show this help message
+
+## Examples
+
+\`\`\`
+toneforge runtime start
+toneforge runtime start --script ./session.tf.txt --iterations 4
+toneforge runtime start --script ./session.tf.txt --json --iterations 4
+toneforge runtime start --cache-size 128 --json
+toneforge runtime start --serve
+toneforge runtime start --seed 7
+\`\`\``;
+  await outputMarkdown(md);
+}
+
+/** Print help text for the runtime demo subcommand. */
+async function printRuntimeDemoHelp(): Promise<void> {
+  const md = `# ToneForge runtime demo
+
+**Run a scripted runtime scenario as audible, state- and context-driven audio**
+
+## Usage
+
+\`\`\`
+toneforge runtime demo [--scenario <file>] [--seed <number>] [--output <dir>] [--json]
+\`\`\`
+
+The demo drives a deterministic runtime session through a scripted set of
+state and context changes, resolves every event to a recipe via the
+scenario's recipe resolver, and mixes the result with the offline renderer.
+By default it plays the audio; \`--output\` exports WAVs and the event
+timeline so the demo is verifiable in CI without audio hardware.
+
+## Options
+
+- \`--scenario <file>\` — Path to a runtime scenario JSON file (default: \`presets/runtime/footsteps.json\`)
+- \`--seed <number>\` — Override the scenario seed (deterministic)
+- \`--output <dir>\` — Export the mixed WAV, per-event WAVs, and \`timeline.json\` to this directory instead of playing
+- \`--json\` — Print the event timeline as JSON (implies no playback)
+- \`--help\`, \`-h\` — Show this help message
+
+## Examples
+
+\`\`\`
+toneforge runtime demo
+toneforge runtime demo --seed 7 --output ./runtime-demo/
+toneforge runtime demo --json
+toneforge runtime demo --scenario presets/runtime/footsteps.json --json
 \`\`\``;
   await outputMarkdown(md);
 }
@@ -839,6 +1356,267 @@ toneforge library add --file ./game-weapon.yaml --destination ./project-recipes
 # Persist to a custom location, then render it in a separate process
 TONEFORGE_RECIPE_DIR=./project-recipes toneforge library add --file ./game-weapon.yaml
 toneforge generate --recipe game-weapon --seed 42 --output ./game-weapon.wav
+\`\`\``;
+  await outputMarkdown(md);
+}
+
+/** Print help text for the intelligence command group. */
+async function printIntelligenceHelp(): Promise<void> {
+  const md = `# ToneForge intelligence
+
+**Assistive reasoning over the sound library**
+
+Intelligence is the reasoning layer that synthesises analysis,
+classification and library data into actionable, explainable suggestions.
+It is **assistive**: it suggests, the human decides, and it **never**
+modifies library data.
+
+## Subcommands
+
+| Subcommand | Description |
+|------------|-------------|
+| **audit** | Report coverage gaps, redundancy and quality issues |
+| **recommend** | Rank library sounds for a specific use case |
+| **suggest-exploration** | Suggest seed ranges and variants for a recipe |
+
+## Options
+
+- \`--json\` — Output structured JSON to stdout
+- \`--help\`, \`-h\` — Show this help message
+
+Run \`toneforge intelligence <subcommand> --help\` for subcommand-specific help.
+
+## Reference
+
+- \`docs/prd/INTELLIGENCE_PRD.md\``;
+  await outputMarkdown(md);
+}
+
+/** Print help text for the intelligence audit subcommand. */
+async function printIntelligenceAuditHelp(): Promise<void> {
+  const md = `# ToneForge intelligence audit
+
+**Audit a library for coverage gaps, redundancy and quality issues**
+
+Reads the library index at \`<library>/index.json\` using existing analysis
+and classification data. It is strictly read-only: auditing never writes to
+the library.
+
+## Usage
+
+\`\`\`
+toneforge intelligence audit [--library <dir>] [--json]
+\`\`\`
+
+## Options
+
+- \`--library <dir>\` — Library directory to audit (default: \`${DEFAULT_LIBRARY_DIR}\`)
+- \`--dry-run\` — read-only dry-run (always on; \`--no-dry-run\` is refused)
+- \`--json\` — Output structured JSON to stdout
+- \`--help\`, \`-h\` — Show this help message
+
+## Findings
+
+| Kind | Meaning |
+|------|---------|
+| **coverage-gap** | A category is missing a canonical intensity bucket or material variety |
+| **redundancy** | A cluster of near-identical entries that could be pruned |
+| **quality** | Clipping, silence, or out-of-bounds duration |
+
+Every finding carries a confidence in [0, 1], a rationale, and an actionable
+\`toneforge\` command.
+
+## Examples
+
+\`\`\`
+toneforge intelligence audit --library ./library
+toneforge intelligence audit --library ./library --json
+\`\`\``;
+  await outputMarkdown(md);
+}
+
+/** Print help text for the intelligence recommend subcommand. */
+async function printIntelligenceRecommendHelp(): Promise<void> {
+  const md = `# ToneForge intelligence recommend
+
+**Recommend ranked library sounds for a use case**
+
+Maps a natural-language use case onto category, intensity, texture and tag
+preferences, then ranks library entries deterministically. It is strictly
+read-only.
+
+## Usage
+
+\`\`\`
+toneforge intelligence recommend --use-case <desc> [--max-results <n>] [--library <dir>] [--json]
+\`\`\`
+
+## Options
+
+- \`--use-case <desc>\` — Natural-language use case *(required)*
+- \`--max-results <n>\` — Maximum number of recommendations (default: 5)
+- \`--library <dir>\` — Library directory to search (default: \`${DEFAULT_LIBRARY_DIR}\`)
+- \`--dry-run\` — read-only dry-run (always on; \`--no-dry-run\` is refused)
+- \`--json\` — Output structured JSON to stdout
+- \`--help\`, \`-h\` — Show this help message
+
+Each recommendation carries a \`confidence\` in [0, 1] and a human-readable
+\`rationale\`, and references an actionable command.
+
+## Examples
+
+\`\`\`
+toneforge intelligence recommend --use-case "sci-fi menu navigation" --max-results 5
+toneforge intelligence recommend --use-case "aggressive weapon" --json
+\`\`\``;
+  await outputMarkdown(md);
+}
+
+/** Print help text for the intelligence suggest-exploration subcommand. */
+async function printIntelligenceSuggestExplorationHelp(): Promise<void> {
+  const md = `# ToneForge intelligence suggest-exploration
+
+**Suggest exploration targets for a recipe**
+
+Inspects how a recipe is currently represented in the library and proposes
+adjacent seed windows, a distant seed region for diversity, and parameter
+jitter for tightly clustered entries. It is strictly read-only.
+
+## Usage
+
+\`\`\`
+toneforge intelligence suggest-exploration --recipe <r> [--library <dir>] [--json]
+\`\`\`
+
+## Options
+
+- \`--recipe <r>\` — recipe to explore *(required)*
+- \`--library <dir>\` — library directory to inspect (default: \`${DEFAULT_LIBRARY_DIR}\`)
+- \`--dry-run\` — read-only dry-run (always on; \`--no-dry-run\` is refused)
+- \`--json\` — Output structured JSON to stdout
+- \`--help\`, \`-h\` — Show this help message
+
+Every suggestion names the recipe, gives an explicit seed range, a
+\`confidence\` in [0, 1], a \`rationale\`, and a runnable
+\`toneforge explore ...\` command.
+
+## Examples
+
+\`\`\`
+toneforge intelligence suggest-exploration --recipe footstep-stone
+toneforge intelligence suggest-exploration --recipe weapon-laser-zap --json
+\`\`\``;
+  await outputMarkdown(md);
+}
+
+/** Build the project-local Memory store for the current invocation. */
+function memoryStoreFor(flags: Record<string, string | boolean>) {
+  const dir =
+    typeof flags["memory-dir"] === "string"
+      ? (flags["memory-dir"] as string)
+      : resolveMemoryDir();
+  return createMemoryStore({ dir });
+}
+
+/** Load additive Memory context when `--use-memory` is set. */
+async function loadMemoryContext(
+  flags: Record<string, string | boolean>,
+): Promise<ReturnType<typeof deriveMemoryContext> | undefined> {
+  if (flags["use-memory"] !== true) return undefined;
+  const store = memoryStoreFor(flags);
+  const records = await store.readAll();
+  return deriveMemoryContext(records, store.location);
+}
+
+/** Parse a `--time-range` value into an inclusive time range. */
+function parseTimeRange(raw: string | undefined): MemoryTimeRange | undefined {
+  if (raw === undefined || raw === "all") return undefined;
+  if (raw.includes(":")) {
+    const [from, to] = raw.split(":", 2);
+    const range: MemoryTimeRange = {};
+    if (from !== undefined && from.length > 0) range.from = from;
+    if (to !== undefined && to.length > 0) range.to = to;
+    return range;
+  }
+  throw new Error(`Invalid --time-range '${raw}'. Use <from>:<to> ISO dates, or 'all'.`);
+}
+
+/** Parse repeated `key=value` constraint flags. */
+function parseConstraints(raw: unknown): IntentConstraints {
+  const constraints: IntentConstraints = {};
+  let entries: unknown[];
+  if (Array.isArray(raw)) entries = raw;
+  else if (typeof raw === "string") entries = raw.split("\n");
+  else entries = raw === undefined ? [] : [raw];
+  for (const entry of entries) {
+    const text = String(entry);
+    const eq = text.indexOf("=");
+    if (eq <= 0) throw new Error(`Invalid --constraint '${text}'. Use key=value.`);
+    const key = text.slice(0, eq);
+    const value = text.slice(eq + 1);
+    if (value === "true" || value === "false") constraints[key] = value === "true";
+    else if (value !== "" && !Number.isNaN(Number(value))) constraints[key] = Number(value);
+    else constraints[key] = value;
+  }
+  return constraints;
+}
+
+/** Print help text for the intent command group. */
+async function printIntentHelp(): Promise<void> {
+  const md = `# ToneForge intent
+
+**Submit structured intents that route through Intelligence behind a human approval gate**
+
+Intent is advisory: it never mutates systems directly. Every suggestion
+references a runnable \`toneforge\` command.
+
+## Usage
+
+\`\`\`
+toneforge intent submit --goal <desc> --scope <scope> [options]
+toneforge intent vocabulary
+\`\`\`
+
+## Approval gate
+
+- \`--dry-run\` never executes anything.
+- Non-interactive / \`--json\` runs print suggestions only unless \`--approve\` is passed.
+- Interactive runs prompt per suggestion and execute only confirmed commands.`;
+  await outputMarkdown(md);
+}
+
+/** Print help text for `intent submit`. */
+async function printIntentSubmitHelp(): Promise<void> {
+  const md = `# ToneForge intent submit
+
+\`\`\`
+toneforge intent submit --goal <desc> --scope <scope> [--intent <id>] [--priority <p>] [--constraint k=v] [--library <dir>] [--approve] [--dry-run] [--json]
+\`\`\`
+
+## Examples
+
+\`\`\`
+toneforge intent submit --goal "reduce repetition in footstep sounds" --scope footsteps
+toneforge intent submit --intent calm_ui --scope ui --approve --json
+\`\`\``;
+  await outputMarkdown(md);
+}
+
+/** Print help text for the memory command group. */
+async function printMemoryHelp(): Promise<void> {
+  const md = `# ToneForge memory
+
+**Query, export and clear the project-local append-only Memory store**
+
+Memory is project-local and append-only. It never makes decisions and never
+mutates library assets. Queries are read-only.
+
+## Usage
+
+\`\`\`
+toneforge memory query --scope <scope> --time-range <range> [--json]
+toneforge memory export [--json]
+toneforge memory clear
 \`\`\``;
   await outputMarkdown(md);
 }
@@ -1109,6 +1887,165 @@ function formatNumber(n: number): string {
 export { truncateTags } from "./cli/helpers.js";
 
 /**
+ * Serialise a runtime demo result for `--json` output.
+ */
+function formatRuntimeDemoJson(
+  result: RuntimeAudioResult,
+  outputDir: string | undefined,
+  played: boolean,
+): Record<string, unknown> {
+  return {
+    command: "runtime demo",
+    scenario: result.scenario,
+    seed: result.seed,
+    sampleRate: result.sampleRate,
+    duration: result.render.duration,
+    samples: result.render.samples.length,
+    output: outputDir ?? null,
+    played,
+    events: result.events.map((e) => ({
+      time_ms: e.time_ms,
+      sampleOffset: e.sampleOffset,
+      state: e.state,
+      sequence: e.sequence,
+      originalRecipe: e.originalRecipe,
+      recipe: e.recipe,
+      eventSeed: e.eventSeed,
+      gain: e.gain,
+      repetition: e.repetition,
+      ...(e.duration !== undefined ? { duration: e.duration } : {}),
+    })),
+  };
+}
+
+/**
+ * Export a runtime demo: the mixed WAV, one WAV per resolved event, and the
+ * event timeline as JSON. Used by `toneforge runtime demo --output <dir>` so
+ * the demo is verifiable in CI without audio hardware.
+ */
+async function writeRuntimeDemoOutputs(
+  result: RuntimeAudioResult,
+  outputDir: string,
+  jsonMode: boolean,
+): Promise<void> {
+  const dir = resolve(outputDir);
+  await mkdir(dir, { recursive: true });
+
+  const mixedPath = join(dir, "runtime-demo.wav");
+  await writeFile(
+    mixedPath,
+    encodeWav(result.render.samples, { sampleRate: result.render.sampleRate }),
+  );
+
+  for (let i = 0; i < result.eventRenders.length; i++) {
+    const { event, render } = result.eventRenders[i]!;
+    const name = `${String(i).padStart(2, "0")}-${event.recipe}-seed${event.eventSeed}.wav`;
+    await writeFile(
+      join(dir, name),
+      encodeWav(render.samples, { sampleRate: render.sampleRate }),
+    );
+  }
+
+  const timelinePath = join(dir, "timeline.json");
+  await writeFile(
+    timelinePath,
+    JSON.stringify(formatRuntimeDemoJson(result, outputDir, false), null, 2),
+  );
+
+  if (!jsonMode) {
+    outputSuccess(`Wrote ${mixedPath}`);
+    outputSuccess(`Wrote ${timelinePath}`);
+  }
+}
+
+/**
+ * Drive an interactive runtime session over stdin until `quit`/`exit` or EOF.
+ */
+async function runInteractiveRuntimeSession(
+  session: RuntimeSession,
+  opts: { jsonMode: boolean },
+): Promise<void> {
+  const isTty = process.stdin.isTTY === true;
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+    terminal: isTty,
+    ...(opts.jsonMode ? {} : { prompt: "runtime> " }),
+  });
+
+  if (!opts.jsonMode && isTty) rl.prompt();
+
+  try {
+    for await (const line of rl) {
+      const result = session.handleCommand(line);
+      if (!opts.jsonMode && result.message) {
+        if (result.ok) {
+          outputInfo(result.message);
+        } else {
+          outputError(result.message);
+        }
+      }
+      if (result.type === "quit") break;
+      if (!opts.jsonMode && isTty) rl.prompt();
+    }
+  } finally {
+    rl.close();
+  }
+}
+
+/**
+ * Drive a long-running runtime service over stdin until a shutdown signal or a
+ * `quit`/`exit` command.
+ *
+ * Unlike the interactive session, reaching stdin EOF does **not** end the
+ * service: it keeps the runtime alive (processing commands as they arrive)
+ * until `service.stop()` is requested by a signal or a `quit` command.
+ */
+async function runServiceRuntimeSession(
+  session: RuntimeSession,
+  service: RuntimeService,
+  opts: { jsonMode: boolean },
+): Promise<void> {
+  const isTty = process.stdin.isTTY === true;
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+    terminal: isTty,
+    ...(opts.jsonMode ? {} : { prompt: "runtime> " }),
+  });
+
+  const onLine = (line: string): void => {
+    const result = session.handleCommand(line);
+    if (!opts.jsonMode && result.message) {
+      if (result.ok) {
+        outputInfo(result.message);
+      } else {
+        outputError(result.message);
+      }
+    }
+    if (result.type === "quit") service.stop("quit");
+  };
+
+  rl.on("line", onLine);
+  if (!opts.jsonMode && isTty) rl.prompt();
+
+  // A pending promise does not keep the Node event loop alive. Once stdin
+  // closes, the readline interface no longer holds the process open, so a
+  // referenced interval is required to keep a long-running service alive
+  // until `stop()` (signal or `quit`) resolves the wait.
+  const keepAlive = setInterval(() => {}, 60_000);
+
+  try {
+    // Keep the process alive until an explicit stop/quit or a shutdown signal;
+    // stdin EOF must not end service mode.
+    await service.wait();
+  } finally {
+    clearInterval(keepAlive);
+    rl.close();
+  }
+}
+
+/**
  * Output a JSON object to stdout. Used by all commands when --json is active.
  */
 function jsonOut(data: Record<string, unknown>): void {
@@ -1273,8 +2210,11 @@ export async function dispatchCommand(
   profiler.mark("cli_parse");
 
 
-  // --version flag or `version` command
-  if (flags["version"] || command === "version") {
+  // Global --version flag (boolean) or the `version` command. A string
+  // `--version <v>` belongs to a subcommand (for example
+  // `marketplace publish --version 1.0.0`) and must not be treated as a
+  // request for the CLI's own version.
+  if (flags["version"] === true || command === "version") {
     if (jsonMode) {
       jsonOut({ command: "version", version: VERSION });
     } else {
@@ -1317,8 +2257,38 @@ export async function dispatchCommand(
       }
     } else if (command === "library") {
       await printLibraryHelp();
+    } else if (command === "intelligence") {
+      if (subcommand === "audit") {
+        await printIntelligenceAuditHelp();
+      } else if (subcommand === "recommend") {
+        await printIntelligenceRecommendHelp();
+      } else if (subcommand === "suggest-exploration") {
+        await printIntelligenceSuggestExplorationHelp();
+      } else {
+        await printIntelligenceHelp();
+      }
+    } else if (command === "intent") {
+      if (subcommand === "submit") {
+        await printIntentSubmitHelp();
+      } else {
+        await printIntentHelp();
+      }
+    } else if (command === "memory") {
+      await printMemoryHelp();
     } else if (command === "tui") {
       await printTuiHelp();
+    } else if (command === "visualize") {
+      await printVisualizeHelp();
+    } else if (command === "validate") {
+      await printValidateHelp();
+    } else if (command === "compile") {
+      await printCompileHelp();
+    } else if (command === "sync") {
+      await printSyncHelp();
+    } else if (command === "pipeline") {
+      await printPipelineHelp();
+    } else if (command === "marketplace") {
+      await printMarketplaceHelp();
     } else if (command === "sequence") {
       if (subcommand === "generate") {
         await printSequenceGenerateHelp();
@@ -1328,6 +2298,14 @@ export async function dispatchCommand(
         await printSequenceInspectHelp();
       } else {
         await printSequenceHelp();
+      }
+    } else if (command === "runtime") {
+      if (subcommand === "demo") {
+        await printRuntimeDemoHelp();
+      } else if (subcommand === "start") {
+        await printRuntimeStartHelp();
+      } else {
+        await printRuntimeHelp();
       }
     } else {
       await printHelp();
@@ -1345,6 +2323,7 @@ export async function dispatchCommand(
       search: flags["search"],
       category: flags["category"],
       tags: flags["tags"],
+      dir: flags["dir"],
       json: jsonMode,
     };
     // The command handler returns an exit code
@@ -1476,6 +2455,326 @@ export async function dispatchCommand(
       }
       return 1;
     }
+  }
+
+  // ── validate command ─────────────────────────────────────────────
+
+  if (command === "validate") {
+    return validateCmd.handler({
+      library: flags["library"],
+      ruleset: flags["ruleset"],
+      strictness: flags["strictness"],
+      json: jsonMode,
+    });
+  }
+
+  // ── compile command ──────────────────────────────────────────────
+
+  if (command === "compile") {
+    return compileCmd.handler({
+      library: flags["library"],
+      target: flags["target"],
+      rules: flags["rules"],
+      output: flags["output"],
+      "dry-run": flags["dry-run"],
+      json: jsonMode,
+    });
+  }
+
+  // ── sync command ─────────────────────────────────────────────────
+
+  if (command === "sync") {
+    return syncCmd.handler({
+      target: flags["target"],
+      library: flags["library"],
+      output: flags["output"],
+      json: jsonMode,
+    });
+  }
+
+  // ── pipeline command ────────────────────────────────────────────
+
+  if (command === "pipeline") {
+    return pipelineCmd.handler({
+      sounds: flags["sounds"],
+      library: flags["library"],
+      output: flags["output"],
+      "compile-dir": flags["compile-dir"],
+      ruleset: flags["ruleset"],
+      strictness: flags["strictness"],
+      json: jsonMode,
+    });
+  }
+
+  // ── marketplace command ─────────────────────────────────────────
+
+  if (command === "marketplace") {
+    if (subcommand === "search") {
+      if (flags["help"]) {
+        await printMarketplaceHelp();
+        return 0;
+      }
+
+      // Resolve the registry (env override, project-local, or bundled demo).
+      const { indexFile: registryIndexFile, root: registryRoot } =
+        resolveMarketplaceRegistry();
+
+      let registry: MutableMarketplaceRegistry;
+      try {
+        registry = createLocalRegistry({ indexFile: registryIndexFile, root: registryRoot });
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        if (jsonMode) {
+          jsonErr(`Registry error: ${msg}`);
+        } else {
+          outputError(`Registry error: ${msg}`);
+        }
+        return 1;
+      }
+
+      const category = typeof flags["category"] === "string" ? flags["category"] : undefined;
+      const result = registry.searchResult(category);
+
+      if (jsonMode) {
+        jsonOut({ command: "marketplace search", ...result });
+      } else {
+        if (result.count === 0) {
+          outputInfo(`No Marketplace packages found${category ? ` in category '${category}'` : "."}`);
+        } else {
+          outputInfo(`Marketplace Results: ${category ? `"${category}"` : "all categories"}`);
+          outputInfo(`Found ${result.count} package${result.count === 1 ? "" : "s"}.`);
+          for (const listing of result.listings) {
+            const assetParts = Object.entries(listing.assets)
+              .filter(([, count]) => count > 0)
+              .map(([kind, count]) => `${count} ${kind}`)
+              .join(", ");
+            outputInfo(
+              `  ${listing.name}@${listing.version} by ${listing.author}` +
+                (assetParts ? ` — ${assetParts}` : "") +
+                ` — ${listing.rating}/5`,
+            );
+          }
+        }
+      }
+
+      return 0;
+    }
+
+    if (subcommand === "install") {
+      if (flags["help"]) {
+        await printMarketplaceHelp();
+        return 0;
+      }
+
+      // Parse the package@version argument
+      const packageArg = typeof flags["package"] === "string" ? flags["package"] : undefined;
+      if (!packageArg) {
+        const msg = "Usage: toneforge marketplace install <package>@<version>. Run 'toneforge marketplace install --help' for usage.";
+        if (jsonMode) jsonErr(msg);
+        else outputError(`Error: ${msg}`);
+        return 1;
+      }
+
+      const atIdx = packageArg.lastIndexOf("@");
+      if (atIdx === -1 || atIdx === 0 || atIdx === packageArg.length - 1) {
+        const msg = `Invalid package argument '${packageArg}'. Expected format: name@version (e.g. industrial_lasers@2.1.0)`;
+        if (jsonMode) jsonErr(msg);
+        else outputError(`Error: ${msg}`);
+        return 1;
+      }
+
+      const packageName = packageArg.substring(0, atIdx);
+      const packageVersion = packageArg.substring(atIdx + 1);
+
+      // Resolve the registry (env override, project-local, or bundled demo).
+      const { indexFile: registryIndexFile, root: registryRoot } =
+        resolveMarketplaceRegistry();
+
+      let registry: MutableMarketplaceRegistry;
+      try {
+        registry = createLocalRegistry({ indexFile: registryIndexFile, root: registryRoot });
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        if (jsonMode) {
+          jsonErr(`Registry error: ${msg}`);
+        } else {
+          outputError(`Registry error: ${msg}`);
+        }
+        return 1;
+      }
+
+      // Create a registrar for the installed assets and a dependency provider
+      // so unsatisfiable dependencies are rejected before registration.
+      const registrar = createRegistrar(recipeRegistry);
+      const dependencyProvider = registryDependencyProvider(registryIndexFile);
+
+      // Run the install pipeline
+      const installResult = installPackage(
+        packageName,
+        packageVersion,
+        {
+          registry,
+          registrarWithDirectory: registrar,
+          stateStore: createInMemoryInstallStateStore(),
+          dependencyProvider,
+        },
+      );
+
+      if (jsonMode) {
+        jsonOut({
+          command: "marketplace install",
+          name: installResult.name,
+          version: installResult.version,
+          installed: installResult.installed,
+          lockedVersion: installResult.lockedVersion,
+          registeredAssets: installResult.registeredAssets.map((a) => ({
+            kind: a.kind,
+            id: a.id,
+            contentHash: a.contentHash,
+          })),
+          issues: installResult.issues,
+        });
+      } else {
+        if (installResult.installed) {
+          outputSuccess(
+            `Installed ${installResult.name}@${installResult.version} ` +
+              `(${installResult.registeredAssets.length} assets registered)`,
+          );
+          if (installResult.registeredAssets.length > 0) {
+            const recipeCount = installResult.registeredAssets.filter(
+              (a) => a.kind === "recipes",
+            ).length;
+            if (recipeCount > 0) {
+              outputInfo(
+                `Registered recipes: ${installResult.registeredAssets
+                  .filter((a) => a.kind === "recipes")
+                  .map((a) => a.path.replace(/\.[^.]+$/, ""))
+                  .join(", ")}`,
+              );
+            }
+          }
+        } else {
+          outputError(
+            `Install failed for ${installResult.name}@${installResult.version}: ` +
+              installResult.issues.map((i) => i.message).join("; "),
+          );
+        }
+      }
+
+      return installResult.installed ? 0 : 1;
+    }
+
+    if (subcommand === "publish") {
+      if (flags["help"]) {
+        await printMarketplaceHelp();
+        return 0;
+      }
+
+      const packageDir = typeof flags["package"] === "string" ? flags["package"] : undefined;
+      const name = typeof flags["name"] === "string" ? flags["name"] : undefined;
+      const version = typeof flags["version"] === "string" ? flags["version"] : undefined;
+
+      if (!packageDir || !name || !version) {
+        const msg = "Required arguments: --package <dir> --name <name> --version <semver>. Run 'toneforge marketplace publish --help' for usage.";
+        if (jsonMode) jsonErr(msg);
+        else outputError(`Error: ${msg}`);
+        return 1;
+      }
+
+      // The package manifest is authoritative. Require --name/--version to
+      // agree with it so a published entry can never diverge from the package
+      // contents on disk (`docs/prd/MARKETPLACE_PRD.md` Sections 5, 9).
+      const manifestFile = resolve(packageDir, "manifest.json");
+      if (!existsSync(manifestFile)) {
+        const msg = `No manifest.json found in '${packageDir}'.`;
+        if (jsonMode) jsonErr(msg);
+        else outputError(`Error: ${msg}`);
+        return 1;
+      }
+
+      let manifestName: string;
+      let manifestVersion: string;
+      try {
+        const parsed = parseManifest(
+          JSON.parse(readFileSync(manifestFile, "utf-8")),
+        );
+        if (!parsed.ok) {
+          const detail = parsed.issues
+            .map((issue) => `${issue.field}: ${issue.message}`)
+            .join("; ");
+          const msg = `Invalid manifest in '${packageDir}': ${detail}`;
+          if (jsonMode) jsonErr(msg);
+          else outputError(`Error: ${msg}`);
+          return 1;
+        }
+        manifestName = parsed.manifest.name;
+        manifestVersion = parsed.manifest.version;
+      } catch (error) {
+        const msg = `Unable to read manifest in '${packageDir}': ${(error as Error).message}`;
+        if (jsonMode) jsonErr(msg);
+        else outputError(`Error: ${msg}`);
+        return 1;
+      }
+
+      if (manifestName !== name || manifestVersion !== version) {
+        const msg =
+          `--name/--version must match manifest.json ` +
+          `(${manifestName}@${manifestVersion}), got ${name}@${version}.`;
+        if (jsonMode) jsonErr(msg);
+        else outputError(`Error: ${msg}`);
+        return 1;
+      }
+
+      // Resolve the registry (env override, project-local, or bundled demo).
+      const { indexFile: registryIndexFile, root: registryRoot } =
+        resolveMarketplaceRegistry();
+
+      let registry: MutableMarketplaceRegistry;
+      try {
+        registry = createLocalRegistry({ indexFile: registryIndexFile, root: registryRoot });
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        if (jsonMode) {
+          jsonErr(`Registry error: ${msg}`);
+        } else {
+          outputError(`Registry error: ${msg}`);
+        }
+        return 1;
+      }
+
+      // Run the publish pipeline
+      const publishResult = publishPackage(packageDir, {
+        registry,
+        dependencyProvider: registryDependencyProvider(registryIndexFile),
+      });
+
+      if (jsonMode) {
+        jsonOut({
+          command: "marketplace publish",
+          name: publishResult.name,
+          version: publishResult.version,
+          published: publishResult.published,
+          issues: publishResult.issues,
+        });
+      } else {
+        if (publishResult.published) {
+          outputSuccess(`Published ${publishResult.name}@${publishResult.version}`);
+        } else {
+          outputError(
+            `Publish failed for ${publishResult.name}@${publishResult.version}: ` +
+              publishResult.issues.map((i) => i.message).join("; "),
+          );
+        }
+      }
+
+      return publishResult.published ? 0 : 1;
+    }
+
+    // Unknown subcommand
+    const msg = `Unknown marketplace subcommand '${subcommand}'. Run 'toneforge marketplace --help' for usage.`;
+    if (jsonMode) jsonErr(msg);
+    else outputError(`Error: ${msg}`);
+    return 1;
   }
 
   // ── stack command ────────────────────────────────────────────────
@@ -1902,6 +3201,125 @@ export async function dispatchCommand(
         jsonOut(output);
       } else {
         formatAnalysisHumanReadable(analysisResult, inputPath!);
+      }
+      return 0;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (jsonMode) { jsonErr(message); } else { outputError(`Error: ${message}`); }
+      return 1;
+    }
+  }
+
+  // ── visualize command ───────────────────────────────────────────
+
+  if (command === "visualize") {
+    if (flags["help"]) {
+      await printVisualizeHelp();
+      return 0;
+    }
+
+    if (subcommand !== "export") {
+      const msg =
+        subcommand === undefined
+          ? "'visualize' requires a subcommand. Did you mean 'visualize export'? Run 'toneforge visualize --help' for usage."
+          : `Unknown visualize subcommand '${subcommand}'. Run 'toneforge visualize --help' for usage.`;
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+
+    const recipeName = typeof flags["recipe"] === "string" ? flags["recipe"] : undefined;
+    const seedRaw = flags["seed"];
+    const formatFlag = typeof flags["format"] === "string" ? flags["format"] : "spritesheet";
+    const outputFlag = typeof flags["output"] === "string" ? flags["output"] : undefined;
+    const paletteFlag = typeof flags["palette"] === "string" ? flags["palette"] : undefined;
+
+    if (recipeName === undefined) {
+      const msg = "--recipe is required. Run 'toneforge visualize --help' for usage.";
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+    if (outputFlag === undefined) {
+      const msg = "--output is required. Run 'toneforge visualize --help' for usage.";
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+    if (seedRaw === undefined || seedRaw === true) {
+      const msg = "--seed is required. Run 'toneforge visualize --help' for usage.";
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+    const seed = parseInt(seedRaw as string, 10);
+    if (Number.isNaN(seed)) {
+      const msg = `--seed must be an integer, got '${seedRaw}'.`;
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+    if (!(VISUAL_FORMATS as readonly string[]).includes(formatFlag)) {
+      const msg = `--format must be one of ${VISUAL_FORMATS.join(", ")}, got '${formatFlag}'.`;
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+
+    const numericFlag = (
+      value: string | boolean | undefined,
+    ): number | undefined | false => {
+      if (value === undefined || value === true) {
+        return undefined;
+      }
+      const parsed = parseInt(value as string, 10);
+      if (Number.isNaN(parsed)) {
+        return false;
+      }
+      return parsed;
+    };
+    const frames = numericFlag(flags["frames"]);
+    const width = numericFlag(flags["width"]);
+    const height = numericFlag(flags["height"]);
+    for (const [value, name] of [
+      [frames, "--frames"],
+      [width, "--width"],
+      [height, "--height"],
+    ] as const) {
+      if (value === false) {
+        const msg = `${name} must be an integer.`;
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+    }
+
+    if (!registry.getRegistration(recipeName)) {
+      const suggestions = suggestRecipes(recipeName, registry.list());
+      let msg = `Unknown recipe '${recipeName}'.`;
+      if (suggestions.length > 0) {
+        msg += ` Did you mean: ${suggestions.join(", ")}?`;
+      }
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+
+    try {
+      const result = await exportVisual({
+        recipe: recipeName,
+        seed,
+        format: formatFlag,
+        outputDir: resolve(outputFlag),
+        ...(paletteFlag !== undefined ? { palette: paletteFlag } : {}),
+        ...(typeof frames === "number" ? { frames } : {}),
+        ...(typeof width === "number" ? { width } : {}),
+        ...(typeof height === "number" ? { height } : {}),
+      });
+
+      if (jsonMode) {
+        jsonOut({ ...result });
+      } else {
+        outputSuccess(
+          `Exported ${result.format} for '${result.recipe}' (seed ${result.seed}, palette ${result.palette})`,
+        );
+        outputInfo(`Effect: ${result.effect}`);
+        outputInfo(`Frames: ${result.frameCount} @ ${result.frameWidth}x${result.frameHeight}`);
+        for (const file of result.files) {
+          outputInfo(`  ${file}`);
+        }
       }
       return 0;
     } catch (error) {
@@ -3631,6 +5049,444 @@ export async function dispatchCommand(
     return 0;
   }
 
+  // ── Intelligence Command ─────────────────────────────────────────
+  if (command === "intelligence") {
+    if (flags["help"] && subcommand === undefined) {
+      await printIntelligenceHelp();
+      return 0;
+    }
+
+    // Intelligence is always read-only; refusing to disable the dry-run
+    // guarantee makes the human-in-the-loop rule explicit.
+    if (flags["dry-run"] === false) {
+      const msg = "Intelligence is always read-only; '--no-dry-run' is not supported.";
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+
+    // ── intelligence audit ────────────────────────────────────
+    if (subcommand === "audit") {
+      if (flags["help"]) {
+        await printIntelligenceAuditHelp();
+        return 0;
+      }
+
+      const libraryDir =
+        typeof flags["library"] === "string" ? flags["library"] : DEFAULT_LIBRARY_DIR;
+
+      try {
+        const report = await withReadOnlyGuard(libraryDir, "intelligence audit", () =>
+          auditLibrary(libraryDir),
+        );
+        const memoryContext = await loadMemoryContext(flags);
+        if (memoryContext) report.memoryContext = memoryContext;
+
+        for (const finding of report.findings) {
+          logIntelligenceEvent({
+            action: "audit",
+            summary: finding.summary,
+            rationale: finding.rationale,
+            assets: finding.assets,
+            confidence: finding.confidence,
+            suggestedCommand: finding.suggestedCommand,
+          });
+        }
+
+        if (jsonMode) {
+          jsonOut({ ...report });
+        } else {
+          outputInfo(`Library Audit Report — ${libraryDir}`);
+          outputInfo(
+            `Coverage: ${report.totalEntries} entr${report.totalEntries === 1 ? "y" : "ies"} ` +
+              `across ${report.categories.length} categor${report.categories.length === 1 ? "y" : "ies"}`,
+          );
+
+          if (report.findings.length === 0) {
+            outputSuccess("No issues found.");
+          } else {
+            for (const finding of report.findings) {
+              outputInfo(
+                `[${finding.kind}] ${finding.summary} ` +
+                  `(confidence: ${finding.confidence.toFixed(2)})`,
+              );
+              outputInfo(`    ${finding.rationale}`);
+              outputInfo(`    Try: ${finding.suggestedCommand}`);
+            }
+          }
+
+          outputInfo(
+            `\nSummary: ${report.summary.coverageGaps} coverage gap(s), ` +
+              `${report.summary.redundancies} redundancy cluster(s), ` +
+              `${report.summary.qualityIssues} quality issue(s)`,
+          );
+        }
+        return 0;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(message); } else { outputError(`Error: ${message}`); }
+        return 1;
+      }
+    }
+
+    // ── intelligence recommend ────────────────────────────────
+    if (subcommand === "recommend") {
+      if (flags["help"]) {
+        await printIntelligenceRecommendHelp();
+        return 0;
+      }
+
+      const useCase = typeof flags["use-case"] === "string" ? flags["use-case"] : undefined;
+      if (useCase === undefined) {
+        const msg = "--use-case is required. Run 'toneforge intelligence recommend --help' for usage.";
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      const maxResultsRaw = flags["max-results"];
+      const maxResults = typeof maxResultsRaw === "string" ? parseInt(maxResultsRaw, 10) : 5;
+      if (Number.isNaN(maxResults) || maxResults < 0) {
+        const msg = `--max-results must be a non-negative integer, got '${String(maxResultsRaw)}'.`;
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      const libraryDir =
+        typeof flags["library"] === "string" ? flags["library"] : DEFAULT_LIBRARY_DIR;
+
+      try {
+        const memoryContext = await loadMemoryContext(flags);
+        const report = await withReadOnlyGuard(libraryDir, "intelligence recommend", () =>
+          recommendSounds(libraryDir, useCase, {
+            maxResults,
+            ...(memoryContext ? { memoryContext } : {}),
+          }),
+        );
+
+        for (const rec of report.recommendations) {
+          logIntelligenceEvent({
+            action: "recommend",
+            summary: `${rec.rank}. ${rec.entryId}`,
+            rationale: rec.rationale,
+            assets: [rec.entryId],
+            confidence: rec.confidence,
+            suggestedCommand: rec.suggestedCommand,
+          });
+        }
+
+        if (jsonMode) {
+          jsonOut({ ...report });
+        } else {
+          outputInfo(`Recommendations for "${useCase}":`);
+          if (report.recommendations.length === 0) {
+            outputInfo("  No matching sounds found.");
+          }
+          for (const rec of report.recommendations) {
+            outputInfo(`  ${rec.rank}. ${rec.entryId} (confidence: ${rec.confidence.toFixed(2)})`);
+            outputInfo(`     ${rec.rationale}`);
+            outputInfo(`     Try: ${rec.suggestedCommand}`);
+          }
+        }
+        return 0;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(message); } else { outputError(`Error: ${message}`); }
+        return 1;
+      }
+    }
+
+    // ── intelligence suggest-exploration ───────────────────
+    if (subcommand === "suggest-exploration") {
+      if (flags["help"]) {
+        await printIntelligenceSuggestExplorationHelp();
+        return 0;
+      }
+
+      const recipeName = typeof flags["recipe"] === "string" ? flags["recipe"] : undefined;
+      if (recipeName === undefined) {
+        const msg = "--recipe is required. Run 'toneforge intelligence suggest-exploration --help' for usage.";
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      if (!registry.getRegistration(recipeName)) {
+        const allNames = registry.list();
+        const suggestions = suggestRecipes(recipeName, allNames);
+        let msg = `Unknown recipe '${recipeName}'.`;
+        if (suggestions.length > 0) {
+          msg += ` Did you mean: ${suggestions.join(", ")}?`;
+        }
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      const libraryDir =
+        typeof flags["library"] === "string" ? flags["library"] : DEFAULT_LIBRARY_DIR;
+
+      try {
+        const report = await withReadOnlyGuard(libraryDir, "intelligence suggest-exploration", () =>
+          suggestExploration(recipeName, libraryDir),
+        );
+        const memoryContext = await loadMemoryContext(flags);
+        if (memoryContext) report.memoryContext = memoryContext;
+
+        for (const suggestion of report.suggestions) {
+          logIntelligenceEvent({
+            action: "suggest-exploration",
+            summary: `${suggestion.recipe} seeds ${suggestion.seedRange.start}-${suggestion.seedRange.end}`,
+            rationale: suggestion.rationale,
+            assets: [suggestion.recipe],
+            confidence: suggestion.confidence,
+            suggestedCommand: suggestion.suggestedCommand,
+          });
+        }
+
+        if (jsonMode) {
+          jsonOut({ ...report });
+        } else {
+          outputInfo(`Exploration suggestions for ${recipeName}:`);
+          if (report.suggestions.length === 0) {
+            outputInfo("  No suggestions available.");
+          }
+          for (const suggestion of report.suggestions) {
+            outputInfo(
+              `  - seeds ${suggestion.seedRange.start}-${suggestion.seedRange.end} ` +
+                `(confidence: ${suggestion.confidence.toFixed(2)})`,
+            );
+            outputInfo(`    ${suggestion.rationale}`);
+            outputInfo(`    Try: ${suggestion.suggestedCommand}`);
+          }
+        }
+        return 0;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(message); } else { outputError(`Error: ${message}`); }
+        return 1;
+      }
+    }
+
+    if (subcommand !== undefined) {
+      const msg = `Unknown intelligence subcommand '${subcommand}'. Run 'toneforge intelligence --help' for usage.`;
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+
+    await printIntelligenceHelp();
+    return 0;
+  }
+
+  // ── Intent command ───────────────────────────────────────────────
+  if (command === "intent") {
+    if (flags["help"] && subcommand === undefined) {
+      await printIntentHelp();
+      return 0;
+    }
+
+    if (subcommand === "vocabulary") {
+      if (flags["help"]) {
+        await printIntentHelp();
+        return 0;
+      }
+      const vocabulary = INTENT_VOCABULARY.map((definition) => ({
+        id: definition.id,
+        description: definition.description,
+        defaultPriority: definition.defaultPriority,
+        defaultScope: definition.defaultScope,
+        keywords: definition.keywords,
+      }));
+      if (jsonMode) {
+        jsonOut({ command: "intent vocabulary", version: INTENT_VERSION, vocabulary });
+      } else {
+        outputInfo("Controlled intent vocabulary:");
+        for (const entry of vocabulary) {
+          outputInfo(`  ${entry.id} — ${entry.description} (priority: ${entry.defaultPriority}, scope: ${entry.defaultScope})`);
+        }
+      }
+      return 0;
+    }
+
+    if (subcommand === "submit") {
+      if (flags["help"]) {
+        await printIntentSubmitHelp();
+        return 0;
+      }
+
+      const goal = typeof flags["goal"] === "string" ? flags["goal"] : undefined;
+      const intentId = typeof flags["intent"] === "string" ? flags["intent"] : undefined;
+      const scope = typeof flags["scope"] === "string" ? flags["scope"] : "project";
+      const priorityRaw = typeof flags["priority"] === "string" ? flags["priority"] : undefined;
+
+      if (intentId === undefined && (goal === undefined || goal.trim().length === 0)) {
+        const msg = "--goal or --intent is required. Run 'toneforge intent submit --help' for usage.";
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+      if (priorityRaw !== undefined && !(INTENT_PRIORITIES as readonly string[]).includes(priorityRaw)) {
+        const msg = `--priority must be one of: ${INTENT_PRIORITIES.join(", ")}.`;
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      let constraints: IntentConstraints;
+      try {
+        constraints = parseConstraints(flags["constraint"]);
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      let intent;
+      try {
+        intent = resolveIntent({
+          ...(goal !== undefined ? { goal } : {}),
+          ...(intentId !== undefined ? { intent: intentId } : {}),
+          scope,
+          ...(priorityRaw !== undefined ? { priority: priorityRaw as IntentPriority } : {}),
+          constraints,
+        });
+      } catch (error) {
+        if (error instanceof UnknownIntentError || error instanceof UnknownIntentIdError) {
+          if (jsonMode) { jsonErr(error.message); } else { outputError(`Error: ${error.message}`); }
+          return 1;
+        }
+        throw error;
+      }
+
+      const libraryDir =
+        typeof flags["library"] === "string" ? flags["library"] : DEFAULT_LIBRARY_DIR;
+      try {
+        const report = await submitIntent(intent, {
+          libraryDir,
+          approve: flags["approve"] === true,
+          dryRun: flags["dry-run"] === true,
+          interactive: false,
+        });
+        if (jsonMode) {
+          jsonOut({ ...report });
+        } else {
+          outputInfo(`Intent analysis — ${report.intent.intent} [${report.intent.scope}]`);
+          outputInfo(`  goal: ${report.intent.goal ?? "(explicit)"}`);
+          outputInfo(`  priority: ${report.intent.priority}`);
+          outputInfo("");
+          for (const suggestion of report.suggestions) {
+            outputInfo(`  - ${suggestion.rationale} (confidence: ${suggestion.confidence.toFixed(2)})`);
+            outputInfo(`    Try: ${suggestion.suggestedCommand}`);
+          }
+          outputInfo("");
+          if (report.executed.length > 0) {
+            outputSuccess(`Approved — executed ${report.executed.length} command(s).`);
+          } else {
+            outputWarning("Approval gate: no action executed. Re-run with --approve to execute.");
+          }
+        }
+        return 0;
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+    }
+
+    if (subcommand !== undefined) {
+      const msg = `Unknown intent subcommand '${subcommand}'. Run 'toneforge intent --help' for usage.`;
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+    await printIntentHelp();
+    return 0;
+  }
+
+  // ── Memory command ───────────────────────────────────────────────
+  if (command === "memory") {
+    if (flags["help"] && subcommand === undefined) {
+      await printMemoryHelp();
+      return 0;
+    }
+
+    const store = memoryStoreFor(flags);
+
+    if (subcommand === "query") {
+      let timeRange: MemoryTimeRange | undefined;
+      try {
+        timeRange = parseTimeRange(
+          typeof flags["time-range"] === "string" ? flags["time-range"] : undefined,
+        );
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+      const scope = typeof flags["scope"] === "string" ? flags["scope"] : undefined;
+      try {
+        const report = await queryMemory(store, {
+          ...(scope !== undefined ? { scope } : {}),
+          ...(timeRange !== undefined ? { timeRange } : {}),
+        });
+        if (jsonMode) {
+          jsonOut({ ...report });
+        } else {
+          outputInfo(`Memory report${report.scope ? ` — scope '${report.scope}'` : ""} (${report.total} record(s))`);
+          outputInfo(`  generated: ${report.counts.generated}, promoted: ${report.counts.promoted}, rejected: ${report.counts.rejected}, overrides: ${report.counts.overrides}`);
+          if (report.mostUsedSeeds.length > 0) {
+            outputInfo("  most-used seeds:");
+            for (const seed of report.mostUsedSeeds) outputInfo(`    ${seed.recipe}#${seed.seed}: ${seed.count}`);
+          }
+          if (report.rejectedIntents.length > 0) {
+            outputInfo("  rejected intents:");
+            for (const item of report.rejectedIntents) outputInfo(`    ${item.intent} (${item.scope}): ${item.reason}`);
+          }
+          if (report.recurringIssues.length > 0) {
+            outputInfo("  recurring issues:");
+            for (const issue of report.recurringIssues) outputInfo(`    ${issue.issue}: ${issue.count}`);
+          }
+        }
+        return 0;
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+    }
+
+    if (subcommand === "export") {
+      try {
+        const records = await exportMemory(store);
+        if (jsonMode) {
+          jsonOut({ command: "memory export", version: MEMORY_VERSION, total: records.length, records });
+        } else {
+          outputInfo(`Exported ${records.length} memory record(s) from ${store.location}`);
+          for (const record of records) outputInfo(JSON.stringify(record));
+        }
+        return 0;
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+    }
+
+    if (subcommand === "clear") {
+      try {
+        await clearMemory(store);
+        if (jsonMode) jsonOut({ command: "memory clear", cleared: true, location: store.location });
+        else outputSuccess("Memory cleared.");
+        return 0;
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+    }
+
+    if (subcommand !== undefined) {
+      const msg = `Unknown memory subcommand '${subcommand}'. Run 'toneforge memory --help' for usage.`;
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+    await printMemoryHelp();
+    return 0;
+  }
+
   // ── Sequence Command ─────────────────────────────────────────────
   if (command === "sequence") {
     // Sequence subcommand help
@@ -3902,6 +5758,7 @@ export async function dispatchCommand(
               name: definition.name,
               description: definition.description || null,
               tempo: definition.tempo || null,
+              loopInterval: definition.loopInterval ?? null,
               events: definition.events.map((e, i) => ({
                 index: i,
                 time: e.time,
@@ -3923,6 +5780,9 @@ export async function dispatchCommand(
             }
             if (definition.tempo) {
               outputInfo(`  Tempo: ${definition.tempo} BPM`);
+            }
+            if (definition.loopInterval !== undefined) {
+              outputInfo(`  Loop interval: ${definition.loopInterval}s`);
             }
             outputInfo("");
 
@@ -3959,6 +5819,269 @@ export async function dispatchCommand(
     }
 
     await printSequenceHelp();
+    return 0;
+  }
+
+  // ── runtime command ────────────────────────────────────────────
+
+  if (command === "runtime") {
+    if (flags["help"] && subcommand === undefined) {
+      await printRuntimeHelp();
+      return 0;
+    }
+
+    if (subcommand === "demo") {
+      if (flags["help"]) {
+        await printRuntimeDemoHelp();
+        return 0;
+      }
+
+      const scenarioPath =
+        typeof flags["scenario"] === "string"
+          ? flags["scenario"]
+          : "presets/runtime/footsteps.json";
+      const outputDir =
+        typeof flags["output"] === "string" ? flags["output"] : undefined;
+
+      let seedOverride: number | undefined;
+      const seedRaw = flags["seed"];
+      if (seedRaw !== undefined && seedRaw !== true) {
+        seedOverride = parseInt(seedRaw as string, 10);
+        if (Number.isNaN(seedOverride)) {
+          const msg = `--seed must be an integer, got '${seedRaw}'.`;
+          if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+          return 1;
+        }
+      }
+
+      try {
+        let scenario = await loadRuntimeScenario(scenarioPath);
+        if (seedOverride !== undefined) {
+          scenario = { ...scenario, seed: seedOverride };
+        }
+
+        if (!jsonMode) {
+          outputInfo(
+            `Running runtime scenario '${scenario.name}' (seed ${scenario.seed})...`,
+          );
+        }
+
+        const startMs = performance.now();
+        const result = await runRuntimeScenario(scenario);
+        const renderMs = (performance.now() - startMs).toFixed(0);
+
+        if (!jsonMode) {
+          outputInfo(
+            `Resolved ${result.events.length} event(s) to ` +
+            `${result.render.duration.toFixed(3)}s of audio ` +
+            `(${result.render.sampleRate} Hz, ${result.render.samples.length} samples) ` +
+            `in ${renderMs}ms`,
+          );
+        }
+
+        if (outputDir !== undefined) {
+          await writeRuntimeDemoOutputs(result, outputDir, jsonMode);
+        }
+
+        const willPlay = outputDir === undefined && !jsonMode;
+
+        if (jsonMode) {
+          jsonOut(formatRuntimeDemoJson(result, outputDir, willPlay));
+        } else if (willPlay) {
+          outputInfo("Playing...");
+          await playAudio(result.render.samples, {
+            sampleRate: result.render.sampleRate,
+          });
+          profiler.mark("playback_complete");
+          outputSuccess("Done.");
+        } else {
+          outputSuccess(`Wrote runtime demo to ${outputDir}`);
+        }
+
+        return 0;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(message); } else { outputError(`Error: ${message}`); }
+        return 1;
+      }
+    }
+
+    if (subcommand === "start") {
+      if (flags["help"]) {
+        await printRuntimeStartHelp();
+        return 0;
+      }
+
+      const scenarioPath =
+        typeof flags["scenario"] === "string"
+          ? flags["scenario"]
+          : "presets/runtime/footsteps.json";
+      const scriptPath =
+        typeof flags["script"] === "string" ? flags["script"] : undefined;
+      const serveMode = flags["serve"] === true;
+
+      let seedOverride: number | undefined;
+      const seedRaw = flags["seed"];
+      if (seedRaw !== undefined && seedRaw !== true) {
+        seedOverride = parseInt(seedRaw as string, 10);
+        if (Number.isNaN(seedOverride)) {
+          const msg = `--seed must be an integer, got '${seedRaw}'.`;
+          if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+          return 1;
+        }
+      }
+
+      let cacheSize = 64;
+      const cacheSizeRaw = flags["cache-size"];
+      if (cacheSizeRaw !== undefined && cacheSizeRaw !== true) {
+        cacheSize = parseInt(cacheSizeRaw as string, 10);
+        if (Number.isNaN(cacheSize) || cacheSize < 1) {
+          const msg = `--cache-size must be a positive integer, got '${cacheSizeRaw}'.`;
+          if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+          return 1;
+        }
+      }
+
+      let maxIterations = 0;
+      const iterationsRaw = flags["iterations"];
+      if (iterationsRaw !== undefined && iterationsRaw !== true) {
+        maxIterations = parseInt(iterationsRaw as string, 10);
+        if (Number.isNaN(maxIterations) || maxIterations < 0) {
+          const msg = `--iterations must be a non-negative integer, got '${iterationsRaw}'.`;
+          if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+          return 1;
+        }
+      }
+
+      const seedVariation = !(
+        flags["seed-variation"] === false || flags["no-seed-variation"] === true
+      );
+
+      if (serveMode && scriptPath !== undefined) {
+        const msg = "'--serve' cannot be combined with '--script'.";
+        if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+        return 1;
+      }
+
+      try {
+        let scenario = await loadRuntimeScenario(scenarioPath);
+        if (seedOverride !== undefined) {
+          scenario = { ...scenario, seed: seedOverride };
+        }
+
+        const cache = createBufferCache({ maxEntries: cacheSize });
+        const session = createRuntimeSession({
+          scenario,
+          cache,
+          virtualClock: scriptPath !== undefined,
+          schedulePlayback: !jsonMode,
+          seedVariation,
+          maxIterations,
+          ...(jsonMode
+            ? {
+                onEvent: (entry) =>
+                  jsonOut({ command: "runtime event", ...entry }),
+              }
+            : {
+                play: (result: RenderResult) =>
+                  playAudio(result.samples, { sampleRate: result.sampleRate }),
+              }),
+        });
+
+        if (serveMode) {
+          const service = createRuntimeService({
+            session,
+            onShutdown: (reason) => {
+              if (jsonMode) {
+                jsonOut({
+                  command: "runtime serve",
+                  shutdownReason: reason,
+                  stats: session.stats(),
+                });
+              } else {
+                outputInfo(`Runtime service stopped (${reason}).`);
+              }
+            },
+          });
+          service.start();
+          await runServiceRuntimeSession(session, service, { jsonMode });
+          service.stop("stopped");
+          return 0;
+        }
+
+        if (scriptPath !== undefined) {
+          let source: string;
+          try {
+            source = await readFile(resolve(scriptPath), "utf-8");
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            throw new Error(
+              `Failed to read runtime session script '${scriptPath}': ${message}`,
+            );
+          }
+          const results = session.runCommandScript(source);
+
+          if (!jsonMode) {
+            for (const result of results) {
+              if (!result.message) continue;
+              if (result.ok) outputInfo(result.message);
+              else outputError(result.message);
+            }
+          }
+
+          // Wait for a bounded transport to finish, or for the current
+          // one-shot playback to drain, then shut down cleanly.
+          if (maxIterations > 0) {
+            await session.waitForTransportIdle();
+          } else if (!jsonMode) {
+            await session.waitForIdle();
+          }
+
+          session.stop();
+
+          if (jsonMode) {
+            jsonOut({
+              command: "runtime start",
+              script: scriptPath,
+              commands: results.length,
+              stats: session.stats(),
+            });
+          }
+
+          return 0;
+        }
+
+        if (process.stdin.isTTY !== true) {
+          const msg =
+            "'runtime start' requires an interactive terminal or --script <file>.";
+          if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+          session.stop();
+          return 1;
+        }
+
+        if (!jsonMode) {
+          outputInfo(
+            `Runtime session '${scenario.name}' (seed ${scenario.seed}). ` +
+            `Type 'help' for commands.`,
+          );
+        }
+        await runInteractiveRuntimeSession(session, { jsonMode });
+        session.stop();
+        return 0;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (jsonMode) { jsonErr(message); } else { outputError(`Error: ${message}`); }
+        return 1;
+      }
+    }
+
+    if (subcommand !== undefined) {
+      const msg = `Unknown runtime subcommand '${subcommand}'. Run 'toneforge runtime --help' for usage.`;
+      if (jsonMode) { jsonErr(msg); } else { outputError(`Error: ${msg}`); }
+      return 1;
+    }
+
+    await printRuntimeHelp();
     return 0;
   }
 
@@ -4139,6 +6262,7 @@ export async function dispatchCommand(
     }
 
     const batchFiles: Array<{ seed: number; output: string; duration: number; sampleRate: number; samples: number }> = [];
+    const batchRegistration = registry.getRegistration(recipeName as string)!;
 
     for (let seed = seedRangeStart!; seed <= seedRangeEnd!; seed++) {
       const fileName = `${recipeName}-seed-${seed}.wav`;
@@ -4149,6 +6273,10 @@ export async function dispatchCommand(
         const wavBuffer = encodeWav(result.samples, { sampleRate: result.sampleRate });
         await writeFile(filePath, wavBuffer);
         if (!jsonMode) {
+          // One aligned table block per seed (AC3).
+          outputInfo(`Seed ${seed}`);
+          const table = buildParamsTable(batchRegistration, seed);
+          outputTable(table.columns, table.rows, { rowSeparators: false });
           outputSuccess(`Wrote ${filePath}`);
         }
         batchFiles.push({
@@ -4170,12 +6298,17 @@ export async function dispatchCommand(
     }
 
     if (jsonMode) {
+      const reg = registry.getRegistration(recipeName as string)!;
+      const filesWithParams = batchFiles.map((f) => ({
+        ...f,
+        params: seedParams(reg, f.seed),
+      }));
       jsonOut({
         command: "generate",
         recipe: recipeName,
         seedRange: [seedRangeStart!, seedRangeEnd!],
         output: outputPath,
-        files: batchFiles,
+        files: filesWithParams,
       });
     }
 
@@ -4197,7 +6330,9 @@ export async function dispatchCommand(
       }
     } else {
       seed = Math.floor(Math.random() * 2147483647);
-      if (!outputPath && !jsonMode) {
+      // Always surface a randomly chosen seed (in human-readable mode) so the
+      // generated sound can be reproduced, even when writing straight to disk.
+      if (!jsonMode) {
         outputInfo(`Using random seed: ${seed}`);
     }
   }
@@ -4228,6 +6363,7 @@ export async function dispatchCommand(
         profiler.mark("wav_encode");
         await writeFile(outputPath, wavBuffer);
         profiler.mark("file_write");
+        const reg = registry.getRegistration(recipeName as string)!;
         if (jsonMode) {
           jsonOut({
             command: "generate",
@@ -4237,8 +6373,12 @@ export async function dispatchCommand(
             duration: result.duration,
             sampleRate: result.sampleRate,
             samples: result.samples.length,
+            params: seedParams(reg, seed),
           });
         } else {
+          const table = buildParamsTable(reg, seed);
+          outputInfo("Parameters:");
+          outputTable(table.columns, table.rows, { rowSeparators: false });
           outputSuccess(`Wrote ${outputPath}`);
         }
       } catch (error) {
@@ -4260,6 +6400,7 @@ export async function dispatchCommand(
         profiler.mark("wav_encode");
         await writeFile(filePath, wavBuffer);
         profiler.mark("file_write");
+        const reg = registry.getRegistration(recipeName as string)!;
         if (jsonMode) {
           jsonOut({
             command: "generate",
@@ -4269,8 +6410,12 @@ export async function dispatchCommand(
             duration: result.duration,
             sampleRate: result.sampleRate,
             samples: result.samples.length,
+            params: seedParams(reg, seed),
           });
         } else {
+          const table = buildParamsTable(reg, seed);
+          outputInfo("Parameters:");
+          outputTable(table.columns, table.rows, { rowSeparators: false });
           outputSuccess(`Wrote ${filePath}`);
         }
       } catch (error) {
@@ -4284,6 +6429,7 @@ export async function dispatchCommand(
       }
     } else {
       // Play audio (default when --output is not specified)
+      const reg = registry.getRegistration(recipeName as string)!;
       if (!jsonMode) {
         outputInfo("Playing...");
       }
@@ -4297,8 +6443,12 @@ export async function dispatchCommand(
           sampleRate: result.sampleRate,
           samples: result.samples.length,
           played: true,
+          params: seedParams(reg, seed),
         });
       } else {
+        const table = buildParamsTable(reg, seed);
+        outputInfo("Parameters:");
+        outputTable(table.columns, table.rows, { rowSeparators: false });
         outputSuccess("Done.");
       }
     }

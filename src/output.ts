@@ -308,12 +308,17 @@ export interface TableColumn {
  * @param columns  Column definitions (header + width).
  * @param rows     Array of rows; each row is a string array matching columns.
  * @param tty      Whether to emit styled box-drawing output.
+ * @param options  `rowSeparators: false` omits the rule drawn between data
+ *                 rows, for compact tables whose rows form one logical group
+ *                 (for example a parameter list). Defaults to `true`.
  */
 export function formatTable(
   columns: TableColumn[],
   rows: string[][],
   tty: boolean,
+  options: { rowSeparators?: boolean } = {},
 ): string {
+  const rowSeparators = options.rowSeparators ?? true;
   const lines: string[] = [];
 
   if (tty) {
@@ -350,7 +355,7 @@ export function formatTable(
       }
 
       // Row separator (between rows, not after the last)
-      if (ri < rows.length - 1) {
+      if (rowSeparators && ri < rows.length - 1) {
         lines.push(hRule(BOX.ml, BOX.x, BOX.mr, BOX.m));
       }
     }
@@ -385,7 +390,7 @@ export function formatTable(
       }
 
       // Row separator (between rows, not after the last)
-      if (ri < rows.length - 1) {
+      if (rowSeparators && ri < rows.length - 1) {
         lines.push(
           "| " + columns.map((c) => "-".repeat(c.width)).join(" | ") + " |",
         );
@@ -403,8 +408,9 @@ export function formatTable(
 export function outputTable(
   columns: TableColumn[],
   rows: string[][],
+  options: { rowSeparators?: boolean } = {},
 ): void {
-  const result = formatTable(columns, rows, isStdoutTty());
+  const result = formatTable(columns, rows, isStdoutTty(), options);
   if (result.length > 0) {
     process.stdout.write(result + "\n");
   }

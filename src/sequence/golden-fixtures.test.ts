@@ -13,10 +13,13 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
-import { resolve, dirname, basename } from "node:path";
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { resolve, dirname, basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadSequencePreset } from "./preset-loader.js";
+import { listPresetFiles } from "./preset-discovery.js";
 import { simulate, formatTimeline } from "./simulator.js";
 import { renderSequence } from "./renderer.js";
 import { compareBuffers, formatCompareResult } from "../test-utils/buffer-compare.js";
@@ -27,11 +30,15 @@ const GOLDEN_DIR = resolve(__dirname, "../test-utils/fixtures/golden-sequences")
 const UPDATE_GOLDEN = process.env["UPDATE_GOLDEN"] === "1";
 const GOLDEN_SEED = 42;
 
-/** Discover all preset files in presets/sequences/. */
-function discoverPresets(): string[] {
-  return readdirSync(PRESETS_DIR)
-    .filter((f) => f.endsWith(".json"))
-    .sort();
+/**
+ * Discover all preset files in `dir` (defaults to presets/sequences/).
+ *
+ * Delegates to the shared `listPresetFiles()` helper so `__`-prefixed test
+ * artefacts are never discovered — a leaked/in-flight fixture cannot register
+ * an `it.each` case for this harness.
+ */
+function discoverPresets(dir: string = PRESETS_DIR): string[] {
+  return listPresetFiles(dir);
 }
 
 /** Path to the golden JSON file for a given preset. */
@@ -95,6 +102,27 @@ describe("golden fixtures — 10-run audio determinism", () => {
         comparison.identical,
         `Run ${i + 1} diverged from baseline for ${presetFile}: ${formatCompareResult(comparison)}`,
       ).toBe(true);
+    }
+  });
+});
+
+// ── Discovery Isolation Regression Tests ─────────────────────────
+
+describe("golden fixtures — discovery excludes test artefacts", () => {
+  it("a __-prefixed malformed JSON in a preset directory yields no it.each case", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "toneforge-golden-discovery-"));
+    try {
+      await writeFile(join(dir, "real.json"), "{}");
+      const malformed = join(dir, "__malformed_test__.json");
+      await writeFile(malformed, "{ this is not valid json");
+
+      // The artefact is genuinely unparseable, so discovering it would fail...
+      await expect(loadSequencePreset(malformed)).rejects.toThrow();
+
+      // ...but discovery ignores it, so no `it.each` case is registered for it.
+      expect(discoverPresets(dir)).toEqual(["real.json"]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
     }
   });
 });

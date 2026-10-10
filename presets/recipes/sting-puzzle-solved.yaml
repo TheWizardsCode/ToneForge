@@ -1,0 +1,97 @@
+# Tier 7 — Multi-voice stings
+# Puzzle-solved sting (self-contained 2–3 voices, no stack required).
+
+version: '0.1'
+meta:
+  name: sting-puzzle-solved
+  description: Puzzle-solved sting
+  category: Sting
+  tags:
+  - casual
+  - joy
+  - sting
+  duration: 0.77
+  parameters:
+  - name: leadStart
+    type: number
+    min: 700
+    max: 1000
+    unit: Hz
+    default: 880
+    overrides:
+    - target: lead.automation.frequency.0.value
+  - name: leadEnd
+    type: number
+    min: 1000
+    max: 1400
+    unit: Hz
+    default: 1175
+    overrides:
+    - target: lead.automation.frequency.1.value
+  - name: harmonyFreq
+    type: number
+    min: 520
+    max: 800
+    unit: Hz
+    default: 659
+    overrides:
+    - target: harmony.frequency
+  - name: attack
+    type: number
+    min: 0.003
+    max: 0.02
+    unit: s
+    default: 0.005
+    overrides:
+    - target: env.attack
+  - name: decay
+    type: number
+    min: 0.2
+    max: 0.55
+    unit: s
+    default: 0.4
+    overrides:
+    - target: env.decay
+nodes:
+  lead:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 880
+    automation:
+      frequency:
+      - kind: set
+        time: 0
+        value: 880
+      - kind: linearRamp
+        time: 0.18
+        value: 1175
+  harmony:
+    kind: oscillator
+    params:
+      type: triangle
+      frequency: 659
+  mix:
+    kind: gain
+    params:
+      gain: 0.32
+  env:
+    kind: envelope
+    params:
+      attack: 0.005
+      decay: 0.4
+      sustain: 0.0
+      release: 0.0
+  out:
+    kind: destination
+routing:
+- chain:
+  - lead
+  - mix
+- chain:
+  - harmony
+  - mix
+- chain:
+  - mix
+  - env
+  - out

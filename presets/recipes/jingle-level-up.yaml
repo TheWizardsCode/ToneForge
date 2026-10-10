@@ -1,0 +1,95 @@
+# Tier 4 — Melodic motifs (4-note figure)
+# Level-up jingle: a 4-note G major figure at 392, 494, 587, 784 Hz.
+
+version: "0.1"
+meta:
+  name: jingle-level-up
+  description: Level-up jingle
+  category: UI
+  tags:
+    - casual
+    - joy
+    - jingle
+  duration: 0.77
+  parameters:
+    - name: note1
+      type: number
+      min: 274
+      max: 548
+      unit: Hz
+      default: 392
+    - name: note2
+      type: number
+      min: 345
+      max: 691
+      unit: Hz
+      default: 494
+    - name: note3
+      type: number
+      min: 410
+      max: 821
+      unit: Hz
+      default: 587
+    - name: note4
+      type: number
+      min: 548
+      max: 1097
+      unit: Hz
+      default: 784
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: triangle
+      frequency: 392
+    automation:
+      frequency:
+        - kind: set
+          time: 0.0
+          value: 392
+        - kind: set
+          time: 0.18
+          value: 494
+        - kind: set
+          time: 0.36
+          value: 587
+        - kind: set
+          time: 0.54
+          value: 784
+  gate:
+    kind: gain
+    params:
+      gain: 0
+    automation:
+      gain:
+        - kind: set
+          time: 0
+          value: 0
+        - kind: linearRamp
+          time: 0.01
+          value: 0.8
+        - kind: linearRamp
+          time: 0.15
+          value: 0
+        - kind: linearRamp
+          time: 0.19
+          value: 0.8
+        - kind: linearRamp
+          time: 0.33
+          value: 0
+        - kind: linearRamp
+          time: 0.37
+          value: 0.8
+        - kind: linearRamp
+          time: 0.51
+          value: 0
+        - kind: linearRamp
+          time: 0.55
+          value: 0.8
+        - kind: linearRamp
+          time: 0.69
+          value: 0
+  out:
+    kind: destination
+routing:
+  - chain: [osc, gate, out]

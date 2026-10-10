@@ -1,0 +1,31 @@
+{
+  "version": "1.0",
+  "name": "casual_menu_flow_sequence",
+  "description": "Casual menu flow: a click, a selection pop, a rising confirm and a dialog-open motif tracing a happy interface journey.",
+  "events": [
+    {
+      "time": 0.0,
+      "event": "ui-click-crisp",
+      "seedOffset": 0,
+      "gain": 1.0
+    },
+    {
+      "time": 0.18,
+      "event": "ui-select-pop",
+      "seedOffset": 1,
+      "gain": 0.95
+    },
+    {
+      "time": 0.42,
+      "event": "ui-confirm-rise",
+      "seedOffset": 2,
+      "gain": 1.0
+    },
+    {
+      "time": 0.7,
+      "event": "ui-dialog-open-motif",
+      "seedOffset": 3,
+      "gain": 0.85
+    }
+  ]
+}

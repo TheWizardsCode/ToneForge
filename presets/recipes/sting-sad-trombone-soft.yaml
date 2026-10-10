@@ -1,0 +1,112 @@
+# Tier 7 — Multi-voice stings
+# Soft sad-trombone sting (self-contained 2–3 voices, no stack required).
+
+version: '0.1'
+meta:
+  name: sting-sad-trombone-soft
+  description: Soft sad-trombone sting
+  category: Sting
+  tags:
+  - casual
+  - fun
+  - sting
+  duration: 1.04
+  parameters:
+  - name: leadStart
+    type: number
+    min: 200
+    max: 340
+    unit: Hz
+    default: 262
+    overrides:
+    - target: lead.automation.frequency.0.value
+  - name: leadEnd
+    type: number
+    min: 140
+    max: 240
+    unit: Hz
+    default: 196
+    overrides:
+    - target: lead.automation.frequency.1.value
+  - name: bassFreq
+    type: number
+    min: 110
+    max: 220
+    unit: Hz
+    default: 196
+    overrides:
+    - target: bass.frequency
+  - name: filterFreq
+    type: number
+    min: 500
+    max: 1300
+    unit: Hz
+    default: 800
+    overrides:
+    - target: filter.frequency
+  - name: attack
+    type: number
+    min: 0.01
+    max: 0.04
+    unit: s
+    default: 0.02
+    overrides:
+    - target: env.attack
+  - name: decay
+    type: number
+    min: 0.35
+    max: 0.8
+    unit: s
+    default: 0.6
+    overrides:
+    - target: env.decay
+nodes:
+  lead:
+    kind: oscillator
+    params:
+      type: sawtooth
+      frequency: 262
+    automation:
+      frequency:
+      - kind: set
+        time: 0
+        value: 262
+      - kind: linearRamp
+        time: 0.55
+        value: 196
+  bass:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 196
+  filter:
+    kind: biquadFilter
+    params:
+      type: lowpass
+      frequency: 800
+      Q: 1.5
+  mix:
+    kind: gain
+    params:
+      gain: 0.32
+  env:
+    kind: envelope
+    params:
+      attack: 0.02
+      decay: 0.6
+      sustain: 0.0
+      release: 0.0
+  out:
+    kind: destination
+routing:
+- chain:
+  - lead
+  - filter
+  - mix
+- chain:
+  - bass
+  - mix
+- chain:
+  - mix
+  - env
+  - out

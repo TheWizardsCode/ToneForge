@@ -1,0 +1,116 @@
+# Tier 7 — Multi-voice stings
+# Bright multi-voice victory sting (self-contained 2–3 voices, no stack required).
+
+version: '0.1'
+meta:
+  name: sting-victory-bright
+  description: Bright multi-voice victory sting
+  category: Sting
+  tags:
+  - casual
+  - joy
+  - sting
+  duration: 0.82
+  parameters:
+  - name: leadLow
+    type: number
+    min: 420
+    max: 620
+    unit: Hz
+    default: 523
+    overrides:
+    - target: lead.automation.frequency.0.value
+  - name: leadHigh
+    type: number
+    min: 660
+    max: 900
+    unit: Hz
+    default: 784
+    overrides:
+    - target: lead.automation.frequency.2.value
+  - name: harmonyFreq
+    type: number
+    min: 320
+    max: 470
+    unit: Hz
+    default: 392
+    overrides:
+    - target: harmony.frequency
+  - name: bassFreq
+    type: number
+    min: 200
+    max: 320
+    unit: Hz
+    default: 262
+    overrides:
+    - target: bass.frequency
+  - name: attack
+    type: number
+    min: 0.003
+    max: 0.02
+    unit: s
+    default: 0.006
+    overrides:
+    - target: env.attack
+  - name: decay
+    type: number
+    min: 0.2
+    max: 0.6
+    unit: s
+    default: 0.45
+    overrides:
+    - target: env.decay
+nodes:
+  lead:
+    kind: oscillator
+    params:
+      type: triangle
+      frequency: 523
+    automation:
+      frequency:
+      - kind: set
+        time: 0
+        value: 523
+      - kind: set
+        time: 0.12
+        value: 659
+      - kind: set
+        time: 0.24
+        value: 784
+  harmony:
+    kind: oscillator
+    params:
+      type: triangle
+      frequency: 392
+  bass:
+    kind: oscillator
+    params:
+      type: triangle
+      frequency: 262
+  mix:
+    kind: gain
+    params:
+      gain: 0.32
+  env:
+    kind: envelope
+    params:
+      attack: 0.006
+      decay: 0.45
+      sustain: 0.0
+      release: 0.0
+  out:
+    kind: destination
+routing:
+- chain:
+  - lead
+  - mix
+- chain:
+  - harmony
+  - mix
+- chain:
+  - bass
+  - mix
+- chain:
+  - mix
+  - env
+  - out

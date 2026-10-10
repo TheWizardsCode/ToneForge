@@ -1,0 +1,28 @@
+{
+  "name": "integrations-invalid-library",
+  "description": "Negative fixture for the Integrations conformance harness: declares an asset that violates the mobile review ruleset (peak clipping and duration bounds) so validation must fail with structured, per-check errors.",
+  "version": "1.0",
+  "validation": {
+    "ruleset": "mobile",
+    "strictness": "error"
+  },
+  "compile": {
+    "ruleset": {
+      "target": "mobile",
+      "bake": { "durationAbove": 0.05 }
+    }
+  },
+  "entries": [
+    {
+      "candidateId": "broken-blast",
+      "recipe": "impact-crack",
+      "seed": 13,
+      "duration": 2.5,
+      "renderDuration": 0.15,
+      "category": "Impact",
+      "tags": ["impact"],
+      "peak": 1.2,
+      "rms": 0.9
+    }
+  ]
+}

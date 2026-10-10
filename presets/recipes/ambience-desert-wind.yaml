@@ -1,0 +1,92 @@
+# Tier 6 — Ambience & loops (filtered noise slow sweep)
+# Desert wind ambience.
+
+version: '0.1'
+meta:
+  name: ambience-desert-wind
+  description: Desert wind ambience
+  category: Ambience
+  tags:
+  - casual
+  - fun
+  - ambience
+  duration: 2.0
+  parameters:
+  - name: windRate
+    type: number
+    min: 0.1
+    max: 0.8
+    unit: Hz
+    default: 0.3
+    overrides:
+    - target: filter.automation.frequency.0.rate
+  - name: windDepth
+    type: number
+    min: 150
+    max: 500
+    unit: Hz
+    default: 300
+    overrides:
+    - target: filter.automation.frequency.0.depth
+  - name: filterFreq
+    type: number
+    min: 300
+    max: 900
+    unit: Hz
+    default: 500
+    overrides:
+    - target: filter.frequency
+    - target: filter.automation.frequency.0.offset
+  - name: attack
+    type: number
+    min: 0.2
+    max: 0.7
+    unit: s
+    default: 0.45
+    overrides:
+    - target: env.attack
+  - name: release
+    type: number
+    min: 0.25
+    max: 0.7
+    unit: s
+    default: 0.55
+    overrides:
+    - target: env.release
+nodes:
+  noise:
+    kind: noise
+    params:
+      color: brown
+      level: 0.9
+  filter:
+    kind: biquadFilter
+    params:
+      type: bandpass
+      frequency: 500
+      Q: 1.5
+    automation:
+      frequency:
+      - kind: lfo
+        rate: 0.3
+        depth: 300
+        offset: 500
+        start: 0
+        end: 2.5
+        step: 0.02
+        wave: sine
+  env:
+    kind: envelope
+    params:
+      attack: 0.45
+      decay: 0.6
+      sustain: 0.72
+      release: 0.55
+  out:
+    kind: destination
+routing:
+- chain:
+  - noise
+  - filter
+  - env
+  - out

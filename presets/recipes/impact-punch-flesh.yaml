@@ -1,0 +1,59 @@
+# Tier 3 — Textured & filtered (filtered noise)
+# Fleshy punch impact: a brown-noise source shaped by a lowpass filter at 250 Hz (Q=1).
+
+version: "0.1"
+meta:
+  name: impact-punch-flesh
+  description: Fleshy punch impact
+  category: Impact
+  tags:
+    - casual
+    - fun
+    - impact
+  duration: 0.188
+  parameters:
+    - name: filterFreq
+      type: number
+      min: 125
+      max: 450
+      unit: Hz
+      default: 250
+    - name: attack
+      type: number
+      min: 0.001
+      max: 0.02
+      unit: s
+      default: 0.002
+    - name: decay
+      type: number
+      min: 0.036
+      max: 0.156
+      unit: s
+      default: 0.12
+nodes:
+  noise:
+    kind: noise
+    params:
+      color: brown
+      level: 1
+  filter:
+    kind: biquadFilter
+    params:
+      type: lowpass
+      frequency: 250
+      Q: 1
+  level:
+    kind: gain
+    params:
+      gain: 0.62
+  env:
+    kind: envelope
+    params:
+      attack: 0.002
+      decay: 0.12
+      sustain: 0
+      release: 0
+  out:
+    kind: destination
+routing:
+  - chain: [noise, filter, level, env, out]

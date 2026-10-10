@@ -1,0 +1,49 @@
+# Tier 1 — Pure tones & blips (single oscillator, simple envelope)
+# Buzzy sawtooth blip for crisp alerts
+
+version: "0.1"
+meta:
+  name: blip-saw-buzz
+  description: Buzzy sawtooth blip for crisp alerts
+  category: UI
+  tags:
+    - casual
+    - fun
+    - ui
+  duration: 0.072
+  parameters:
+    - name: frequency
+      type: number
+      min: 110
+      max: 320
+      unit: Hz
+      default: 180
+    - name: attack
+      type: number
+      min: 0.001
+      max: 0.02
+      unit: s
+      default: 0.002
+    - name: decay
+      type: number
+      min: 0.02
+      max: 0.1
+      unit: s
+      default: 0.05
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: sawtooth
+      frequency: 180
+  env:
+    kind: envelope
+    params:
+      attack: 0.002
+      decay: 0.05
+      sustain: 0
+      release: 0
+  out:
+    kind: destination
+routing:
+  - chain: [osc, env, out]

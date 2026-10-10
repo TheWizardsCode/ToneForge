@@ -43,6 +43,35 @@ npm start
 
 Starts the Express server at `http://localhost:3000` (configurable via `PORT` env var). Serves the Vite-built frontend and provides the WebSocket terminal backend.
 
+### 5. Run the full dev stack (backend + Vite)
+
+From the **project root** (not `web/`), start the backend and Vite together:
+
+```bash
+npm run dev:web
+```
+
+### 6. Remote access from another device
+
+To open the demo from another device on the same LAN or Tailscale network,
+start the dev stack from the **project root** with:
+
+```bash
+npm run dev:web -- --host
+```
+
+The dev launcher (`scripts/dev-web.mjs`) detects this machine's hostname and
+its non-internal IPv4/IPv6 addresses (LAN/Tailscale) via
+`scripts/allowed-origins.mjs` and passes them to the backend as
+`ALLOWED_ORIGINS` — no manual configuration is needed. Vite already binds all
+interfaces (`--host`), and its WebSocket proxy forwards the browser `Origin`
+header to the backend, which authorises it against that derived list. Open
+`http://<host>:5173/` on the remote device.
+
+This widening is **dev-only**: the production server (`npm start` / the
+container image) keeps the strict `localhost,127.0.0.1` default unless
+`ALLOWED_ORIGINS` is set explicitly.
+
 ## Container Build & Run
 
 ### Build the image
@@ -80,6 +109,12 @@ podman run -p 3000:3000 -e ALLOWED_ORIGINS="mydomain.com,localhost" toneforge-we
 | `PORT`            | `3000`                 | Server listen port                                       |
 | `ALLOWED_ORIGINS` | `localhost,127.0.0.1`  | Comma-separated list of allowed Origin hostnames         |
 | `VITE_PORT`       | `5173`                 | Vite dev server port (development only)                  |
+
+> In development, `npm run dev:web` sets `ALLOWED_ORIGINS` to `localhost`,
+> `127.0.0.1`, the machine hostname (full and short forms) and every
+> non-internal network address (IPv4/IPv6, bracketed and unbracketed). The
+> `npm start` default and the container image remain `localhost,127.0.0.1`
+> unless `ALLOWED_ORIGINS` is provided explicitly.
 
 ## Testing
 
@@ -129,16 +164,26 @@ web/
 
 ## Security
 
-- **Origin restriction**: WebSocket connections are validated against the `ALLOWED_ORIGINS` environment variable. Non-matching origins receive HTTP 403.
+- **Origin restriction**: WebSocket connections are validated against the `ALLOWED_ORIGINS` environment variable. Non-matching origins receive HTTP 403. During development (`npm run dev:web`) the list is derived from the host's own hostnames/IPs (see `scripts/allowed-origins.mjs`); production/container defaults stay `localhost,127.0.0.1`.
 - **Container isolation**: The PTY shell runs as a non-root user (`demouser`) inside the container.
 - **Access logging**: All connection attempts are logged with timestamps and origin headers.
 
 ## Troubleshooting
 
-### Terminal shows "[Disconnected]"
-- Ensure the production server is running (`npm start` in `web/`)
+### Terminal shows "[Backend not available]"
+- Start the dev stack from the project root: `npm run dev:web -- --host`
+- Or run the production server (`npm run build && npm start` in `web/`)
 - Check that the ToneForge CLI is built (`npm run build` in project root)
 - Verify WebSocket connectivity (check browser console for errors)
+
+### Remote device cannot connect (403 / "[Backend not available]")
+- Start the dev stack with `npm run dev:web -- --host` from the project root so
+  the backend receives the host-derived `ALLOWED_ORIGINS` list.
+- Access the demo through Vite (`http://<host>:5173/`) so its WebSocket proxy
+  forwards the browser's `Origin` header; hitting the backend port directly
+  from a remote browser will be rejected unless that origin was added.
+- If the host has an unusual interface, set `ALLOWED_ORIGINS` explicitly (see
+  the Environment Variables table).
 
 ### No audio playback
 - Browser autoplay policies require a user gesture. Click the "Run" button to trigger audio.

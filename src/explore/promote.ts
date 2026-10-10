@@ -18,6 +18,8 @@ import type { ExploreCandidate, ExploreRunResult } from "./types.js";
 import { loadRunResult, saveRunResult } from "./persistence.js";
 import { addEntry, entryId } from "../library/storage.js";
 import { DEFAULT_LIBRARY_DIR } from "../library/types.js";
+import { promotionEvent } from "../memory/record.js";
+import type { MemoryRecorder } from "../memory/record.js";
 
 /**
  * Result of a promote operation.
@@ -51,6 +53,13 @@ export interface PromoteOptions {
 
   /** Base directory for library storage. */
   libraryDir?: string;
+
+  /**
+   * Optional Memory recorder. When supplied, a promotion event is recorded
+   * through the interface (library/explore depend on the interface, not the
+   * store — avoiding a module cycle).
+   */
+  recorder?: MemoryRecorder;
 }
 
 /**
@@ -126,6 +135,13 @@ export async function promoteCandidate(
 
   // Persist the updated run
   await saveRunResult(run, baseDir);
+
+  // Wire the promotion event into Memory via the injected recorder interface.
+  if (options?.recorder) {
+    await options.recorder.record(
+      promotionEvent({ entryId: entry.id, recipe: candidate.recipe, seed: candidate.seed }),
+    );
+  }
 
   return {
     success: true,
