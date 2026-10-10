@@ -1,0 +1,15 @@
+{
+  "name": "plasma_rifles",
+  "version": "1.4.2",
+  "type": "stack",
+  "description": "Bright plasma rifle bursts.",
+  "author": "StudioX",
+  "license": "commercial",
+  "dependencies": ["core>=1.0"],
+  "assets": {
+    "recipes": ["assets/recipes/plasma-burst.json"],
+    "stacks": ["assets/stacks/plasma-rifle.json"],
+    "sequences": [],
+    "palettes": []
+  }
+}

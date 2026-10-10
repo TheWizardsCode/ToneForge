@@ -107,8 +107,8 @@ export function createTerminal(
           term.clear();
           term.write(
             "\x1b[33m[Backend not available]\x1b[0m\r\n" +
-              "\x1b[2mEnsure the backend server is running:\r\n" +
-              "  cd web && npm start\x1b[0m\r\n",
+              "\x1b[2mStart the dev stack from the project root:\r\n" +
+              "  npm run dev:web -- --host\x1b[0m\r\n",
           );
         }
         return;

@@ -44,8 +44,11 @@ describe("registerBrowserRecipes", () => {
 
     const registered = registerBrowserRecipes(browserRegistry);
 
-    expect(registered.sort()).toEqual([...MIGRATED].sort());
+    // The Casual Game Recipe Book ships ~100 file-backed recipes, so the
+    // browser registry is a superset of the migrated baseline. Every migrated
+    // recipe must still be registered from the inlined bundle.
     for (const name of MIGRATED) {
+      expect(registered, `${name} should be registered`).toContain(name);
       expect(
         browserRegistry.getRegistration(name),
         `${name} should be registered from the inlined bundle`,

@@ -1,0 +1,63 @@
+# Tier 2 — Shaped events (envelope + pitch movement)
+# Bubbly pop for UI reveal — exponential pitch contour from 400 Hz to 800 Hz.
+
+version: "0.1"
+meta:
+  name: ui-pop-bubble
+  description: Bubbly pop for UI reveal
+  category: UI
+  tags:
+    - casual
+    - fun
+    - ui
+  duration: 0.18
+  parameters:
+    - name: startFreq
+      type: number
+      min: 240
+      max: 640
+      unit: Hz
+      default: 400
+    - name: endFreq
+      type: number
+      min: 480
+      max: 1280
+      unit: Hz
+      default: 800
+    - name: attack
+      type: number
+      min: 0.001
+      max: 0.03
+      unit: s
+      default: 0.002
+    - name: decay
+      type: number
+      min: 0.03
+      max: 0.4
+      unit: s
+      default: 0.08
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 400
+    automation:
+      frequency:
+        - kind: set
+          time: 0
+          value: 400
+        - kind: exponentialRamp
+          time: 0.05
+          value: 800
+  env:
+    kind: envelope
+    params:
+      attack: 0.002
+      decay: 0.08
+      sustain: 0
+      release: 0
+  out:
+    kind: destination
+routing:
+  - chain: [osc, env, out]

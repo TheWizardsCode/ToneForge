@@ -100,3 +100,26 @@ They carry no special semantic meaning to demo runners.
 
 See [`mvp-1.md`](mvp-1.md) for a complete example following this
 convention.
+
+## Demo Index
+
+| Demo | Description |
+|------|-------------|
+| [`mvp-1.md`](mvp-1.md) | ToneForge MVP -- procedural sound generation from recipes and seeds. |
+| [`recipe-variety.md`](recipe-variety.md) | Recipe variety across weapons, footsteps, UI, and ambient categories. |
+| [`wav-export.md`](wav-export.md) | Saving generated sounds to disk with `--output`. |
+| [`batch-generation.md`](batch-generation.md) | Mass-producing sound variations with `--seed-range`. |
+| [`sample-hybrid.md`](sample-hybrid.md) | Layering CC0 samples with procedural synthesis. |
+| [`sound-stacking.md`](sound-stacking.md) | Composing layered sound events from multiple recipes. |
+| [`audio-analysis.md`](audio-analysis.md) | Measuring generated audio with duration, peak, RMS, and spectral metrics. |
+| [`classification.md`](classification.md) | Assigning semantic labels and searching by category, intensity, and texture. |
+| [`exploration.md`](exploration.md) | Sweeping seeds, ranking, clustering, and promoting candidates. |
+| [`library.md`](library.md) | Promoting, searching, exporting, and regenerating library entries. |
+| [`sequencer.md`](sequencer.md) | Scheduling recipe triggers over time with sequence presets. |
+| [`runtime.md`](runtime.md) | Audible, render-backed runtime demo driven by scripted state and context changes. |
+| [`card-game-sounds.md`](card-game-sounds.md) | Finding, previewing, and selecting card game sounds. |
+| [`recipe-filtering.md`](recipe-filtering.md) | Filtering recipes by search, category, and tags, with JSON output for scripting. |
+| [`machine-use.md`](machine-use.md) | JSON-driven reporting batch script that discovers available sounds while filtering out already-used ones. |
+| [`sound-creation.md`](sound-creation.md) | Building a sound from sine wave to recipe. |
+| [`network-integrations.md`](network-integrations.md) | Two-window deterministic network sync (host/join, late join) and the CI/engine-export pipeline. |
+| [Casual Game Recipe Book](../docs/recipe-book/index.md) | A guided, test-backed tour of 100 casual game recipes, from first blips to layered stings. |

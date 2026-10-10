@@ -1,0 +1,73 @@
+# Tier 3 — Textured & filtered (filter sweep)
+# Cloth flap whoosh: a pink-noise source swept through a lowpass filter from 2500 Hz to 600 Hz (Q=2).
+
+version: "0.1"
+meta:
+  name: whoosh-cloth-flap
+  description: Cloth flap whoosh
+  category: Impact
+  tags:
+    - casual
+    - fun
+    - whoosh
+  duration: 0.3
+  parameters:
+    - name: startFreq
+      type: number
+      min: 1250
+      max: 4000
+      unit: Hz
+      default: 2500
+    - name: endFreq
+      type: number
+      min: 360
+      max: 1080
+      unit: Hz
+      default: 600
+    - name: attack
+      type: number
+      min: 0.001
+      max: 0.05
+      unit: s
+      default: 0.01
+    - name: decay
+      type: number
+      min: 0.06
+      max: 0.26
+      unit: s
+      default: 0.2
+nodes:
+  noise:
+    kind: noise
+    params:
+      color: pink
+      level: 1
+  filter:
+    kind: biquadFilter
+    params:
+      type: lowpass
+      frequency: 2500
+      Q: 2
+    automation:
+      frequency:
+        - kind: set
+          time: 0
+          value: 2500
+        - kind: linearRamp
+          time: 0.21
+          value: 600
+  level:
+    kind: gain
+    params:
+      gain: 0.58
+  env:
+    kind: envelope
+    params:
+      attack: 0.01
+      decay: 0.2
+      sustain: 0
+      release: 0
+  out:
+    kind: destination
+routing:
+  - chain: [noise, filter, level, env, out]

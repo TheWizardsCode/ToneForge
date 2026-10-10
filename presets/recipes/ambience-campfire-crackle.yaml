@@ -1,0 +1,92 @@
+# Tier 6 — Ambience & loops (filtered noise + crackle LFO)
+# Campfire crackle ambience.
+
+version: '0.1'
+meta:
+  name: ambience-campfire-crackle
+  description: Campfire crackle ambience
+  category: Ambience
+  tags:
+  - casual
+  - fun
+  - ambience
+  duration: 1.6
+  parameters:
+  - name: filterFreq
+    type: number
+    min: 1200
+    max: 3200
+    unit: Hz
+    default: 2200
+    overrides:
+    - target: filter.frequency
+    - target: filter.automation.frequency.0.offset
+  - name: crackleRate
+    type: number
+    min: 2
+    max: 12
+    unit: Hz
+    default: 6
+    overrides:
+    - target: filter.automation.frequency.0.rate
+  - name: crackleDepth
+    type: number
+    min: 400
+    max: 1400
+    unit: Hz
+    default: 900
+    overrides:
+    - target: filter.automation.frequency.0.depth
+  - name: attack
+    type: number
+    min: 0.1
+    max: 0.4
+    unit: s
+    default: 0.25
+    overrides:
+    - target: env.attack
+  - name: release
+    type: number
+    min: 0.2
+    max: 0.6
+    unit: s
+    default: 0.5
+    overrides:
+    - target: env.release
+nodes:
+  noise:
+    kind: noise
+    params:
+      color: white
+      level: 0.9
+  filter:
+    kind: biquadFilter
+    params:
+      type: bandpass
+      frequency: 2200
+      Q: 2
+    automation:
+      frequency:
+      - kind: lfo
+        rate: 6
+        depth: 900
+        offset: 2200
+        start: 0
+        end: 2.5
+        step: 0.005
+        wave: sine
+  env:
+    kind: envelope
+    params:
+      attack: 0.25
+      decay: 0.5
+      sustain: 0.8
+      release: 0.5
+  out:
+    kind: destination
+routing:
+- chain:
+  - noise
+  - filter
+  - env
+  - out

@@ -50,7 +50,7 @@ Its purpose is to:
 - Full procedural generation at runtime
 - DAW‑style editing
 - AI inference during gameplay
-- Offline rendering or export
+- Offline rendering or export *as a user-facing feature* (the runtime uses offline rendering internally to produce buffers; see §19)
 
 ---
 
@@ -92,7 +92,7 @@ ToneForge Runtime guarantees:
 
 ## 5.1 Procedural Playback
 
-Plays procedural or hybrid recipes directly using Tone.js nodes.
+Plays procedural or hybrid recipes directly through the ToneForge offline renderer (see §19). The renderer is the single source of audio truth; the runtime does not embed a second synthesis engine.
 
 **Use cases**
 - footsteps
@@ -154,6 +154,14 @@ playStack({
 stopSfx(id);
 setSfxParameter(id, "intensity", 0.5);
 ```
+
+`setSfxParameter(id, name, value)` updates a parameter of a sound that is
+already playing, in real time. The initial supported scope is
+**continuous/looping sounds** (for example an engine loop whose pitch tracks
+RPM); general real-time parameter automation for arbitrary one-shot sounds
+remains a Future Extension (§16). Supported parameters are `intensity`,
+`gain`, `pitch`, and `filter`, each validated against a documented range
+before any state is mutated. See §19.9 for the implementation reference.
 
 ---
 
@@ -294,9 +302,201 @@ ToneForge Runtime enables:
 ToneForge Runtime is the **execution layer** of the ToneForge ecosystem.  
 It brings procedural and hybrid sound design into real‑time environments—efficiently, deterministically, and at scale—without sacrificing control or performance.
 
+## 19. Runtime ↔ Render/Playback Pipeline (2026‑10 Revisit)
+
+This section records the outcome of the runtime PRD revisit
+(TF‑0MM4M1NXU0WHH6AJ) and supersedes earlier wording that implied a
+Tone.js‑only, offline‑only runtime.
+
+### 19.1 The gap
+
+The runtime in `src/runtime/` orchestrates State, Context, and Sequencer and
+logs deterministic events, but it never produces audio. The former Demo 9 was
+removed because it emitted only simulated transitions as JSONL. This section
+defines how the runtime, when asked to play, wires into the existing renderer
+and audio player.
+
+### 19.2 Decision: a render‑backed runtime
+
+Runtime playback is **render‑backed**. An event resolves to a concrete recipe
+(or sequence/stack); the existing offline renderer produces a deterministic
+sample buffer; the runtime schedules that buffer through the host playback
+layer. The runtime does not grow a second synthesis engine, and the renderer
+remains the single source of audio truth.
+
+Pipeline:
+
+```
+Context / State
+      ↓
+Runtime event  →  recipe resolver  →  render layer
+                                       (renderRecipe / renderSequence / renderStack)
+      ↓                                        ↓
+  event log  ←─────────────────  AudioBuffer cache  →  playback
+                                                        (Node WAV player /
+                                                         browser AudioContext)
+```
+
+### 19.3 Render layer
+
+- `renderRecipe(recipe, seed)`, `renderSequence(...)`, and `renderStack(...)`
+  produce Float32 samples at 44.1 kHz mono (the current convention).
+- The renderer is pure and deterministic; runtime playback never mutates it.
+- Rendering is asynchronous so sample‑backed recipes work unchanged.
+
+### 19.4 Playback layer
+
+- **Node:** encode the rendered buffer with `encodeWav` and hand the file to
+  `playAudio` — the same path used by `toneforge play`.
+- **Browser:** wrap the buffer in an `AudioBuffer` and schedule an
+  `AudioBufferSourceNode` on the shared `AudioContext`.
+- Playback is non‑blocking and does not change the runtime event log.
+
+### 19.5 Buffer cache
+
+- Buffers are cached by `(recipe, seed, overrides hash)`.
+- The cache is bounded by a configurable limit and evicts deterministically
+  (LRU), so repeated events reuse work without unbounded memory growth.
+
+### 19.6 Playback modes (revised)
+
+The three modes in §5 map onto one buffer interface:
+
+| Mode | Implementation |
+|---|---|
+| Procedural | Render the recipe/sequence now and play the buffer |
+| Hybrid | Render procedural layers now, mix with pre‑baked sample layers |
+| Baked fallback | Look up a pre‑baked WAV instead of rendering |
+
+### 19.7 Determinism
+
+Same seed + recipe → identical samples → identical playback. Rendering is
+independent of runtime state; runtime state remains active voices, the buffer
+cache, and runtime parameters.
+
+### 19.8 Audible demo user story
+
+**As a game developer**, I want a scripted runtime demo that plays audible
+sound whose recipe changes as state and context change — footsteps changing
+from stone to gravel, and from walking to sprinting — so that I can *hear* the
+runtime responding to behaviour instead of reading its event log.
+
+The demo is tracked as **TF‑0MUXW66870013DOL** ("Runtime Audio Demo: audible
+state‑ and context‑driven playback"), which carries the updated, verifiable
+acceptance criteria. This revisit item is complete once this PRD and that work
+item's acceptance criteria exist; building the demo is owned by
+TF‑0MUXW66870013DOL.
+
+#### Delivered: `toneforge runtime demo`
+
+The demo is implemented and shipped as the `runtime demo` command:
+
+```bash
+toneforge runtime demo                       # play the scripted demo
+toneforge runtime demo --json                # print the resolved event timeline
+toneforge runtime demo --output ./runtime/    # export WAVs + timeline.json (headless/CI)
+toneforge runtime demo --seed 7 --json        # deterministic seed override
+```
+
+- **Scenario preset.** `presets/runtime/footsteps.json` is a versioned JSON
+  scenario: a state machine (idle/walk/run/sprint), a context dimension
+  (`surface`), short per-state sequences, a declarative recipe resolver
+  (`footstep` + `surface` → `footstep-{surface}`), and a scripted step list
+  (walk on stone → walk on gravel → sprint on gravel).
+- **Resolver.** `src/runtime/scenario.ts` loads and validates scenarios and
+  builds the recipe resolver (`createTemplateRecipeResolver`).
+- **Render-backed bridge.** `src/runtime/audio.ts` drives the runtime through
+  the steps with a deterministic clock, collects the resolved `event_fire`
+  entries, and mixes them with the existing `renderSequence` renderer — no
+  second synthesis engine.
+- **Playback.** Node encodes the mixed buffer (`encodeWav`) and plays it with
+  `playAudio`; the browser wraps the buffer in an `AudioBuffer` and schedules
+  an `AudioBufferSourceNode` via `scheduleRuntimeBuffer`.
+- **Headless verification.** `--output <dir>` writes the mixed
+  `runtime-demo.wav`, one WAV per resolved event, and `timeline.json`;
+  `--json` prints the same timeline to stdout. Both paths run without audio
+  hardware.
+
+The scenario is deterministic: a fixed seed reproduces the same event log and
+the same rendered samples.
+
+### 19.9 Parameter adjustment
+
+Focused real-time parameter modulation of continuous/looping sounds is
+implemented by `runtime.setSfxParameter(id, name, value)` (work item
+TF‑0MLYX9DP51U7AQDK). It supports `intensity`, `gain`, `pitch`, and `filter`,
+validates names and ranges before mutating state, logs a deterministic
+`parameter_change` event, and stores per-sound values keyed by sound id.
+
+Audible modulation is delivered by the live session (work item
+TF‑0MUYBRRCQ00148QD). Each transport iteration re-renders through the buffer
+cache and the session applies the stored values for the event's resolved
+recipe as a deterministic DSP transform (pitch resample → one-pole low-pass →
+`gain` × `intensity`). Because the Node playback path renders a whole WAV per
+event, the change is **iteration-granular** — audible on the next loop pass,
+not sample-accurate. In the live session the sound `id` is the event's
+resolved recipe name, and the `param <id> <name> <value>` command exposes
+`setSfxParameter` interactively.
+
+General real‑time parameter automation for arbitrary sounds remains a Future
+Extension (see §16).
+
+### 19.10 Live interactive session (delivered)
+
+The runtime is a host‑embedded, event‑driven engine (see §3, §6). The live
+session exposes that directly, rather than scripting it:
+
+```bash
+toneforge runtime start                       # interactive session (live clock)
+toneforge runtime start --script ./session.txt # deterministic replay, then exit
+toneforge runtime start --script ./session.txt --json   # CI: stream events, no audio
+toneforge runtime start --script ./session.txt --iterations 4  # bounded loop
+toneforge runtime start --cache-size 128       # bound the render cache
+```
+
+- **Live clock.** The session uses the real clock by default; each command is
+  applied immediately, so `state walk` / `context surface=gravel` take effect
+  as they arrive. `--script` switches to a deterministic virtual clock for
+  reproducible replay.
+- **Command surface.** `state <name>`, `context <dim>=<value> ...`,
+  `param <id> <name> <value>` (adjust a continuous sound's `intensity`,
+  `gain`, `pitch` or `filter`; audible on the next loop pass), `start [state]`,
+  `stop`, `inspect`, `reset`, `help`, and `quit`/`exit` (see
+  `src/runtime/session.ts`).
+- **Continuous transport.** `start` keeps the active sequence looping
+  (re-arming after each pattern period) while `state`/`context` changes
+  reconfigure the loop live, and `stop` halts it. Each state sequence is a
+  single footstep; the loop period is the sequence's declared `loopInterval`
+  when present (walk `0.6`s, run `0.35`s, sprint `0.25`s), otherwise it is
+  derived from the event timing. Iterations use a distinct,
+  deterministic seed derived from the iteration index (`--no-seed-variation`
+  disables it), and `--iterations <n>` bounds a run so scripted/CI sessions
+  terminate (interactive sessions are unbounded until `stop`/`quit`). The loop
+  re-fires the active sequence through `runtime.refireActive(seedOffset)`.
+- **Buffer cache.** `src/runtime/buffer-cache.ts` is a bounded LRU keyed by
+  `(recipe, seed, overrides)` (§19.5); repeated events reuse renders and
+  eviction is deterministic.
+- **Scheduled playback.** Each resolved event's buffer is scheduled at its
+  sequence-relative `time_ms` through an injectable scheduler; a sequence's
+  pending playback is cancelled when its sequence stops (e.g. on a state
+  change). Node plays via `playAudio`; the browser schedules via
+  `scheduleRuntimeBuffer`.
+- **Headless mode.** `--json` streams one JSON object per runtime event and
+  performs no rendering or playback, so the session is verifiable in CI.
+- **Service mode.** `--serve` runs the session as a long-running service: no
+  TTY is required, the runtime stays alive after stdin closes, and it shuts
+  down cleanly on `SIGINT`/`SIGTERM` or a `quit` command
+  (`src/runtime/service.ts`).
+
+Audible `setSfxParameter` modulation and long‑running service mode are
+delivered (TF‑0MUYBRRCQ00148QD) — see §19.9 and the command surface above. The
+modulation is **iteration‑granular** (audible on the next loop pass), not
+sample‑accurate, unless a persistent Web Audio real‑time graph is added.
+
 ---
 
 If you want next, the natural follow‑ups are:
+- the audible runtime demo (TF‑0MUXW66870013DOL)
 - a formal runtime performance budget spec
 - Unity or Unreal integration PRDs
 - or a runtime‑safe recipe subset definition

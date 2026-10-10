@@ -1,0 +1,80 @@
+# Tier 4 — Melodic motifs (3-note figure)
+# Star-collect jingle: a 3-note A minor figure at 440, 523, 659 Hz.
+
+version: "0.1"
+meta:
+  name: jingle-star-collect
+  description: Star-collect jingle
+  category: Collect
+  tags:
+    - casual
+    - joy
+    - jingle
+  duration: 0.59
+  parameters:
+    - name: note1
+      type: number
+      min: 308
+      max: 616
+      unit: Hz
+      default: 440
+    - name: note2
+      type: number
+      min: 366
+      max: 732
+      unit: Hz
+      default: 523
+    - name: note3
+      type: number
+      min: 461
+      max: 922
+      unit: Hz
+      default: 659
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: triangle
+      frequency: 440
+    automation:
+      frequency:
+        - kind: set
+          time: 0.0
+          value: 440
+        - kind: set
+          time: 0.18
+          value: 523
+        - kind: set
+          time: 0.36
+          value: 659
+  gate:
+    kind: gain
+    params:
+      gain: 0
+    automation:
+      gain:
+        - kind: set
+          time: 0
+          value: 0
+        - kind: linearRamp
+          time: 0.01
+          value: 0.8
+        - kind: linearRamp
+          time: 0.15
+          value: 0
+        - kind: linearRamp
+          time: 0.19
+          value: 0.8
+        - kind: linearRamp
+          time: 0.33
+          value: 0
+        - kind: linearRamp
+          time: 0.37
+          value: 0.8
+        - kind: linearRamp
+          time: 0.51
+          value: 0
+  out:
+    kind: destination
+routing:
+  - chain: [osc, gate, out]

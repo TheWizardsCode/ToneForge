@@ -1,0 +1,62 @@
+# Tier 3 — Textured & filtered (FM)
+# Digital glitch UI effect: an fmPattern carrier at 300 Hz modulated at 1200 Hz (index 9).
+
+version: "0.1"
+meta:
+  name: ui-glitch-digital
+  description: Digital glitch UI effect
+  category: UI
+  tags:
+    - casual
+    - fun
+    - ui
+  duration: 0.135
+  parameters:
+    - name: carrierFreq
+      type: number
+      min: 150
+      max: 540
+      unit: Hz
+      default: 300
+    - name: modulatorFreq
+      type: number
+      min: 600
+      max: 2160
+      unit: Hz
+      default: 1200
+    - name: modIndex
+      type: number
+      min: 1
+      max: 12
+      unit: ratio
+      default: 9
+    - name: attack
+      type: number
+      min: 0.001
+      max: 0.03
+      unit: s
+      default: 0.001
+    - name: decay
+      type: number
+      min: 0.024
+      max: 0.104
+      unit: s
+      default: 0.08
+nodes:
+  fm:
+    kind: fmPattern
+    params:
+      carrierFrequency: 300
+      modulatorFrequency: 1200
+      modulationIndex: 9
+  env:
+    kind: envelope
+    params:
+      attack: 0.001
+      decay: 0.08
+      sustain: 0
+      release: 0
+  out:
+    kind: destination
+routing:
+  - chain: [fm, env, out]

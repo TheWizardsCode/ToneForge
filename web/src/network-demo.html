@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ToneForge Network Demo — Two Windows</title>
+    <style>
+      :root {
+        --bg: #0d1117;
+        --surface: #161b22;
+        --border: #30363d;
+        --text: #e6edf3;
+        --text-dim: #8b949e;
+        --accent: #58a6ff;
+        --green: #3fb950;
+        --yellow: #d29922;
+        --magenta: #bc8cff;
+      }
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: system-ui, -apple-system, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 2rem 1rem;
+        gap: 1rem;
+      }
+      header {
+        text-align: center;
+      }
+      header h1 {
+        color: var(--accent);
+        margin: 0 0 0.25rem;
+      }
+      header p {
+        color: var(--text-dim);
+        margin: 0;
+        max-width: 60ch;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: minmax(260px, 320px) 1fr;
+        gap: 1rem;
+        width: 100%;
+        max-width: 1000px;
+      }
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1rem;
+      }
+      .panel h2 {
+        margin: 0 0 0.75rem;
+        font-size: 1rem;
+        color: var(--text-dim);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 0.75rem;
+      }
+      button {
+        background: #21262d;
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.4rem 0.7rem;
+        cursor: pointer;
+        font: inherit;
+      }
+      button:hover:not(:disabled) {
+        border-color: var(--accent);
+      }
+      button:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+      .label {
+        color: var(--text-dim);
+        font-size: 0.8rem;
+        margin-bottom: 0.25rem;
+      }
+      .badge {
+        display: inline-block;
+        font-size: 0.75rem;
+        padding: 0.1rem 0.45rem;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        margin-left: 0.35rem;
+      }
+      .badge.host {
+        color: var(--magenta);
+        border-color: var(--magenta);
+      }
+      .badge.client {
+        color: var(--green);
+        border-color: var(--green);
+      }
+      pre {
+        background: #0b0f14;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.6rem;
+        margin: 0;
+        font-size: 0.8rem;
+        max-height: 260px;
+        overflow: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .fingerprint {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        color: var(--yellow);
+        word-break: break-all;
+      }
+      .status {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        font-size: 0.85rem;
+        color: var(--text-dim);
+      }
+      .status strong {
+        color: var(--text);
+      }
+      .hint {
+        width: 100%;
+        max-width: 1000px;
+        background: rgba(88, 166, 255, 0.08);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        font-size: 0.85rem;
+        color: var(--text-dim);
+      }
+      code {
+        color: var(--accent);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>ToneForge Network Demo</h1>
+      <p>
+        Two browser windows, one host and one client. The host broadcasts
+        behavioural events — never audio — and both windows resolve identical,
+        deterministic sound sequences through the Demo 9 runtime.
+      </p>
+    </header>
+
+    <div class="hint">
+      Open this page in two windows. Add <code>?role=host</code> to the first
+      (or press <em>Become host</em>). The <strong>fingerprint</strong> in both
+      windows must match after each transition.
+    </div>
+    <div class="hint">
+      Two-window manual run:
+      <code>npm run dev:web</code> then open
+      <code>http://localhost:5173/network-demo.html?role=host</code> and
+      <code>http://localhost:5173/network-demo.html</code>.
+    </div>
+
+    <div class="grid">
+      <div class="panel">
+        <h2>Session</h2>
+        <div class="label">Role</div>
+        <div class="row">
+          <span id="role" class="badge">connecting…</span>
+          <span id="peer-id" class="badge">—</span>
+        </div>
+        <div class="row">
+          <button id="become-host" disabled>Become host</button>
+          <button id="reconnect">Reconnect</button>
+        </div>
+        <div class="status">
+          <span>Events: <strong id="event-count">0</strong></span>
+          <span>Bandwidth: <strong id="bandwidth">0 KB/s</strong></span>
+          <span>Peers: <strong id="peer-count">0</strong></span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Host controls</h2>
+        <div class="label">State transition</div>
+        <div class="row" id="state-controls"></div>
+        <div class="label">Surface context</div>
+        <div class="row" id="context-controls"></div>
+        <div class="label">Last event</div>
+        <pre id="last-event">(none)</pre>
+      </div>
+
+      <div class="panel">
+        <h2>Resolved sound sequence (this window)</h2>
+        <div class="label">Fingerprint</div>
+        <div class="fingerprint" id="fingerprint">—</div>
+        <pre id="resolved">(waiting for events…)</pre>
+      </div>
+    </div>
+
+    <script type="module" src="./network-demo.ts"></script>
+  </body>
+</html>

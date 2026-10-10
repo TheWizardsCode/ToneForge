@@ -1,0 +1,26 @@
+{
+  "name": "industrial_lasers",
+  "version": "2.1.0",
+  "type": "stack",
+  "description": "Layered industrial laser weapon sounds.",
+  "author": "StudioX",
+  "license": "commercial",
+  "dependencies": [
+    "core>=1.0"
+  ],
+  "assets": {
+    "recipes": [
+      "assets/recipes/il-heavy-cannon.json"
+    ],
+    "stacks": [
+      "assets/stacks/il-weapon-burst.json"
+    ],
+    "sequences": [
+      "assets/sequences/il-laser-sequence.json"
+    ],
+    "palettes": [
+      "assets/palettes/il-dust-palette.json"
+    ]
+  },
+  "category": "combat"
+}

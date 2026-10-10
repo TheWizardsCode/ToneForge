@@ -1,0 +1,71 @@
+{
+  "version": "1.0",
+  "name": "runtime_footsteps",
+  "description": "Scripted runtime demo: a character walks on stone, the surface changes to gravel, then sprints. Each state sequence is a single footstep; the recipe resolver picks the surface and the loop cadence is declared per sequence.",
+  "seed": 42,
+  "stateMachine": {
+    "name": "movement",
+    "initial": "idle",
+    "states": [
+      { "name": "idle" },
+      { "name": "walk", "sequencer": "footsteps_walk" },
+      { "name": "run", "sequencer": "footsteps_run" },
+      { "name": "sprint", "sequencer": "footsteps_sprint" }
+    ],
+    "transitions": [
+      { "from": "idle", "to": "walk" },
+      { "from": "walk", "to": "idle" },
+      { "from": "walk", "to": "run" },
+      { "from": "run", "to": "walk" },
+      { "from": "run", "to": "sprint" },
+      { "from": "sprint", "to": "run" },
+      { "from": "walk", "to": "sprint" },
+      { "from": "sprint", "to": "idle" }
+    ]
+  },
+  "context": {
+    "dimensions": {
+      "surface": ["stone", "gravel"]
+    },
+    "initial": {
+      "surface": "stone"
+    }
+  },
+  "sequences": {
+    "footsteps_walk": {
+      "version": "1.0",
+      "name": "footsteps_walk",
+      "description": "Single footstep; relaxed walking cadence (~0.6s per step).",
+      "loopInterval": 0.6,
+      "events": [
+        { "time": 0.0, "event": "footstep", "seedOffset": 0, "gain": 0.7 }
+      ]
+    },
+    "footsteps_run": {
+      "version": "1.0",
+      "name": "footsteps_run",
+      "description": "Single footstep; running cadence (~0.35s per step).",
+      "loopInterval": 0.35,
+      "events": [
+        { "time": 0.0, "event": "footstep", "seedOffset": 0, "gain": 0.85 }
+      ]
+    },
+    "footsteps_sprint": {
+      "version": "1.0",
+      "name": "footsteps_sprint",
+      "description": "Single footstep; sprinting cadence (~0.25s per step).",
+      "loopInterval": 0.25,
+      "events": [
+        { "time": 0.0, "event": "footstep", "seedOffset": 0, "gain": 1.0 }
+      ]
+    }
+  },
+  "recipeResolver": {
+    "footstep": "footstep-{surface}"
+  },
+  "steps": [
+    { "time": 0.0, "state": "walk" },
+    { "time": 1.4, "context": { "surface": "gravel" } },
+    { "time": 2.8, "state": "sprint" }
+  ]
+}

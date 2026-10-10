@@ -1,0 +1,75 @@
+# Tier 5 — Character & critter voices (FM)
+# Character happy voice.
+
+version: '0.1'
+meta:
+  name: character-happy-voice
+  description: Character happy voice
+  category: Character
+  tags:
+  - casual
+  - joy
+  - character
+  duration: 0.36
+  parameters:
+  - name: carrierFreq
+    type: number
+    min: 360
+    max: 720
+    unit: Hz
+    default: 520
+    overrides:
+    - target: fm.carrierFrequency
+  - name: modulatorFreq
+    type: number
+    min: 540
+    max: 1080
+    unit: Hz
+    default: 780
+    overrides:
+    - target: fm.modulatorFrequency
+  - name: modIndex
+    type: number
+    min: 2
+    max: 9
+    unit: ratio
+    default: 4
+    overrides:
+    - target: fm.modulationIndex
+  - name: attack
+    type: number
+    min: 0.003
+    max: 0.02
+    unit: s
+    default: 0.006
+    overrides:
+    - target: env.attack
+  - name: decay
+    type: number
+    min: 0.14
+    max: 0.34
+    unit: s
+    default: 0.24
+    overrides:
+    - target: env.decay
+nodes:
+  fm:
+    kind: fmPattern
+    params:
+      carrierFrequency: 520
+      modulatorFrequency: 780
+      modulationIndex: 4
+  env:
+    kind: envelope
+    params:
+      attack: 0.006
+      decay: 0.24
+      sustain: 0.0
+      release: 0.0
+  out:
+    kind: destination
+routing:
+- chain:
+  - fm
+  - env
+  - out

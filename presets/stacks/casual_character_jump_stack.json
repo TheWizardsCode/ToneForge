@@ -1,0 +1,22 @@
+{
+  "version": "1.0",
+  "name": "casual_character_jump_stack",
+  "description": "Casual character-jump stack: a rising hop blip, a character jump voice and an air swish whoosh layered into a lively jump.",
+  "layers": [
+    {
+      "recipe": "jump-hop-blip",
+      "startTime": 0.0,
+      "gain": 1.0
+    },
+    {
+      "recipe": "character-jump-voice",
+      "startTime": 0.03,
+      "gain": 0.75
+    },
+    {
+      "recipe": "whoosh-air-swish",
+      "startTime": 0.02,
+      "gain": 0.55
+    }
+  ]
+}

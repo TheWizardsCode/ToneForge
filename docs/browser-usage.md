@@ -84,6 +84,7 @@ Context, and Sequencer. See
 | `isRunning()` | `boolean` | Whether a session is active |
 | `setState(name)` | `TransitionRecord` | Transition the attached state machine |
 | `setContext(updates)` | `ContextChangeRecord[]` | Update context dimensions |
+| `setSfxParameter(id, name, value)` | `SfxParameterResult` | Adjust a parameter of a playing continuous/looping sound |
 | `inspect()` | `RuntimeInspection` | Snapshot of state, context, active sequences, event count |
 | `log(limit?)` | `readonly RuntimeLogEntry[]` | Inspect the event log |
 | `onEvent(listener)` | `() => void` | Subscribe to events; returns an unsubscribe |
@@ -150,6 +151,130 @@ runtime.setContext({ surface: "gravel" });
 runtime.stop();
 ```
 
+### Example: real-time parameter adjustment (engine loop)
+
+`setSfxParameter(id, name, value)` updates a parameter of a sound that is
+already playing. The initial supported scope is continuous/looping sounds — for
+example an engine loop whose pitch and intensity track RPM. It supports
+`intensity`, `gain`, `pitch`, and `filter`; values are validated against their
+ranges before any state changes:
+
+```ts
+runtime.start();
+runtime.setState("running"); // activates the engine loop sequence
+
+// RPM rises: modulate the loop in real time.
+runtime.setSfxParameter("engine-1", "intensity", 0.3);
+runtime.setSfxParameter("engine-1", "pitch", 0.6);
+// ... later, at higher RPM ...
+runtime.setSfxParameter("engine-1", "intensity", 0.9);
+runtime.setSfxParameter("engine-1", "pitch", 1.8);
+
+// Invalid names or out-of-range values throw and leave playback untouched:
+// runtime.setSfxParameter("engine-1", "bogus", 0.5);     // unknown parameter
+// runtime.setSfxParameter("engine-1", "gain", 1.5);      // out of range
+```
+
+Each successful change is logged as a deterministic `parameter_change` event.
+In a live `createRuntimeSession` host, the stored values for an event's
+resolved recipe are applied to each freshly-rendered buffer, so a change is
+audible on the **next loop pass** (iteration-granular). The CLI exposes this as
+the `param <id> <name> <value>` command and supports a long-running
+`runtime start --serve` mode (`src/runtime/service.ts`).
+General real-time parameter automation for arbitrary one-shot sounds is a
+documented future extension (see `docs/prd/RUNTIME_PRD.md` §16).
+
+### Render-backed runtime playback (audible demo)
+
+The runtime can drive audible playback by resolving its events to recipes and
+mixing them with the offline renderer. `runRuntimeScenario(scenario)` runs a
+declarative runtime scenario — state machine, context, sequences,
+recipe resolver, and scripted steps — and returns the resolved event timeline,
+the per-event renders, and the mixed buffer:
+
+```ts
+import { runRuntimeScenario } from "@toneforge/runtime/audio.js";
+import { loadRuntimeScenario } from "@toneforge/runtime/scenario.js";
+
+// Node: load a scenario from disk. In the browser, build the object with
+// `parseRuntimeScenario` from inline JSON instead of reading a file.
+const scenario = await loadRuntimeScenario("presets/runtime/footsteps.json");
+const { render } = await runRuntimeScenario(scenario);
+```
+
+Play the mixed buffer on the shared `AudioContext` by wrapping it in an
+`AudioBuffer` and scheduling an `AudioBufferSourceNode` via
+`scheduleRuntimeBuffer` (the same abstraction `node-web-audio-api` exposes in
+Node):
+
+```ts
+import { scheduleRuntimeBuffer } from "@toneforge/runtime/audio.js";
+import { getAudioContext } from "@toneforge/audio/web-audio.js";
+
+const ctx = getAudioContext();
+await ctx.resume(); // browsers require a user gesture before playback
+scheduleRuntimeBuffer(ctx, render.samples, render.sampleRate);
+```
+
+The Node CLI uses the same bridge and plays through `playAudio`:
+
+```bash
+toneforge runtime demo                  # play
+toneforge runtime demo --json           # resolved event timeline
+toneforge runtime demo --output ./out/  # export WAVs + timeline.json
+```
+
+### Live interactive session (host-embedded)
+
+For a *live* host — where state and context change over time — use
+`createRuntimeSession`. It owns a runtime, a bounded LRU buffer cache,
+and a playback scheduler, and it renders each resolved event through the cache
+at its sequence-relative time:
+
+```ts
+import { createRuntimeSession, createBufferCache } from "@toneforge/runtime/index.js";
+import { scheduleRuntimeBuffer } from "@toneforge/runtime/audio.js";
+import { getAudioContext } from "@toneforge/audio/web-audio.js";
+
+const ctx = getAudioContext();
+await ctx.resume();
+
+const session = createRuntimeSession({
+  scenario,
+  cache: createBufferCache({ maxEntries: 64 }),
+  // Browser playback: schedule each rendered buffer on the shared context.
+  play: (result) => {
+    scheduleRuntimeBuffer(ctx, result.samples, result.sampleRate);
+  },
+});
+
+session.handleCommand("state walk");
+session.handleCommand("context surface=gravel");
+session.handleCommand("state sprint");
+await session.waitForIdle();
+session.stop();
+```
+
+For continuous playback, use the transport (`start [state]` / `stop`). It loops
+the active sequence, reconfiguring live as state/context change, and varies the
+event seed per iteration:
+
+```ts
+session.handleCommand("start walk");          // begin continuous footsteps
+session.handleCommand("context surface=gravel"); // retune to gravel
+session.handleCommand("stop");                // halt the loop
+await session.waitForTransportIdle();
+session.stop();
+```
+
+In a bounded/headless run, pass `maxIterations` (CLI `--iterations`) so the loop
+self-terminates, and `seedVariation: false` for identical iterations.
+
+The same engine runs in Node: the CLI passes `playAudio` as the `play` hook. In
+headless mode (`--json`) rendering and playback are skipped entirely, so a
+session can be replayed in CI without an audio device. Replaying a `--script`
+with the virtual clock is deterministic: same commands + seed → same event log.
+
 ## Recipe rendering in the browser
 
 `renderRecipe(recipeName, seed, duration?)` from `src/core/renderer.ts` uses the
@@ -202,6 +327,10 @@ The demo runs the Terminal UI and wizard; when a `generate --recipe <name>
 browser and plays the result. Browser playback is implemented in
 `web/src/audio.ts`.
 
+To open the demo from another device on the same network, use
+`npm run dev:web -- --host`: the dev launcher derives the host's own
+hostnames/IPs and passes them to the backend as `ALLOWED_ORIGINS` (dev-only).
+
 ## Tests
 
 The browser behaviour is covered by Playwright end-to-end tests in
@@ -222,9 +351,3 @@ renders a non-zero buffer, and produces no Node-only console errors.
 The Playwright web server binds the first free port at or after 3000 so the
 suite still runs when the default port is occupied (for example by another
 dev server). Set `PORT=<n>` to pin a specific port.
-
-The `Web Playwright E2E` workflow (`.github/workflows/web-playwright.yml`) runs
-the suite on pushes and pull requests that touch `web/`, `presets/`, or `src/`.
-On CI the config retries failures twice and writes an HTML report plus failure
-traces, which the workflow uploads as `playwright-report` and
-`playwright-test-results` artifacts.

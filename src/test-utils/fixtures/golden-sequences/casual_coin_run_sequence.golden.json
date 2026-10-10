@@ -1,0 +1,54 @@
+{
+  "name": "casual_coin_run_sequence",
+  "seed": 42,
+  "sampleRate": 44100,
+  "totalDuration": 0.6,
+  "totalDuration_ms": 600,
+  "events": [
+    {
+      "time_ms": 0,
+      "sampleOffset": 0,
+      "event": "collect-pickup-coin",
+      "seedOffset": 0,
+      "eventSeed": 42,
+      "gain": 0.9,
+      "repetition": 0
+    },
+    {
+      "time_ms": 140,
+      "sampleOffset": 6174,
+      "event": "collect-pickup-coin",
+      "seedOffset": 1,
+      "eventSeed": 43,
+      "gain": 0.9,
+      "repetition": 0
+    },
+    {
+      "time_ms": 280,
+      "sampleOffset": 12348,
+      "event": "collect-pickup-coin",
+      "seedOffset": 2,
+      "eventSeed": 44,
+      "gain": 0.95,
+      "repetition": 0
+    },
+    {
+      "time_ms": 420,
+      "sampleOffset": 18522,
+      "event": "collect-pickup-coin",
+      "seedOffset": 3,
+      "eventSeed": 45,
+      "gain": 1,
+      "repetition": 0
+    },
+    {
+      "time_ms": 600,
+      "sampleOffset": 26460,
+      "event": "collect-coin-arc",
+      "seedOffset": 4,
+      "eventSeed": 46,
+      "gain": 1,
+      "repetition": 0
+    }
+  ]
+}

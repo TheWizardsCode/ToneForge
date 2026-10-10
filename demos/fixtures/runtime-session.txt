@@ -1,0 +1,7 @@
+# Runtime session script (toneforge runtime start --script)
+# Continuous footsteps: start the transport, then retune surface and state.
+# Bound the run from the command line, e.g. --iterations 3.
+start walk
+context surface=gravel
+state sprint
+quit

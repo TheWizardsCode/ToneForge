@@ -106,8 +106,19 @@ describe("Demo markdown integration — recipe validation", () => {
         }
       }
 
-      it("contains at least one toneforge command (generate, stack, explore, play, or sequence)", () => {
-        expect(generateCommands.length + stackCommands.length + exploreCommands.length + playCommands.length + sequenceCommands.length).toBeGreaterThan(0);
+      // Collect all runtime commands (runtime demo)
+      const runtimeCommands: Array<{ stepId: string; command: string }> = [];
+
+      for (const step of parsed.steps) {
+        for (const cmd of step.commands) {
+          if (cmd.includes("runtime") && cmd.includes("demo")) {
+            runtimeCommands.push({ stepId: step.id, command: cmd });
+          }
+        }
+      }
+
+      it("contains at least one toneforge command (generate, stack, explore, play, sequence, or runtime)", () => {
+        expect(generateCommands.length + stackCommands.length + exploreCommands.length + playCommands.length + sequenceCommands.length + runtimeCommands.length).toBeGreaterThan(0);
       });
 
       if (generateCommands.length > 0) {

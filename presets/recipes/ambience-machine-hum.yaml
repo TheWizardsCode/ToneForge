@@ -1,0 +1,73 @@
+# Tier 6 — Ambience & loops (saw drone + lowpass)
+# Machine hum ambience.
+
+version: '0.1'
+meta:
+  name: ambience-machine-hum
+  description: Machine hum ambience
+  category: Ambience
+  tags:
+  - casual
+  - fun
+  - ambience
+  duration: 1.7
+  parameters:
+  - name: humFreq
+    type: number
+    min: 35
+    max: 90
+    unit: Hz
+    default: 55
+    overrides:
+    - target: osc.frequency
+  - name: filterFreq
+    type: number
+    min: 200
+    max: 700
+    unit: Hz
+    default: 400
+    overrides:
+    - target: filter.frequency
+  - name: attack
+    type: number
+    min: 0.15
+    max: 0.5
+    unit: s
+    default: 0.3
+    overrides:
+    - target: env.attack
+  - name: release
+    type: number
+    min: 0.2
+    max: 0.6
+    unit: s
+    default: 0.5
+    overrides:
+    - target: env.release
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: sawtooth
+      frequency: 55
+  filter:
+    kind: biquadFilter
+    params:
+      type: lowpass
+      frequency: 400
+      Q: 2
+  env:
+    kind: envelope
+    params:
+      attack: 0.3
+      decay: 0.5
+      sustain: 0.8
+      release: 0.5
+  out:
+    kind: destination
+routing:
+- chain:
+  - osc
+  - filter
+  - env
+  - out

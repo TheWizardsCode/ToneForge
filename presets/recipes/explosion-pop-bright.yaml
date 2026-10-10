@@ -1,0 +1,73 @@
+# Tier 3 — Textured & filtered (filter sweep)
+# Bright explosion pop: a white-noise source swept through a lowpass filter from 5000 Hz to 200 Hz (Q=2).
+
+version: "0.1"
+meta:
+  name: explosion-pop-bright
+  description: Bright explosion pop
+  category: Impact
+  tags:
+    - casual
+    - fun
+    - explosion
+  duration: 0.551
+  parameters:
+    - name: startFreq
+      type: number
+      min: 2500
+      max: 8000
+      unit: Hz
+      default: 5000
+    - name: endFreq
+      type: number
+      min: 120
+      max: 400
+      unit: Hz
+      default: 200
+    - name: attack
+      type: number
+      min: 0.001
+      max: 0.05
+      unit: s
+      default: 0.001
+    - name: decay
+      type: number
+      min: 0.12
+      max: 0.52
+      unit: s
+      default: 0.4
+nodes:
+  noise:
+    kind: noise
+    params:
+      color: white
+      level: 1
+  filter:
+    kind: biquadFilter
+    params:
+      type: lowpass
+      frequency: 5000
+      Q: 2
+    automation:
+      frequency:
+        - kind: set
+          time: 0
+          value: 5000
+        - kind: linearRamp
+          time: 0.401
+          value: 200
+  level:
+    kind: gain
+    params:
+      gain: 0.58
+  env:
+    kind: envelope
+    params:
+      attack: 0.001
+      decay: 0.4
+      sustain: 0
+      release: 0
+  out:
+    kind: destination
+routing:
+  - chain: [noise, filter, level, env, out]

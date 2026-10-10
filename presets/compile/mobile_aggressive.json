@@ -1,0 +1,6 @@
+{
+  "target": "mobile",
+  "maxVoices": 16,
+  "bake": { "category": ["Impact", "Creature", "Vehicle"], "durationAbove": 1.0 },
+  "hybrid": { "durationAbove": 0.5 }
+}

@@ -11,9 +11,15 @@
  */
 
 import { mkdir, writeFile, readFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
-import type { LibraryEntry, LibraryIndex, LibraryFilter } from "./types.js";
+import type {
+  LibraryEntry,
+  LibraryIndex,
+  LibraryFilter,
+  LibraryRegisteredAsset,
+  RegisteredAssetFilter,
+} from "./types.js";
 import { LIBRARY_VERSION, DEFAULT_LIBRARY_DIR, INDEX_FILE } from "./types.js";
 
 /**
@@ -201,4 +207,133 @@ export function clearIndexCache(baseDir?: string): void {
   } else {
     indexCache.clear();
   }
+}
+
+// ---------------------------------------------------------------------------
+// Marketplace-registered assets
+// ---------------------------------------------------------------------------
+
+/**
+ * Build the deterministic id for a registered asset.
+ *
+ * Format: `${package}@${version}:${kind}:${path}`.
+ */
+export function registeredAssetId(
+  asset: Pick<LibraryRegisteredAsset, "package" | "version" | "kind" | "path">,
+): string {
+  return `${asset.package}@${asset.version}:${asset.kind}:${asset.path}`;
+}
+
+/**
+ * Read the index synchronously, seeding the shared cache when absent.
+ *
+ * Used by the synchronous marketplace-registration helpers, because the
+ * install pipeline calls the registrar synchronously. The async and sync
+ * paths share {@link indexCache}, so they always observe the same state.
+ */
+function loadIndexSync(baseDir: string): LibraryIndex {
+  const resolvedDir = resolve(baseDir);
+  const cached = indexCache.get(resolvedDir);
+  if (cached) return cached;
+
+  const filePath = indexPath(baseDir);
+  let index: LibraryIndex;
+  if (existsSync(filePath)) {
+    index = JSON.parse(readFileSync(filePath, "utf-8")) as LibraryIndex;
+  } else {
+    index = emptyIndex();
+  }
+  indexCache.set(resolvedDir, index);
+  return index;
+}
+
+/**
+ * Persist the index synchronously and refresh the cache.
+ */
+function saveIndexSync(index: LibraryIndex, baseDir: string): string {
+  const filePath = indexPath(baseDir);
+  mkdirSync(dirname(filePath), { recursive: true });
+  writeFileSync(filePath, JSON.stringify(index, null, 2));
+  indexCache.set(resolve(baseDir), index);
+  return filePath;
+}
+
+/**
+ * Record a marketplace-installed asset in the library index.
+ *
+ * Idempotent: re-registering the same id replaces the existing record (a
+ * re-install of the same package/version yields identical state). The asset's
+ * bytes stay in the installed package directory; only provenance and the
+ * content hash are stored here.
+ *
+ * Synchronous so the (synchronous) Marketplace install pipeline can call it
+ * from its registrar hook.
+ *
+ * @param asset - The asset to record (without `id`; it is derived).
+ * @param baseDir - Base directory for library storage.
+ * @returns The recorded asset (with its derived id).
+ */
+export function addRegisteredAssetSync(
+  asset: Omit<LibraryRegisteredAsset, "id"> & { id?: string },
+  baseDir: string = DEFAULT_LIBRARY_DIR,
+): LibraryRegisteredAsset {
+  const index = loadIndexSync(baseDir);
+  const registered: LibraryRegisteredAsset = {
+    id: asset.id ?? registeredAssetId(asset),
+    kind: asset.kind,
+    path: asset.path,
+    contentHash: asset.contentHash,
+    package: asset.package,
+    version: asset.version,
+    registry: asset.registry,
+  };
+
+  const assets = index.registeredAssets ?? [];
+  const existingIndex = assets.findIndex((entry) => entry.id === registered.id);
+  if (existingIndex >= 0) {
+    assets[existingIndex] = registered;
+  } else {
+    assets.push(registered);
+  }
+  index.registeredAssets = assets;
+
+  saveIndexSync(index, baseDir);
+  return registered;
+}
+
+/**
+ * List marketplace-registered assets from the library index, optionally
+ * filtered by kind and/or package.
+ */
+export function listRegisteredAssets(
+  filter?: RegisteredAssetFilter,
+  baseDir: string = DEFAULT_LIBRARY_DIR,
+): LibraryRegisteredAsset[] {
+  const index = loadIndexSync(baseDir);
+  const assets = index.registeredAssets ?? [];
+  if (!filter) return [...assets];
+
+  return assets.filter((asset) => {
+    if (filter.kind && asset.kind !== filter.kind) return false;
+    if (filter.package && asset.package !== filter.package) return false;
+    return true;
+  });
+}
+
+/**
+ * Remove a marketplace-registered asset by id.
+ *
+ * @returns True if a record was removed, false otherwise.
+ */
+export function removeRegisteredAsset(
+  id: string,
+  baseDir: string = DEFAULT_LIBRARY_DIR,
+): boolean {
+  const index = loadIndexSync(baseDir);
+  const assets = index.registeredAssets ?? [];
+  const next = assets.filter((asset) => asset.id !== id);
+  if (next.length === assets.length) return false;
+  index.registeredAssets = next;
+  saveIndexSync(index, baseDir);
+  return true;
 }

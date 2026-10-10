@@ -108,6 +108,57 @@ export interface LibraryIndex {
 
   /** All library entries. */
   entries: LibraryEntry[];
+
+  /**
+   * Assets registered by the Marketplace install pipeline.
+   *
+   * Optional and additive: older index files omit it, and readers that do
+   * not understand marketplace registration simply ignore it. Reusing the
+   * existing index keeps one durable store rather than forking a second one
+   * (`docs/prd/MARKETPLACE_PRD.md` Sections 8.1, 10).
+   */
+  registeredAssets?: LibraryRegisteredAsset[];
+}
+
+/**
+ * A marketplace-registered asset recorded in the library index.
+ *
+ * Written by the Marketplace asset registrar
+ * (`src/marketplace/registrar.ts`, work item TF-0MUZX3ZIU008KIXL) so an
+ * installed package's assets are tracked alongside curated library entries.
+ * The record is provenance-only: the asset bytes stay in the installed
+ * package directory and are referenced by path + content hash.
+ */
+export interface LibraryRegisteredAsset {
+  /** Unique identifier: `${package}@${version}:${kind}:${path}`. */
+  id: string;
+
+  /** Asset kind (`recipes`, `stacks`, `sequences`, `palettes`). */
+  kind: string;
+
+  /** Asset path relative to the installed package directory. */
+  path: string;
+
+  /** Lowercase hex SHA-256 of the asset's bytes. */
+  contentHash: string;
+
+  /** Marketplace package the asset was installed from. */
+  package: string;
+
+  /** Exact locked package version. */
+  version: string;
+
+  /** Registry the package was acquired from. */
+  registry: string;
+}
+
+/** Filter options for listing registered assets. */
+export interface RegisteredAssetFilter {
+  /** Filter by asset kind (exact match). */
+  kind?: string;
+
+  /** Filter by package name (exact match). */
+  package?: string;
 }
 
 /**

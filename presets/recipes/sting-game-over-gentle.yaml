@@ -1,0 +1,97 @@
+# Tier 7 — Multi-voice stings
+# Gentle game-over sting (self-contained 2–3 voices, no stack required).
+
+version: '0.1'
+meta:
+  name: sting-game-over-gentle
+  description: Gentle game-over sting
+  category: Sting
+  tags:
+  - casual
+  - fun
+  - sting
+  duration: 1.04
+  parameters:
+  - name: voice1
+    type: number
+    min: 320
+    max: 470
+    unit: Hz
+    default: 392
+    overrides:
+    - target: v1.frequency
+  - name: voice2
+    type: number
+    min: 260
+    max: 400
+    unit: Hz
+    default: 330
+    overrides:
+    - target: v2.frequency
+  - name: voice3
+    type: number
+    min: 200
+    max: 320
+    unit: Hz
+    default: 262
+    overrides:
+    - target: v3.frequency
+  - name: attack
+    type: number
+    min: 0.01
+    max: 0.04
+    unit: s
+    default: 0.02
+    overrides:
+    - target: env.attack
+  - name: decay
+    type: number
+    min: 0.35
+    max: 0.8
+    unit: s
+    default: 0.6
+    overrides:
+    - target: env.decay
+nodes:
+  v1:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 392
+  v2:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 330
+  v3:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 262
+  mix:
+    kind: gain
+    params:
+      gain: 0.32
+  env:
+    kind: envelope
+    params:
+      attack: 0.02
+      decay: 0.6
+      sustain: 0.0
+      release: 0.0
+  out:
+    kind: destination
+routing:
+- chain:
+  - v1
+  - mix
+- chain:
+  - v2
+  - mix
+- chain:
+  - v3
+  - mix
+- chain:
+  - mix
+  - env
+  - out

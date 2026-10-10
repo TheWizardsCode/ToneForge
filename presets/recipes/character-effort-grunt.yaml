@@ -1,0 +1,96 @@
+# Tier 5 — Character & critter voices (noise + tonal blend)
+# Character effort grunt.
+
+version: '0.1'
+meta:
+  name: character-effort-grunt
+  description: Character effort grunt
+  category: Character
+  tags:
+  - casual
+  - fun
+  - character
+  duration: 0.35
+  parameters:
+  - name: toneFreq
+    type: number
+    min: 80
+    max: 180
+    unit: Hz
+    default: 120
+    overrides:
+    - target: osc.frequency
+  - name: noiseLevel
+    type: number
+    min: 0.2
+    max: 0.9
+    unit: amplitude
+    default: 0.5
+    overrides:
+    - target: noise.level
+  - name: filterFreq
+    type: number
+    min: 350
+    max: 950
+    unit: Hz
+    default: 600
+    overrides:
+    - target: filter.frequency
+  - name: attack
+    type: number
+    min: 0.004
+    max: 0.03
+    unit: s
+    default: 0.01
+    overrides:
+    - target: env.attack
+  - name: decay
+    type: number
+    min: 0.12
+    max: 0.32
+    unit: s
+    default: 0.2
+    overrides:
+    - target: env.decay
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 120
+  noise:
+    kind: noise
+    params:
+      color: white
+      level: 0.5
+  filter:
+    kind: biquadFilter
+    params:
+      type: lowpass
+      frequency: 600
+      Q: 1
+  mix:
+    kind: gain
+    params:
+      gain: 0.85
+  env:
+    kind: envelope
+    params:
+      attack: 0.01
+      decay: 0.2
+      sustain: 0.0
+      release: 0.0
+  out:
+    kind: destination
+routing:
+- chain:
+  - osc
+  - mix
+- chain:
+  - noise
+  - filter
+  - mix
+- chain:
+  - mix
+  - env
+  - out

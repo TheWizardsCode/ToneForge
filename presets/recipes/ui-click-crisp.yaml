@@ -1,0 +1,49 @@
+# Tier 1 — Pure tones & blips (single oscillator, simple envelope)
+# Crisp click for button presses
+
+version: "0.1"
+meta:
+  name: ui-click-crisp
+  description: Crisp click for button presses
+  category: UI
+  tags:
+    - casual
+    - fun
+    - ui
+  duration: 0.041
+  parameters:
+    - name: frequency
+      type: number
+      min: 400
+      max: 1000
+      unit: Hz
+      default: 700
+    - name: attack
+      type: number
+      min: 0.001
+      max: 0.02
+      unit: s
+      default: 0.001
+    - name: decay
+      type: number
+      min: 0.01
+      max: 0.05
+      unit: s
+      default: 0.02
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: square
+      frequency: 700
+  env:
+    kind: envelope
+    params:
+      attack: 0.001
+      decay: 0.02
+      sustain: 0
+      release: 0
+  out:
+    kind: destination
+routing:
+  - chain: [osc, env, out]

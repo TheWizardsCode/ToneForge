@@ -1,0 +1,25 @@
+{
+  "version": "1.0",
+  "name": "casual_level_complete_sequence",
+  "description": "Casual level complete: a quest-complete motif, a level-up jingle and a level-complete sting closing a stage with a flourish.",
+  "events": [
+    {
+      "time": 0.0,
+      "event": "motif-quest-complete",
+      "seedOffset": 0,
+      "gain": 0.9
+    },
+    {
+      "time": 0.25,
+      "event": "jingle-level-up",
+      "seedOffset": 1,
+      "gain": 0.9
+    },
+    {
+      "time": 0.6,
+      "event": "sting-level-complete",
+      "seedOffset": 2,
+      "gain": 1.0
+    }
+  ]
+}

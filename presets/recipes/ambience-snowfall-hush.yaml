@@ -1,0 +1,96 @@
+# Tier 6 — Ambience & loops (soft high noise + low tone)
+# Snowfall hush ambience.
+
+version: '0.1'
+meta:
+  name: ambience-snowfall-hush
+  description: Snowfall hush ambience
+  category: Ambience
+  tags:
+  - casual
+  - joy
+  - ambience
+  duration: 2.0
+  parameters:
+  - name: toneFreq
+    type: number
+    min: 70
+    max: 160
+    unit: Hz
+    default: 120
+    overrides:
+    - target: osc.frequency
+  - name: noiseLevel
+    type: number
+    min: 0.1
+    max: 0.5
+    unit: amplitude
+    default: 0.3
+    overrides:
+    - target: noise.level
+  - name: filterFreq
+    type: number
+    min: 2500
+    max: 6500
+    unit: Hz
+    default: 4000
+    overrides:
+    - target: filter.frequency
+  - name: attack
+    type: number
+    min: 0.2
+    max: 0.7
+    unit: s
+    default: 0.45
+    overrides:
+    - target: env.attack
+  - name: release
+    type: number
+    min: 0.25
+    max: 0.7
+    unit: s
+    default: 0.6
+    overrides:
+    - target: env.release
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 120
+  noise:
+    kind: noise
+    params:
+      color: white
+      level: 0.3
+  filter:
+    kind: biquadFilter
+    params:
+      type: highpass
+      frequency: 4000
+      Q: 0.5
+  mix:
+    kind: gain
+    params:
+      gain: 0.55
+  env:
+    kind: envelope
+    params:
+      attack: 0.45
+      decay: 0.6
+      sustain: 0.8
+      release: 0.6
+  out:
+    kind: destination
+routing:
+- chain:
+  - noise
+  - filter
+  - mix
+- chain:
+  - osc
+  - mix
+- chain:
+  - mix
+  - env
+  - out

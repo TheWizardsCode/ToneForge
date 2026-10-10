@@ -1,0 +1,53 @@
+# ToneForge asset pipeline — example GitHub Actions workflow.
+#
+# This file is intentionally inert: the `.example` suffix keeps GitHub from
+# running it. Rename it to `toneforge-pipeline.yml` to enable it.
+#
+# It runs `toneforge pipeline` (generate → validate → compile → export) and
+# uploads the exported assets as a build artifact. The pipeline exits
+# non-zero on the first failing stage, so no extra scripting is needed to
+# fail the build.
+#
+# Docs: docs/guides/ci-integration.md
+
+name: ToneForge assets
+
+on:
+  push:
+    paths:
+      - "sounds.json"
+      - "src/**"
+      - "package.json"
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-assets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check and build
+        run: npm run build
+
+      - name: Generate, validate, compile and export
+        run: |
+          node bin/dev-cli.js pipeline \
+            --sounds  ./sounds.json \
+            --library ./build/library \
+            --output  ./build/export \
+            --json | tee pipeline-result.json
+
+      - name: Upload exported assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: toneforge-assets
+          path: build/export

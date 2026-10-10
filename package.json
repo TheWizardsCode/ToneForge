@@ -1,6 +1,6 @@
 {
   "name": "toneforge",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Generate placeholder sound effects instantly so development never stalls waiting for final audio assets.",
   "type": "module",
   "main": "dist/index.js",
@@ -19,7 +19,7 @@
     "start": "./bin/dev-cli.js",
     "generate": "./bin/dev-cli.js generate",
     "demo": "tsx scripts/demo/run.ts",
-    "dev:web": "npm run build && npm run build --prefix web && concurrently -k -n backend,vite -c blue,green \"npm start --prefix web\" \"npm run dev --prefix web\"",
+    "dev:web": "node scripts/dev-web.mjs",
     "postinstall": "node ./scripts/postinstall-cli-link.mjs"
   },
   "keywords": [

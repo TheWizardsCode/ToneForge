@@ -38,6 +38,10 @@ State / Context
  Remote Runtime(s)
 ```
 
+*Implemented by the runtime bridge in `src/network/runtime-bridge.ts`: received
+behavioural events are reconciled with the local demo runtime so every client
+resolves identical playback (see `docs/network.md`).*
+
 Its purpose is to:
 - synchronize sound behavior across clients
 - preserve determinism in multiplayer or shared environments
@@ -176,6 +180,12 @@ Runtime executes received events deterministically.
 
 Network never blocks Runtime execution.
 
+*Implemented by `createRuntimeBridge` (`src/network/runtime-bridge.ts`), which
+drives the Demo 9 runtime/state pipeline: state changes transition the machine,
+context changes re-resolve recipes, and discrete events re-fire the active
+sequence with the event's seed. The two-window browser demo is served by the
+existing web server's `/ws/network` relay (`web/server/network-relay.ts`).*
+
 ---
 
 ### 6.5 ToneForge Mixer & Visualizer
@@ -218,6 +228,49 @@ ToneForge Network supports:
 - graceful degradation
 
 Clients remain perceptually aligned even under jitter.
+
+### 8.1 Late-join resynchronization
+
+A client that joins after playback has started does not receive a replay of past
+events. Instead the host sends the **current state snapshot** as part of the
+join handshake: the behavioural state label, context snapshot, seed and session
+timestamp of the most recent authoritative event. The joiner applies the
+snapshot locally, resolves it deterministically, and immediately plays the
+correct current output — landing on byte-identical output to an already
+connected peer because every peer resolves the same event the same way.
+
+If the host has not yet emitted an event there is no snapshot; the joiner
+simply waits for the next live event.
+
+### 8.2 Timestamp correction & ordering
+
+Arriving events carry a host session timestamp. Clients maintain a smoothed
+clock-offset estimate that converts host time into local playout time:
+
+- the offset is an exponentially smoothed estimate seeded by the late-join
+  snapshot (or a periodic sync reference);
+- the offset is **clamped** to a bounded magnitude, so a single bad sample can
+  never shift playback arbitrarily;
+- events are released in ascending timestamp order through a **bounded reorder
+  window** (default 100 ms). An event that arrives before its slot is released
+  is ordered; one that arrives after its slot has already been released is
+  dropped rather than replayed out of order.
+
+Ordering depends only on event timestamps, never on wall-clock time, so the
+same delivered event order always produces the same result.
+
+### 8.3 Bounded drift compensation & graceful degradation
+
+Playout timing is adjusted by a per-event drift correction that is **clamped to
+250 ms** in either direction. Clients are considered perceptually aligned
+within this documented tolerance; when a client falls further behind, the
+correction clamps at the bound and is reported as *degraded* rather than
+jumping. Divergence is therefore bounded: no single adjustment can exceed the
+tolerance, and compensation degrades gracefully under sustained jitter instead
+of producing an unbounded state jump.
+
+The deterministic jitter harness asserts that two independently jittery clients
+remain aligned within the tolerance.
 
 ---
 

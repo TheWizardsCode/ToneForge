@@ -1,0 +1,59 @@
+# Tier 3 — Textured & filtered (filtered noise)
+# Short fizzing explosion tail: a white-noise source shaped by a highpass filter at 2200 Hz (Q=1).
+
+version: "0.1"
+meta:
+  name: explosion-fizz-short
+  description: Short fizzing explosion tail
+  category: Impact
+  tags:
+    - casual
+    - fun
+    - impact
+  duration: 0.486
+  parameters:
+    - name: filterFreq
+      type: number
+      min: 1100
+      max: 3960
+      unit: Hz
+      default: 2200
+    - name: attack
+      type: number
+      min: 0.001
+      max: 0.02
+      unit: s
+      default: 0.001
+    - name: decay
+      type: number
+      min: 0.105
+      max: 0.455
+      unit: s
+      default: 0.35
+nodes:
+  noise:
+    kind: noise
+    params:
+      color: white
+      level: 1
+  filter:
+    kind: biquadFilter
+    params:
+      type: highpass
+      frequency: 2200
+      Q: 1
+  level:
+    kind: gain
+    params:
+      gain: 0.62
+  env:
+    kind: envelope
+    params:
+      attack: 0.001
+      decay: 0.35
+      sustain: 0
+      release: 0
+  out:
+    kind: destination
+routing:
+  - chain: [noise, filter, level, env, out]

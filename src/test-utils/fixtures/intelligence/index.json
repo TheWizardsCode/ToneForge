@@ -1,0 +1,221 @@
+{
+  "version": "1.0",
+  "entries": [
+    {
+      "id": "lib-fixture-footstep-01",
+      "recipe": "footstep-stone",
+      "seed": 1,
+      "category": "footstep",
+      "duration": 0.4,
+      "tags": ["organic", "stone"],
+      "analysis": {
+        "analysisVersion": "1.0",
+        "sampleRate": 44100,
+        "sampleCount": 17640,
+        "metrics": {
+          "time": { "duration": 0.4, "peak": 0.6, "rms": 0.2, "crestFactor": 1.4 },
+          "quality": { "clipping": false, "silence": true },
+          "envelope": { "attackTime": 0.01 },
+          "spectral": { "spectralCentroid": 900 }
+        }
+      },
+      "classification": {
+        "source": "lib-fixture-footstep-01",
+        "category": "footstep",
+        "intensity": "medium",
+        "texture": ["crunchy", "gritty"],
+        "material": "stone",
+        "tags": ["organic", "stone"],
+        "embedding": [0.1, 0.1, 0.1],
+        "analysisRef": "footstep/lib-fixture-footstep-01.json"
+      },
+      "preset": { "recipe": "footstep-stone", "seed": 1, "params": { "surface": 0.5 } },
+      "provenance": { "toneforgeVersion": "fixture" },
+      "files": {
+        "wav": "footstep/lib-fixture-footstep-01.wav",
+        "metadata": "footstep/lib-fixture-footstep-01.json"
+      },
+      "promotedAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "lib-fixture-footstep-02",
+      "recipe": "footstep-stone",
+      "seed": 2,
+      "category": "footstep",
+      "duration": 0.42,
+      "tags": ["organic", "stone"],
+      "analysis": {
+        "analysisVersion": "1.0",
+        "sampleRate": 44100,
+        "sampleCount": 18522,
+        "metrics": {
+          "time": { "duration": 0.42, "peak": 0.62, "rms": 0.21, "crestFactor": 1.4 },
+          "quality": { "clipping": false, "silence": false },
+          "envelope": { "attackTime": 0.011 },
+          "spectral": { "spectralCentroid": 905 }
+        }
+      },
+      "classification": {
+        "source": "lib-fixture-footstep-02",
+        "category": "footstep",
+        "intensity": "medium",
+        "texture": ["crunchy", "gritty"],
+        "material": "stone",
+        "tags": ["organic", "stone"],
+        "embedding": [0.101, 0.1, 0.1],
+        "analysisRef": "footstep/lib-fixture-footstep-02.json"
+      },
+      "preset": { "recipe": "footstep-stone", "seed": 2, "params": { "surface": 0.55 } },
+      "provenance": { "toneforgeVersion": "fixture" },
+      "files": {
+        "wav": "footstep/lib-fixture-footstep-02.wav",
+        "metadata": "footstep/lib-fixture-footstep-02.json"
+      },
+      "promotedAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "lib-fixture-footstep-03",
+      "recipe": "footstep-stone",
+      "seed": 3,
+      "category": "footstep",
+      "duration": 0.38,
+      "tags": ["organic", "stone"],
+      "analysis": {
+        "analysisVersion": "1.0",
+        "sampleRate": 44100,
+        "sampleCount": 16758,
+        "metrics": {
+          "time": { "duration": 0.38, "peak": 0.58, "rms": 0.19, "crestFactor": 1.4 },
+          "quality": { "clipping": false, "silence": false },
+          "envelope": { "attackTime": 0.009 },
+          "spectral": { "spectralCentroid": 895 }
+        }
+      },
+      "classification": {
+        "source": "lib-fixture-footstep-03",
+        "category": "footstep",
+        "intensity": "medium",
+        "texture": ["crunchy", "gritty"],
+        "material": "stone",
+        "tags": ["organic", "stone"],
+        "embedding": [0.1, 0.101, 0.1],
+        "analysisRef": "footstep/lib-fixture-footstep-03.json"
+      },
+      "preset": { "recipe": "footstep-stone", "seed": 3, "params": { "surface": 0.45 } },
+      "provenance": { "toneforgeVersion": "fixture" },
+      "files": {
+        "wav": "footstep/lib-fixture-footstep-03.wav",
+        "metadata": "footstep/lib-fixture-footstep-03.json"
+      },
+      "promotedAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "lib-fixture-weapon-01",
+      "recipe": "weapon-laser-zap",
+      "seed": 42,
+      "category": "weapon",
+      "duration": 0.35,
+      "tags": ["sci-fi", "laser"],
+      "analysis": {
+        "analysisVersion": "1.0",
+        "sampleRate": 44100,
+        "sampleCount": 15435,
+        "metrics": {
+          "time": { "duration": 0.35, "peak": 1.0, "rms": 0.5, "crestFactor": 2.0 },
+          "quality": { "clipping": true, "silence": false },
+          "envelope": { "attackTime": 0.002 },
+          "spectral": { "spectralCentroid": 4200 }
+        }
+      },
+      "classification": {
+        "source": "lib-fixture-weapon-01",
+        "category": "weapon",
+        "intensity": "hard",
+        "texture": ["sharp", "bright"],
+        "material": "energy",
+        "tags": ["sci-fi", "laser"],
+        "embedding": [0.9, 0.1, 0.1],
+        "analysisRef": "weapon/lib-fixture-weapon-01.json"
+      },
+      "preset": { "recipe": "weapon-laser-zap", "seed": 42, "params": { "pitch": 0.7 } },
+      "provenance": { "toneforgeVersion": "fixture" },
+      "files": {
+        "wav": "weapon/lib-fixture-weapon-01.wav",
+        "metadata": "weapon/lib-fixture-weapon-01.json"
+      },
+      "promotedAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "lib-fixture-ui-01",
+      "recipe": "ui-scifi-confirm",
+      "seed": 7,
+      "category": "ui",
+      "duration": 0.3,
+      "tags": ["sci-fi", "clean"],
+      "analysis": {
+        "analysisVersion": "1.0",
+        "sampleRate": 44100,
+        "sampleCount": 13230,
+        "metrics": {
+          "time": { "duration": 0.3, "peak": 0.7, "rms": 0.3, "crestFactor": 1.6 },
+          "quality": { "clipping": false, "silence": false },
+          "envelope": { "attackTime": 0.005 },
+          "spectral": { "spectralCentroid": 1800 }
+        }
+      },
+      "classification": {
+        "source": "lib-fixture-ui-01",
+        "category": "ui",
+        "intensity": "soft",
+        "texture": ["clean", "bright"],
+        "material": "synthetic",
+        "tags": ["sci-fi", "clean"],
+        "embedding": [0.2, 0.8, 0.2],
+        "analysisRef": "ui/lib-fixture-ui-01.json"
+      },
+      "preset": { "recipe": "ui-scifi-confirm", "seed": 7, "params": { "tone": 0.5 } },
+      "provenance": { "toneforgeVersion": "fixture" },
+      "files": {
+        "wav": "ui/lib-fixture-ui-01.wav",
+        "metadata": "ui/lib-fixture-ui-01.json"
+      },
+      "promotedAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "lib-fixture-ui-02",
+      "recipe": "ui-notification-chime",
+      "seed": 11,
+      "category": "ui",
+      "duration": 0.5,
+      "tags": ["sci-fi", "musical"],
+      "analysis": {
+        "analysisVersion": "1.0",
+        "sampleRate": 44100,
+        "sampleCount": 22050,
+        "metrics": {
+          "time": { "duration": 0.5, "peak": 0.65, "rms": 0.28, "crestFactor": 1.5 },
+          "quality": { "clipping": false, "silence": false },
+          "envelope": { "attackTime": 0.02 },
+          "spectral": { "spectralCentroid": 1600 }
+        }
+      },
+      "classification": {
+        "source": "lib-fixture-ui-02",
+        "category": "ui",
+        "intensity": "soft",
+        "texture": ["tonal", "warm"],
+        "material": "synthetic",
+        "tags": ["sci-fi", "musical"],
+        "embedding": [0.21, 0.79, 0.2],
+        "analysisRef": "ui/lib-fixture-ui-02.json"
+      },
+      "preset": { "recipe": "ui-notification-chime", "seed": 11, "params": { "tone": 0.6 } },
+      "provenance": { "toneforgeVersion": "fixture" },
+      "files": {
+        "wav": "ui/lib-fixture-ui-02.wav",
+        "metadata": "ui/lib-fixture-ui-02.json"
+      },
+      "promotedAt": "2026-01-01T00:00:00.000Z"
+    }
+  ]
+}

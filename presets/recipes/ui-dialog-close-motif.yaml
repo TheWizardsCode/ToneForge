@@ -1,0 +1,65 @@
+# Tier 4 — Melodic motifs (2-note figure)
+# Dialog-close motif: a 2-note C major figure at 392, 262 Hz.
+
+version: "0.1"
+meta:
+  name: ui-dialog-close-motif
+  description: Dialog-close motif
+  category: UI
+  tags:
+    - casual
+    - fun
+    - ui
+  duration: 0.41
+  parameters:
+    - name: note1
+      type: number
+      min: 274
+      max: 548
+      unit: Hz
+      default: 392
+    - name: note2
+      type: number
+      min: 183
+      max: 366
+      unit: Hz
+      default: 262
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: triangle
+      frequency: 392
+    automation:
+      frequency:
+        - kind: set
+          time: 0.0
+          value: 392
+        - kind: set
+          time: 0.18
+          value: 262
+  gate:
+    kind: gain
+    params:
+      gain: 0
+    automation:
+      gain:
+        - kind: set
+          time: 0
+          value: 0
+        - kind: linearRamp
+          time: 0.01
+          value: 0.8
+        - kind: linearRamp
+          time: 0.15
+          value: 0
+        - kind: linearRamp
+          time: 0.19
+          value: 0.8
+        - kind: linearRamp
+          time: 0.33
+          value: 0
+  out:
+    kind: destination
+routing:
+  - chain: [osc, gate, out]

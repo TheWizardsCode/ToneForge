@@ -1,0 +1,122 @@
+# Tier 5 — Character & critter voices (noise + tonal blend)
+# Soft critter purr.
+
+version: '0.1'
+meta:
+  name: critter-purr-soft
+  description: Soft critter purr
+  category: Critter
+  tags:
+  - casual
+  - joy
+  - critter
+  duration: 0.75
+  parameters:
+  - name: toneFreq
+    type: number
+    min: 60
+    max: 130
+    unit: Hz
+    default: 90
+    overrides:
+    - target: osc.frequency
+  - name: noiseLevel
+    type: number
+    min: 0.15
+    max: 0.6
+    unit: amplitude
+    default: 0.3
+    overrides:
+    - target: noise.level
+  - name: filterFreq
+    type: number
+    min: 280
+    max: 720
+    unit: Hz
+    default: 450
+    overrides:
+    - target: filter.frequency
+  - name: purrRate
+    type: number
+    min: 14
+    max: 40
+    unit: Hz
+    default: 24
+    overrides:
+    - target: mix.automation.gain.0.rate
+  - name: purrDepth
+    type: number
+    min: 0.1
+    max: 0.45
+    unit: amplitude
+    default: 0.3
+    overrides:
+    - target: mix.automation.gain.0.depth
+  - name: attack
+    type: number
+    min: 0.03
+    max: 0.15
+    unit: s
+    default: 0.08
+    overrides:
+    - target: env.attack
+  - name: decay
+    type: number
+    min: 0.3
+    max: 0.6
+    unit: s
+    default: 0.45
+    overrides:
+    - target: env.decay
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 90
+  noise:
+    kind: noise
+    params:
+      color: pink
+      level: 0.3
+  filter:
+    kind: biquadFilter
+    params:
+      type: lowpass
+      frequency: 450
+      Q: 1
+  mix:
+    kind: gain
+    params:
+      gain: 0.5
+    automation:
+      gain:
+      - kind: lfo
+        rate: 24
+        depth: 0.3
+        offset: 0.5
+        start: 0
+        end: 0.53
+        step: 0.005
+        wave: sine
+  env:
+    kind: envelope
+    params:
+      attack: 0.08
+      decay: 0.45
+      sustain: 0.0
+      release: 0.0
+  out:
+    kind: destination
+routing:
+- chain:
+  - osc
+  - mix
+- chain:
+  - noise
+  - filter
+  - mix
+- chain:
+  - mix
+  - env
+  - out

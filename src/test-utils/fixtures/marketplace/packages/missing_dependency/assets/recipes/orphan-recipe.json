@@ -1,0 +1,1 @@
+{ "kind": "recipe", "name": "orphan-recipe", "seed": 1, "duration": 0.4, "voices": ["sine"] }

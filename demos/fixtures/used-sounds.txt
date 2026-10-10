@@ -1,0 +1,9 @@
+card-flip
+card-slide
+card-place
+card-draw
+card-shuffle
+card-success
+card-failure
+card-victory-fanfare
+card-defeat-sting

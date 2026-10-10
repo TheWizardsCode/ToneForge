@@ -1,0 +1,81 @@
+# Tier 5 — Character & critter voices (filter sweep)
+# Blob squish.
+
+version: '0.1'
+meta:
+  name: creature-blob-squish
+  description: Blob squish
+  category: Creature
+  tags:
+  - casual
+  - fun
+  - creature
+  duration: 0.32
+  parameters:
+  - name: startFreq
+    type: number
+    min: 500
+    max: 1300
+    unit: Hz
+    default: 900
+    overrides:
+    - target: filter.automation.frequency.0.value
+  - name: endFreq
+    type: number
+    min: 100
+    max: 320
+    unit: Hz
+    default: 180
+    overrides:
+    - target: filter.automation.frequency.1.value
+  - name: attack
+    type: number
+    min: 0.001
+    max: 0.02
+    unit: s
+    default: 0.004
+    overrides:
+    - target: env.attack
+  - name: decay
+    type: number
+    min: 0.1
+    max: 0.3
+    unit: s
+    default: 0.2
+    overrides:
+    - target: env.decay
+nodes:
+  noise:
+    kind: noise
+    params:
+      color: pink
+      level: 1
+  filter:
+    kind: biquadFilter
+    params:
+      type: lowpass
+      frequency: 900
+      Q: 6
+    automation:
+      frequency:
+      - kind: set
+        time: 0.0
+        value: 900
+      - kind: exponentialRamp
+        time: 0.2
+        value: 180
+  env:
+    kind: envelope
+    params:
+      attack: 0.004
+      decay: 0.2
+      sustain: 0.0
+      release: 0.0
+  out:
+    kind: destination
+routing:
+- chain:
+  - noise
+  - filter
+  - env
+  - out

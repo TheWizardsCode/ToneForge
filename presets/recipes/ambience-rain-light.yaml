@@ -1,0 +1,73 @@
+# Tier 6 — Ambience & loops (high-frequency noise bed)
+# Light rain ambience.
+
+version: '0.1'
+meta:
+  name: ambience-rain-light
+  description: Light rain ambience
+  category: Ambience
+  tags:
+  - casual
+  - joy
+  - ambience
+  duration: 1.5
+  parameters:
+  - name: filterFreq
+    type: number
+    min: 1800
+    max: 4800
+    unit: Hz
+    default: 3000
+    overrides:
+    - target: filter.frequency
+  - name: noiseLevel
+    type: number
+    min: 0.4
+    max: 0.9
+    unit: amplitude
+    default: 0.7
+    overrides:
+    - target: noise.level
+  - name: attack
+    type: number
+    min: 0.1
+    max: 0.4
+    unit: s
+    default: 0.25
+    overrides:
+    - target: env.attack
+  - name: release
+    type: number
+    min: 0.2
+    max: 0.5
+    unit: s
+    default: 0.4
+    overrides:
+    - target: env.release
+nodes:
+  noise:
+    kind: noise
+    params:
+      color: white
+      level: 0.7
+  filter:
+    kind: biquadFilter
+    params:
+      type: highpass
+      frequency: 3000
+      Q: 0.5
+  env:
+    kind: envelope
+    params:
+      attack: 0.25
+      decay: 0.45
+      sustain: 0.8
+      release: 0.4
+  out:
+    kind: destination
+routing:
+- chain:
+  - noise
+  - filter
+  - env
+  - out

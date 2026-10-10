@@ -1,0 +1,104 @@
+# Tier 6 — Ambience & loops (tonal + noise bed)
+# Daytime meadow ambience.
+
+version: '0.1'
+meta:
+  name: ambience-meadow-day
+  description: Daytime meadow ambience
+  category: Ambience
+  tags:
+  - casual
+  - joy
+  - ambience
+  duration: 2.4
+  parameters:
+  - name: toneFreq
+    type: number
+    min: 380
+    max: 720
+    unit: Hz
+    default: 520
+    overrides:
+    - target: osc.frequency
+  - name: noiseLevel
+    type: number
+    min: 0.15
+    max: 0.6
+    unit: amplitude
+    default: 0.35
+    overrides:
+    - target: noise.level
+  - name: filterFreq
+    type: number
+    min: 800
+    max: 1800
+    unit: Hz
+    default: 1200
+    overrides:
+    - target: filter.frequency
+  - name: attack
+    type: number
+    min: 0.15
+    max: 0.5
+    unit: s
+    default: 0.4
+    overrides:
+    - target: env.attack
+  - name: decay
+    type: number
+    min: 0.25
+    max: 0.7
+    unit: s
+    default: 0.6
+    overrides:
+    - target: env.decay
+  - name: release
+    type: number
+    min: 0.2
+    max: 0.6
+    unit: s
+    default: 0.5
+    overrides:
+    - target: env.release
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 520
+  noise:
+    kind: noise
+    params:
+      color: pink
+      level: 0.35
+  filter:
+    kind: biquadFilter
+    params:
+      type: bandpass
+      frequency: 1200
+      Q: 1.2
+  mix:
+    kind: gain
+    params:
+      gain: 0.6
+  env:
+    kind: envelope
+    params:
+      attack: 0.4
+      decay: 0.6
+      sustain: 0.72
+      release: 0.5
+  out:
+    kind: destination
+routing:
+- chain:
+  - osc
+  - mix
+- chain:
+  - noise
+  - filter
+  - mix
+- chain:
+  - mix
+  - env
+  - out

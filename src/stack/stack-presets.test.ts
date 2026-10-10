@@ -8,10 +8,12 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { readdirSync } from "node:fs";
-import { resolve, dirname } from "node:path";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadPreset } from "./preset-loader.js";
+import { listPresetFiles } from "../sequence/preset-discovery.js";
 import { renderStack } from "./renderer.js";
 import { compareBuffers, formatCompareResult } from "../test-utils/buffer-compare.js";
 
@@ -19,11 +21,15 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const STACKS_DIR = resolve(__dirname, "../../presets/stacks");
 const GOLDEN_SEED = 42;
 
-/** Discover all preset files in presets/stacks/. */
-function discoverStackPresets(): string[] {
-  return readdirSync(STACKS_DIR)
-    .filter((f) => f.endsWith(".json"))
-    .sort();
+/**
+ * Discover all preset files in `dir` (defaults to presets/stacks/).
+ *
+ * Delegates to the shared `listPresetFiles()` helper so `__`-prefixed test
+ * artefacts are never discovered — a leaked/in-flight fixture cannot register
+ * an `it.each` case for this harness.
+ */
+function discoverStackPresets(dir: string = STACKS_DIR): string[] {
+  return listPresetFiles(dir);
 }
 
 // ── Load and Schema Tests ─────────────────────────────────────────
@@ -44,6 +50,27 @@ describe("stack presets — load and schema validation", () => {
       if (layer.gain !== undefined) {
         expect(layer.gain).toBeGreaterThanOrEqual(0);
       }
+    }
+  });
+});
+
+// ── Discovery Isolation Regression Tests ─────────────────────────
+
+describe("stack presets — discovery excludes test artefacts", () => {
+  it("a __-prefixed malformed JSON in a preset directory yields no it.each case", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "toneforge-stack-discovery-"));
+    try {
+      await writeFile(join(dir, "real.json"), "{}");
+      const malformed = join(dir, "__malformed_test__.json");
+      await writeFile(malformed, "{ this is not valid json");
+
+      // The artefact is genuinely unparseable, so discovering it would fail...
+      await expect(loadPreset(malformed)).rejects.toThrow();
+
+      // ...but discovery ignores it, so no `it.each` case is registered for it.
+      expect(discoverStackPresets(dir)).toEqual(["real.json"]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
     }
   });
 });

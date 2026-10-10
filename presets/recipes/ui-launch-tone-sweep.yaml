@@ -1,0 +1,63 @@
+# Tier 2 — Shaped events (envelope + pitch movement)
+# Launch tone with an upward sweep — linear pitch contour from 200 Hz to 1000 Hz.
+
+version: "0.1"
+meta:
+  name: ui-launch-tone-sweep
+  description: Launch tone with an upward sweep
+  category: UI
+  tags:
+    - casual
+    - joy
+    - ui
+  duration: 0.7
+  parameters:
+    - name: startFreq
+      type: number
+      min: 120
+      max: 320
+      unit: Hz
+      default: 200
+    - name: endFreq
+      type: number
+      min: 600
+      max: 1600
+      unit: Hz
+      default: 1000
+    - name: attack
+      type: number
+      min: 0.001
+      max: 0.03
+      unit: s
+      default: 0.01
+    - name: decay
+      type: number
+      min: 0.03
+      max: 0.4
+      unit: s
+      default: 0.35
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 200
+    automation:
+      frequency:
+        - kind: set
+          time: 0
+          value: 200
+        - kind: linearRamp
+          time: 0.3
+          value: 1000
+  env:
+    kind: envelope
+    params:
+      attack: 0.01
+      decay: 0.35
+      sustain: 0
+      release: 0
+  out:
+    kind: destination
+routing:
+  - chain: [osc, env, out]

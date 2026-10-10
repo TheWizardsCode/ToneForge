@@ -1,0 +1,100 @@
+# Tier 7 — Multi-voice stings
+# Short finale sting (self-contained 2–3 voices, no stack required).
+
+version: '0.1'
+meta:
+  name: sting-finale-short
+  description: Short finale sting
+  category: Sting
+  tags:
+  - casual
+  - fun
+  - sting
+  duration: 0.715
+  parameters:
+  - name: noteLow
+    type: number
+    min: 420
+    max: 640
+    unit: Hz
+    default: 523
+    overrides:
+    - target: lead.automation.frequency.0.value
+  - name: noteHigh
+    type: number
+    min: 880
+    max: 1300
+    unit: Hz
+    default: 1047
+    overrides:
+    - target: lead.automation.frequency.2.value
+  - name: bassFreq
+    type: number
+    min: 200
+    max: 340
+    unit: Hz
+    default: 262
+    overrides:
+    - target: bass.frequency
+  - name: attack
+    type: number
+    min: 0.002
+    max: 0.015
+    unit: s
+    default: 0.004
+    overrides:
+    - target: env.attack
+  - name: decay
+    type: number
+    min: 0.2
+    max: 0.5
+    unit: s
+    default: 0.38
+    overrides:
+    - target: env.decay
+nodes:
+  lead:
+    kind: oscillator
+    params:
+      type: triangle
+      frequency: 523
+    automation:
+      frequency:
+      - kind: set
+        time: 0
+        value: 523
+      - kind: set
+        time: 0.1
+        value: 784
+      - kind: linearRamp
+        time: 0.2
+        value: 1047
+  bass:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 262
+  mix:
+    kind: gain
+    params:
+      gain: 0.32
+  env:
+    kind: envelope
+    params:
+      attack: 0.004
+      decay: 0.38
+      sustain: 0.0
+      release: 0.0
+  out:
+    kind: destination
+routing:
+- chain:
+  - lead
+  - mix
+- chain:
+  - bass
+  - mix
+- chain:
+  - mix
+  - env
+  - out

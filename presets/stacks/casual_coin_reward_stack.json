@@ -1,0 +1,22 @@
+{
+  "version": "1.0",
+  "name": "casual_coin_reward_stack",
+  "description": "Casual coin reward stack: a bright pickup tick, an arcing coin contour and a coin-chain jingle that together celebrate a reward.",
+  "layers": [
+    {
+      "recipe": "collect-pickup-coin",
+      "startTime": 0.0,
+      "gain": 0.9
+    },
+    {
+      "recipe": "collect-coin-arc",
+      "startTime": 0.06,
+      "gain": 0.8
+    },
+    {
+      "recipe": "jingle-coin-chain",
+      "startTime": 0.18,
+      "gain": 0.7
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+# Tier 2 — Shaped events (envelope + pitch movement)
+# Rising confirmation tone — linear pitch contour from 500 Hz to 900 Hz.
+
+version: "0.1"
+meta:
+  name: ui-confirm-rise
+  description: Rising confirmation tone
+  category: UI
+  tags:
+    - casual
+    - joy
+    - ui
+  duration: 0.3
+  parameters:
+    - name: startFreq
+      type: number
+      min: 300
+      max: 800
+      unit: Hz
+      default: 500
+    - name: endFreq
+      type: number
+      min: 540
+      max: 1440
+      unit: Hz
+      default: 900
+    - name: attack
+      type: number
+      min: 0.001
+      max: 0.03
+      unit: s
+      default: 0.005
+    - name: decay
+      type: number
+      min: 0.03
+      max: 0.4
+      unit: s
+      default: 0.15
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: sine
+      frequency: 500
+    automation:
+      frequency:
+        - kind: set
+          time: 0
+          value: 500
+        - kind: linearRamp
+          time: 0.1
+          value: 900
+  env:
+    kind: envelope
+    params:
+      attack: 0.005
+      decay: 0.15
+      sustain: 0
+      release: 0
+  out:
+    kind: destination
+routing:
+  - chain: [osc, env, out]

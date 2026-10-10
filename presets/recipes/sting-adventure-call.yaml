@@ -1,0 +1,97 @@
+# Tier 7 — Multi-voice stings
+# Adventure-call sting (self-contained 2–3 voices, no stack required).
+
+version: '0.1'
+meta:
+  name: sting-adventure-call
+  description: Adventure-call sting
+  category: Sting
+  tags:
+  - casual
+  - joy
+  - sting
+  duration: 0.93
+  parameters:
+  - name: voice1
+    type: number
+    min: 300
+    max: 520
+    unit: Hz
+    default: 392
+    overrides:
+    - target: v1.frequency
+  - name: voice2
+    type: number
+    min: 420
+    max: 640
+    unit: Hz
+    default: 523
+    overrides:
+    - target: v2.frequency
+  - name: voice3
+    type: number
+    min: 540
+    max: 800
+    unit: Hz
+    default: 659
+    overrides:
+    - target: v3.frequency
+  - name: attack
+    type: number
+    min: 0.005
+    max: 0.03
+    unit: s
+    default: 0.01
+    overrides:
+    - target: env.attack
+  - name: decay
+    type: number
+    min: 0.3
+    max: 0.7
+    unit: s
+    default: 0.55
+    overrides:
+    - target: env.decay
+nodes:
+  v1:
+    kind: oscillator
+    params:
+      type: triangle
+      frequency: 392
+  v2:
+    kind: oscillator
+    params:
+      type: triangle
+      frequency: 523
+  v3:
+    kind: oscillator
+    params:
+      type: triangle
+      frequency: 659
+  mix:
+    kind: gain
+    params:
+      gain: 0.32
+  env:
+    kind: envelope
+    params:
+      attack: 0.01
+      decay: 0.55
+      sustain: 0.0
+      release: 0.0
+  out:
+    kind: destination
+routing:
+- chain:
+  - v1
+  - mix
+- chain:
+  - v2
+  - mix
+- chain:
+  - v3
+  - mix
+- chain:
+  - mix
+  - env
+  - out

@@ -1,0 +1,6 @@
+{
+  "target": "web",
+  "maxVoices": 32,
+  "bake": { "category": ["Impact", "Creature"], "durationAbove": 2.0 },
+  "hybrid": { "durationAbove": 1.0 }
+}
