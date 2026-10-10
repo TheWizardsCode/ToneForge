@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.1.3 (2026-10-10)
+> **Release focus:** This release focuses on expanding procedural audio capabilities, including browser playback, state-reactive sound, reproducible parameter display, and a library of 100 new ready-made sounds. It also improves remote demo connectivity, adds tooling for finding unused sounds, and includes several test and stability fixes.
+### Features
+- Procedural audio can now play directly in browsers, enabling richer sound without pre-baked files. (TF-0MUUB39EL000YCT0)
+- Hear the runtime react to changing states and contexts with real, audible sound. (TF-0MUXW66870013DOL)
+- Generated sounds now show the parameter values used, so you can reproduce or tweak them. (TF-0MUYMTMVT001U573)
+- Explore 100 new ready-made sounds, from simple blips to layered musical stings, each with a guide. (TF-0MUY9H7QZ000UX5W)
+- Remote demo terminals now connect from other devices without extra setup. (TF-0MV1GGPSY00773DT)
+- Easily find unused sounds for your project with a new automated reporting script and demo. (TF-0MLYUG79Y1KMDPMI)
+- Runtime features are now organized and prioritized so upcoming demos can be delivered in the right order. (TF-0MM4OWRQ70IWEKZ2)
+### Bug Fixes
+- Recipe book entries now display in the intended order and are properly verified. (TF-0MUYJT9PP004JMV7)
+- Fixes a flaky test so builds and updates aren't blocked by false failures. (TF-0MUYH7MUN000AQX1)
+- Audio rendering now fails with a clear message instead of crashing under heavy system load. (TF-0MUWLQ8SS0006C9J)
+- Fixed a test issue that could cause unrelated tests to fail. (TF-0MUWLVVMX003ZXVP)
+
 ## v0.1.2 (2026-10-06)
 > **Release focus:** This release focuses on making the sound design system more flexible and reliable, letting you shape sounds with interactive controls, save and reuse custom recipes without rebuilding the game, and add recipes from any file location. It also adds smooth pitch sweeps for effects, network playtesting, and preset browsing, alongside fixes for audio glitches, session saving, and automated tests.
 ### Features
