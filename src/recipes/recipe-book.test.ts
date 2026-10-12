@@ -24,6 +24,7 @@ import { registry } from "./index.js";
 import { recipeRoster, type RosterEntry } from "./recipe-book/roster.js";
 import { compareBuffers } from "../test-utils/buffer-compare.js";
 import { main } from "../cli.js";
+import { FRAMEWORK_COMMANDS } from "../cli.yargs.js";
 import {
   buildCliBlock,
   cliBlockStartMarker,
@@ -749,5 +750,68 @@ describe("Recipe Book link integrity", () => {
       }
     }
     expect(broken, "Broken local relative links:\n" + broken.join("\n")).toEqual([]);
+  });
+});
+
+// ── Documented CLI commands ──────────────────────────────────────────────────
+
+/**
+ * Every command line in the book that begins with `toneforge`, deduplicated.
+ * Lines are taken verbatim from the pages (`## ToneForge CLI` blocks and the
+ * index's Working with the CLI section); the `<command> --help` placeholder is
+ * skipped because it is prose, not a concrete command.
+ */
+function documentedCliCommands(): string[] {
+  const commands = new Set<string>();
+  for (const page of BOOK_PAGES) {
+    const content = readFileSync(resolve(DOCS_DIR, page), "utf-8");
+    for (const rawLine of content.split("\n")) {
+      const line = rawLine.trim();
+      if (!line.startsWith("toneforge ")) continue;
+      if (line.includes("<")) continue;
+      commands.add(line);
+    }
+  }
+  return [...commands].sort();
+}
+
+/**
+ * The book is a reference: every command it documents must be one the CLI
+ * actually accepts. Each documented line is checked against the real CLI by
+ * running its `--help`, which proves the top-level command exists and that
+ * every `--flag` on the line is advertised. A renamed command, a dropped flag
+ * or a typo therefore fails the suite instead of reaching a reader.
+ */
+describe("Documented CLI commands", () => {
+  it("documents only commands and flags the CLI accepts", async () => {
+    const commands = documentedCliCommands();
+    expect(commands.length).toBeGreaterThan(100);
+
+    const failures: string[] = [];
+    for (const line of commands) {
+      const tokens = line.split(/\s+/);
+      const verb = tokens[1]!;
+      if (!FRAMEWORK_COMMANDS.includes(verb)) {
+        failures.push(line + " -> unknown command '" + verb + "'");
+        continue;
+      }
+
+      const stdout = await captureStdout(() => main(argv(...tokens.slice(1), "--help")));
+      if (!stdout.includes("# ToneForge " + verb)) {
+        failures.push(line + " -> `toneforge " + verb + " --help` printed no usage");
+        continue;
+      }
+      for (const token of tokens.slice(1)) {
+        if (!token.startsWith("--")) continue;
+        if (!stdout.includes(token)) {
+          failures.push(line + " -> flag '" + token + "' is not accepted");
+        }
+      }
+    }
+
+    expect(
+      failures,
+      "Documented commands or flags the CLI does not accept:\n" + failures.join("\n"),
+    ).toEqual([]);
   });
 });
