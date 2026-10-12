@@ -146,3 +146,72 @@ Ten capstone arrangements composed from the recipes above using `toneforge stack
 9. [`casual_game_over_sequence`](./casual_game_over_sequence.md) — Casual game over: a soft defeat sting, a gentle game-over sting and a falling cancel tone that end a run kindly.
 10. [`casual_adventure_intro_sequence`](./casual_adventure_intro_sequence.md) — Casual adventure intro: an adventure-call sting, a short start-game fanfare and an air swish launching a new journey.
 
+## Working with the CLI
+
+Every recipe in this book is reachable from the `toneforge` CLI. The three
+subsections below cover the whole loop — **find** a sound, **evaluate** it
+and **understand how it was created**. Each command is copy-pasteable; run
+`toneforge <command> --help` for the full option list.
+
+### Find a sound
+
+```bash
+# Search names, descriptions, categories and tags
+toneforge list recipes --search coin
+
+# Narrow by category or by tags (filters combine with AND)
+toneforge list recipes --category Collect
+toneforge list recipes --tags casual,fun
+
+# Machine-readable output for scripts
+toneforge list recipes --tags casual --json
+
+# Inspect one recipe's metadata and parameters
+toneforge show blip-sine-ping
+
+# Browse the curated library
+toneforge library list --json
+toneforge library search --category Collect --json
+```
+
+### Evaluate a sound
+
+```bash
+# Render a deterministic WAV at a fixed seed
+toneforge generate --recipe blip-sine-ping --seed 42 --output blip-sine-ping.wav
+
+# Listen to the rendered file
+toneforge play blip-sine-ping.wav
+
+# Measure and then label the audio
+toneforge analyze --input blip-sine-ping.wav --json
+toneforge classify --input blip-sine-ping.wav --json
+
+# Explore seed-space variations, visualise, or curate interactively
+toneforge explore sweep --recipe blip-sine-ping --seed-range 0:19 --json
+toneforge visualize export --recipe blip-sine-ping --seed 42 --output viz/
+toneforge tui
+```
+
+### Understand how a sound was created
+
+```bash
+# Read the recipe's generation metadata
+toneforge show blip-sine-ping
+```
+
+Every page in this book carries a `## Sound design` section that explains the
+synthesis. The underlying graphs live in
+[`presets/recipes/`](../../presets/recipes/) and are described by the
+[ToneGraph schema](../tonegraph.md) and the
+[Sound Module Index](../modules/index.md).
+
+Layered arrangements use the same workflow. Inspect the capstone stack
+[`casual_ui_confirm_stack`](./casual_ui_confirm_stack.md) and the sequence
+[`casual_menu_flow_sequence`](./casual_menu_flow_sequence.md):
+
+```bash
+toneforge stack inspect --preset presets/stacks/casual_ui_confirm_stack.json
+toneforge sequence simulate --preset presets/sequences/casual_menu_flow_sequence.json --seed 42
+```
+

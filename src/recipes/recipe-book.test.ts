@@ -34,6 +34,11 @@ import {
   capstoneCliBlockStartMarker,
   capstoneKind,
 } from "../../scripts/recipe-book/generate-capstones.js";
+import {
+  renderIndexContent,
+  CLI_WORKFLOW_SECTION_HEADING,
+  CLI_WORKFLOW_EXAMPLES,
+} from "../../scripts/recipe-book/generate-index.js";
 
 /** The ten capstone arrangement pages that follow the 100 recipes. */
 const CAPSTONE_PAGES = [
@@ -608,6 +613,63 @@ describe("Recipe Book completion gate", () => {
         metadataValue(content, "Default duration"),
         page + " is missing a Default duration field",
       ).toBeTruthy();
+    }
+  });
+});
+
+// ── Working with the CLI section ─────────────────────────────────────────────
+
+/**
+ * The generated Working with the CLI section is the index's how-to guide. It
+ * must be present, survive regeneration byte-for-byte, and only reference
+ * recipe / stack / sequence names that actually resolve (registry or presets/).
+ */
+describe("Working with the CLI section", () => {
+  it("exists in the generated index and survives regeneration byte-for-byte", () => {
+    const content = readFileSync(INDEX_PATH, "utf-8");
+    expect(content).toContain(CLI_WORKFLOW_SECTION_HEADING);
+    expect(content).toBe(renderIndexContent());
+  });
+
+  it("references every example recipe / stack / sequence name", () => {
+    const content = readFileSync(INDEX_PATH, "utf-8");
+    const referenced: string[] = [
+      ...CLI_WORKFLOW_EXAMPLES.recipes,
+      ...CLI_WORKFLOW_EXAMPLES.stacks,
+      ...CLI_WORKFLOW_EXAMPLES.sequences,
+    ];
+    expect(referenced.length).toBeGreaterThan(0);
+    for (const name of referenced) {
+      expect(
+        content,
+        "Working with the CLI section must reference " + name,
+      ).toContain(name);
+    }
+  });
+
+  it("resolves every referenced recipe name via the registry or presets/", () => {
+    for (const name of CLI_WORKFLOW_EXAMPLES.recipes) {
+      const registered = registry.getRegistration(name) !== undefined;
+      const preset = existsSync(resolve(RECIPES_DIR, name + ".yaml"));
+      expect(
+        registered || preset,
+        "Referenced recipe " + name + " must be registered or have a preset",
+      ).toBe(true);
+    }
+  });
+
+  it("resolves every referenced stack and sequence name via presets/", () => {
+    for (const name of CLI_WORKFLOW_EXAMPLES.stacks) {
+      expect(
+        existsSync(resolve(ROOT, "presets", "stacks", name + ".json")),
+        "Referenced stack " + name + " must have a preset",
+      ).toBe(true);
+    }
+    for (const name of CLI_WORKFLOW_EXAMPLES.sequences) {
+      expect(
+        existsSync(resolve(ROOT, "presets", "sequences", name + ".json")),
+        "Referenced sequence " + name + " must have a preset",
+      ).toBe(true);
     }
   });
 });
