@@ -44,6 +44,7 @@ With a fixed seed the whole arrangement renders byte-identical audio on every pl
 
 ## ToneForge CLI
 
+<!-- CLI_BLOCK_START — regenerate with: tsx scripts/recipe-book/generate-capstones.ts casual_level_complete_sequence -->
 ```bash
 # Simulate the event schedule
 toneforge sequence simulate --preset presets/sequences/casual_level_complete_sequence.json --seed 42
@@ -56,6 +57,7 @@ toneforge sequence generate --preset presets/sequences/casual_level_complete_seq
 # List every sequence preset
 toneforge list sequences
 ```
+<!-- CLI_BLOCK_END -->
 
 ## See also
 

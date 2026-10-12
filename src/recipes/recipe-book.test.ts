@@ -12,8 +12,9 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { readFileSync, readdirSync, existsSync } from "node:fs";
-import { resolve, dirname } from "node:path";
+import { readFileSync, readdirSync, existsSync, mkdtempSync, rmSync } from "node:fs";
+import { resolve, dirname, join } from "node:path";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
 
@@ -28,6 +29,11 @@ import {
   cliBlockStartMarker,
   CLI_BLOCK_END,
 } from "../../scripts/recipe-book/generate-cli-blocks.js";
+import {
+  buildCapstoneCliBlock,
+  capstoneCliBlockStartMarker,
+  capstoneKind,
+} from "../../scripts/recipe-book/generate-capstones.js";
 
 /** The ten capstone arrangement pages that follow the 100 recipes. */
 const CAPSTONE_PAGES = [
@@ -42,6 +48,10 @@ const CAPSTONE_PAGES = [
   "casual_game_over_sequence",
   "casual_adventure_intro_sequence",
 ];
+
+/** The five capstone stacks and five capstone sequences, split by page kind. */
+const CAPSTONE_STACKS = CAPSTONE_PAGES.filter((n) => n.endsWith("_stack"));
+const CAPSTONE_SEQUENCES = CAPSTONE_PAGES.filter((n) => n.endsWith("_sequence"));
 
 /** Build a fake argv as if invoked via `node cli.ts <...args>`. */
 function argv(...args: string[]): string[] {
@@ -193,6 +203,34 @@ function expectCliBlockFresh(name: string): void {
   ).toBe(buildCliBlock(name).trim());
 }
 
+/**
+ * Assert a capstone page carries the named CLI_BLOCK markers and that the
+ * commands between them match the generator's canonical block byte-for-byte.
+ * Editing a committed capstone block by hand (or leaving a stale generator
+ * output) fails here, so the ten capstone pages cannot drift.
+ */
+function expectCapstoneCliBlockFresh(name: string): void {
+  const pagePath = resolve(DOCS_DIR, name + ".md");
+  expect(existsSync(pagePath), "Capstone page " + pagePath + " does not exist").toBe(true);
+  const content = readFileSync(pagePath, "utf-8");
+  const markerStart = capstoneCliBlockStartMarker(name);
+  const startIdx = content.indexOf(markerStart);
+  const endIdx = content.indexOf(CLI_BLOCK_END);
+  expect(startIdx, name + " is missing the capstone CLI_BLOCK_START marker").toBeGreaterThan(-1);
+  expect(endIdx, name + " is missing the capstone CLI_BLOCK_END marker").toBeGreaterThan(startIdx);
+
+  const kind = capstoneKind(name);
+  expect(kind, name + " is not a known capstone arrangement").toBeDefined();
+  if (kind === undefined) return;
+
+  const committed = content.slice(startIdx + markerStart.length, endIdx).trim();
+  expect(
+    committed,
+    name +
+      " capstone CLI block is stale; regenerate it with scripts/recipe-book/generate-capstones.ts",
+  ).toBe(buildCapstoneCliBlock(name, kind).trim());
+}
+
 // ── Tests ────────────────────────────────────────────────────────────────────
 
 describe("Recipe Book Roster", () => {
@@ -303,6 +341,120 @@ describe("Recipe Book Gates", () => {
       });
     });
   }
+});
+
+describe("Capstone CLI block freshness", () => {
+  for (const name of CAPSTONE_PAGES) {
+    it(name + " has a fresh CLI block between machine-readable markers", () => {
+      expectCapstoneCliBlockFresh(name);
+    });
+  }
+
+  it("emits the named CLI_BLOCK_START marker with an actionable regeneration hint", () => {
+    for (const name of CAPSTONE_PAGES) {
+      const content = readFileSync(resolve(DOCS_DIR, name + ".md"), "utf-8");
+      expect(
+        content,
+        name + " must carry the named CLI_BLOCK_START marker",
+      ).toContain(capstoneCliBlockStartMarker(name));
+    }
+  });
+});
+
+describe("Capstone CLI commands", () => {
+  it("runs `toneforge stack inspect` for every capstone stack", async () => {
+    for (const name of CAPSTONE_STACKS) {
+      const stdout = await captureStdout(() =>
+        main(argv("stack", "inspect", "--preset", `presets/stacks/${name}.json`, "--json")),
+      );
+      const data = JSON.parse(stdout) as { command?: string; name?: string };
+      expect(data.command, name + " should inspect as a stack").toBe("stack inspect");
+      expect(data.name, name + " inspect returned the wrong preset").toBe(name);
+    }
+  });
+
+  it("runs `toneforge sequence simulate` for every capstone sequence", async () => {
+    for (const name of CAPSTONE_SEQUENCES) {
+      const stdout = await captureStdout(() =>
+        main(
+          argv(
+            "sequence",
+            "simulate",
+            "--preset",
+            `presets/sequences/${name}.json`,
+            "--seed",
+            "42",
+            "--json",
+          ),
+        ),
+      );
+      const data = JSON.parse(stdout) as { name?: string };
+      expect(data.name, name + " simulate returned the wrong preset").toBe(name);
+    }
+  });
+
+  it("runs `toneforge list stacks` and `toneforge list sequences`", async () => {
+    const stacksStdout = await captureStdout(() => main(argv("list", "stacks", "--json")));
+    const stacks = JSON.parse(stacksStdout) as { command?: string; resource?: string };
+    expect(stacks.command).toBe("list");
+    expect(stacks.resource).toBe("stacks");
+
+    const sequencesStdout = await captureStdout(() => main(argv("list", "sequences", "--json")));
+    const sequences = JSON.parse(sequencesStdout) as { command?: string; resource?: string };
+    expect(sequences.command).toBe("list");
+    expect(sequences.resource).toBe("sequences");
+  });
+
+  it("renders a capstone stack and sequence to temporary WAV files", async () => {
+    const outDir = mkdtempSync(join(tmpdir(), "tf-capstone-"));
+    try {
+      const stackName = CAPSTONE_STACKS[0]!;
+      const stackOut = join(outDir, stackName + ".wav");
+      let stackCode = -1;
+      await captureStdout(async () => {
+        stackCode = await main(
+          argv(
+            "stack",
+            "render",
+            "--preset",
+            `presets/stacks/${stackName}.json`,
+            "--seed",
+            "42",
+            "--output",
+            stackOut,
+            "--json",
+          ),
+        );
+        return stackCode;
+      });
+      expect(stackCode, "`toneforge stack render` should exit 0").toBe(0);
+      expect(existsSync(stackOut), "stack render should write the WAV").toBe(true);
+
+      const seqName = CAPSTONE_SEQUENCES[0]!;
+      const seqOut = join(outDir, seqName + ".wav");
+      let seqCode = -1;
+      await captureStdout(async () => {
+        seqCode = await main(
+          argv(
+            "sequence",
+            "generate",
+            "--preset",
+            `presets/sequences/${seqName}.json`,
+            "--seed",
+            "42",
+            "--output",
+            seqOut,
+            "--json",
+          ),
+        );
+        return seqCode;
+      });
+      expect(seqCode, "`toneforge sequence generate` should exit 0").toBe(0);
+      expect(existsSync(seqOut), "sequence generate should write the WAV").toBe(true);
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("Recipe Book completion gate", () => {

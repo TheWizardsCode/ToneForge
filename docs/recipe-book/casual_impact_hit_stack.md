@@ -44,6 +44,7 @@ With a fixed seed the whole arrangement renders byte-identical audio on every pl
 
 ## ToneForge CLI
 
+<!-- CLI_BLOCK_START — regenerate with: tsx scripts/recipe-book/generate-capstones.ts casual_impact_hit_stack -->
 ```bash
 # Inspect the layered structure
 toneforge stack inspect --preset presets/stacks/casual_impact_hit_stack.json
@@ -56,6 +57,7 @@ toneforge stack render --preset presets/stacks/casual_impact_hit_stack.json --se
 # List every stack preset
 toneforge list stacks
 ```
+<!-- CLI_BLOCK_END -->
 
 ## See also
 

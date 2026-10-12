@@ -20,12 +20,13 @@
 
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   loadRecipeMeta,
   defaultFrequencyHz,
   formatDuration,
 } from "./recipe-meta.js";
+import { CLI_BLOCK_END } from "./generate-cli-blocks.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..", "..");
@@ -51,9 +52,11 @@ interface PresetJson {
   events?: SequenceEvent[];
 }
 
+export type CapstoneKind = "stack" | "sequence";
+
 interface CapstoneSpec {
   id: string;
-  kind: "stack" | "sequence";
+  kind: CapstoneKind;
   title: string;
   overview: string;
   synthesis: string;
@@ -217,9 +220,21 @@ function renderStructure(spec: CapstoneSpec, preset: PresetJson): string {
   ].join("\n");
 }
 
-function renderCli(spec: CapstoneSpec): string {
-  if (spec.kind === "stack") {
-    const preset = `presets/stacks/${spec.id}.json`;
+/** Opening marker for a capstone page's CLI block. */
+export function capstoneCliBlockStartMarker(name: string): string {
+  return `<!-- CLI_BLOCK_START — regenerate with: tsx scripts/recipe-book/generate-capstones.ts ${name} -->`;
+}
+
+/**
+ * Build the canonical CLI command block for a capstone page.
+ *
+ * This is the single source of the block text: `renderCli` writes it between
+ * the markers, and `src/recipes/recipe-book.test.ts` regenerates it to prove
+ * the committed block is fresh.
+ */
+export function buildCapstoneCliBlock(name: string, kind: CapstoneKind): string {
+  if (kind === "stack") {
+    const preset = `presets/stacks/${name}.json`;
     return [
       "```bash",
       `# Inspect the layered structure`,
@@ -227,7 +242,7 @@ function renderCli(spec: CapstoneSpec): string {
       "```",
       "```bash",
       `# Render the stack at a fixed seed`,
-      `toneforge stack render --preset ${preset} --seed 42 --output ${spec.id}.wav`,
+      `toneforge stack render --preset ${preset} --seed 42 --output ${name}.wav`,
       "```",
       "```bash",
       `# List every stack preset`,
@@ -235,7 +250,7 @@ function renderCli(spec: CapstoneSpec): string {
       "```",
     ].join("\n");
   }
-  const preset = `presets/sequences/${spec.id}.json`;
+  const preset = `presets/sequences/${name}.json`;
   return [
     "```bash",
     `# Simulate the event schedule`,
@@ -243,12 +258,25 @@ function renderCli(spec: CapstoneSpec): string {
     "```",
     "```bash",
     `# Render the sequence at a fixed seed`,
-    `toneforge sequence generate --preset ${preset} --seed 42 --output ${spec.id}.wav`,
+    `toneforge sequence generate --preset ${preset} --seed 42 --output ${name}.wav`,
     "```",
     "```bash",
     `# List every sequence preset`,
     `toneforge list sequences`,
     "```",
+  ].join("\n");
+}
+
+/** The kind (`stack` or `sequence`) of a capstone page, or `undefined` if unknown. */
+export function capstoneKind(id: string): CapstoneKind | undefined {
+  return CAPSTONES.find((c) => c.id === id)?.kind;
+}
+
+function renderCli(spec: CapstoneSpec): string {
+  return [
+    capstoneCliBlockStartMarker(spec.id),
+    buildCapstoneCliBlock(spec.id, spec.kind),
+    CLI_BLOCK_END,
   ].join("\n");
 }
 
@@ -353,12 +381,24 @@ function renderPage(spec: CapstoneSpec, order: number, preset: PresetJson): stri
   ].join("\n");
 }
 
-let written = 0;
-CAPSTONES.forEach((spec, i) => {
-  const preset = readPreset(spec);
-  const page = renderPage(spec, 101 + i, preset);
-  writeFileSync(resolve(DOCS_DIR, `${spec.id}.md`), page, "utf-8");
-  written++;
-});
+function main(): void {
+  const requested = process.argv.slice(2).filter((a) => !a.startsWith("--"));
+  const wants = (id: string) => requested.length === 0 || requested.includes(id);
+  let written = 0;
+  CAPSTONES.forEach((spec, i) => {
+    if (!wants(spec.id)) return;
+    const preset = readPreset(spec);
+    const page = renderPage(spec, 101 + i, preset);
+    writeFileSync(resolve(DOCS_DIR, `${spec.id}.md`), page, "utf-8");
+    written++;
+  });
 
-console.log(`Generated ${written} capstone page(s).`);
+  console.log(`Generated ${written} capstone page(s).`);
+}
+
+// Only run the generator when this module is executed directly. Importing it
+// (from the recipe-book freshness test) must not rewrite the committed pages.
+const invokedPath = process.argv[1];
+if (invokedPath && import.meta.url === pathToFileURL(resolve(invokedPath)).href) {
+  main();
+}
