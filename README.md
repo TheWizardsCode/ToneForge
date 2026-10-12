@@ -238,6 +238,7 @@ the authoritative specification.
 - [Marketplace usage](docs/guides/marketplace.md) — the `toneforge marketplace` search/install/publish workflow, licensing, provenance and versioning
 - [ToneForge in CI](docs/guides/ci-integration.md) — the `toneforge pipeline` CI workflow
 - [ToneGraph v0.1 Specification](docs/tonegraph.md)
+- [Sound Module Index](docs/modules/index.md) — every ToneGraph sound-node kind grouped by primary function, with use cases and availability.
 - [Casual Game Recipe Book](docs/recipe-book/index.md) — a guided tour of 100 procedural recipes, from single-oscillator blips to layered stings.
 - [Browser Runtime Usage](docs/browser-usage.md)
 - [Mixer Rules](docs/mixer-rules.md)

@@ -248,7 +248,15 @@ export interface ToneGraphDocument {
 
 type UnknownRecord = Record<string, unknown>;
 
-const ALLOWED_NODE_KINDS = new Set<string>([
+/**
+ * The authoritative set of ToneGraph node kinds accepted by the v0.1 loader.
+ *
+ * Exported so documentation-drift guards (for example
+ * `tonegraph-kinds-index.test.ts`) can assert parity with
+ * `docs/modules/index.md` against the real code source of truth rather than a
+ * hand-maintained copy.
+ */
+export const ALLOWED_NODE_KINDS = new Set<string>([
   "destination",
   "gain",
   "oscillator",

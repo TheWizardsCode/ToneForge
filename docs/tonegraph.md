@@ -164,6 +164,10 @@ Rules:
 
 Implementations may internally expand helper kinds, but validators/loaders must support at least the list above.
 
+### See also
+
+- [Sound Module Index](./modules/index.md) — every node kind grouped by primary function, with use-case guidance and availability. This section remains the authoritative parameter reference; the index is for discovery.
+
 ### Kind Parameters
 
 #### `destination`
