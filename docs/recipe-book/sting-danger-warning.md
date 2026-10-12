@@ -48,7 +48,7 @@ toneforge generate --recipe sting-danger-warning --seed 42 --output sting-danger
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe sting-danger-warning
+toneforge show sting-danger-warning
 ```
 ```bash
 # List all recipes, filtered by casual tag

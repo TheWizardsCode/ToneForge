@@ -48,7 +48,7 @@ toneforge generate --recipe sting-boss-appear --seed 42 --output sting-boss-appe
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe sting-boss-appear
+toneforge show sting-boss-appear
 ```
 ```bash
 # List all recipes, filtered by casual tag

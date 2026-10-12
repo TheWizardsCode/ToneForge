@@ -48,7 +48,7 @@ toneforge generate --recipe sting-treasure-found --seed 42 --output sting-treasu
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe sting-treasure-found
+toneforge show sting-treasure-found
 ```
 ```bash
 # List all recipes, filtered by casual tag

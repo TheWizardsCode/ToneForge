@@ -48,7 +48,7 @@ toneforge generate --recipe ui-alien-warble --seed 42 --output ui-alien-warble.w
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe ui-alien-warble
+toneforge show ui-alien-warble
 ```
 ```bash
 # List all recipes, filtered by casual tag

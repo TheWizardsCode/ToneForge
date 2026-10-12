@@ -48,7 +48,7 @@ toneforge generate --recipe blip-square-short --seed 42 --output blip-square-sho
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe blip-square-short
+toneforge show blip-square-short
 ```
 ```bash
 # List all recipes, filtered by casual tag

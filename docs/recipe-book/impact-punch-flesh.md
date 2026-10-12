@@ -48,7 +48,7 @@ toneforge generate --recipe impact-punch-flesh --seed 42 --output impact-punch-f
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe impact-punch-flesh
+toneforge show impact-punch-flesh
 ```
 ```bash
 # List all recipes, filtered by casual tag

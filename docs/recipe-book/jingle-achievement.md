@@ -48,7 +48,7 @@ toneforge generate --recipe jingle-achievement --seed 42 --output jingle-achieve
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe jingle-achievement
+toneforge show jingle-achievement
 ```
 ```bash
 # List all recipes, filtered by casual tag

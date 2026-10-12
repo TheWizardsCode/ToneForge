@@ -48,7 +48,7 @@ toneforge generate --recipe ambience-waterfall-soft --seed 42 --output ambience-
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe ambience-waterfall-soft
+toneforge show ambience-waterfall-soft
 ```
 ```bash
 # List all recipes, filtered by casual tag

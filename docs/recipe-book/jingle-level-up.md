@@ -48,7 +48,7 @@ toneforge generate --recipe jingle-level-up --seed 42 --output jingle-level-up.w
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe jingle-level-up
+toneforge show jingle-level-up
 ```
 ```bash
 # List all recipes, filtered by casual tag

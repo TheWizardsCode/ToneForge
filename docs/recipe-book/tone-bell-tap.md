@@ -48,7 +48,7 @@ toneforge generate --recipe tone-bell-tap --seed 42 --output tone-bell-tap.wav
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe tone-bell-tap
+toneforge show tone-bell-tap
 ```
 ```bash
 # List all recipes, filtered by casual tag

@@ -48,7 +48,7 @@ toneforge generate --recipe whoosh-air-swish --seed 42 --output whoosh-air-swish
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe whoosh-air-swish
+toneforge show whoosh-air-swish
 ```
 ```bash
 # List all recipes, filtered by casual tag

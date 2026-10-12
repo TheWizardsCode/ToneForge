@@ -48,7 +48,7 @@ toneforge generate --recipe explosion-pop-bright --seed 42 --output explosion-po
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe explosion-pop-bright
+toneforge show explosion-pop-bright
 ```
 ```bash
 # List all recipes, filtered by casual tag

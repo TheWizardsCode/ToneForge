@@ -48,7 +48,7 @@ toneforge generate --recipe sting-mystery-reveal --seed 42 --output sting-myster
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe sting-mystery-reveal
+toneforge show sting-mystery-reveal
 ```
 ```bash
 # List all recipes, filtered by casual tag

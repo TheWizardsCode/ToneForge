@@ -48,7 +48,7 @@ toneforge generate --recipe ambience-space-hum --seed 42 --output ambience-space
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe ambience-space-hum
+toneforge show ambience-space-hum
 ```
 ```bash
 # List all recipes, filtered by casual tag

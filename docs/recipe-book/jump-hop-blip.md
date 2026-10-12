@@ -48,7 +48,7 @@ toneforge generate --recipe jump-hop-blip --seed 42 --output jump-hop-blip.wav
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe jump-hop-blip
+toneforge show jump-hop-blip
 ```
 ```bash
 # List all recipes, filtered by casual tag

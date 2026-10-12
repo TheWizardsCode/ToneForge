@@ -48,7 +48,7 @@ toneforge generate --recipe ambience-magic-glow --seed 42 --output ambience-magi
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe ambience-magic-glow
+toneforge show ambience-magic-glow
 ```
 ```bash
 # List all recipes, filtered by casual tag

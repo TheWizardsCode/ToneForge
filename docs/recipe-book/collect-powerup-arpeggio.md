@@ -48,7 +48,7 @@ toneforge generate --recipe collect-powerup-arpeggio --seed 42 --output collect-
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe collect-powerup-arpeggio
+toneforge show collect-powerup-arpeggio
 ```
 ```bash
 # List all recipes, filtered by casual tag

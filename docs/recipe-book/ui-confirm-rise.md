@@ -48,7 +48,7 @@ toneforge generate --recipe ui-confirm-rise --seed 42 --output ui-confirm-rise.w
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe ui-confirm-rise
+toneforge show ui-confirm-rise
 ```
 ```bash
 # List all recipes, filtered by casual tag

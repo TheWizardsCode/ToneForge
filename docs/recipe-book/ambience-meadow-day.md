@@ -48,7 +48,7 @@ toneforge generate --recipe ambience-meadow-day --seed 42 --output ambience-mead
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe ambience-meadow-day
+toneforge show ambience-meadow-day
 ```
 ```bash
 # List all recipes, filtered by casual tag

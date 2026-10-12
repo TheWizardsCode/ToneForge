@@ -48,7 +48,7 @@ toneforge generate --recipe collect-pickup-coin --seed 42 --output collect-picku
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe collect-pickup-coin
+toneforge show collect-pickup-coin
 ```
 ```bash
 # List all recipes, filtered by casual tag

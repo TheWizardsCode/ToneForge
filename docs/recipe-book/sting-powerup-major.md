@@ -48,7 +48,7 @@ toneforge generate --recipe sting-powerup-major --seed 42 --output sting-powerup
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe sting-powerup-major
+toneforge show sting-powerup-major
 ```
 ```bash
 # List all recipes, filtered by casual tag

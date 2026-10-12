@@ -48,7 +48,7 @@ toneforge generate --recipe ui-toggle-on --seed 42 --output ui-toggle-on.wav
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe ui-toggle-on
+toneforge show ui-toggle-on
 ```
 ```bash
 # List all recipes, filtered by casual tag

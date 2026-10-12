@@ -48,7 +48,7 @@ toneforge generate --recipe ambience-forest-breeze --seed 42 --output ambience-f
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe ambience-forest-breeze
+toneforge show ambience-forest-breeze
 ```
 ```bash
 # List all recipes, filtered by casual tag

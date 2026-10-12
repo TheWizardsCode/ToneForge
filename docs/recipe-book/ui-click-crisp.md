@@ -48,7 +48,7 @@ toneforge generate --recipe ui-click-crisp --seed 42 --output ui-click-crisp.wav
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe ui-click-crisp
+toneforge show ui-click-crisp
 ```
 ```bash
 # List all recipes, filtered by casual tag

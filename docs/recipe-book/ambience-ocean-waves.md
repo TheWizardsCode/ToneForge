@@ -48,7 +48,7 @@ toneforge generate --recipe ambience-ocean-waves --seed 42 --output ambience-oce
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe ambience-ocean-waves
+toneforge show ambience-ocean-waves
 ```
 ```bash
 # List all recipes, filtered by casual tag

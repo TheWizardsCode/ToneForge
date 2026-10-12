@@ -48,7 +48,7 @@ toneforge generate --recipe critter-purr-soft --seed 42 --output critter-purr-so
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe critter-purr-soft
+toneforge show critter-purr-soft
 ```
 ```bash
 # List all recipes, filtered by casual tag

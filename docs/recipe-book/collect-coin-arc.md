@@ -48,7 +48,7 @@ toneforge generate --recipe collect-coin-arc --seed 42 --output collect-coin-arc
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe collect-coin-arc
+toneforge show collect-coin-arc
 ```
 ```bash
 # List all recipes, filtered by casual tag

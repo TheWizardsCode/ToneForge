@@ -48,7 +48,7 @@ toneforge generate --recipe ui-select-pop --seed 42 --output ui-select-pop.wav
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe ui-select-pop
+toneforge show ui-select-pop
 ```
 ```bash
 # List all recipes, filtered by casual tag

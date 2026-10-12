@@ -48,7 +48,7 @@ toneforge generate --recipe ui-press-squish --seed 42 --output ui-press-squish.w
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe ui-press-squish
+toneforge show ui-press-squish
 ```
 ```bash
 # List all recipes, filtered by casual tag

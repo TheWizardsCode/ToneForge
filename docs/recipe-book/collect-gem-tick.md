@@ -48,7 +48,7 @@ toneforge generate --recipe collect-gem-tick --seed 42 --output collect-gem-tick
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe collect-gem-tick
+toneforge show collect-gem-tick
 ```
 ```bash
 # List all recipes, filtered by casual tag

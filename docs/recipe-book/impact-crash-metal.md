@@ -48,7 +48,7 @@ toneforge generate --recipe impact-crash-metal --seed 42 --output impact-crash-m
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe impact-crash-metal
+toneforge show impact-crash-metal
 ```
 ```bash
 # List all recipes, filtered by casual tag

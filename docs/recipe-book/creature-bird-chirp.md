@@ -48,7 +48,7 @@ toneforge generate --recipe creature-bird-chirp --seed 42 --output creature-bird
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe creature-bird-chirp
+toneforge show creature-bird-chirp
 ```
 ```bash
 # List all recipes, filtered by casual tag

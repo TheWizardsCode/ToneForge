@@ -48,7 +48,7 @@ toneforge generate --recipe blip-sine-ping --seed 42 --output blip-sine-ping.wav
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe blip-sine-ping
+toneforge show blip-sine-ping
 ```
 ```bash
 # List all recipes, filtered by casual tag

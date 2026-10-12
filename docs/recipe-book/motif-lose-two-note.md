@@ -48,7 +48,7 @@ toneforge generate --recipe motif-lose-two-note --seed 42 --output motif-lose-tw
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe motif-lose-two-note
+toneforge show motif-lose-two-note
 ```
 ```bash
 # List all recipes, filtered by casual tag

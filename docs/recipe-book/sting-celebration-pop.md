@@ -48,7 +48,7 @@ toneforge generate --recipe sting-celebration-pop --seed 42 --output sting-celeb
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe sting-celebration-pop
+toneforge show sting-celebration-pop
 ```
 ```bash
 # List all recipes, filtered by casual tag

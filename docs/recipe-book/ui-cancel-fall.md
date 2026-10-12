@@ -48,7 +48,7 @@ toneforge generate --recipe ui-cancel-fall --seed 42 --output ui-cancel-fall.wav
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe ui-cancel-fall
+toneforge show ui-cancel-fall
 ```
 ```bash
 # List all recipes, filtered by casual tag

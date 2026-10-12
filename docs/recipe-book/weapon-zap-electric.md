@@ -48,7 +48,7 @@ toneforge generate --recipe weapon-zap-electric --seed 42 --output weapon-zap-el
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe weapon-zap-electric
+toneforge show weapon-zap-electric
 ```
 ```bash
 # List all recipes, filtered by casual tag

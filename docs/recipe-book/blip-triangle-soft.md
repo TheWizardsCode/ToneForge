@@ -48,7 +48,7 @@ toneforge generate --recipe blip-triangle-soft --seed 42 --output blip-triangle-
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe blip-triangle-soft
+toneforge show blip-triangle-soft
 ```
 ```bash
 # List all recipes, filtered by casual tag

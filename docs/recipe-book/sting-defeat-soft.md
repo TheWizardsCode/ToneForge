@@ -48,7 +48,7 @@ toneforge generate --recipe sting-defeat-soft --seed 42 --output sting-defeat-so
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe sting-defeat-soft
+toneforge show sting-defeat-soft
 ```
 ```bash
 # List all recipes, filtered by casual tag

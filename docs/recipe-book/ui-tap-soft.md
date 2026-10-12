@@ -48,7 +48,7 @@ toneforge generate --recipe ui-tap-soft --seed 42 --output ui-tap-soft.wav
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe ui-tap-soft
+toneforge show ui-tap-soft
 ```
 ```bash
 # List all recipes, filtered by casual tag

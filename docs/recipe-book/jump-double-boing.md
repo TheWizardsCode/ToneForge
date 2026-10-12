@@ -48,7 +48,7 @@ toneforge generate --recipe jump-double-boing --seed 42 --output jump-double-boi
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe jump-double-boing
+toneforge show jump-double-boing
 ```
 ```bash
 # List all recipes, filtered by casual tag

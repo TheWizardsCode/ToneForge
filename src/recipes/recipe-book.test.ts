@@ -23,6 +23,11 @@ import { registry } from "./index.js";
 import { recipeRoster, type RosterEntry } from "./recipe-book/roster.js";
 import { compareBuffers } from "../test-utils/buffer-compare.js";
 import { main } from "../cli.js";
+import {
+  buildCliBlock,
+  cliBlockStartMarker,
+  CLI_BLOCK_END,
+} from "../../scripts/recipe-book/generate-cli-blocks.js";
 
 /** The ten capstone arrangement pages that follow the 100 recipes. */
 const CAPSTONE_PAGES = [
@@ -172,12 +177,20 @@ function expectCliBlockFresh(name: string): void {
   const pagePath = resolve(DOCS_DIR, name + ".md");
   if (!existsSync(pagePath)) return;
   const content = readFileSync(pagePath, "utf-8");
-  const markerStart = "<!-- CLI_BLOCK_START";
-  const markerEnd = "<!-- CLI_BLOCK_END -->";
+  const markerStart = cliBlockStartMarker(name);
   const startIdx = content.indexOf(markerStart);
-  const endIdx = content.indexOf(markerEnd);
-  expect(startIdx).toBeGreaterThan(-1);
-  expect(endIdx).toBeGreaterThan(startIdx);
+  const endIdx = content.indexOf(CLI_BLOCK_END);
+  expect(startIdx, name + " is missing the CLI_BLOCK_START marker").toBeGreaterThan(-1);
+  expect(endIdx, name + " is missing the CLI_BLOCK_END marker").toBeGreaterThan(startIdx);
+
+  // Regenerate the block with the single shared builder and compare it
+  // byte-for-byte with the block committed between the markers. Editing a
+  // committed block by hand (or leaving a stale generator output) fails here.
+  const committed = content.slice(startIdx + markerStart.length, endIdx).trim();
+  expect(
+    committed,
+    name + " CLI block is stale; regenerate it with scripts/recipe-book/generate-pages.ts",
+  ).toBe(buildCliBlock(name).trim());
 }
 
 // ── Tests ────────────────────────────────────────────────────────────────────
@@ -349,6 +362,42 @@ describe("Recipe Book completion gate", () => {
       (id) => !rosterSet.has(id) && !capstoneSet.has(id),
     );
     expect(orphans, "Orphan pages: " + orphans.join(", ")).toEqual([]);
+  });
+
+  it("builds the canonical CLI block with the positional `show` form", () => {
+    const block = buildCliBlock("blip-sine-ping");
+    expect(block).toContain("toneforge show blip-sine-ping");
+    expect(block).not.toContain("show --recipe");
+  });
+
+  it("documents the positional `toneforge show <name>` form on every recipe page", () => {
+    const offenders: string[] = [];
+    for (const entry of recipeRoster) {
+      const content = readFileSync(resolve(DOCS_DIR, entry.name + ".md"), "utf-8");
+      if (content.includes("toneforge show --recipe")) offenders.push(entry.name);
+      expect(
+        content,
+        entry.name + " must document `toneforge show " + entry.name + "`",
+      ).toContain("toneforge show " + entry.name);
+    }
+    expect(
+      offenders,
+      "Pages still using the invalid `show --recipe` form: " + offenders.join(", "),
+    ).toEqual([]);
+  });
+
+  it("runs `toneforge show <recipe-name>` successfully for a sample of book recipes", async () => {
+    const sample = ["blip-sine-ping", "ui-click-crisp", "sting-victory-bright"];
+    for (const name of sample) {
+      const stdout = await captureStdout(async () => {
+        const code = await main(argv("show", name, "--json"));
+        expect(code, "`toneforge show " + name + "` should exit 0").toBe(0);
+        return code;
+      });
+      const data = JSON.parse(stdout) as { command?: string; recipe?: string };
+      expect(data.command).toBe("show");
+      expect(data.recipe, "`toneforge show " + name + "` returned the wrong recipe").toBe(name);
+    }
   });
 
   it("toneforge list recipes --tags casual returns all 100 book recipes with casual + fun/joy", async () => {

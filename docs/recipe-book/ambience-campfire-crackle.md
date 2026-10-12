@@ -48,7 +48,7 @@ toneforge generate --recipe ambience-campfire-crackle --seed 42 --output ambienc
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe ambience-campfire-crackle
+toneforge show ambience-campfire-crackle
 ```
 ```bash
 # List all recipes, filtered by casual tag

@@ -48,7 +48,7 @@ toneforge generate --recipe ambience-desert-wind --seed 42 --output ambience-des
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe ambience-desert-wind
+toneforge show ambience-desert-wind
 ```
 ```bash
 # List all recipes, filtered by casual tag

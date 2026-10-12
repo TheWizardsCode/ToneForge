@@ -48,7 +48,7 @@ toneforge generate --recipe ambience-rain-light --seed 42 --output ambience-rain
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe ambience-rain-light
+toneforge show ambience-rain-light
 ```
 ```bash
 # List all recipes, filtered by casual tag

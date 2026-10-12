@@ -48,7 +48,7 @@ toneforge generate --recipe ui-tab-switch-motif --seed 42 --output ui-tab-switch
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe ui-tab-switch-motif
+toneforge show ui-tab-switch-motif
 ```
 ```bash
 # List all recipes, filtered by casual tag

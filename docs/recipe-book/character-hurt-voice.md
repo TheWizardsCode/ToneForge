@@ -48,7 +48,7 @@ toneforge generate --recipe character-hurt-voice --seed 42 --output character-hu
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe character-hurt-voice
+toneforge show character-hurt-voice
 ```
 ```bash
 # List all recipes, filtered by casual tag

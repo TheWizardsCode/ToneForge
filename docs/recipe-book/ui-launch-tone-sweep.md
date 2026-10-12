@@ -48,7 +48,7 @@ toneforge generate --recipe ui-launch-tone-sweep --seed 42 --output ui-launch-to
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe ui-launch-tone-sweep
+toneforge show ui-launch-tone-sweep
 ```
 ```bash
 # List all recipes, filtered by casual tag

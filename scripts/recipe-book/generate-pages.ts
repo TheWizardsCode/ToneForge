@@ -27,6 +27,11 @@ import {
   type RecipeMeta,
   type ContourEvent,
 } from "./recipe-meta.js";
+import {
+  buildCliBlock,
+  cliBlockStartMarker,
+  CLI_BLOCK_END,
+} from "./generate-cli-blocks.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..", "..");
@@ -677,16 +682,6 @@ function parseRoster(): RosterInfo[] {
   return entries;
 }
 
-function generateCliBlock(name: string): string {
-  const commands = [
-    { desc: "Generate the recipe with a specific seed", cmd: `toneforge generate --recipe ${name} --seed 42 --output ${name}.wav` },
-    { desc: "Show the recipe metadata", cmd: `toneforge show --recipe ${name}` },
-    { desc: "List all recipes, filtered by casual tag", cmd: `toneforge list recipes --tags casual` },
-    { desc: "Generate with default seed", cmd: `toneforge generate --recipe ${name} --output ${name}-default.wav` },
-  ];
-  return commands.map(({ desc, cmd }) => "```bash\n# " + desc + "\n" + cmd + "\n```").join("\n");
-}
-
 function titleCase(name: string): string {
   return name
     .split("-")
@@ -747,9 +742,9 @@ function renderPage(
   uses: string,
   tier: number,
 ): string {
-  const markerStart = `<!-- CLI_BLOCK_START — regenerate with: tsx scripts/recipe-book/generate-cli-blocks.ts ${name} -->`;
-  const markerEnd = `<!-- CLI_BLOCK_END -->`;
-  const cliBlock = generateCliBlock(name);
+  const markerStart = cliBlockStartMarker(name);
+  const markerEnd = CLI_BLOCK_END;
+  const cliBlock = buildCliBlock(name);
   return [
     "---",
     `title: "${titleCase(name)}"`,

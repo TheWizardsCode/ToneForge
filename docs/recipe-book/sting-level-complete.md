@@ -48,7 +48,7 @@ toneforge generate --recipe sting-level-complete --seed 42 --output sting-level-
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe sting-level-complete
+toneforge show sting-level-complete
 ```
 ```bash
 # List all recipes, filtered by casual tag

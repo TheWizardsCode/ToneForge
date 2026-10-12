@@ -48,7 +48,7 @@ toneforge generate --recipe critter-squeak-toy --seed 42 --output critter-squeak
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe critter-squeak-toy
+toneforge show critter-squeak-toy
 ```
 ```bash
 # List all recipes, filtered by casual tag

@@ -48,7 +48,7 @@ toneforge generate --recipe creature-dragon-huff --seed 42 --output creature-dra
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe creature-dragon-huff
+toneforge show creature-dragon-huff
 ```
 ```bash
 # List all recipes, filtered by casual tag

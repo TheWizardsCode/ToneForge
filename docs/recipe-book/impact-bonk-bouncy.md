@@ -48,7 +48,7 @@ toneforge generate --recipe impact-bonk-bouncy --seed 42 --output impact-bonk-bo
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe impact-bonk-bouncy
+toneforge show impact-bonk-bouncy
 ```
 ```bash
 # List all recipes, filtered by casual tag

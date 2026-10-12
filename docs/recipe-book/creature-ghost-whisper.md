@@ -48,7 +48,7 @@ toneforge generate --recipe creature-ghost-whisper --seed 42 --output creature-g
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe creature-ghost-whisper
+toneforge show creature-ghost-whisper
 ```
 ```bash
 # List all recipes, filtered by casual tag

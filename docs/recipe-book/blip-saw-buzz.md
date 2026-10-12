@@ -48,7 +48,7 @@ toneforge generate --recipe blip-saw-buzz --seed 42 --output blip-saw-buzz.wav
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe blip-saw-buzz
+toneforge show blip-saw-buzz
 ```
 ```bash
 # List all recipes, filtered by casual tag

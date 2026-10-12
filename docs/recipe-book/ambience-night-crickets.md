@@ -48,7 +48,7 @@ toneforge generate --recipe ambience-night-crickets --seed 42 --output ambience-
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe ambience-night-crickets
+toneforge show ambience-night-crickets
 ```
 ```bash
 # List all recipes, filtered by casual tag

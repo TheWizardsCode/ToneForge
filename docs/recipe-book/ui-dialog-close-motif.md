@@ -48,7 +48,7 @@ toneforge generate --recipe ui-dialog-close-motif --seed 42 --output ui-dialog-c
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe ui-dialog-close-motif
+toneforge show ui-dialog-close-motif
 ```
 ```bash
 # List all recipes, filtered by casual tag

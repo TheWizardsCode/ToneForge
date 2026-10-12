@@ -48,7 +48,7 @@ toneforge generate --recipe sweep-fall-soft --seed 42 --output sweep-fall-soft.w
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe sweep-fall-soft
+toneforge show sweep-fall-soft
 ```
 ```bash
 # List all recipes, filtered by casual tag

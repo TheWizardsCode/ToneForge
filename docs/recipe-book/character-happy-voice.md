@@ -48,7 +48,7 @@ toneforge generate --recipe character-happy-voice --seed 42 --output character-h
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe character-happy-voice
+toneforge show character-happy-voice
 ```
 ```bash
 # List all recipes, filtered by casual tag

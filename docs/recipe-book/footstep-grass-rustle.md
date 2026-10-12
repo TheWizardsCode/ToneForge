@@ -48,7 +48,7 @@ toneforge generate --recipe footstep-grass-rustle --seed 42 --output footstep-gr
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe footstep-grass-rustle
+toneforge show footstep-grass-rustle
 ```
 ```bash
 # List all recipes, filtered by casual tag

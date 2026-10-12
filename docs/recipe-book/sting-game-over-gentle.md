@@ -48,7 +48,7 @@ toneforge generate --recipe sting-game-over-gentle --seed 42 --output sting-game
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe sting-game-over-gentle
+toneforge show sting-game-over-gentle
 ```
 ```bash
 # List all recipes, filtered by casual tag

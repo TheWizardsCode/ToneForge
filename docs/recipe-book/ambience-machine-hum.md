@@ -48,7 +48,7 @@ toneforge generate --recipe ambience-machine-hum --seed 42 --output ambience-mac
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe ambience-machine-hum
+toneforge show ambience-machine-hum
 ```
 ```bash
 # List all recipes, filtered by casual tag

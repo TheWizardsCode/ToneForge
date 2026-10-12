@@ -48,7 +48,7 @@ toneforge generate --recipe impact-thud-dull --seed 42 --output impact-thud-dull
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe impact-thud-dull
+toneforge show impact-thud-dull
 ```
 ```bash
 # List all recipes, filtered by casual tag

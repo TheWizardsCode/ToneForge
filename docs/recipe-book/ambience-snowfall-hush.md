@@ -48,7 +48,7 @@ toneforge generate --recipe ambience-snowfall-hush --seed 42 --output ambience-s
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe ambience-snowfall-hush
+toneforge show ambience-snowfall-hush
 ```
 ```bash
 # List all recipes, filtered by casual tag

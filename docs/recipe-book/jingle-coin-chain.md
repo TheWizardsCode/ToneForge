@@ -48,7 +48,7 @@ toneforge generate --recipe jingle-coin-chain --seed 42 --output jingle-coin-cha
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe jingle-coin-chain
+toneforge show jingle-coin-chain
 ```
 ```bash
 # List all recipes, filtered by casual tag

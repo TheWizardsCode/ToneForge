@@ -48,7 +48,7 @@ toneforge generate --recipe sparkle-magic-shimmer --seed 42 --output sparkle-mag
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe sparkle-magic-shimmer
+toneforge show sparkle-magic-shimmer
 ```
 ```bash
 # List all recipes, filtered by casual tag

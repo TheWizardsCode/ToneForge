@@ -48,7 +48,7 @@ toneforge generate --recipe ui-cancel-blip --seed 42 --output ui-cancel-blip.wav
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe ui-cancel-blip
+toneforge show ui-cancel-blip
 ```
 ```bash
 # List all recipes, filtered by casual tag

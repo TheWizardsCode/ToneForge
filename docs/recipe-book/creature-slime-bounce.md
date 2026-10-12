@@ -48,7 +48,7 @@ toneforge generate --recipe creature-slime-bounce --seed 42 --output creature-sl
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe creature-slime-bounce
+toneforge show creature-slime-bounce
 ```
 ```bash
 # List all recipes, filtered by casual tag

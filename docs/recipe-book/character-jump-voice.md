@@ -48,7 +48,7 @@ toneforge generate --recipe character-jump-voice --seed 42 --output character-ju
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe character-jump-voice
+toneforge show character-jump-voice
 ```
 ```bash
 # List all recipes, filtered by casual tag

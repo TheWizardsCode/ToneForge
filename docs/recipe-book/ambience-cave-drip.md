@@ -48,7 +48,7 @@ toneforge generate --recipe ambience-cave-drip --seed 42 --output ambience-cave-
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe ambience-cave-drip
+toneforge show ambience-cave-drip
 ```
 ```bash
 # List all recipes, filtered by casual tag

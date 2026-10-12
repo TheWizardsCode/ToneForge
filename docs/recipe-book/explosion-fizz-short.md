@@ -48,7 +48,7 @@ toneforge generate --recipe explosion-fizz-short --seed 42 --output explosion-fi
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe explosion-fizz-short
+toneforge show explosion-fizz-short
 ```
 ```bash
 # List all recipes, filtered by casual tag

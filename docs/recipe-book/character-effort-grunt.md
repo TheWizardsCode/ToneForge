@@ -48,7 +48,7 @@ toneforge generate --recipe character-effort-grunt --seed 42 --output character-
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe character-effort-grunt
+toneforge show character-effort-grunt
 ```
 ```bash
 # List all recipes, filtered by casual tag

@@ -48,7 +48,7 @@ toneforge generate --recipe sweep-rise-bright --seed 42 --output sweep-rise-brig
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe sweep-rise-bright
+toneforge show sweep-rise-bright
 ```
 ```bash
 # List all recipes, filtered by casual tag

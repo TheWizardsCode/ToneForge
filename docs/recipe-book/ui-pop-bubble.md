@@ -48,7 +48,7 @@ toneforge generate --recipe ui-pop-bubble --seed 42 --output ui-pop-bubble.wav
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe ui-pop-bubble
+toneforge show ui-pop-bubble
 ```
 ```bash
 # List all recipes, filtered by casual tag

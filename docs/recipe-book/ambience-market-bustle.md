@@ -48,7 +48,7 @@ toneforge generate --recipe ambience-market-bustle --seed 42 --output ambience-m
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe ambience-market-bustle
+toneforge show ambience-market-bustle
 ```
 ```bash
 # List all recipes, filtered by casual tag

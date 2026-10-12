@@ -48,7 +48,7 @@ toneforge generate --recipe tone-chime-single --seed 42 --output tone-chime-sing
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe tone-chime-single
+toneforge show tone-chime-single
 ```
 ```bash
 # List all recipes, filtered by casual tag

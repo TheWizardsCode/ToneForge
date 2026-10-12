@@ -48,7 +48,7 @@ toneforge generate --recipe whoosh-cloth-flap --seed 42 --output whoosh-cloth-fl
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe whoosh-cloth-flap
+toneforge show whoosh-cloth-flap
 ```
 ```bash
 # List all recipes, filtered by casual tag

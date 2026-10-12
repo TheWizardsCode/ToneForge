@@ -48,7 +48,7 @@ toneforge generate --recipe sting-puzzle-solved --seed 42 --output sting-puzzle-
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe sting-puzzle-solved
+toneforge show sting-puzzle-solved
 ```
 ```bash
 # List all recipes, filtered by casual tag

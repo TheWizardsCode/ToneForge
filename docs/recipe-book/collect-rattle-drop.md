@@ -48,7 +48,7 @@ toneforge generate --recipe collect-rattle-drop --seed 42 --output collect-rattl
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe collect-rattle-drop
+toneforge show collect-rattle-drop
 ```
 ```bash
 # List all recipes, filtered by casual tag

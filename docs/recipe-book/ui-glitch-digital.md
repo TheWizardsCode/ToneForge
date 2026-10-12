@@ -48,7 +48,7 @@ toneforge generate --recipe ui-glitch-digital --seed 42 --output ui-glitch-digit
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe ui-glitch-digital
+toneforge show ui-glitch-digital
 ```
 ```bash
 # List all recipes, filtered by casual tag

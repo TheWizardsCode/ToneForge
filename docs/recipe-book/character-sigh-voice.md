@@ -48,7 +48,7 @@ toneforge generate --recipe character-sigh-voice --seed 42 --output character-si
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe character-sigh-voice
+toneforge show character-sigh-voice
 ```
 ```bash
 # List all recipes, filtered by casual tag

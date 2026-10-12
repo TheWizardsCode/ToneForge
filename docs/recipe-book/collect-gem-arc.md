@@ -48,7 +48,7 @@ toneforge generate --recipe collect-gem-arc --seed 42 --output collect-gem-arc.w
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe collect-gem-arc
+toneforge show collect-gem-arc
 ```
 ```bash
 # List all recipes, filtered by casual tag

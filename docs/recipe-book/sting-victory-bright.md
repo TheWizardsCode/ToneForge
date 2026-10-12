@@ -48,7 +48,7 @@ toneforge generate --recipe sting-victory-bright --seed 42 --output sting-victor
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe sting-victory-bright
+toneforge show sting-victory-bright
 ```
 ```bash
 # List all recipes, filtered by casual tag

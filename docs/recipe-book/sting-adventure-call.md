@@ -48,7 +48,7 @@ toneforge generate --recipe sting-adventure-call --seed 42 --output sting-advent
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe sting-adventure-call
+toneforge show sting-adventure-call
 ```
 ```bash
 # List all recipes, filtered by casual tag

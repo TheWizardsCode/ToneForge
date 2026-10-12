@@ -48,7 +48,7 @@ toneforge generate --recipe motif-quest-accept --seed 42 --output motif-quest-ac
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe motif-quest-accept
+toneforge show motif-quest-accept
 ```
 ```bash
 # List all recipes, filtered by casual tag

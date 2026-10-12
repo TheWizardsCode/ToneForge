@@ -48,7 +48,7 @@ toneforge generate --recipe creature-bat-squeak --seed 42 --output creature-bat-
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe creature-bat-squeak
+toneforge show creature-bat-squeak
 ```
 ```bash
 # List all recipes, filtered by casual tag

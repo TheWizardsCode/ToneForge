@@ -48,7 +48,7 @@ toneforge generate --recipe motif-menu-select-arpeggio --seed 42 --output motif-
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe motif-menu-select-arpeggio
+toneforge show motif-menu-select-arpeggio
 ```
 ```bash
 # List all recipes, filtered by casual tag

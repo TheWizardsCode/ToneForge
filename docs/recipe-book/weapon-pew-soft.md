@@ -48,7 +48,7 @@ toneforge generate --recipe weapon-pew-soft --seed 42 --output weapon-pew-soft.w
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe weapon-pew-soft
+toneforge show weapon-pew-soft
 ```
 ```bash
 # List all recipes, filtered by casual tag

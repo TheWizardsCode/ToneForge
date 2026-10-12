@@ -48,7 +48,7 @@ toneforge generate --recipe motif-win-two-note --seed 42 --output motif-win-two-
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe motif-win-two-note
+toneforge show motif-win-two-note
 ```
 ```bash
 # List all recipes, filtered by casual tag

@@ -48,7 +48,7 @@ toneforge generate --recipe creature-blob-squish --seed 42 --output creature-blo
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe creature-blob-squish
+toneforge show creature-blob-squish
 ```
 ```bash
 # List all recipes, filtered by casual tag

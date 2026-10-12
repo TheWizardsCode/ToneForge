@@ -48,7 +48,7 @@ toneforge generate --recipe impact-crunch-gravel --seed 42 --output impact-crunc
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe impact-crunch-gravel
+toneforge show impact-crunch-gravel
 ```
 ```bash
 # List all recipes, filtered by casual tag

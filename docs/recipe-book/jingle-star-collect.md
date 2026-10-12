@@ -48,7 +48,7 @@ toneforge generate --recipe jingle-star-collect --seed 42 --output jingle-star-c
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe jingle-star-collect
+toneforge show jingle-star-collect
 ```
 ```bash
 # List all recipes, filtered by casual tag

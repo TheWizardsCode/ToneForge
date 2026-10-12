@@ -48,7 +48,7 @@ toneforge generate --recipe motif-start-game-fanfare-short --seed 42 --output mo
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe motif-start-game-fanfare-short
+toneforge show motif-start-game-fanfare-short
 ```
 ```bash
 # List all recipes, filtered by casual tag

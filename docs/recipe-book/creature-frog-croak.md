@@ -48,7 +48,7 @@ toneforge generate --recipe creature-frog-croak --seed 42 --output creature-frog
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe creature-frog-croak
+toneforge show creature-frog-croak
 ```
 ```bash
 # List all recipes, filtered by casual tag

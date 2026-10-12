@@ -48,7 +48,7 @@ toneforge generate --recipe texture-static-crackle --seed 42 --output texture-st
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe texture-static-crackle
+toneforge show texture-static-crackle
 ```
 ```bash
 # List all recipes, filtered by casual tag

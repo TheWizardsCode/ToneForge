@@ -48,7 +48,7 @@ toneforge generate --recipe sting-finale-short --seed 42 --output sting-finale-s
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe sting-finale-short
+toneforge show sting-finale-short
 ```
 ```bash
 # List all recipes, filtered by casual tag

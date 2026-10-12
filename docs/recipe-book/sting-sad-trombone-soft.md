@@ -48,7 +48,7 @@ toneforge generate --recipe sting-sad-trombone-soft --seed 42 --output sting-sad
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe sting-sad-trombone-soft
+toneforge show sting-sad-trombone-soft
 ```
 ```bash
 # List all recipes, filtered by casual tag

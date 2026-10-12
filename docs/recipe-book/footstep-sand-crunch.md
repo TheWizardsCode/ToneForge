@@ -48,7 +48,7 @@ toneforge generate --recipe footstep-sand-crunch --seed 42 --output footstep-san
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe footstep-sand-crunch
+toneforge show footstep-sand-crunch
 ```
 ```bash
 # List all recipes, filtered by casual tag

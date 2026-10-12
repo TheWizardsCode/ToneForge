@@ -48,7 +48,7 @@ toneforge generate --recipe ui-robot-beep --seed 42 --output ui-robot-beep.wav
 ```
 ```bash
 # Show the recipe metadata
-toneforge show --recipe ui-robot-beep
+toneforge show ui-robot-beep
 ```
 ```bash
 # List all recipes, filtered by casual tag
