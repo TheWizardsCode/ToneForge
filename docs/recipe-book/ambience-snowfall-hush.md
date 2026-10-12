@@ -73,4 +73,4 @@ toneforge generate --recipe ambience-snowfall-hush --output ambience-snowfall-hu
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

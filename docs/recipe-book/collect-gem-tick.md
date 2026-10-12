@@ -71,4 +71,4 @@ toneforge generate --recipe collect-gem-tick --output collect-gem-tick-default.w
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

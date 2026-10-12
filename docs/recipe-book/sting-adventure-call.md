@@ -73,4 +73,4 @@ toneforge generate --recipe sting-adventure-call --output sting-adventure-call-d
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

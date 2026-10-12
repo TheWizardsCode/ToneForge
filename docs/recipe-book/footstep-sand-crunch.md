@@ -71,4 +71,4 @@ toneforge generate --recipe footstep-sand-crunch --output footstep-sand-crunch-d
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

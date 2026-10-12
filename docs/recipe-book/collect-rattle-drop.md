@@ -73,4 +73,4 @@ toneforge generate --recipe collect-rattle-drop --output collect-rattle-drop-def
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

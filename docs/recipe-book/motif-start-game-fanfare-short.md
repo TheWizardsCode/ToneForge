@@ -72,4 +72,4 @@ toneforge generate --recipe motif-start-game-fanfare-short --output motif-start-
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

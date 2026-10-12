@@ -71,4 +71,4 @@ toneforge generate --recipe texture-static-crackle --output texture-static-crack
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

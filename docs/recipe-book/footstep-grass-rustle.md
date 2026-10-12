@@ -71,4 +71,4 @@ toneforge generate --recipe footstep-grass-rustle --output footstep-grass-rustle
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

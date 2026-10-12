@@ -70,4 +70,4 @@ toneforge generate --recipe ui-tab-switch-motif --output ui-tab-switch-motif-def
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

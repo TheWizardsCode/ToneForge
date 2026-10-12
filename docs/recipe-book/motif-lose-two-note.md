@@ -70,4 +70,4 @@ toneforge generate --recipe motif-lose-two-note --output motif-lose-two-note-def
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

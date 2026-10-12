@@ -74,4 +74,4 @@ toneforge generate --recipe ambience-meadow-day --output ambience-meadow-day-def
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

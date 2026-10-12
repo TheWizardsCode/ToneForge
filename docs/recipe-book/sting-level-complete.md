@@ -74,4 +74,4 @@ toneforge generate --recipe sting-level-complete --output sting-level-complete-d
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

@@ -73,4 +73,4 @@ toneforge generate --recipe sting-puzzle-solved --output sting-puzzle-solved-def
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

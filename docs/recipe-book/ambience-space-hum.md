@@ -72,4 +72,4 @@ toneforge generate --recipe ambience-space-hum --output ambience-space-hum-defau
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

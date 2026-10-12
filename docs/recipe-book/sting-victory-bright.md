@@ -74,4 +74,4 @@ toneforge generate --recipe sting-victory-bright --output sting-victory-bright-d
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

@@ -72,4 +72,4 @@ toneforge generate --recipe creature-blob-squish --output creature-blob-squish-d
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

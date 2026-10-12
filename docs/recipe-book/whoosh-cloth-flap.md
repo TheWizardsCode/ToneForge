@@ -72,4 +72,4 @@ toneforge generate --recipe whoosh-cloth-flap --output whoosh-cloth-flap-default
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

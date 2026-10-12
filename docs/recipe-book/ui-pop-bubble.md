@@ -72,4 +72,4 @@ toneforge generate --recipe ui-pop-bubble --output ui-pop-bubble-default.wav
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

@@ -71,4 +71,4 @@ toneforge generate --recipe tone-chime-single --output tone-chime-single-default
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

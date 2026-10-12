@@ -71,4 +71,4 @@ toneforge generate --recipe impact-punch-flesh --output impact-punch-flesh-defau
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

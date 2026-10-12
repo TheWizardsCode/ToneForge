@@ -410,3 +410,81 @@ describe("Recipe Book completion gate", () => {
     }
   });
 });
+
+// ── Link integrity ───────────────────────────────────────────────────────────
+
+/**
+ * Every page whose local relative links must resolve: the generated index,
+ * all 100 recipe pages, all 10 capstone pages and the hand-maintained
+ * `_template.md`.
+ *
+ * `_template.md` has no generator (no script emits it), so it is edited
+ * directly and its `## See also` target must be kept in sync with the block
+ * emitted by `scripts/recipe-book/generate-pages.ts` by hand.
+ */
+const BOOK_PAGES: string[] = [
+  "index.md",
+  "_template.md",
+  ...recipeRoster.map((e) => e.name + ".md"),
+  ...CAPSTONE_PAGES.map((n) => n + ".md"),
+];
+
+/** Targets that must not be resolved against the filesystem. */
+function isExternalTarget(target: string): boolean {
+  return (
+    target.startsWith("#") ||
+    target.startsWith("//") ||
+    /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(target)
+  );
+}
+
+/**
+ * Parse the inline `[text](target)` links on a page. Image embeds
+ * (`![alt](src)`) are not links and are excluded by the leading `!`.
+ */
+function parseInlineLinks(content: string): string[] {
+  const re = /(?<!!)\[[^\]]*\]\(([^)]+)\)/g;
+  const targets: string[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(content)) !== null) {
+    targets.push(match[1]!.trim());
+  }
+  return targets;
+}
+
+describe("Recipe Book link integrity", () => {
+  it("covers index.md, the template, all 100 recipes and all 10 capstones", () => {
+    expect(BOOK_PAGES.length).toBe(112);
+    for (const page of BOOK_PAGES) {
+      expect(existsSync(resolve(DOCS_DIR, page)), "Missing book page " + page).toBe(true);
+    }
+  });
+
+  it("parses inline links only, so reference-style links cannot slip through", () => {
+    let parsed = 0;
+    for (const page of BOOK_PAGES) {
+      parsed += parseInlineLinks(readFileSync(resolve(DOCS_DIR, page), "utf-8")).length;
+    }
+    // Baseline: 100 recipes x 2 + 10 capstones x 3 + index 110 + template 2
+    // = 342 links. A drop means inline links went unparsed (for example, were
+    // rewritten as reference-style links).
+    expect(parsed).toBeGreaterThanOrEqual(342);
+  });
+
+  it("resolves every local relative link on every page", () => {
+    const broken: string[] = [];
+    for (const page of BOOK_PAGES) {
+      const content = readFileSync(resolve(DOCS_DIR, page), "utf-8");
+      for (const target of parseInlineLinks(content)) {
+        if (isExternalTarget(target)) continue;
+        const pathPart = decodeURIComponent(target.split("#")[0]!);
+        if (pathPart === "") continue;
+        const resolved = resolve(DOCS_DIR, dirname(page), pathPart);
+        if (!existsSync(resolved)) {
+          broken.push(page + " -> " + target);
+        }
+      }
+    }
+    expect(broken, "Broken local relative links:\n" + broken.join("\n")).toEqual([]);
+  });
+});

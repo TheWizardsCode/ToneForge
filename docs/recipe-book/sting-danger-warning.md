@@ -74,4 +74,4 @@ toneforge generate --recipe sting-danger-warning --output sting-danger-warning-d
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

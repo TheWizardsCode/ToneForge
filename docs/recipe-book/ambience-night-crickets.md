@@ -74,4 +74,4 @@ toneforge generate --recipe ambience-night-crickets --output ambience-night-cric
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

@@ -70,4 +70,4 @@ toneforge generate --recipe ui-dialog-open-motif --output ui-dialog-open-motif-d
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

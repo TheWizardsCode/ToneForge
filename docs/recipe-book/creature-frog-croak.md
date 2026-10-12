@@ -73,4 +73,4 @@ toneforge generate --recipe creature-frog-croak --output creature-frog-croak-def
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

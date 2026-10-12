@@ -71,4 +71,4 @@ toneforge generate --recipe tone-bell-tap --output tone-bell-tap-default.wav
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

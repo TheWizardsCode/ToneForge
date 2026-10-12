@@ -71,4 +71,4 @@ toneforge generate --recipe jingle-achievement --output jingle-achievement-defau
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

@@ -74,4 +74,4 @@ toneforge generate --recipe creature-dragon-huff --output creature-dragon-huff-d
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

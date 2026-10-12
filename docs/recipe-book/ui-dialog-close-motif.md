@@ -70,4 +70,4 @@ toneforge generate --recipe ui-dialog-close-motif --output ui-dialog-close-motif
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

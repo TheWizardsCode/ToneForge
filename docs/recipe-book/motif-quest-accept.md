@@ -71,4 +71,4 @@ toneforge generate --recipe motif-quest-accept --output motif-quest-accept-defau
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

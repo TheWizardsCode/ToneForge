@@ -73,4 +73,4 @@ toneforge generate --recipe ui-glitch-digital --output ui-glitch-digital-default
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

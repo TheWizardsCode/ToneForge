@@ -71,4 +71,4 @@ toneforge generate --recipe impact-crash-metal --output impact-crash-metal-defau
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

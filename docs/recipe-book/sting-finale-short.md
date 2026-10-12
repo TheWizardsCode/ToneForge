@@ -73,4 +73,4 @@ toneforge generate --recipe sting-finale-short --output sting-finale-short-defau
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

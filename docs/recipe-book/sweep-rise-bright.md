@@ -72,4 +72,4 @@ toneforge generate --recipe sweep-rise-bright --output sweep-rise-bright-default
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

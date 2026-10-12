@@ -73,4 +73,4 @@ toneforge generate --recipe collect-coin-arc --output collect-coin-arc-default.w
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

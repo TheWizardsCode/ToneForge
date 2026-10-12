@@ -73,4 +73,4 @@ toneforge generate --recipe weapon-zap-electric --output weapon-zap-electric-def
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

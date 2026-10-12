@@ -74,4 +74,4 @@ toneforge generate --recipe ambience-cave-drip --output ambience-cave-drip-defau
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

@@ -71,4 +71,4 @@ toneforge generate --recipe ui-select-pop --output ui-select-pop-default.wav
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

@@ -72,4 +72,4 @@ toneforge generate --recipe ui-launch-tone-sweep --output ui-launch-tone-sweep-d
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

@@ -72,4 +72,4 @@ toneforge generate --recipe explosion-pop-bright --output explosion-pop-bright-d
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

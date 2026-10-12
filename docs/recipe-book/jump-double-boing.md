@@ -73,4 +73,4 @@ toneforge generate --recipe jump-double-boing --output jump-double-boing-default
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

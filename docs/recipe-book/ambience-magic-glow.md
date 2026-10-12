@@ -73,4 +73,4 @@ toneforge generate --recipe ambience-magic-glow --output ambience-magic-glow-def
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

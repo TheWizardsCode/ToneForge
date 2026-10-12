@@ -72,4 +72,4 @@ toneforge generate --recipe collect-powerup-arpeggio --output collect-powerup-ar
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

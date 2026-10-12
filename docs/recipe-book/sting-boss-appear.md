@@ -74,4 +74,4 @@ toneforge generate --recipe sting-boss-appear --output sting-boss-appear-default
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

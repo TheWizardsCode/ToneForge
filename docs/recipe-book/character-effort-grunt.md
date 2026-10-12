@@ -73,4 +73,4 @@ toneforge generate --recipe character-effort-grunt --output character-effort-gru
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

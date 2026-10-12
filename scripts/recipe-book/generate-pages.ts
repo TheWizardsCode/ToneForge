@@ -795,7 +795,10 @@ function renderPage(
     "## See also",
     "",
     "- [Recipe Book Index](./index.md)",
-    "- [ToneGraph Schema](../../tonegraph.md)",
+    // NOTE: docs/recipe-book/_template.md mirrors this `## See also` block but is
+    // hand-maintained (no script emits it), so its ToneGraph target must be
+    // kept in sync with the path below by hand.
+    "- [ToneGraph Schema](../tonegraph.md)",
     "",
   ].join("\n");
 }

@@ -71,4 +71,4 @@ toneforge generate --recipe ui-tap-soft --output ui-tap-soft-default.wav
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

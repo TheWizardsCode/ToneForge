@@ -62,5 +62,5 @@ toneforge list sequences
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [Stack PRD](../../prd/STACK_PRD.md)
-- [Sequencer PRD](../../prd/SEQUENCER_PRD.md)
+- [Stack PRD](../prd/STACK_PRD.md)
+- [Sequencer PRD](../prd/SEQUENCER_PRD.md)

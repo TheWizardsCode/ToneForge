@@ -73,4 +73,4 @@ toneforge generate --recipe character-happy-voice --output character-happy-voice
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

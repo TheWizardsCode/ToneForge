@@ -73,4 +73,4 @@ toneforge generate --recipe sting-powerup-major --output sting-powerup-major-def
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

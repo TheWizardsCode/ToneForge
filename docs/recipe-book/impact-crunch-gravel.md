@@ -71,4 +71,4 @@ toneforge generate --recipe impact-crunch-gravel --output impact-crunch-gravel-d
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

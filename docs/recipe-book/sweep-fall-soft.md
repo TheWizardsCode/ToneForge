@@ -72,4 +72,4 @@ toneforge generate --recipe sweep-fall-soft --output sweep-fall-soft-default.wav
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)

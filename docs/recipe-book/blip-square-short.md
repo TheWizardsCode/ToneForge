@@ -71,4 +71,4 @@ toneforge generate --recipe blip-square-short --output blip-square-short-default
 ## See also
 
 - [Recipe Book Index](./index.md)
-- [ToneGraph Schema](../../tonegraph.md)
+- [ToneGraph Schema](../tonegraph.md)
