@@ -10,15 +10,14 @@
  *     demonstrate (generate/show → analyze → classify/explore →
  *     sequence/library → classify/visualize → sequence/explore →
  *     stack/visualize).
+ *   - `buildCapstoneCliBlock(name, kind)` — a **kind-aware** capstone renderer
+ *     (stack vs sequence).
  *   - the marker helpers shared by every page (`cliBlockStartMarker`,
- *     `CLI_BLOCK_END`).
+ *     `capstoneCliBlockStartMarker`, `CLI_BLOCK_END`).
  *
- * `generate-pages.ts` and the recipe-book freshness test import these builders,
- * so a page can never drift from the generator without failing the suite.
- *
- * Capstone blocks are built by `buildCapstoneCliBlock` — the sibling function
- * delivered by TF-0MV5KHE5A0000FKA; this file hosts the shared block builder
- * surface so every generator and the tests import from one place.
+ * `generate-pages.ts`, `generate-capstones.ts` and the recipe-book freshness
+ * test all import these builders, so a page can never drift from the generator
+ * without failing the suite.
  *
  * Usage:
  *   tsx scripts/recipe-book/generate-cli-blocks.ts <recipe-name>          # print block
@@ -43,11 +42,19 @@ const ROOT = resolve(__dirname, "..", "..");
 /** The seven ascending recipe tiers. */
 export type Tier = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
+/** The two capstone arrangement kinds. */
+export type CapstoneKind = "stack" | "sequence";
+
 // ── Markers ──────────────────────────────────────────────────────────────────
 
 /** Opening marker for a recipe page's CLI block. */
 export function cliBlockStartMarker(name: string): string {
   return `<!-- CLI_BLOCK_START — regenerate with: tsx scripts/recipe-book/generate-cli-blocks.ts ${name} -->`;
+}
+
+/** Opening marker for a capstone page's CLI block. */
+export function capstoneCliBlockStartMarker(name: string): string {
+  return `<!-- CLI_BLOCK_START — regenerate with: tsx scripts/recipe-book/generate-capstones.ts ${name} -->`;
 }
 
 /** Closing marker shared by recipe and capstone CLI blocks. */
@@ -169,6 +176,55 @@ function tierCommands(name: string, tier: number): CliCommand[] {
  */
 export function buildRecipeCliBlock(name: string, tier: number): string {
   return renderCommands(tierCommands(name, tier));
+}
+
+// ── Kind-aware capstone builder ──────────────────────────────────────────────
+
+/**
+ * Build the kind-aware CLI command block for a capstone page.
+ *
+ * Stacks are inspected/rendered with `toneforge stack`; sequences with
+ * `toneforge sequence`. `generate-capstones.ts` writes this between the capstone
+ * markers and the recipe-book freshness test regenerates it, so a capstone page
+ * can never drift from the shared builder.
+ *
+ * @param name - The capstone preset id (also its page name).
+ * @param kind - `"stack"` or `"sequence"`.
+ * @returns The marker-free command block.
+ */
+export function buildCapstoneCliBlock(name: string, kind: CapstoneKind): string {
+  if (kind === "stack") {
+    const preset = `presets/stacks/${name}.json`;
+    return [
+      "```bash",
+      `# Inspect the layered structure`,
+      `toneforge stack inspect --preset ${preset}`,
+      "```",
+      "```bash",
+      `# Render the stack at a fixed seed`,
+      `toneforge stack render --preset ${preset} --seed 42 --output ${name}.wav`,
+      "```",
+      "```bash",
+      `# List every stack preset`,
+      `toneforge list stacks`,
+      "```",
+    ].join("\n");
+  }
+  const preset = `presets/sequences/${name}.json`;
+  return [
+    "```bash",
+    `# Simulate the event schedule`,
+    `toneforge sequence simulate --preset ${preset} --seed 42`,
+    "```",
+    "```bash",
+    `# Render the sequence at a fixed seed`,
+    `toneforge sequence generate --preset ${preset} --seed 42 --output ${name}.wav`,
+    "```",
+    "```bash",
+    `# List every sequence preset`,
+    `toneforge list sequences`,
+    "```",
+  ].join("\n");
 }
 
 // ── CLI entry point ──────────────────────────────────────────────────────────

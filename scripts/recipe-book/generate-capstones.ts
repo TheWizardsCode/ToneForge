@@ -26,7 +26,12 @@ import {
   defaultFrequencyHz,
   formatDuration,
 } from "./recipe-meta.js";
-import { CLI_BLOCK_END } from "./generate-cli-blocks.js";
+import {
+  CLI_BLOCK_END,
+  buildCapstoneCliBlock,
+  capstoneCliBlockStartMarker,
+  type CapstoneKind,
+} from "./generate-cli-blocks.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..", "..");
@@ -52,7 +57,7 @@ interface PresetJson {
   events?: SequenceEvent[];
 }
 
-export type CapstoneKind = "stack" | "sequence";
+export type { CapstoneKind } from "./generate-cli-blocks.js";
 
 interface CapstoneSpec {
   id: string;
@@ -242,52 +247,10 @@ function renderStructure(spec: CapstoneSpec, preset: PresetJson): string {
   ].join("\n");
 }
 
-/** Opening marker for a capstone page's CLI block. */
-export function capstoneCliBlockStartMarker(name: string): string {
-  return `<!-- CLI_BLOCK_START — regenerate with: tsx scripts/recipe-book/generate-capstones.ts ${name} -->`;
-}
-
-/**
- * Build the canonical CLI command block for a capstone page.
- *
- * This is the single source of the block text: `renderCli` writes it between
- * the markers, and `src/recipes/recipe-book.test.ts` regenerates it to prove
- * the committed block is fresh.
- */
-export function buildCapstoneCliBlock(name: string, kind: CapstoneKind): string {
-  if (kind === "stack") {
-    const preset = `presets/stacks/${name}.json`;
-    return [
-      "```bash",
-      `# Inspect the layered structure`,
-      `toneforge stack inspect --preset ${preset}`,
-      "```",
-      "```bash",
-      `# Render the stack at a fixed seed`,
-      `toneforge stack render --preset ${preset} --seed 42 --output ${name}.wav`,
-      "```",
-      "```bash",
-      `# List every stack preset`,
-      `toneforge list stacks`,
-      "```",
-    ].join("\n");
-  }
-  const preset = `presets/sequences/${name}.json`;
-  return [
-    "```bash",
-    `# Simulate the event schedule`,
-    `toneforge sequence simulate --preset ${preset} --seed 42`,
-    "```",
-    "```bash",
-    `# Render the sequence at a fixed seed`,
-    `toneforge sequence generate --preset ${preset} --seed 42 --output ${name}.wav`,
-    "```",
-    "```bash",
-    `# List every sequence preset`,
-    `toneforge list sequences`,
-    "```",
-  ].join("\n");
-}
+// capstoneCliBlockStartMarker and buildCapstoneCliBlock live in the shared
+// block builder (generate-cli-blocks.ts) so recipe and capstone pages are
+// rendered from one source of truth; this file only resolves an id's kind and
+// writes the page.
 
 /** The kind (`stack` or `sequence`) of a capstone page, or `undefined` if unknown. */
 export function capstoneKind(id: string): CapstoneKind | undefined {

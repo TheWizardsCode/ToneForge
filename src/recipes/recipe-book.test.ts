@@ -27,15 +27,13 @@ import { main } from "../cli.js";
 import { FRAMEWORK_COMMANDS } from "../cli.yargs.js";
 import {
   buildRecipeCliBlock,
+  buildCapstoneCliBlock,
   cliBlockStartMarker,
+  capstoneCliBlockStartMarker,
   CLI_BLOCK_END,
   TIER_SURFACES,
 } from "../../scripts/recipe-book/generate-cli-blocks.js";
-import {
-  buildCapstoneCliBlock,
-  capstoneCliBlockStartMarker,
-  capstoneKind,
-} from "../../scripts/recipe-book/generate-capstones.js";
+import { capstoneKind } from "../../scripts/recipe-book/generate-capstones.js";
 import {
   renderIndexContent,
   CLI_WORKFLOW_SECTION_HEADING,
