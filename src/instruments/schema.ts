@@ -61,6 +61,8 @@ export interface InstrumentDefinition {
   envelope: InstrumentEnvelope;
   /** Optional filter section. */
   filter?: InstrumentFilter;
+  /** Optional family/category label (e.g. "pluck", "pad", "bass"). */
+  category?: string;
 }
 
 /** Top-level keys accepted by an instrument definition. */
@@ -70,6 +72,7 @@ const KNOWN_TOP_LEVEL_KEYS = new Set<string>([
   "oscillator",
   "envelope",
   "filter",
+  "category",
 ]);
 
 const OSCILLATOR_WAVES: readonly OscillatorWave[] = ["sine", "square", "sawtooth", "triangle"];
@@ -238,11 +241,18 @@ export function validateInstrumentDefinition(value: unknown): InstrumentDefiniti
 
   const filter = value.filter === undefined ? undefined : validateFilter(value.filter);
 
+  let category: string | undefined;
+  if (value.category !== undefined) {
+    assertNonEmptyString(value.category, "category");
+    category = value.category;
+  }
+
   return {
     id: value.id,
     name: value.name,
     oscillator,
     envelope,
     ...(filter !== undefined ? { filter } : {}),
+    ...(category !== undefined ? { category } : {}),
   };
 }

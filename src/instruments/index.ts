@@ -61,3 +61,17 @@ export {
   type RenderInstrumentOptions,
   type RealtimeInstrumentOptions,
 } from "./engine.js";
+
+export {
+  InstrumentRegistry,
+  instrumentRegistry,
+  registerInstrumentPreset,
+  loadInstrumentPresetsFromDirectory,
+  loadBundledInstrumentPresets,
+  listInstruments,
+  listInstrumentSummaries,
+  getInstrument,
+  type InstrumentPreset,
+  type InstrumentSummary,
+  type LoadInstrumentPresetsOptions,
+} from "./presets.js";

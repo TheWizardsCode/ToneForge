@@ -1,0 +1,19 @@
+# Instrument preset — Bass
+# Round synth bass: fast attack, medium decay, solid sustain, medium release,
+# low-pass filtered to keep the fundamental strong.
+
+id: bass
+name: Bass
+category: Bass
+oscillator:
+  type: square
+  detune: 0
+envelope:
+  attack: 0.006
+  decay: 0.18
+  sustain: 0.6
+  release: 0.18
+filter:
+  type: lowpass
+  frequency: 700
+  Q: 1.1

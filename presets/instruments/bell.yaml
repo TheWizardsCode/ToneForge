@@ -1,0 +1,19 @@
+# Instrument preset — Bell
+# Metallic bell: near-instant attack, long decay to a very low sustain, long
+# release, high-pass filtered to emphasise the bright partials.
+
+id: bell
+name: Bell
+category: Bell
+oscillator:
+  type: sine
+  detune: 0
+envelope:
+  attack: 0.001
+  decay: 1.2
+  sustain: 0.06
+  release: 1.0
+filter:
+  type: highpass
+  frequency: 300
+  Q: 0.6

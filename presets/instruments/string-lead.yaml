@@ -1,0 +1,19 @@
+# Instrument preset — String Lead
+# Expressive string-like lead: medium attack, moderate decay to a warm sustain,
+# medium release, band-shaped by a resonant low-pass filter.
+
+id: string-lead
+name: String Lead
+category: String Lead
+oscillator:
+  type: sawtooth
+  detune: 6
+envelope:
+  attack: 0.12
+  decay: 0.35
+  sustain: 0.7
+  release: 0.4
+filter:
+  type: lowpass
+  frequency: 3600
+  Q: 1.5
