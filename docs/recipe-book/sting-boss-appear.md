@@ -1,7 +1,7 @@
 ---
 title: "Sting Boss Appear"
 id: "sting-boss-appear"
-order: 90
+order: 91
 description: "Boss-appear dramatic sting"
 ---
 

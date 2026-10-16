@@ -1,7 +1,7 @@
 ---
 title: "Sting Powerup Major"
 id: "sting-powerup-major"
-order: 94
+order: 95
 description: "Major power-up sting"
 ---
 

@@ -1,7 +1,7 @@
 ---
 title: "Creature Ghost Whisper"
 id: "creature-ghost-whisper"
-order: 71
+order: 72
 description: "Ghost whisper"
 ---
 

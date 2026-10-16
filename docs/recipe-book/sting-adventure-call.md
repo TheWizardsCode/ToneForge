@@ -1,7 +1,7 @@
 ---
 title: "Sting Adventure Call"
 id: "sting-adventure-call"
-order: 99
+order: 100
 description: "Adventure-call sting"
 ---
 

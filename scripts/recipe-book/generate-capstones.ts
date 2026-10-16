@@ -75,6 +75,8 @@ const CAPSTONE_USES: Record<string, string> = {
   casual_level_complete_sequence: "Level completion, stage endings, celebrations",
   casual_game_over_sequence: "Game over, run endings, defeat screens",
   casual_adventure_intro_sequence: "Game intros, world openings, chapter starts",
+  "sequence-wave-end": "Wave completion, stage cleared, tower-defence wave boundaries",
+  "sequence-level-end": "Level completion, stage endings, finale moments",
 };
 
 const CAPSTONES: CapstoneSpec[] = [
@@ -178,6 +180,26 @@ const CAPSTONES: CapstoneSpec[] = [
       "`sting-adventure-call` announces the start at 0 ms, `motif-start-game-fanfare-short` answers at 350 ms and `whoosh-air-swish` carries the transition at 750 ms. The swish tail leaves space for the first scene to begin.",
     intent: "An opening cue for new games, worlds and chapters.",
   },
+  {
+    id: "sequence-wave-end",
+    kind: "sequence",
+    title: "Sequence Wave End",
+    overview:
+      "A compact single-event wave-end leitmotif: the relief-then-worry motif plays alone so a cleared wave lands as one re-readable moment.",
+    synthesis:
+      "`motif-waves-end` states the whole leitmotif at 0 ms: a resolved C-major phrase (G\u2013C\u2013E) for relief, then a raised-4th F\u266f tail for the worry about the next wave. With a single event the sequence is a pure one-shot \u2014 ready to retrigger on every wave boundary without sounding same-y.",
+    intent: "The compact wave-complete cue for tower-defence and endless-runner loops.",
+  },
+  {
+    id: "sequence-level-end",
+    kind: "sequence",
+    title: "Sequence Level End",
+    overview:
+      "A bigger, more final level-end variant that layers a multi-voice sting onto the same leitmotif at its resolution point.",
+    synthesis:
+      "`motif-waves-end` starts at 0 ms with the relief phrase; `sting-level-complete` lands at 440 ms, exactly where the motif resolves its major third, adding FM brightness and a harmony line so the ending reads as final. The raised-4th worry tail still sounds after the sting, keeping the \"almost done\u2026 but there is more\" arc intact.",
+    intent: "The definitive level-end cue for completing a stage.",
+  },
 ];
 
 function readPreset(spec: CapstoneSpec): PresetJson {
@@ -188,7 +210,7 @@ function readPreset(spec: CapstoneSpec): PresetJson {
 
 function titleCase(id: string): string {
   return id
-    .split("_")
+    .split(/[_-]/)
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(" ");
 }
@@ -318,7 +340,8 @@ function arrangementFrequency(spec: CapstoneSpec, preset: PresetJson): string {
 function renderAtAGlance(spec: CapstoneSpec, preset: PresetJson): string {
   const kindLabel = spec.kind === "stack" ? "Stack" : "Sequence";
   const voices = constituentRecipes(spec, preset);
-  const voiceLabel = spec.kind === "stack" ? "voices" : "events";
+  const voiceNoun = spec.kind === "stack" ? "voice" : "event";
+  const voiceLabel = `${voiceNoun}${voices.length === 1 ? "" : "s"}`;
   return [
     "## At a glance",
     "",

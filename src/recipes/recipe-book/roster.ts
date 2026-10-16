@@ -10,7 +10,7 @@
  * (TF-0MUYBDMHM003TI3D … TF-0MUYBDONM008UGQW); the per-tier acceptance
  * criteria name each recipe explicitly.
  *
- * Tier counts: 14/14/16/14/14/14/14 = 100
+ * Tier counts: 14/14/16/15/14/14/14 = 101
  *
  * Tag policy: every recipe carries `casual` plus at least one of `fun`/`joy`,
  * plus family-specific tags (e.g. `ui`, `impact`, `collect`).
@@ -95,6 +95,7 @@ export const recipeRoster: RosterEntry[] = [
   { name: "collect-powerup-arpeggio", tier: 4, family: "collect",  intent: "Power-up arpeggio", uses: "Power-ups, ability unlocks, buff pickups" },
   { name: "motif-quest-accept",      tier: 4, family: "motif",     intent: "Quest-accept motif", uses: "Quest acceptance, mission start, objective pickup" },
   { name: "motif-quest-complete",    tier: 4, family: "motif",     intent: "Quest-complete fanfare", uses: "Quest completion, mission rewards, objectives done" },
+  { name: "motif-waves-end",         tier: 4, family: "motif",     intent: "Wave-complete leitmotif (relief then worry)", uses: "Wave completion, level completion, stage cleared" },
 
   // ─── Tier 5: Character & critter voices ───
   { name: "character-jump-voice",    tier: 5, family: "character", intent: "Character jump voice", uses: "Character jumps, vocal effort, movement grunts" },
@@ -166,7 +167,7 @@ export function validateRoster(roster: RosterEntry[]): void {
     }
   }
 
-  const expected: Record<number, number> = { 1: 14, 2: 14, 3: 16, 4: 14, 5: 14, 6: 14, 7: 14 };
+  const expected: Record<number, number> = { 1: 14, 2: 14, 3: 16, 4: 15, 5: 14, 6: 14, 7: 14 };
   for (const [tier, count] of Object.entries(expected)) {
     if ((tierCounts[Number(tier)] ?? 0) !== count) {
       throw new Error(
@@ -175,8 +176,8 @@ export function validateRoster(roster: RosterEntry[]): void {
     }
   }
 
-  if (roster.length !== 100) {
-    throw new Error(`Roster has ${roster.length} entries, expected 100`);
+  if (roster.length !== 101) {
+    throw new Error(`Roster has ${roster.length} entries, expected 101`);
   }
 }
 

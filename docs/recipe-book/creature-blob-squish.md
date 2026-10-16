@@ -1,7 +1,7 @@
 ---
 title: "Creature Blob Squish"
 id: "creature-blob-squish"
-order: 64
+order: 65
 description: "Blob squish"
 ---
 

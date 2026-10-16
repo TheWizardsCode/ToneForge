@@ -1,7 +1,7 @@
 ---
 title: "Sting Treasure Found"
 id: "sting-treasure-found"
-order: 93
+order: 94
 description: "Treasure-found sting"
 ---
 

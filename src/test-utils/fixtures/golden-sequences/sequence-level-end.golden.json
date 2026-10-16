@@ -1,0 +1,27 @@
+{
+  "name": "sequence-level-end",
+  "seed": 42,
+  "sampleRate": 44100,
+  "totalDuration": 0.44,
+  "totalDuration_ms": 440,
+  "events": [
+    {
+      "time_ms": 0,
+      "sampleOffset": 0,
+      "event": "motif-waves-end",
+      "seedOffset": 0,
+      "eventSeed": 42,
+      "gain": 1,
+      "repetition": 0
+    },
+    {
+      "time_ms": 440,
+      "sampleOffset": 19404,
+      "event": "sting-level-complete",
+      "seedOffset": 1,
+      "eventSeed": 43,
+      "gain": 0.7,
+      "repetition": 0
+    }
+  ]
+}

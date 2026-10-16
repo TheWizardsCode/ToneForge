@@ -1,7 +1,7 @@
 ---
 title: "Sting Danger Warning"
 id: "sting-danger-warning"
-order: 95
+order: 96
 description: "Danger-warning sting"
 ---
 

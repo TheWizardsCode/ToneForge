@@ -1,7 +1,7 @@
 ---
 title: "Sting Level Complete"
 id: "sting-level-complete"
-order: 89
+order: 90
 description: "Level-complete sting"
 ---
 

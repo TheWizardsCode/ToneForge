@@ -239,8 +239,8 @@ the authoritative specification.
 - [ToneForge in CI](docs/guides/ci-integration.md) — the `toneforge pipeline` CI workflow
 - [ToneGraph v0.1 Specification](docs/tonegraph.md)
 - [Sound Module Index](docs/modules/index.md) — every ToneGraph sound-node kind grouped by primary function, with use cases and availability.
-- [Casual Game Recipe Book](docs/recipe-book/index.md) — a guided tour of 100 procedural recipes, from single-oscillator blips to layered stings.
-- [Working with the CLI](docs/recipe-book/index.md#working-with-the-cli) — find, evaluate and understand the 100 recipes from the command line.
+- [Casual Game Recipe Book](docs/recipe-book/index.md) — a guided tour of 101 procedural recipes, from single-oscillator blips to layered stings.
+- [Working with the CLI](docs/recipe-book/index.md#working-with-the-cli) — find, evaluate and understand the 101 recipes from the command line.
 - [Browser Runtime Usage](docs/browser-usage.md)
 - [Mixer Rules](docs/mixer-rules.md)
 - [Visualizer](docs/visualizer.md)

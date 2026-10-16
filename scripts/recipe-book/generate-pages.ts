@@ -555,6 +555,16 @@ const narratives: Record<string, Narrative> = {
     intent:
       "An energising reward for power-ups and upgrades.",
   },
+  "motif-waves-end": {
+    overview:
+      "A leitmotif for wave completion that tells a two-part story in under 1.5 seconds: **relief** at clearing the stage, then a subtle **worry** about what comes next. The same theme is reused by the `sequence-wave-end` (compact) and `sequence-level-end` (layered) sequences, so the whole book has one recognisable wave-end identity instead of a pure celebration fanfare.",
+    synthesis:
+      "A single triangle oscillator steps through a four-note C-major contour while a gain gate articulates each note. The relief phrase rises G4 (392 Hz) \u2192 C5 (523 Hz) \u2192 E5 (659 Hz), outlining the tonic and its major third \u2014 a bright, settled cadence. After a short gap the motif lands on F\u266f5 (740 Hz), the raised 4th \u2014 a tritone above the C-major root \u2014 and holds it past the point of resolution, so the tail never quite settles. That one unresolved interval is what carries the worry.",
+    parameters:
+      "`note1`/`note2`/`note3` shape the relief phrase (raise `note3` to brighten the resolution); `note4` is the worry tail \u2014 tune it to another dissonance (e.g. a b2nd) for a harsher or softer \u201cwhat\u2019s next\u201d feel.",
+    intent:
+      "A deterministic relief-then-worry leitmotif that keeps the player satisfied a wave is over while hinting the fight continues.",
+  },
   "sting-danger-warning": {
     overview:
       "A danger-warning sting \u2014 two detuned saws and a noise haze.",

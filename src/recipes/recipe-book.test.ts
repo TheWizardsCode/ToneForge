@@ -41,7 +41,7 @@ import {
   CLI_WORKFLOW_EXAMPLES,
 } from "../../scripts/recipe-book/generate-index.js";
 
-/** The ten capstone arrangement pages that follow the 100 recipes. */
+/** The twelve capstone arrangement pages that follow the 101 recipes. */
 const CAPSTONE_PAGES = [
   "casual_ui_confirm_stack",
   "casual_coin_reward_stack",
@@ -53,6 +53,8 @@ const CAPSTONE_PAGES = [
   "casual_level_complete_sequence",
   "casual_game_over_sequence",
   "casual_adventure_intro_sequence",
+  "sequence-wave-end",
+  "sequence-level-end",
 ];
 
 /** The five capstone stacks and five capstone sequences, split by page kind. */
@@ -213,7 +215,7 @@ function expectCliBlockFresh(name: string): void {
  * Assert a capstone page carries the named CLI_BLOCK markers and that the
  * commands between them match the generator's canonical block byte-for-byte.
  * Editing a committed capstone block by hand (or leaving a stale generator
- * output) fails here, so the ten capstone pages cannot drift.
+ * output) fails here, so the twelve capstone pages cannot drift.
  */
 function expectCapstoneCliBlockFresh(name: string): void {
   const pagePath = resolve(DOCS_DIR, name + ".md");
@@ -240,11 +242,11 @@ function expectCapstoneCliBlockFresh(name: string): void {
 // ── Tests ────────────────────────────────────────────────────────────────────
 
 describe("Recipe Book Roster", () => {
-  it("has exactly 100 entries", () => {
-    expect(recipeRoster.length).toBe(100);
+  it("has exactly 101 entries", () => {
+    expect(recipeRoster.length).toBe(101);
   });
 
-  it("has correct tier counts (14/14/16/14/14/14/14)", () => {
+  it("has correct tier counts (14/14/16/15/14/14/14)", () => {
     var counts: Record<number, number> = {};
     for (var j = 0; j < recipeRoster.length; j++) {
       var entry = recipeRoster[j]!;
@@ -253,7 +255,7 @@ describe("Recipe Book Roster", () => {
     expect(counts[1]).toBe(14);
     expect(counts[2]).toBe(14);
     expect(counts[3]).toBe(16);
-    expect(counts[4]).toBe(14);
+    expect(counts[4]).toBe(15);
     expect(counts[5]).toBe(14);
     expect(counts[6]).toBe(14);
     expect(counts[7]).toBe(14);
@@ -262,7 +264,7 @@ describe("Recipe Book Roster", () => {
   it("has no duplicate names", () => {
     var names = recipeRoster.map(function(e) { return e.name; });
     var unique = new Set(names);
-    expect(unique.size).toBe(100);
+    expect(unique.size).toBe(101);
   });
 
   it("declares common uses for every recipe", () => {
@@ -464,7 +466,7 @@ describe("Capstone CLI commands", () => {
 });
 
 describe("Recipe Book completion gate", () => {
-  it("delivers exactly the 100 roster recipes", () => {
+  it("delivers exactly the 101 roster recipes", () => {
     const missing = recipeRoster
       .filter((e) => !existsSync(resolve(RECIPES_DIR, e.name + ".yaml")))
       .map((e) => e.name);
@@ -488,7 +490,7 @@ describe("Recipe Book completion gate", () => {
     expect(missingIndex, "Missing index links: " + missingIndex.join(", ")).toEqual([]);
   });
 
-  it("lists exactly the 100 recipes plus the capstones in index.md", () => {
+  it("lists exactly the 101 recipes plus the capstones in index.md", () => {
     const index = readFileSync(INDEX_PATH, "utf-8");
     const linkRegex = /\[`([^`]+)`\]\(\.\/([^)]+)\.md\)/g;
     const linked = new Set<string>();
@@ -558,7 +560,7 @@ describe("Recipe Book completion gate", () => {
     }
   });
 
-  it("toneforge list recipes --tags casual returns all 100 book recipes with casual + fun/joy", async () => {
+  it("toneforge list recipes --tags casual returns all 101 book recipes with casual + fun/joy", async () => {
     const stdout = await captureStdout(() =>
       main(argv("list", "recipes", "--tags", "casual", "--json")),
     );
@@ -679,7 +681,7 @@ describe("Working with the CLI section", () => {
 
 /**
  * Every page whose local relative links must resolve: the generated index,
- * all 100 recipe pages, all 10 capstone pages and the hand-maintained
+ * all 101 recipe pages, all 12 capstone pages and the hand-maintained
  * `_template.md`.
  *
  * `_template.md` has no generator (no script emits it), so it is edited
@@ -717,8 +719,8 @@ function parseInlineLinks(content: string): string[] {
 }
 
 describe("Recipe Book link integrity", () => {
-  it("covers index.md, the template, all 100 recipes and all 10 capstones", () => {
-    expect(BOOK_PAGES.length).toBe(112);
+  it("covers index.md, the template, all 101 recipes and all 12 capstones", () => {
+    expect(BOOK_PAGES.length).toBe(115);
     for (const page of BOOK_PAGES) {
       expect(existsSync(resolve(DOCS_DIR, page)), "Missing book page " + page).toBe(true);
     }
@@ -729,8 +731,8 @@ describe("Recipe Book link integrity", () => {
     for (const page of BOOK_PAGES) {
       parsed += parseInlineLinks(readFileSync(resolve(DOCS_DIR, page), "utf-8")).length;
     }
-    // Baseline: 100 recipes x 2 + 10 capstones x 3 + index 110 + template 2
-    // = 342 links. A drop means inline links went unparsed (for example, were
+    // Baseline: 101 recipes x 2 + 12 capstones x 3 + index 110 + template 2
+    // = 350 links. A drop means inline links went unparsed (for example, were
     // rewritten as reference-style links).
     expect(parsed).toBeGreaterThanOrEqual(342);
   });

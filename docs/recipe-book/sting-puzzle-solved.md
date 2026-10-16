@@ -1,7 +1,7 @@
 ---
 title: "Sting Puzzle Solved"
 id: "sting-puzzle-solved"
-order: 91
+order: 92
 description: "Puzzle-solved sting"
 ---
 

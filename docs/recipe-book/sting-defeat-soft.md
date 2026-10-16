@@ -1,7 +1,7 @@
 ---
 title: "Sting Defeat Soft"
 id: "sting-defeat-soft"
-order: 88
+order: 89
 description: "Soft multi-voice defeat sting"
 ---
 

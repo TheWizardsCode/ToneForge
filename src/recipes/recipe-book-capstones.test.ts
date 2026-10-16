@@ -1,13 +1,15 @@
 /**
  * Capstone Arrangements Test Battery
  *
- * Verifies the ten capstone arrangements that crown the Casual Game Recipe
+ * Verifies the twelve capstone arrangements that crown the Casual Game Recipe
  * Book (TF-0MUYBDP0L001QIVX):
  *  1. each stack/sequence preset loads and validates against its schema,
  *  2. each renders non-silent audio at a fixed seed,
- *  3. each reuses at least two book recipes delivered in Tiers 1-7,
+ *  3. each reuses delivered book recipes from Tiers 1-7 (stacks layer at least
+ *     two voices; sequences reference at least one recipe, since the compact
+ *     single-event `sequence-wave-end` is the canonical single-event capstone),
  *  4. each has a matching docs/recipe-book page,
- *  5. docs/recipe-book/index.md lists every capstone after the 100 recipes.
+ *  5. docs/recipe-book/index.md lists every capstone after the 101 recipes.
  *
  * Schema validity and 10-run byte-identical determinism are additionally
  * covered by the auto-discovering `src/stack/stack-presets.test.ts` and
@@ -46,6 +48,8 @@ const CAPSTONE_SEQUENCES = [
   "casual_level_complete_sequence",
   "casual_game_over_sequence",
   "casual_adventure_intro_sequence",
+  "sequence-wave-end",
+  "sequence-level-end",
 ];
 
 const BOOK_RECIPES = new Set(recipeRoster.map((entry) => entry.name));
@@ -101,7 +105,7 @@ describe("Capstone stacks", () => {
     });
   }
 
-  it("is listed in index.md after the 100 recipes", () => {
+  it("is listed in index.md after the 101 recipes", () => {
     const index = readFileSync(INDEX_PATH, "utf-8");
     const lastRecipeLink = index.lastIndexOf("](./sting-finale-short.md)");
     expect(lastRecipeLink).toBeGreaterThan(-1);
@@ -109,7 +113,7 @@ describe("Capstone stacks", () => {
       const link = `[\`${name}\`](./${name}.md)`;
       const at = index.indexOf(link);
       expect(at, `${name} missing from index`).toBeGreaterThan(-1);
-      expect(at, `${name} should follow the 100 recipes`).toBeGreaterThan(lastRecipeLink);
+      expect(at, `${name} should follow the 101 recipes`).toBeGreaterThan(lastRecipeLink);
     }
   });
 });
@@ -117,16 +121,30 @@ describe("Capstone stacks", () => {
 describe("Capstone sequences", () => {
   for (const name of CAPSTONE_SEQUENCES) {
     describe(name, () => {
-      it("loads, validates and reuses at least two book recipes", async () => {
+      it("loads, validates and reuses delivered book recipes", async () => {
         const presetPath = resolve(ROOT, "presets", "sequences", `${name}.json`);
         const definition = await loadSequencePreset(presetPath);
         expect(definition.name).toBe(name);
-        expect(definition.events.length).toBeGreaterThanOrEqual(2);
+        expect(definition.events.length).toBeGreaterThanOrEqual(1);
 
         const distinctBookRecipes = new Set(
           definition.events.map((e) => e.event).filter((r) => BOOK_RECIPES.has(r)),
         );
-        expect(distinctBookRecipes.size).toBeGreaterThanOrEqual(2);
+        expect(
+          distinctBookRecipes.size,
+          `${name} must reference at least one delivered book recipe`,
+        ).toBeGreaterThanOrEqual(1);
+
+        // Every triggered event must resolve to a delivered book recipe: a
+        // capstone may be a single compact event (sequence-wave-end) or a
+        // multi-event composition, but never an undeclared recipe.
+        const undeclared = definition.events
+          .map((e) => e.event)
+          .filter((r) => !BOOK_RECIPES.has(r));
+        expect(
+          undeclared,
+          `${name} references undeclared recipes: ${undeclared.join(", ")}`,
+        ).toEqual([]);
       });
 
       it("renders non-silent audio at seed 42", async () => {
@@ -142,7 +160,7 @@ describe("Capstone sequences", () => {
     });
   }
 
-  it("is listed in index.md after the 100 recipes", () => {
+  it("is listed in index.md after the 101 recipes", () => {
     const index = readFileSync(INDEX_PATH, "utf-8");
     const lastRecipeLink = index.lastIndexOf("](./sting-finale-short.md)");
     expect(lastRecipeLink).toBeGreaterThan(-1);
@@ -150,7 +168,7 @@ describe("Capstone sequences", () => {
       const link = `[\`${name}\`](./${name}.md)`;
       const at = index.indexOf(link);
       expect(at, `${name} missing from index`).toBeGreaterThan(-1);
-      expect(at, `${name} should follow the 100 recipes`).toBeGreaterThan(lastRecipeLink);
+      expect(at, `${name} should follow the 101 recipes`).toBeGreaterThan(lastRecipeLink);
     }
   });
 });

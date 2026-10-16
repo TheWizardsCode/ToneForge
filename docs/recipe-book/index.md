@@ -2,12 +2,12 @@
 title: "Casual Game Recipe Book"
 id: "recipe-book-index"
 order: 0
-description: "100 documented casual game sound recipes, ascending from single-oscillator blips to multi-layered stings."
+description: "101 documented casual game sound recipes, ascending from single-oscillator blips to multi-layered stings."
 ---
 
 # Casual Game Recipe Book
 
-A curated collection of **100 procedural sound recipes** for casual and arcade games,
+A curated collection of **101 procedural sound recipes** for casual and arcade games,
 organised into seven ascending tiers of increasing complexity:
 
 Every recipe page opens with an **At a glance** metadata table — title, common uses,
@@ -80,60 +80,61 @@ sound-design notes and ToneForge CLI commands.
 56. [`collect-powerup-arpeggio`](./collect-powerup-arpeggio.md) — Power-up arpeggio
 57. [`motif-quest-accept`](./motif-quest-accept.md) — Quest-accept motif
 58. [`motif-quest-complete`](./motif-quest-complete.md) — Quest-complete fanfare
+59. [`motif-waves-end`](./motif-waves-end.md) — Wave-complete leitmotif (relief then worry)
 ## Tier 5: Character & critter voices
 
-59. [`character-jump-voice`](./character-jump-voice.md) — Character jump voice
-60. [`character-hurt-voice`](./character-hurt-voice.md) — Character hurt voice
-61. [`character-happy-voice`](./character-happy-voice.md) — Character happy voice
-62. [`character-effort-grunt`](./character-effort-grunt.md) — Character effort grunt
-63. [`character-sigh-voice`](./character-sigh-voice.md) — Character sigh
-64. [`creature-blob-squish`](./creature-blob-squish.md) — Blob squish
-65. [`creature-bat-squeak`](./creature-bat-squeak.md) — Bat squeak
-66. [`creature-frog-croak`](./creature-frog-croak.md) — Frog croak
-67. [`creature-bird-chirp`](./creature-bird-chirp.md) — Bird chirp
-68. [`creature-slime-bounce`](./creature-slime-bounce.md) — Slime bounce
-69. [`critter-squeak-toy`](./critter-squeak-toy.md) — Toy critter squeak
-70. [`critter-purr-soft`](./critter-purr-soft.md) — Soft critter purr
-71. [`creature-ghost-whisper`](./creature-ghost-whisper.md) — Ghost whisper
-72. [`creature-dragon-huff`](./creature-dragon-huff.md) — Dragon huff
+60. [`character-jump-voice`](./character-jump-voice.md) — Character jump voice
+61. [`character-hurt-voice`](./character-hurt-voice.md) — Character hurt voice
+62. [`character-happy-voice`](./character-happy-voice.md) — Character happy voice
+63. [`character-effort-grunt`](./character-effort-grunt.md) — Character effort grunt
+64. [`character-sigh-voice`](./character-sigh-voice.md) — Character sigh
+65. [`creature-blob-squish`](./creature-blob-squish.md) — Blob squish
+66. [`creature-bat-squeak`](./creature-bat-squeak.md) — Bat squeak
+67. [`creature-frog-croak`](./creature-frog-croak.md) — Frog croak
+68. [`creature-bird-chirp`](./creature-bird-chirp.md) — Bird chirp
+69. [`creature-slime-bounce`](./creature-slime-bounce.md) — Slime bounce
+70. [`critter-squeak-toy`](./critter-squeak-toy.md) — Toy critter squeak
+71. [`critter-purr-soft`](./critter-purr-soft.md) — Soft critter purr
+72. [`creature-ghost-whisper`](./creature-ghost-whisper.md) — Ghost whisper
+73. [`creature-dragon-huff`](./creature-dragon-huff.md) — Dragon huff
 ## Tier 6: Ambience & loops
 
-73. [`ambience-meadow-day`](./ambience-meadow-day.md) — Daytime meadow ambience
-74. [`ambience-cave-drip`](./ambience-cave-drip.md) — Cave drip ambience
-75. [`ambience-forest-breeze`](./ambience-forest-breeze.md) — Forest breeze ambience
-76. [`ambience-waterfall-soft`](./ambience-waterfall-soft.md) — Soft waterfall ambience
-77. [`ambience-campfire-crackle`](./ambience-campfire-crackle.md) — Campfire crackle ambience
-78. [`ambience-rain-light`](./ambience-rain-light.md) — Light rain ambience
-79. [`ambience-ocean-waves`](./ambience-ocean-waves.md) — Ocean waves ambience
-80. [`ambience-night-crickets`](./ambience-night-crickets.md) — Night crickets ambience
-81. [`ambience-space-hum`](./ambience-space-hum.md) — Space hum ambience
-82. [`ambience-machine-hum`](./ambience-machine-hum.md) — Machine hum ambience
-83. [`ambience-market-bustle`](./ambience-market-bustle.md) — Market bustle ambience
-84. [`ambience-magic-glow`](./ambience-magic-glow.md) — Magic glow ambience
-85. [`ambience-desert-wind`](./ambience-desert-wind.md) — Desert wind ambience
-86. [`ambience-snowfall-hush`](./ambience-snowfall-hush.md) — Snowfall hush ambience
+74. [`ambience-meadow-day`](./ambience-meadow-day.md) — Daytime meadow ambience
+75. [`ambience-cave-drip`](./ambience-cave-drip.md) — Cave drip ambience
+76. [`ambience-forest-breeze`](./ambience-forest-breeze.md) — Forest breeze ambience
+77. [`ambience-waterfall-soft`](./ambience-waterfall-soft.md) — Soft waterfall ambience
+78. [`ambience-campfire-crackle`](./ambience-campfire-crackle.md) — Campfire crackle ambience
+79. [`ambience-rain-light`](./ambience-rain-light.md) — Light rain ambience
+80. [`ambience-ocean-waves`](./ambience-ocean-waves.md) — Ocean waves ambience
+81. [`ambience-night-crickets`](./ambience-night-crickets.md) — Night crickets ambience
+82. [`ambience-space-hum`](./ambience-space-hum.md) — Space hum ambience
+83. [`ambience-machine-hum`](./ambience-machine-hum.md) — Machine hum ambience
+84. [`ambience-market-bustle`](./ambience-market-bustle.md) — Market bustle ambience
+85. [`ambience-magic-glow`](./ambience-magic-glow.md) — Magic glow ambience
+86. [`ambience-desert-wind`](./ambience-desert-wind.md) — Desert wind ambience
+87. [`ambience-snowfall-hush`](./ambience-snowfall-hush.md) — Snowfall hush ambience
 ## Tier 7: Multi-voice stings
 
-87. [`sting-victory-bright`](./sting-victory-bright.md) — Bright multi-voice victory sting
-88. [`sting-defeat-soft`](./sting-defeat-soft.md) — Soft multi-voice defeat sting
-89. [`sting-level-complete`](./sting-level-complete.md) — Level-complete sting
-90. [`sting-boss-appear`](./sting-boss-appear.md) — Boss-appear dramatic sting
-91. [`sting-puzzle-solved`](./sting-puzzle-solved.md) — Puzzle-solved sting
-92. [`sting-game-over-gentle`](./sting-game-over-gentle.md) — Gentle game-over sting
-93. [`sting-treasure-found`](./sting-treasure-found.md) — Treasure-found sting
-94. [`sting-powerup-major`](./sting-powerup-major.md) — Major power-up sting
-95. [`sting-danger-warning`](./sting-danger-warning.md) — Danger-warning sting
-96. [`sting-mystery-reveal`](./sting-mystery-reveal.md) — Mystery-reveal sting
-97. [`sting-celebration-pop`](./sting-celebration-pop.md) — Celebration pop sting
-98. [`sting-sad-trombone-soft`](./sting-sad-trombone-soft.md) — Soft sad-trombone sting
-99. [`sting-adventure-call`](./sting-adventure-call.md) — Adventure-call sting
-100. [`sting-finale-short`](./sting-finale-short.md) — Short finale sting
+88. [`sting-victory-bright`](./sting-victory-bright.md) — Bright multi-voice victory sting
+89. [`sting-defeat-soft`](./sting-defeat-soft.md) — Soft multi-voice defeat sting
+90. [`sting-level-complete`](./sting-level-complete.md) — Level-complete sting
+91. [`sting-boss-appear`](./sting-boss-appear.md) — Boss-appear dramatic sting
+92. [`sting-puzzle-solved`](./sting-puzzle-solved.md) — Puzzle-solved sting
+93. [`sting-game-over-gentle`](./sting-game-over-gentle.md) — Gentle game-over sting
+94. [`sting-treasure-found`](./sting-treasure-found.md) — Treasure-found sting
+95. [`sting-powerup-major`](./sting-powerup-major.md) — Major power-up sting
+96. [`sting-danger-warning`](./sting-danger-warning.md) — Danger-warning sting
+97. [`sting-mystery-reveal`](./sting-mystery-reveal.md) — Mystery-reveal sting
+98. [`sting-celebration-pop`](./sting-celebration-pop.md) — Celebration pop sting
+99. [`sting-sad-trombone-soft`](./sting-sad-trombone-soft.md) — Soft sad-trombone sting
+100. [`sting-adventure-call`](./sting-adventure-call.md) — Adventure-call sting
+101. [`sting-finale-short`](./sting-finale-short.md) — Short finale sting
 
-**Total: 100 recipes** across 7 tiers.
+**Total: 101 recipes** across 7 tiers.
 
 ## Capstones: Layered arrangements
 
-Ten capstone arrangements composed from the recipes above using `toneforge stack` and `toneforge sequence`:
+Twelve capstone arrangements composed from the recipes above using `toneforge stack` and `toneforge sequence`:
 
 1. [`casual_ui_confirm_stack`](./casual_ui_confirm_stack.md) — Casual UI confirm stack: a crisp selection pop, a rising confirmation tone and a magic shimmer layered into one satisfying interface acknowledgement.
 2. [`casual_coin_reward_stack`](./casual_coin_reward_stack.md) — Casual coin reward stack: a bright pickup tick, an arcing coin contour and a coin-chain jingle that together celebrate a reward.
@@ -145,6 +146,8 @@ Ten capstone arrangements composed from the recipes above using `toneforge stack
 8. [`casual_level_complete_sequence`](./casual_level_complete_sequence.md) — Casual level complete: a quest-complete motif, a level-up jingle and a level-complete sting closing a stage with a flourish.
 9. [`casual_game_over_sequence`](./casual_game_over_sequence.md) — Casual game over: a soft defeat sting, a gentle game-over sting and a falling cancel tone that end a run kindly.
 10. [`casual_adventure_intro_sequence`](./casual_adventure_intro_sequence.md) — Casual adventure intro: an adventure-call sting, a short start-game fanfare and an air swish launching a new journey.
+11. [`sequence-wave-end`](./sequence-wave-end.md) — Wave-end leitmotif: motif-waves-end as a single compact event (~1.4 s) marking a cleared wave.
+12. [`sequence-level-end`](./sequence-level-end.md) — Level-end leitmotif: motif-waves-end with sting-level-complete layered at the resolution point for a bigger, more final feel.
 
 ## Working with the CLI
 

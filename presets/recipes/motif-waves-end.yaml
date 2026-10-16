@@ -1,0 +1,99 @@
+# Tier 4 — Melodic motifs (4-note figure)
+# Wave-end leitmotif (relief then worry): a resolved C-major phrase (G-C-E)
+# that tails into a raised-4th (F#) worry note. Casual/arcade, deterministic.
+
+version: "0.1"
+meta:
+  name: motif-waves-end
+  description: Wave-complete leitmotif (relief then worry)
+  category: UI
+  tags:
+    - casual
+    - joy
+    - fun
+    - leitmotif
+    - wave-complete
+    - level-complete
+  duration: 1.4
+  parameters:
+    - name: note1
+      type: number
+      min: 274
+      max: 548
+      unit: Hz
+      default: 392
+    - name: note2
+      type: number
+      min: 366
+      max: 732
+      unit: Hz
+      default: 523
+    - name: note3
+      type: number
+      min: 461
+      max: 922
+      unit: Hz
+      default: 659
+    - name: note4
+      type: number
+      min: 518
+      max: 1036
+      unit: Hz
+      default: 740
+nodes:
+  osc:
+    kind: oscillator
+    params:
+      type: triangle
+      frequency: 392
+    automation:
+      frequency:
+        - kind: set
+          time: 0.0
+          value: 392
+        - kind: set
+          time: 0.22
+          value: 523
+        - kind: set
+          time: 0.44
+          value: 659
+        - kind: set
+          time: 0.78
+          value: 740
+  gate:
+    kind: gain
+    params:
+      gain: 0
+    automation:
+      gain:
+        - kind: set
+          time: 0
+          value: 0
+        - kind: linearRamp
+          time: 0.01
+          value: 0.8
+        - kind: linearRamp
+          time: 0.18
+          value: 0
+        - kind: linearRamp
+          time: 0.22
+          value: 0.8
+        - kind: linearRamp
+          time: 0.4
+          value: 0
+        - kind: linearRamp
+          time: 0.44
+          value: 0.8
+        - kind: linearRamp
+          time: 0.62
+          value: 0
+        - kind: linearRamp
+          time: 0.78
+          value: 0.8
+        - kind: linearRamp
+          time: 1.32
+          value: 0
+  out:
+    kind: destination
+routing:
+  - chain: [osc, gate, out]

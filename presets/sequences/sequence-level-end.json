@@ -1,0 +1,19 @@
+{
+  "version": "1.0",
+  "name": "sequence-level-end",
+  "description": "Level-end leitmotif: motif-waves-end with sting-level-complete layered at the resolution point for a bigger, more final feel.",
+  "events": [
+    {
+      "time": 0.0,
+      "event": "motif-waves-end",
+      "seedOffset": 0,
+      "gain": 1.0
+    },
+    {
+      "time": 0.44,
+      "event": "sting-level-complete",
+      "seedOffset": 1,
+      "gain": 0.7
+    }
+  ]
+}

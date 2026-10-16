@@ -1,7 +1,7 @@
 ---
 title: "Sting Victory Bright"
 id: "sting-victory-bright"
-order: 87
+order: 88
 description: "Bright multi-voice victory sting"
 ---
 

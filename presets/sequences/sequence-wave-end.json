@@ -1,0 +1,13 @@
+{
+  "version": "1.0",
+  "name": "sequence-wave-end",
+  "description": "Wave-end leitmotif: motif-waves-end as a single compact event (~1.4 s) marking a cleared wave.",
+  "events": [
+    {
+      "time": 0.0,
+      "event": "motif-waves-end",
+      "seedOffset": 0,
+      "gain": 1.0
+    }
+  ]
+}

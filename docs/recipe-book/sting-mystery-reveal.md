@@ -1,7 +1,7 @@
 ---
 title: "Sting Mystery Reveal"
 id: "sting-mystery-reveal"
-order: 96
+order: 97
 description: "Mystery-reveal sting"
 ---
 

@@ -71,8 +71,8 @@ function loadRoster(): RosterEntry[] {
 
   const entries = parseRosterEntries(match[1]!);
 
-  if (entries.length !== 100) {
-    console.error(`ERROR: Roster has ${entries.length} entries, expected 100`);
+  if (entries.length !== 101) {
+    console.error(`ERROR: Roster has ${entries.length} entries, expected 101`);
     process.exit(1);
   }
 
@@ -197,6 +197,8 @@ const capstones: CapstoneEntry[] = [
   { kind: "sequences", name: "casual_level_complete_sequence" },
   { kind: "sequences", name: "casual_game_over_sequence" },
   { kind: "sequences", name: "casual_adventure_intro_sequence" },
+  { kind: "sequences", name: "sequence-wave-end" },
+  { kind: "sequences", name: "sequence-level-end" },
 ];
 
 /**
@@ -212,12 +214,12 @@ export function renderIndexContent(): string {
   lines.push('title: "Casual Game Recipe Book"');
   lines.push('id: "recipe-book-index"');
   lines.push("order: 0");
-  lines.push('description: "100 documented casual game sound recipes, ascending from single-oscillator blips to multi-layered stings."');
+  lines.push('description: "101 documented casual game sound recipes, ascending from single-oscillator blips to multi-layered stings."');
   lines.push("---");
   lines.push("");
   lines.push("# Casual Game Recipe Book");
   lines.push("");
-  lines.push("A curated collection of **100 procedural sound recipes** for casual and arcade games,");
+  lines.push("A curated collection of **101 procedural sound recipes** for casual and arcade games,");
   lines.push("organised into seven ascending tiers of increasing complexity:");
   lines.push("");
   lines.push("Every recipe page opens with an **At a glance** metadata table — title, common uses,");
@@ -243,12 +245,12 @@ export function renderIndexContent(): string {
   lines.push(`**Total: ${entries.length} recipes** across 7 tiers.`);
   lines.push("");
 
-  // ── Capstone arrangements (after the 100 recipes) ──────────────────
+  // ── Capstone arrangements (after the 101 recipes) ──────────────────
 
   lines.push("## Capstones: Layered arrangements");
   lines.push("");
   lines.push(
-    "Ten capstone arrangements composed from the recipes above using `toneforge stack` and `toneforge sequence`:",
+    "Twelve capstone arrangements composed from the recipes above using `toneforge stack` and `toneforge sequence`:",
   );
   lines.push("");
 
@@ -277,7 +279,7 @@ function main(): void {
   const content = renderIndexContent();
   const outputPath = resolve(ROOT, "docs", "recipe-book", "index.md");
   writeFileSync(outputPath, content, "utf-8");
-  console.log(`Generated ${outputPath} (100 recipes + ${capstones.length} capstones)`);
+  console.log(`Generated ${outputPath} (101 recipes + ${capstones.length} capstones)`);
 }
 
 // Only run the generator when this module is executed directly. Importing it
