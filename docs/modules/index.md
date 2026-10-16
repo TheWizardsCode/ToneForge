@@ -20,6 +20,11 @@ You route modules together with `routing`, schedule them over time with
 `destination`. Those are graph-level constructs rather than modules, so they
 are described in the specification rather than catalogued here.
 
+Looking for the playable, pitch-driven **instruments** capability (Note On /
+Note Off voices, ADSR envelopes and polyphony)? See the
+[Instruments module](instruments.md) — a distinct, complementary capability to
+one-shot recipes.
+
 ## Node kinds at a glance
 
 | Primary function | Node kinds |
