@@ -194,6 +194,38 @@ In the browser, `createRealtimeInstrument` uses the native `AudioContext`;
 the web demo (`web/src/audio.ts`) exposes `playInstrumentNote()` and lazy
 `getRealtimeInstrument()` registration for the engine's real-time renderer.
 
+## CLI — demo live MIDI note playback
+
+The `instrument` command group demos the playable presets from the terminal:
+a note started with `noteon` **keeps sounding until `noteoff` is sent with the
+same note number**, even though each invocation is a separate process. A small
+persistent instrument daemon (`src/instruments/daemon.ts`) owns the real-time
+audio engine; every CLI call is a thin client over a local socket.
+
+```bash
+# Hold MIDI note 60 (middle C) on the default (pluck) preset.
+tf instrument noteon 60
+# → Holding note 60 (pluck) at velocity 100.
+
+# A one-shot note: automatic Note Off after 0.6 s.
+tf instrument noteon 67 --preset bell --length 0.6
+
+# Release exactly note 60; other held notes are unaffected (polyphonic).
+tf instrument noteoff 60
+
+# Inspect / control the daemon.
+tf instrument status     # list held notes
+tf instrument presets   # pluck, pad, bass, bell, string-lead
+tf instrument stop      # stop the daemon and release everything
+```
+
+Options: `--preset <name>` (default `pluck`), `--velocity <1-127>` (default
+`100`), `--length <seconds>` (auto Note Off), and `--json` for machine
+readable output. Notes ring across invocations; a chord is just several
+`noteon` commands before the matching `noteoff`s. The daemon shuts itself
+down after an idle period once no notes are held, and honours
+`TONEFORGE_INSTRUMENT_SOCKET` for a custom socket path.
+
 ## Starter preset family
 
 Five purpose-crafted presets ship as YAML files in `presets/instruments/`

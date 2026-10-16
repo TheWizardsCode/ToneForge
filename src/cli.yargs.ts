@@ -9,6 +9,7 @@ import * as generateCmd from "./cli/commands/generate.js";
 import * as listCmd from "./cli/commands/list.js";
 import * as showCmd from "./cli/commands/show.js";
 import * as playCmd from "./cli/commands/play.js";
+import * as instrumentCmd from "./cli/commands/instrument.js";
 import * as versionCmd from "./cli/commands/version.js";
 import * as stackCmd from "./cli/commands/stack.js";
 import * as sequenceCmd from "./cli/commands/sequence.js";
@@ -42,6 +43,7 @@ export const FRAMEWORK_COMMANDS = [
   "explore",
   "library",
   "intelligence",
+  "instrument",
   "intent",
   "memory",
   "tui",
@@ -140,6 +142,58 @@ export async function yargsMain(argv: string[] = process.argv): Promise<number> 
   // ── play ──────────────────────────────────────────────────────────────────
   y.command(playCmd.command, playCmd.desc, playCmd.builder, async (argv) => {
     exitCode = await dispatchCommand("play", argv.file as string | undefined, buildFlags(argv), []);
+  });
+
+  // ── instrument ────────────────────────────────────────────────────────────
+  y.command(instrumentCmd.command, instrumentCmd.desc, (y2) => {
+    y2.command("noteon <note>", "Start (and hold) a MIDI note until Note Off", (y3) => {
+      y3.positional("note", { type: "number", describe: "MIDI note number (0-127)" })
+        .option("preset", { type: "string", describe: "Instrument preset id" })
+        .option("velocity", { type: "number", describe: "MIDI velocity (1-127)" })
+        .option("length", { type: "number", describe: "Auto-send Note Off after N seconds" })
+        .option("json", { type: "boolean", describe: "Output JSON" });
+    }, async (argv) => {
+      exitCode = await dispatchCommand("instrument", "noteon", buildFlags(argv, {
+        ...(argv.note !== undefined ? { note: String(argv.note) } : {}),
+        ...(argv.preset !== undefined ? { preset: String(argv.preset) } : {}),
+        ...(argv.velocity !== undefined ? { velocity: String(argv.velocity) } : {}),
+        ...(argv.length !== undefined ? { length: String(argv.length) } : {}),
+      }), []);
+    });
+    y2.command("noteoff <note>", "Release a held MIDI note", (y3) => {
+      y3.positional("note", { type: "number", describe: "MIDI note number (0-127)" })
+        .option("json", { type: "boolean", describe: "Output JSON" });
+    }, async (argv) => {
+      exitCode = await dispatchCommand("instrument", "noteoff", buildFlags(argv, {
+        ...(argv.note !== undefined ? { note: String(argv.note) } : {}),
+      }), []);
+    });
+    y2.command("status", "List currently held notes", (y3) => {
+      y3.option("json", { type: "boolean", describe: "Output JSON" });
+    }, async (argv) => {
+      exitCode = await dispatchCommand("instrument", "status", buildFlags(argv), []);
+    });
+    y2.command("presets", "List available instrument presets", (y3) => {
+      y3.option("json", { type: "boolean", describe: "Output JSON" });
+    }, async (argv) => {
+      exitCode = await dispatchCommand("instrument", "presets", buildFlags(argv), []);
+    });
+    y2.command("stop", "Stop the instrument daemon and release all notes", (y3) => {
+      y3.option("json", { type: "boolean", describe: "Output JSON" });
+    }, async (argv) => {
+      exitCode = await dispatchCommand("instrument", "stop", buildFlags(argv), []);
+    });
+    y2.command("__daemon", false, (y3) => {
+      y3.option("json", { type: "boolean", describe: "Output JSON" });
+    }, async (argv) => {
+      exitCode = await dispatchCommand("instrument", "__daemon", buildFlags(argv), []);
+    });
+  }, async (_argv) => {
+    // Re-parse raw argv so dispatchCommand receives the unknown subcommand name
+    // for proper error output. yargs only calls this handler when no subcommand
+    // matched, so `argv._` isn't reliable; `raw` (captured in outer scope) is.
+    const parsed = parseArgs(["node", "cli.ts", ...raw]);
+    exitCode = await dispatchCommand(parsed.command, parsed.subcommand, parsed.flags, parsed.layers);
   });
 
   // ── version ───────────────────────────────────────────────────────────────

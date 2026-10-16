@@ -19,6 +19,7 @@ This checklist tracks ownership of user-facing CLI commands after the yargs cuto
 | `explore` | yargs (`src/cli.yargs.ts`) | Includes `sweep`, `mutate`, `promote`, `show`, `runs`. |
 | `library` | yargs (`src/cli.yargs.ts`) | Includes `list`, `search`, `similar`, `export`, `regenerate`. |
 | `intelligence` | yargs (`src/cli.yargs.ts`) | Read-only `audit`, `recommend`, `suggest-exploration` subcommands. |
+| `instrument` | yargs (`src/cli.yargs.ts`) | `noteon`, `noteoff`, `status`, `presets`, `stop` subcommands; sustained cross-process playback via the instrument daemon. |
 | `intent` | yargs (`src/cli.yargs.ts`) | `submit` and `vocabulary` subcommands. |
 | `memory` | yargs (`src/cli.yargs.ts`) | `query`, `export`, `clear` subcommands. |
 | `tui` | yargs (`src/cli.yargs.ts`) | Non-TTY guard behavior preserved. |

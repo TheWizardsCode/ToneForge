@@ -140,6 +140,7 @@ import * as validateCmd from "./cli/commands/validate.js";
 import * as compileCmd from "./cli/commands/compile.js";
 import * as syncCmd from "./cli/commands/sync.js";
 import * as pipelineCmd from "./cli/commands/pipeline.js";
+import { runInstrumentCommand } from "./cli/commands/instrument.js";
 
 /** Parse command-line arguments into a structured map. */
 export function parseArgs(argv: string[]): {
@@ -216,6 +217,7 @@ async function printHelp(): Promise<void> {
 | **stack** | Compose layered sound events from multiple recipes |
 | **show** | Display recipe metadata and parameters |
 | **play** | Play a WAV file through the system audio player |
+| **instrument** | Demo live MIDI note playback (noteon / noteoff) on instrument presets |
 | **list** | List available resources (e.g. recipes) |
 | **tui** | Interactive wizard for building sound palettes |
 | **visualize** | Generate deterministic, audio-synchronised visual effects |
@@ -2307,6 +2309,8 @@ export async function dispatchCommand(
       } else {
         await printRuntimeHelp();
       }
+    } else if (command === "instrument") {
+      await runInstrumentCommand(subcommand, { ...flags, help: true });
     } else {
       await printHelp();
     }
@@ -2403,7 +2407,6 @@ export async function dispatchCommand(
       await printPlayHelp();
       return 0;
     }
-
     if (subcommand === undefined) {
       if (jsonMode) {
         jsonErr("'play' requires a WAV file path. Run 'toneforge play --help' for usage.");
@@ -6083,6 +6086,10 @@ export async function dispatchCommand(
 
     await printRuntimeHelp();
     return 0;
+  }
+
+  if (command === "instrument") {
+    return runInstrumentCommand(subcommand, flags);
   }
 
   if (command === "tui") {
