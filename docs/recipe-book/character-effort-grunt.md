@@ -43,20 +43,12 @@ With a fixed seed (e.g. `--seed 42`) this recipe renders byte-identical audio on
 
 <!-- CLI_BLOCK_START — regenerate with: tsx scripts/recipe-book/generate-cli-blocks.ts character-effort-grunt -->
 ```bash
-# Generate the recipe with a specific seed
-toneforge generate --recipe character-effort-grunt --seed 42 --output character-effort-grunt.wav
+# Classify the character voice
+toneforge classify --recipe character-effort-grunt --seed 42
 ```
 ```bash
-# Show the recipe metadata
-toneforge show character-effort-grunt
-```
-```bash
-# List all recipes, filtered by casual tag
-toneforge list recipes --tags casual
-```
-```bash
-# Generate with default seed
-toneforge generate --recipe character-effort-grunt --output character-effort-grunt-default.wav
+# Export deterministic visual frames
+toneforge visualize export --recipe character-effort-grunt --seed 42 --format frames
 ```
 <!-- CLI_BLOCK_END -->
 

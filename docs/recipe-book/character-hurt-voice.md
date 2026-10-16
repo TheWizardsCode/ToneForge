@@ -43,20 +43,12 @@ With a fixed seed (e.g. `--seed 42`) this recipe renders byte-identical audio on
 
 <!-- CLI_BLOCK_START — regenerate with: tsx scripts/recipe-book/generate-cli-blocks.ts character-hurt-voice -->
 ```bash
-# Generate the recipe with a specific seed
-toneforge generate --recipe character-hurt-voice --seed 42 --output character-hurt-voice.wav
+# Classify the character voice
+toneforge classify --recipe character-hurt-voice --seed 42
 ```
 ```bash
-# Show the recipe metadata
-toneforge show character-hurt-voice
-```
-```bash
-# List all recipes, filtered by casual tag
-toneforge list recipes --tags casual
-```
-```bash
-# Generate with default seed
-toneforge generate --recipe character-hurt-voice --output character-hurt-voice-default.wav
+# Export deterministic visual frames
+toneforge visualize export --recipe character-hurt-voice --seed 42 --format frames
 ```
 <!-- CLI_BLOCK_END -->
 

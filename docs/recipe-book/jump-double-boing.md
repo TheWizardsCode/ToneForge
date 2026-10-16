@@ -43,20 +43,12 @@ With a fixed seed (e.g. `--seed 42`) this recipe renders byte-identical audio on
 
 <!-- CLI_BLOCK_START — regenerate with: tsx scripts/recipe-book/generate-cli-blocks.ts jump-double-boing -->
 ```bash
-# Generate the recipe with a specific seed
+# Generate the recipe at a fixed seed
 toneforge generate --recipe jump-double-boing --seed 42 --output jump-double-boing.wav
 ```
 ```bash
-# Show the recipe metadata
-toneforge show jump-double-boing
-```
-```bash
-# List all recipes, filtered by casual tag
-toneforge list recipes --tags casual
-```
-```bash
-# Generate with default seed
-toneforge generate --recipe jump-double-boing --output jump-double-boing-default.wav
+# Analyse the rendered shape
+toneforge analyze --recipe jump-double-boing --seed 42
 ```
 <!-- CLI_BLOCK_END -->
 

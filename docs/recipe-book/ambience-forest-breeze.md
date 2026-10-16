@@ -43,20 +43,12 @@ With a fixed seed (e.g. `--seed 42`) this recipe renders byte-identical audio on
 
 <!-- CLI_BLOCK_START — regenerate with: tsx scripts/recipe-book/generate-cli-blocks.ts ambience-forest-breeze -->
 ```bash
-# Generate the recipe with a specific seed
-toneforge generate --recipe ambience-forest-breeze --seed 42 --output ambience-forest-breeze.wav
+# Inspect a representative ambience sequence
+toneforge sequence inspect --preset presets/sequences/footsteps_run.json
 ```
 ```bash
-# Show the recipe metadata
-toneforge show ambience-forest-breeze
-```
-```bash
-# List all recipes, filtered by casual tag
-toneforge list recipes --tags casual
-```
-```bash
-# Generate with default seed
-toneforge generate --recipe ambience-forest-breeze --output ambience-forest-breeze-default.wav
+# Sweep seeds and rank the best variants
+toneforge explore sweep --recipe ambience-forest-breeze --seed-range 1:50 --keep-top 5
 ```
 <!-- CLI_BLOCK_END -->
 

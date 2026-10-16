@@ -43,20 +43,12 @@ With a fixed seed (e.g. `--seed 42`) this recipe renders byte-identical audio on
 
 <!-- CLI_BLOCK_START — regenerate with: tsx scripts/recipe-book/generate-cli-blocks.ts sting-treasure-found -->
 ```bash
-# Generate the recipe with a specific seed
-toneforge generate --recipe sting-treasure-found --seed 42 --output sting-treasure-found.wav
+# Inspect a representative multi-voice stack
+toneforge stack inspect --preset presets/stacks/casual_victory_stack.json
 ```
 ```bash
-# Show the recipe metadata
-toneforge show sting-treasure-found
-```
-```bash
-# List all recipes, filtered by casual tag
-toneforge list recipes --tags casual
-```
-```bash
-# Generate with default seed
-toneforge generate --recipe sting-treasure-found --output sting-treasure-found-default.wav
+# Export deterministic visual frames
+toneforge visualize export --recipe sting-treasure-found --seed 42 --format frames
 ```
 <!-- CLI_BLOCK_END -->
 

@@ -43,20 +43,12 @@ With a fixed seed (e.g. `--seed 42`) this recipe renders byte-identical audio on
 
 <!-- CLI_BLOCK_START — regenerate with: tsx scripts/recipe-book/generate-cli-blocks.ts whoosh-air-swish -->
 ```bash
-# Generate the recipe with a specific seed
-toneforge generate --recipe whoosh-air-swish --seed 42 --output whoosh-air-swish.wav
+# Classify the sound by category and texture
+toneforge classify --recipe whoosh-air-swish --seed 42
 ```
 ```bash
-# Show the recipe metadata
-toneforge show whoosh-air-swish
-```
-```bash
-# List all recipes, filtered by casual tag
-toneforge list recipes --tags casual
-```
-```bash
-# Generate with default seed
-toneforge generate --recipe whoosh-air-swish --output whoosh-air-swish-default.wav
+# Sweep seeds and rank the best variants
+toneforge explore sweep --recipe whoosh-air-swish --seed-range 1:50 --keep-top 5
 ```
 <!-- CLI_BLOCK_END -->
 

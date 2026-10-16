@@ -43,20 +43,12 @@ With a fixed seed (e.g. `--seed 42`) this recipe renders byte-identical audio on
 
 <!-- CLI_BLOCK_START — regenerate with: tsx scripts/recipe-book/generate-cli-blocks.ts explosion-pop-bright -->
 ```bash
-# Generate the recipe with a specific seed
-toneforge generate --recipe explosion-pop-bright --seed 42 --output explosion-pop-bright.wav
+# Classify the sound by category and texture
+toneforge classify --recipe explosion-pop-bright --seed 42
 ```
 ```bash
-# Show the recipe metadata
-toneforge show explosion-pop-bright
-```
-```bash
-# List all recipes, filtered by casual tag
-toneforge list recipes --tags casual
-```
-```bash
-# Generate with default seed
-toneforge generate --recipe explosion-pop-bright --output explosion-pop-bright-default.wav
+# Sweep seeds and rank the best variants
+toneforge explore sweep --recipe explosion-pop-bright --seed-range 1:50 --keep-top 5
 ```
 <!-- CLI_BLOCK_END -->
 

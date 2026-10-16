@@ -43,20 +43,12 @@ With a fixed seed (e.g. `--seed 42`) this recipe renders byte-identical audio on
 
 <!-- CLI_BLOCK_START — regenerate with: tsx scripts/recipe-book/generate-cli-blocks.ts sting-powerup-major -->
 ```bash
-# Generate the recipe with a specific seed
-toneforge generate --recipe sting-powerup-major --seed 42 --output sting-powerup-major.wav
+# Inspect a representative multi-voice stack
+toneforge stack inspect --preset presets/stacks/casual_victory_stack.json
 ```
 ```bash
-# Show the recipe metadata
-toneforge show sting-powerup-major
-```
-```bash
-# List all recipes, filtered by casual tag
-toneforge list recipes --tags casual
-```
-```bash
-# Generate with default seed
-toneforge generate --recipe sting-powerup-major --output sting-powerup-major-default.wav
+# Export deterministic visual frames
+toneforge visualize export --recipe sting-powerup-major --seed 42 --format frames
 ```
 <!-- CLI_BLOCK_END -->
 

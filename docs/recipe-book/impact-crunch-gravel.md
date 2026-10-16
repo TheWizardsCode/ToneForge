@@ -43,20 +43,12 @@ With a fixed seed (e.g. `--seed 42`) this recipe renders byte-identical audio on
 
 <!-- CLI_BLOCK_START — regenerate with: tsx scripts/recipe-book/generate-cli-blocks.ts impact-crunch-gravel -->
 ```bash
-# Generate the recipe with a specific seed
-toneforge generate --recipe impact-crunch-gravel --seed 42 --output impact-crunch-gravel.wav
+# Classify the sound by category and texture
+toneforge classify --recipe impact-crunch-gravel --seed 42
 ```
 ```bash
-# Show the recipe metadata
-toneforge show impact-crunch-gravel
-```
-```bash
-# List all recipes, filtered by casual tag
-toneforge list recipes --tags casual
-```
-```bash
-# Generate with default seed
-toneforge generate --recipe impact-crunch-gravel --output impact-crunch-gravel-default.wav
+# Sweep seeds and rank the best variants
+toneforge explore sweep --recipe impact-crunch-gravel --seed-range 1:50 --keep-top 5
 ```
 <!-- CLI_BLOCK_END -->
 

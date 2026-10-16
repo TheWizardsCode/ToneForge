@@ -43,20 +43,12 @@ With a fixed seed (e.g. `--seed 42`) this recipe renders byte-identical audio on
 
 <!-- CLI_BLOCK_START — regenerate with: tsx scripts/recipe-book/generate-cli-blocks.ts ui-robot-beep -->
 ```bash
-# Generate the recipe with a specific seed
-toneforge generate --recipe ui-robot-beep --seed 42 --output ui-robot-beep.wav
+# Classify the sound by category and texture
+toneforge classify --recipe ui-robot-beep --seed 42
 ```
 ```bash
-# Show the recipe metadata
-toneforge show ui-robot-beep
-```
-```bash
-# List all recipes, filtered by casual tag
-toneforge list recipes --tags casual
-```
-```bash
-# Generate with default seed
-toneforge generate --recipe ui-robot-beep --output ui-robot-beep-default.wav
+# Sweep seeds and rank the best variants
+toneforge explore sweep --recipe ui-robot-beep --seed-range 1:50 --keep-top 5
 ```
 <!-- CLI_BLOCK_END -->
 

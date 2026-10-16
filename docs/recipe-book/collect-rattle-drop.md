@@ -43,20 +43,12 @@ With a fixed seed (e.g. `--seed 42`) this recipe renders byte-identical audio on
 
 <!-- CLI_BLOCK_START — regenerate with: tsx scripts/recipe-book/generate-cli-blocks.ts collect-rattle-drop -->
 ```bash
-# Generate the recipe with a specific seed
-toneforge generate --recipe collect-rattle-drop --seed 42 --output collect-rattle-drop.wav
+# Classify the sound by category and texture
+toneforge classify --recipe collect-rattle-drop --seed 42
 ```
 ```bash
-# Show the recipe metadata
-toneforge show collect-rattle-drop
-```
-```bash
-# List all recipes, filtered by casual tag
-toneforge list recipes --tags casual
-```
-```bash
-# Generate with default seed
-toneforge generate --recipe collect-rattle-drop --output collect-rattle-drop-default.wav
+# Sweep seeds and rank the best variants
+toneforge explore sweep --recipe collect-rattle-drop --seed-range 1:50 --keep-top 5
 ```
 <!-- CLI_BLOCK_END -->
 

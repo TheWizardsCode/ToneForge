@@ -26,9 +26,10 @@ import { compareBuffers } from "../test-utils/buffer-compare.js";
 import { main } from "../cli.js";
 import { FRAMEWORK_COMMANDS } from "../cli.yargs.js";
 import {
-  buildCliBlock,
+  buildRecipeCliBlock,
   cliBlockStartMarker,
   CLI_BLOCK_END,
+  TIER_SURFACES,
 } from "../../scripts/recipe-book/generate-cli-blocks.js";
 import {
   buildCapstoneCliBlock,
@@ -191,7 +192,32 @@ function expectRequiredTags(name: string): void {
   ).toBe(true);
 }
 
-function expectCliBlockFresh(name: string): void {
+/**
+ * Extract the top-level `toneforge` verb from each command line in a block.
+ * Used by the tier-surface assertions to prove a block demonstrates exactly
+ * the surfaces its tier requires (and no others).
+ */
+function cliSurfaceVerbs(block: string): string[] {
+  const verbs: string[] = [];
+  for (const rawLine of block.split("\n")) {
+    const line = rawLine.trim();
+    if (!line.startsWith("toneforge " )) continue;
+    const token = line.split(/\s+/)[1];
+    if (token) verbs.push(token);
+  }
+  return verbs;
+}
+
+/** The command block committed between a page's CLI markers, or "" if absent. */
+function committedCliBlock(pagePath: string, markerStart: string): string {
+  const content = readFileSync(pagePath, "utf-8");
+  const startIdx = content.indexOf(markerStart);
+  const endIdx = content.indexOf(CLI_BLOCK_END);
+  if (startIdx === -1 || endIdx === -1 || endIdx <= startIdx) return "";
+  return content.slice(startIdx + markerStart.length, endIdx);
+}
+
+function expectCliBlockFresh(name: string, tier: number): void {
   const pagePath = resolve(DOCS_DIR, name + ".md");
   if (!existsSync(pagePath)) return;
   const content = readFileSync(pagePath, "utf-8");
@@ -208,7 +234,7 @@ function expectCliBlockFresh(name: string): void {
   expect(
     committed,
     name + " CLI block is stale; regenerate it with scripts/recipe-book/generate-pages.ts",
-  ).toBe(buildCliBlock(name).trim());
+  ).toBe(buildRecipeCliBlock(name, tier).trim());
 }
 
 /**
@@ -345,7 +371,7 @@ describe("Recipe Book Gates", () => {
       });
 
       it("has fresh CLI block markers", () => {
-        expectCliBlockFresh(recipeName);
+        expectCliBlockFresh(recipeName, entry.tier);
       });
     });
   }
@@ -524,25 +550,33 @@ describe("Recipe Book completion gate", () => {
     expect(orphans, "Orphan pages: " + orphans.join(", ")).toEqual([]);
   });
 
-  it("builds the canonical CLI block with the positional `show` form", () => {
-    const block = buildCliBlock("blip-sine-ping");
+  it("builds the canonical CLI block with the positional `show` form (Tier 1)", () => {
+    const block = buildRecipeCliBlock("blip-sine-ping", 1);
     expect(block).toContain("toneforge show blip-sine-ping");
     expect(block).not.toContain("show --recipe");
   });
 
-  it("documents the positional `toneforge show <name>` form on every recipe page", () => {
+  it("documents the positional `toneforge show <name>` form wherever a page's tier uses show", () => {
     const offenders: string[] = [];
+    const wrongShow: string[] = [];
     for (const entry of recipeRoster) {
       const content = readFileSync(resolve(DOCS_DIR, entry.name + ".md"), "utf-8");
       if (content.includes("toneforge show --recipe")) offenders.push(entry.name);
-      expect(
-        content,
-        entry.name + " must document `toneforge show " + entry.name + "`",
-      ).toContain("toneforge show " + entry.name);
+      // Show is a required surface only for Tier 1; pages for other tiers must
+      // not document the generic show command at all.
+      const shows = buildRecipeCliBlock(entry.name, entry.tier).includes(
+        "toneforge show " + entry.name,
+      );
+      const documentsShow = content.includes("toneforge show " + entry.name);
+      if (shows !== documentsShow) wrongShow.push(entry.name);
     }
     expect(
       offenders,
       "Pages still using the invalid `show --recipe` form: " + offenders.join(", "),
+    ).toEqual([]);
+    expect(
+      wrongShow,
+      "Pages whose show command drifted from their tier's builder: " + wrongShow.join(", "),
     ).toEqual([]);
   });
 
@@ -617,6 +651,91 @@ describe("Recipe Book completion gate", () => {
         page + " is missing a Default duration field",
       ).toBeTruthy();
     }
+  });
+});
+
+// ── Tier-aware CLI blocks ────────────────────────────────────────────────────
+
+/**
+ * Every recipe page's `## ToneForge CLI` block must demonstrate exactly the
+ * pipeline surfaces its roster tier requires — nothing more, nothing less — and
+ * every referenced `--preset` path must resolve. A page that drifts from its
+ * tier (or a tier mapping that drifts from the book) fails here.
+ */
+describe("Tier-aware CLI blocks", () => {
+  it("emits exactly the required command surfaces for every tier 1–7", () => {
+    const tiers = [1, 2, 3, 4, 5, 6, 7] as const;
+    const expectedVerbs: Record<number, string[]> = {
+      1: ["generate", "show", "list"],
+      2: ["generate", "analyze"],
+      3: ["classify", "explore"],
+      4: ["sequence", "library"],
+      5: ["classify", "visualize"],
+      6: ["sequence", "explore"],
+      7: ["stack", "visualize"],
+    };
+    for (const tier of tiers) {
+      const block = buildRecipeCliBlock("blip-sine-ping", tier);
+      for (const surface of TIER_SURFACES[tier]) {
+        expect(
+          block,
+          `tier ${tier} block must contain surface "${surface}"`,
+        ).toContain(surface);
+      }
+      // No other surface: the top-level verbs must match exactly.
+      const verbs = cliSurfaceVerbs(block).sort();
+      expect(
+        verbs,
+        `tier ${tier} block must contain exactly its required surfaces`,
+      ).toEqual([...expectedVerbs[tier]!].sort());
+    }
+  });
+
+  it("keeps every recipe page's block exactly tier-aware (no generic block remains)", () => {
+    for (const entry of recipeRoster) {
+      const pagePath = resolve(DOCS_DIR, entry.name + ".md");
+      const block = committedCliBlock(pagePath, cliBlockStartMarker(entry.name));
+      expect(
+        block,
+        entry.name + " is missing its CLI block",
+      ).not.toBe("");
+      // The old generic block's second generate line (--output <name>-default.wav)
+      // was unique to the four-command block; no tier surface uses it.
+      expect(block, entry.name + " still carries the generic default-seed generate line")
+        .not.toContain(`${entry.name}-default.wav`);
+      // list recipes belongs only to tier 1.
+      if (entry.tier !== 1) {
+        expect(
+          block,
+          `tier ${entry.tier} page ${entry.name} must not surface list recipes`,
+        ).not.toContain("list recipes");
+      } else {
+        expect(block, "tier 1 page " + entry.name + " must surface list recipes")
+          .toContain("list recipes");
+      }
+    }
+  });
+
+  it("resolves every --preset reference in recipe and capstone CLI blocks", () => {
+    const pages = [
+      ...recipeRoster.map((e) => e.name + ".md"),
+      ...CAPSTONE_PAGES.map((n) => n + ".md"),
+    ];
+    const unresolved: string[] = [];
+    for (const page of pages) {
+      const content = readFileSync(resolve(DOCS_DIR, page), "utf-8");
+      const presetRefs = content.matchAll(/--preset\s+(\S+)/g);
+      for (const m of presetRefs) {
+        const target = m[1]!;
+        if (!existsSync(resolve(ROOT, target))) {
+          unresolved.push(page + " -> " + target);
+        }
+      }
+    }
+    expect(
+      unresolved,
+      "Unresolved --preset references:\n" + unresolved.join("\n"),
+    ).toEqual([]);
   });
 });
 

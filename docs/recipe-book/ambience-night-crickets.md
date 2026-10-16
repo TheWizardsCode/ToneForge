@@ -43,20 +43,12 @@ With a fixed seed (e.g. `--seed 42`) this recipe renders byte-identical audio on
 
 <!-- CLI_BLOCK_START — regenerate with: tsx scripts/recipe-book/generate-cli-blocks.ts ambience-night-crickets -->
 ```bash
-# Generate the recipe with a specific seed
-toneforge generate --recipe ambience-night-crickets --seed 42 --output ambience-night-crickets.wav
+# Inspect a representative ambience sequence
+toneforge sequence inspect --preset presets/sequences/footsteps_run.json
 ```
 ```bash
-# Show the recipe metadata
-toneforge show ambience-night-crickets
-```
-```bash
-# List all recipes, filtered by casual tag
-toneforge list recipes --tags casual
-```
-```bash
-# Generate with default seed
-toneforge generate --recipe ambience-night-crickets --output ambience-night-crickets-default.wav
+# Sweep seeds and rank the best variants
+toneforge explore sweep --recipe ambience-night-crickets --seed-range 1:50 --keep-top 5
 ```
 <!-- CLI_BLOCK_END -->
 

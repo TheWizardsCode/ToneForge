@@ -43,20 +43,12 @@ With a fixed seed (e.g. `--seed 42`) this recipe renders byte-identical audio on
 
 <!-- CLI_BLOCK_START — regenerate with: tsx scripts/recipe-book/generate-cli-blocks.ts ui-pop-bubble -->
 ```bash
-# Generate the recipe with a specific seed
+# Generate the recipe at a fixed seed
 toneforge generate --recipe ui-pop-bubble --seed 42 --output ui-pop-bubble.wav
 ```
 ```bash
-# Show the recipe metadata
-toneforge show ui-pop-bubble
-```
-```bash
-# List all recipes, filtered by casual tag
-toneforge list recipes --tags casual
-```
-```bash
-# Generate with default seed
-toneforge generate --recipe ui-pop-bubble --output ui-pop-bubble-default.wav
+# Analyse the rendered shape
+toneforge analyze --recipe ui-pop-bubble --seed 42
 ```
 <!-- CLI_BLOCK_END -->
 

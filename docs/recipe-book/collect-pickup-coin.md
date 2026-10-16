@@ -43,7 +43,7 @@ With a fixed seed (e.g. `--seed 42`) this recipe renders byte-identical audio on
 
 <!-- CLI_BLOCK_START — regenerate with: tsx scripts/recipe-book/generate-cli-blocks.ts collect-pickup-coin -->
 ```bash
-# Generate the recipe with a specific seed
+# Generate the recipe at a fixed seed
 toneforge generate --recipe collect-pickup-coin --seed 42 --output collect-pickup-coin.wav
 ```
 ```bash
@@ -51,12 +51,8 @@ toneforge generate --recipe collect-pickup-coin --seed 42 --output collect-picku
 toneforge show collect-pickup-coin
 ```
 ```bash
-# List all recipes, filtered by casual tag
+# List the casual recipes
 toneforge list recipes --tags casual
-```
-```bash
-# Generate with default seed
-toneforge generate --recipe collect-pickup-coin --output collect-pickup-coin-default.wav
 ```
 <!-- CLI_BLOCK_END -->
 

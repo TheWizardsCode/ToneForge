@@ -43,20 +43,12 @@ With a fixed seed (e.g. `--seed 42`) this recipe renders byte-identical audio on
 
 <!-- CLI_BLOCK_START — regenerate with: tsx scripts/recipe-book/generate-cli-blocks.ts ui-dialog-close-motif -->
 ```bash
-# Generate the recipe with a specific seed
-toneforge generate --recipe ui-dialog-close-motif --seed 42 --output ui-dialog-close-motif.wav
+# Inspect a representative melodic sequence
+toneforge sequence inspect --preset presets/sequences/casual_level_complete_sequence.json
 ```
 ```bash
-# Show the recipe metadata
-toneforge show ui-dialog-close-motif
-```
-```bash
-# List all recipes, filtered by casual tag
-toneforge list recipes --tags casual
-```
-```bash
-# Generate with default seed
-toneforge generate --recipe ui-dialog-close-motif --output ui-dialog-close-motif-default.wav
+# List the curated library
+toneforge library list
 ```
 <!-- CLI_BLOCK_END -->
 

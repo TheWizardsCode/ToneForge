@@ -43,20 +43,12 @@ With a fixed seed (e.g. `--seed 42`) this recipe renders byte-identical audio on
 
 <!-- CLI_BLOCK_START — regenerate with: tsx scripts/recipe-book/generate-cli-blocks.ts motif-menu-select-arpeggio -->
 ```bash
-# Generate the recipe with a specific seed
-toneforge generate --recipe motif-menu-select-arpeggio --seed 42 --output motif-menu-select-arpeggio.wav
+# Inspect a representative melodic sequence
+toneforge sequence inspect --preset presets/sequences/casual_level_complete_sequence.json
 ```
 ```bash
-# Show the recipe metadata
-toneforge show motif-menu-select-arpeggio
-```
-```bash
-# List all recipes, filtered by casual tag
-toneforge list recipes --tags casual
-```
-```bash
-# Generate with default seed
-toneforge generate --recipe motif-menu-select-arpeggio --output motif-menu-select-arpeggio-default.wav
+# List the curated library
+toneforge library list
 ```
 <!-- CLI_BLOCK_END -->
 

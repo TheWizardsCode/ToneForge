@@ -28,7 +28,7 @@ import {
   type ContourEvent,
 } from "./recipe-meta.js";
 import {
-  buildCliBlock,
+  buildRecipeCliBlock,
   cliBlockStartMarker,
   CLI_BLOCK_END,
 } from "./generate-cli-blocks.js";
@@ -754,7 +754,7 @@ function renderPage(
 ): string {
   const markerStart = cliBlockStartMarker(name);
   const markerEnd = CLI_BLOCK_END;
-  const cliBlock = buildCliBlock(name);
+  const cliBlock = buildRecipeCliBlock(name, tier);
   return [
     "---",
     `title: "${titleCase(name)}"`,

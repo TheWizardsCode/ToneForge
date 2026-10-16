@@ -43,20 +43,12 @@ With a fixed seed (e.g. `--seed 42`) this recipe renders byte-identical audio on
 
 <!-- CLI_BLOCK_START — regenerate with: tsx scripts/recipe-book/generate-cli-blocks.ts texture-static-crackle -->
 ```bash
-# Generate the recipe with a specific seed
-toneforge generate --recipe texture-static-crackle --seed 42 --output texture-static-crackle.wav
+# Classify the sound by category and texture
+toneforge classify --recipe texture-static-crackle --seed 42
 ```
 ```bash
-# Show the recipe metadata
-toneforge show texture-static-crackle
-```
-```bash
-# List all recipes, filtered by casual tag
-toneforge list recipes --tags casual
-```
-```bash
-# Generate with default seed
-toneforge generate --recipe texture-static-crackle --output texture-static-crackle-default.wav
+# Sweep seeds and rank the best variants
+toneforge explore sweep --recipe texture-static-crackle --seed-range 1:50 --keep-top 5
 ```
 <!-- CLI_BLOCK_END -->
 

@@ -43,20 +43,12 @@ With a fixed seed (e.g. `--seed 42`) this recipe renders byte-identical audio on
 
 <!-- CLI_BLOCK_START — regenerate with: tsx scripts/recipe-book/generate-cli-blocks.ts ambience-market-bustle -->
 ```bash
-# Generate the recipe with a specific seed
-toneforge generate --recipe ambience-market-bustle --seed 42 --output ambience-market-bustle.wav
+# Inspect a representative ambience sequence
+toneforge sequence inspect --preset presets/sequences/footsteps_run.json
 ```
 ```bash
-# Show the recipe metadata
-toneforge show ambience-market-bustle
-```
-```bash
-# List all recipes, filtered by casual tag
-toneforge list recipes --tags casual
-```
-```bash
-# Generate with default seed
-toneforge generate --recipe ambience-market-bustle --output ambience-market-bustle-default.wav
+# Sweep seeds and rank the best variants
+toneforge explore sweep --recipe ambience-market-bustle --seed-range 1:50 --keep-top 5
 ```
 <!-- CLI_BLOCK_END -->
 

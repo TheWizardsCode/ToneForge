@@ -43,7 +43,7 @@ With a fixed seed (e.g. `--seed 42`) this recipe renders byte-identical audio on
 
 <!-- CLI_BLOCK_START — regenerate with: tsx scripts/recipe-book/generate-cli-blocks.ts tone-bell-tap -->
 ```bash
-# Generate the recipe with a specific seed
+# Generate the recipe at a fixed seed
 toneforge generate --recipe tone-bell-tap --seed 42 --output tone-bell-tap.wav
 ```
 ```bash
@@ -51,12 +51,8 @@ toneforge generate --recipe tone-bell-tap --seed 42 --output tone-bell-tap.wav
 toneforge show tone-bell-tap
 ```
 ```bash
-# List all recipes, filtered by casual tag
+# List the casual recipes
 toneforge list recipes --tags casual
-```
-```bash
-# Generate with default seed
-toneforge generate --recipe tone-bell-tap --output tone-bell-tap-default.wav
 ```
 <!-- CLI_BLOCK_END -->
 

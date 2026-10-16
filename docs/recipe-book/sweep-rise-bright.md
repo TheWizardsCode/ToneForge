@@ -43,20 +43,12 @@ With a fixed seed (e.g. `--seed 42`) this recipe renders byte-identical audio on
 
 <!-- CLI_BLOCK_START — regenerate with: tsx scripts/recipe-book/generate-cli-blocks.ts sweep-rise-bright -->
 ```bash
-# Generate the recipe with a specific seed
+# Generate the recipe at a fixed seed
 toneforge generate --recipe sweep-rise-bright --seed 42 --output sweep-rise-bright.wav
 ```
 ```bash
-# Show the recipe metadata
-toneforge show sweep-rise-bright
-```
-```bash
-# List all recipes, filtered by casual tag
-toneforge list recipes --tags casual
-```
-```bash
-# Generate with default seed
-toneforge generate --recipe sweep-rise-bright --output sweep-rise-bright-default.wav
+# Analyse the rendered shape
+toneforge analyze --recipe sweep-rise-bright --seed 42
 ```
 <!-- CLI_BLOCK_END -->
 

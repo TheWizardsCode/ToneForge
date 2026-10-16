@@ -43,20 +43,12 @@ With a fixed seed (e.g. `--seed 42`) this recipe renders byte-identical audio on
 
 <!-- CLI_BLOCK_START — regenerate with: tsx scripts/recipe-book/generate-cli-blocks.ts character-jump-voice -->
 ```bash
-# Generate the recipe with a specific seed
-toneforge generate --recipe character-jump-voice --seed 42 --output character-jump-voice.wav
+# Classify the character voice
+toneforge classify --recipe character-jump-voice --seed 42
 ```
 ```bash
-# Show the recipe metadata
-toneforge show character-jump-voice
-```
-```bash
-# List all recipes, filtered by casual tag
-toneforge list recipes --tags casual
-```
-```bash
-# Generate with default seed
-toneforge generate --recipe character-jump-voice --output character-jump-voice-default.wav
+# Export deterministic visual frames
+toneforge visualize export --recipe character-jump-voice --seed 42 --format frames
 ```
 <!-- CLI_BLOCK_END -->
 

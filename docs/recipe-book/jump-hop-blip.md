@@ -43,20 +43,12 @@ With a fixed seed (e.g. `--seed 42`) this recipe renders byte-identical audio on
 
 <!-- CLI_BLOCK_START — regenerate with: tsx scripts/recipe-book/generate-cli-blocks.ts jump-hop-blip -->
 ```bash
-# Generate the recipe with a specific seed
+# Generate the recipe at a fixed seed
 toneforge generate --recipe jump-hop-blip --seed 42 --output jump-hop-blip.wav
 ```
 ```bash
-# Show the recipe metadata
-toneforge show jump-hop-blip
-```
-```bash
-# List all recipes, filtered by casual tag
-toneforge list recipes --tags casual
-```
-```bash
-# Generate with default seed
-toneforge generate --recipe jump-hop-blip --output jump-hop-blip-default.wav
+# Analyse the rendered shape
+toneforge analyze --recipe jump-hop-blip --seed 42
 ```
 <!-- CLI_BLOCK_END -->
 

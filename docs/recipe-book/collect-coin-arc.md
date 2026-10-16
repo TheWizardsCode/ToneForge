@@ -43,20 +43,12 @@ With a fixed seed (e.g. `--seed 42`) this recipe renders byte-identical audio on
 
 <!-- CLI_BLOCK_START — regenerate with: tsx scripts/recipe-book/generate-cli-blocks.ts collect-coin-arc -->
 ```bash
-# Generate the recipe with a specific seed
+# Generate the recipe at a fixed seed
 toneforge generate --recipe collect-coin-arc --seed 42 --output collect-coin-arc.wav
 ```
 ```bash
-# Show the recipe metadata
-toneforge show collect-coin-arc
-```
-```bash
-# List all recipes, filtered by casual tag
-toneforge list recipes --tags casual
-```
-```bash
-# Generate with default seed
-toneforge generate --recipe collect-coin-arc --output collect-coin-arc-default.wav
+# Analyse the rendered shape
+toneforge analyze --recipe collect-coin-arc --seed 42
 ```
 <!-- CLI_BLOCK_END -->
 

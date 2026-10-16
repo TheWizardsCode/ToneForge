@@ -43,20 +43,12 @@ With a fixed seed (e.g. `--seed 42`) this recipe renders byte-identical audio on
 
 <!-- CLI_BLOCK_START — regenerate with: tsx scripts/recipe-book/generate-cli-blocks.ts creature-frog-croak -->
 ```bash
-# Generate the recipe with a specific seed
-toneforge generate --recipe creature-frog-croak --seed 42 --output creature-frog-croak.wav
+# Classify the character voice
+toneforge classify --recipe creature-frog-croak --seed 42
 ```
 ```bash
-# Show the recipe metadata
-toneforge show creature-frog-croak
-```
-```bash
-# List all recipes, filtered by casual tag
-toneforge list recipes --tags casual
-```
-```bash
-# Generate with default seed
-toneforge generate --recipe creature-frog-croak --output creature-frog-croak-default.wav
+# Export deterministic visual frames
+toneforge visualize export --recipe creature-frog-croak --seed 42 --format frames
 ```
 <!-- CLI_BLOCK_END -->
 

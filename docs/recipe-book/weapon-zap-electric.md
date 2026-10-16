@@ -43,20 +43,12 @@ With a fixed seed (e.g. `--seed 42`) this recipe renders byte-identical audio on
 
 <!-- CLI_BLOCK_START — regenerate with: tsx scripts/recipe-book/generate-cli-blocks.ts weapon-zap-electric -->
 ```bash
-# Generate the recipe with a specific seed
-toneforge generate --recipe weapon-zap-electric --seed 42 --output weapon-zap-electric.wav
+# Classify the sound by category and texture
+toneforge classify --recipe weapon-zap-electric --seed 42
 ```
 ```bash
-# Show the recipe metadata
-toneforge show weapon-zap-electric
-```
-```bash
-# List all recipes, filtered by casual tag
-toneforge list recipes --tags casual
-```
-```bash
-# Generate with default seed
-toneforge generate --recipe weapon-zap-electric --output weapon-zap-electric-default.wav
+# Sweep seeds and rank the best variants
+toneforge explore sweep --recipe weapon-zap-electric --seed-range 1:50 --keep-top 5
 ```
 <!-- CLI_BLOCK_END -->
 

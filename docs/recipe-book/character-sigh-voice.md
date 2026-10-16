@@ -43,20 +43,12 @@ With a fixed seed (e.g. `--seed 42`) this recipe renders byte-identical audio on
 
 <!-- CLI_BLOCK_START — regenerate with: tsx scripts/recipe-book/generate-cli-blocks.ts character-sigh-voice -->
 ```bash
-# Generate the recipe with a specific seed
-toneforge generate --recipe character-sigh-voice --seed 42 --output character-sigh-voice.wav
+# Classify the character voice
+toneforge classify --recipe character-sigh-voice --seed 42
 ```
 ```bash
-# Show the recipe metadata
-toneforge show character-sigh-voice
-```
-```bash
-# List all recipes, filtered by casual tag
-toneforge list recipes --tags casual
-```
-```bash
-# Generate with default seed
-toneforge generate --recipe character-sigh-voice --output character-sigh-voice-default.wav
+# Export deterministic visual frames
+toneforge visualize export --recipe character-sigh-voice --seed 42 --format frames
 ```
 <!-- CLI_BLOCK_END -->
 
