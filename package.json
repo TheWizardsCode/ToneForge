@@ -20,7 +20,8 @@
     "generate": "./bin/dev-cli.js generate",
     "demo": "tsx scripts/demo/run.ts",
     "dev:web": "node scripts/dev-web.mjs",
-    "postinstall": "node ./scripts/postinstall-cli-link.mjs"
+    "postinstall": "node ./scripts/postinstall-cli-link.mjs",
+    "regenerate:determinism-fixtures": "tsx scripts/instruments/regenerate-determinism-fixtures.ts"
   },
   "keywords": [
     "audio",
