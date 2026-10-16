@@ -146,11 +146,13 @@ export async function yargsMain(argv: string[] = process.argv): Promise<number> 
 
   // ── instrument ────────────────────────────────────────────────────────────
   y.command(instrumentCmd.command, instrumentCmd.desc, (y2) => {
-    y2.command("noteon <note>", "Start (and hold) a MIDI note until Note Off", (y3) => {
+    y2.command("noteon <note>", "Record or play a MIDI note (realtime, --output or --fallback)", (y3) => {
       y3.positional("note", { type: "number", describe: "MIDI note number (0-127)" })
         .option("preset", { type: "string", describe: "Instrument preset id" })
         .option("velocity", { type: "number", describe: "MIDI velocity (1-127)" })
-        .option("length", { type: "number", describe: "Auto-send Note Off after N seconds" })
+        .option("length", { type: "number", describe: "Note hold in seconds" })
+        .option("output", { type: "string", describe: "Render the note offline to a WAV file (no audio device needed)" })
+        .option("fallback", { type: "boolean", describe: "Pre-render the note and play via the system player" })
         .option("json", { type: "boolean", describe: "Output JSON" });
     }, async (argv) => {
       exitCode = await dispatchCommand("instrument", "noteon", buildFlags(argv, {
@@ -158,6 +160,8 @@ export async function yargsMain(argv: string[] = process.argv): Promise<number> 
         ...(argv.preset !== undefined ? { preset: String(argv.preset) } : {}),
         ...(argv.velocity !== undefined ? { velocity: String(argv.velocity) } : {}),
         ...(argv.length !== undefined ? { length: String(argv.length) } : {}),
+        ...(argv.output !== undefined ? { output: String(argv.output) } : {}),
+        ...(argv.fallback === true ? { fallback: true } : {}),
       }), []);
     });
     y2.command("noteoff <note>", "Release a held MIDI note", (y3) => {

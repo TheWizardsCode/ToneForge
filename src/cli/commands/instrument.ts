@@ -19,6 +19,11 @@
  */
 
 import { outputError, outputInfo, outputSuccess, outputMarkdown } from "../../output.js";
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
+import { encodeWav } from "../../audio/wav-encoder.js";
+import { playAudio } from "../../audio/player.js";
+import { renderNoteOffline, DEFAULT_NOTE_HOLD_SECONDS } from "../../instruments/offline-demo.js";
 import {
   createInstrumentDaemon,
   createNullEngineFactory,
@@ -117,6 +122,91 @@ function parseLength(
   return Promise.resolve({ length });
 }
 
+interface OfflineNoteOnArgs {
+  jsonMode: boolean;
+  note: number;
+  velocity: number;
+  preset: string;
+  length: number | undefined;
+  output: string | undefined;
+  fallback: boolean;
+}
+
+/**
+ * Offline path for `noteon --output <file.wav>` and `noteon --fallback`.
+ *
+ * Renders the note through `renderInstrument` (no audio device required) and
+ * either writes a WAV or plays it through the platform's system player — the
+ * same path `tf generate` uses — so it is audible on machines (WSL, headless)
+ * where the real-time daemon cannot open an output device.
+ */
+async function noteOnOffline(args: OfflineNoteOnArgs): Promise<number> {
+  const { jsonMode, note, velocity, preset, length, output, fallback } = args;
+  if (output !== undefined && fallback) {
+    return errorOut(jsonMode, "--output and --fallback cannot be combined. Choose one.");
+  }
+  try {
+    await loadBundledInstrumentPresets();
+    const rendered = await renderNoteOffline({
+      note,
+      velocity,
+      presetId: preset,
+      holdSeconds: length,
+    });
+
+    if (output !== undefined) {
+      const target = resolve(output);
+      await mkdir(dirname(target), { recursive: true });
+      const wav = encodeWav(rendered.samples, { sampleRate: rendered.sampleRate });
+      await writeFile(target, wav);
+      if (jsonMode) {
+        process.stdout.write(
+          `${JSON.stringify({
+            ok: true,
+            command: "instrument-noteon",
+            note,
+            velocity,
+            preset,
+            length: length ?? null,
+            file: target,
+            sampleRate: rendered.sampleRate,
+            duration: Number(rendered.duration.toFixed(3)),
+          })}\n`,
+        );
+      } else {
+        outputSuccess(`Wrote ${target} (${rendered.duration.toFixed(3)}s, ${rendered.sampleRate} Hz).`);
+        outputInfo(`Play it later with \`toneforge play ${output}\`.`);
+      }
+      return 0;
+    }
+
+    // fallback: pre-render then play via the system player (introduces a
+    // short render start delay — documented in the help text).
+    await playAudio(rendered.samples, { sampleRate: rendered.sampleRate });
+    if (jsonMode) {
+      process.stdout.write(
+        `${JSON.stringify({
+          ok: true,
+          command: "instrument-noteon",
+          note,
+          velocity,
+          preset,
+          length: length ?? null,
+          fallback: true,
+          sampleRate: rendered.sampleRate,
+          duration: Number(rendered.duration.toFixed(3)),
+        })}\n`,
+      );
+    } else {
+      outputSuccess(`Played note ${note} (${preset}) via offline pre-render (${rendered.duration.toFixed(3)}s).`);
+    }
+    return 0;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return errorOut(jsonMode, message);
+  }
+}
+
 async function noteOn(flags: Flags): Promise<number> {
   const jsonMode = flags.json === true;
   const parsedNote = parseNote(flags, jsonMode);
@@ -129,6 +219,19 @@ async function noteOn(flags: Flags): Promise<number> {
   const velocity = parsedVelocity.velocity;
   const length = "none" in parsedLength ? undefined : parsedLength.length;
   const preset = stringFlag(flags, "preset") ?? DEFAULT_PRESET;
+
+  const output = stringFlag(flags, "output");
+  if (output !== undefined || flags.fallback === true) {
+    return noteOnOffline({
+      jsonMode,
+      note,
+      velocity,
+      preset,
+      length,
+      output,
+      fallback: flags.fallback === true,
+    });
+  }
 
   const socketPath = resolveInstrumentSocketPath();
   try {
@@ -306,12 +409,14 @@ function printHelp(subcommand: string | undefined): Promise<void> {
   if (subcommand === "noteon") {
     return outputMarkdown(`# ToneForge instrument noteon
 
-**Start (and hold) a MIDI note until Note Off**
+**Record or play a MIDI note with no live audio device required**
 
 ## Usage
 
 \`\`\`
 toneforge instrument noteon <note> [--preset <name>] [--velocity <n>] [--length <seconds>]
+toneforge instrument noteon <note> [--preset <name>] [--velocity <n>] [--length <seconds>] --output <file.wav>
+toneforge instrument noteon <note> [--preset <name>] [--velocity <n>] [--length <seconds>] --fallback
 \`\`\`
 
 ## Arguments
@@ -322,22 +427,32 @@ toneforge instrument noteon <note> [--preset <name>] [--velocity <n>] [--length 
 
 - \`--preset <name>\` — Instrument preset id (default: ${DEFAULT_PRESET})
 - \`--velocity <n>\` — MIDI velocity, 1–127 (default: ${DEFAULT_VELOCITY})
-- \`--length <seconds>\` — Automatically send Note Off after this many seconds
+- \`--length <seconds>\` — Note On → Note Off hold (default: ${DEFAULT_NOTE_HOLD_SECONDS}s for the offline modes)
+- \`--output <file.wav>\` — **offline**: render the note to a WAV file (no audio device needed)
+- \`--fallback\` — **offline**: pre-render the note and play it via the system player
 - \`--json\` — Output JSON
 
 ## Behaviour
 
-The note keeps sounding until \`toneforge instrument noteoff <note>\` is sent
-with the same note number — even after this command exits (a persistent
-instrument daemon provides the audio). Use \`--length\` for a one-shot note
-whose Note Off is sent automatically.
+Default (no \`--output\`/\`--fallback\`): starts a real-time note that keeps
+sounding until \`toneforge instrument noteoff <note>\` (needs a live audio
+device). With \`--length\`, a Note Off is sent automatically.
+
+**Offline modes** work on machines with no live audio device (WSL, headless,
+containers): the note is rendered deterministically through the engine and
+written to a file, or played back through the system player
+(\`--fallback\`) — playback then starts after a short pre-render delay.
+Without \`--length\` the note holds for ${DEFAULT_NOTE_HOLD_SECONDS}s before
+Note Off. \`--output\` and \`--fallback\` cannot be combined.
 
 ## Examples
 
 \`\`\`
 toneforge instrument noteon 60
 toneforge instrument noteon 60 --preset pad --velocity 90
-toneforge instrument noteon 67 --preset bell --length 0.6
+toneforge instrument noteon 67 --preset bell --length 0.6 --output chime.wav
+toneforge instrument noteon 60 --length 0.6 --fallback
+toneforge instrument noteoff 60
 \`\`\``);
   }
   if (subcommand === "noteoff") {

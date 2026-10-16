@@ -226,6 +226,28 @@ readable output. Notes ring across invocations; a chord is just several
 down after an idle period once no notes are held, and honours
 `TONEFORGE_INSTRUMENT_SOCKET` for a custom socket path.
 
+### Offline modes: no audio device needed
+
+Real-time playback needs a live output device (`node-web-audio-api`). On WSL,
+headless/CI machines or containers where no ALSA/JACK device is reachable,
+`noteon` has two **device-free** modes (`src/instruments/offline-demo.ts`,
+`TF-0MVBGEDQI008W4VH`):
+
+```bash
+# Render this note to a deterministic WAV (play it later with `tf play`).
+tf instrument noteon 67 --preset bell --length 0.6 --output chime.wav
+
+# Pre-render then play through the system player (`generate`'s path — the
+# one that works on WSL/PulseAudio). Playback starts after a short render delay.
+tf instrument noteon 60 --length 0.6 --fallback
+```
+
+Both modes render offline through the same deterministic `renderInstrument`
+engine (no new synthesis): same note/velocity/preset/length ⇒ byte-identical
+WAV. Without `--length` the note holds for 1 s (`DEFAULT_NOTE_HOLD_SECONDS`)
+before the automatic Note Off, which keeps renders finite. `--output` and
+`--fallback` cannot be combined.
+
 ## Starter preset family
 
 Five purpose-crafted presets ship as YAML files in `presets/instruments/`

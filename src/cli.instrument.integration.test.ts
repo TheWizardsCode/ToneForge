@@ -9,12 +9,21 @@
  * Work item: TF-0MVBECXFJ006SSW4.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { rmSync } from "node:fs";
+import { rmSync, existsSync } from "node:fs";
+
+// The --fallback path plays through the system player; mock it so the test
+// runs headless and can assert the rendered buffer handed to the player.
+vi.mock("./audio/player.js", () => ({
+  playAudio: vi.fn().mockResolvedValue(undefined),
+}));
 
 import { main } from "./cli.js";
+import { decodeWavFile } from "./audio/wav-decoder.js";
+import { computeRms } from "./instruments/__tests__/helpers.js";
+import { playAudio } from "./audio/player.js";
 import {
   createInstrumentDaemon,
   createNullEngineFactory,
@@ -25,6 +34,7 @@ import {
   instrumentRegistry,
   loadBundledInstrumentPresets,
 } from "./instruments/presets.js";
+import { DEFAULT_NOTE_HOLD_SECONDS } from "./instruments/offline-demo.js";
 
 // ── Helpers ───────────────────────────────────────────────────────
 
@@ -150,7 +160,9 @@ describe("instrument help", () => {
     expect(stdout).toContain("--preset");
     expect(stdout).toContain("--velocity");
     expect(stdout).toContain("--length");
-    expect(stdout).toMatch(/keeps sounding until/i);
+    expect(stdout).toContain("--output");
+    expect(stdout).toContain("--fallback");
+    expect(stdout).toMatch(/sounding until/i);
   });
 
   it("documents the group subcommands", async () => {
@@ -326,5 +338,124 @@ describe("instrument status, presets and stop", () => {
   it("rejects an unknown subcommand", async () => {
     const result = await captureOutput(() => main(argv("instrument", "nope")));
     expect(result.code).toBe(1);
+  });
+});
+
+// ── Offline modes: --output and --fallback ────────────────────────
+
+describe("instrument noteon --output / --fallback (offline, no device)", () => {
+  beforeEach(() => {
+    vi.mocked(playAudio).mockClear();
+  });
+
+  it("renders a note to a decodable, non-silent WAV with --output", async () => {
+    const target = join(tmpdir(), `tf-note-${Date.now()}-${Math.random().toString(36).slice(2)}.wav`);
+    const result = await captureOutput(() =>
+      main(argv("instrument", "noteon", "60", "--preset", "pad", "--length", "0.4", "--output", target)),
+    );
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain("Wrote");
+    expect(existsSync(target)).toBe(true);
+
+    const wav = await decodeWavFile(target);
+    expect(wav.sampleRate).toBe(44100);
+    expect(wav.samples.length).toBeGreaterThan(0);
+    expect(computeRms(wav.samples)).toBeGreaterThan(0.001);
+    rmSync(target, { force: true });
+  });
+
+  it("uses the documented default hold when --length is omitted", async () => {
+    const target = join(tmpdir(), `tf-default-${Date.now()}-${Math.random().toString(36).slice(2)}.wav`);
+    const result = await captureOutput(() =>
+      main(argv("instrument", "noteon", "64", "--output", target)),
+    );
+    expect(result.code).toBe(0);
+    const wav = await decodeWavFile(target);
+    // Default hold (>=1 s) + release tail is audible.
+    expect(wav.samples.length / wav.sampleRate).toBeGreaterThanOrEqual(DEFAULT_NOTE_HOLD_SECONDS);
+    expect(computeRms(wav.samples)).toBeGreaterThan(0.001);
+    rmSync(target, { force: true });
+  });
+
+  it("is deterministic: two renders produce byte-identical WAVs", async () => {
+    const a = join(tmpdir(), `tf-det-a-${Date.now()}.wav`);
+    const b = join(tmpdir(), `tf-det-b-${Date.now()}.wav`);
+    const runOne = await captureOutput(() =>
+      main(argv("instrument", "noteon", "60", "--length", "0.3", "--output", a)),
+    );
+    const runTwo = await captureOutput(() =>
+      main(argv("instrument", "noteon", "60", "--length", "0.3", "--output", b)),
+    );
+    expect(runOne.code).toBe(0);
+    expect(runTwo.code).toBe(0);
+    const { readFileSync } = await import("node:fs");
+    expect(readFileSync(a).equals(readFileSync(b))).toBe(true);
+    rmSync(a, { force: true });
+    rmSync(b, { force: true });
+  });
+
+  it("plays the pre-rendered note through the system player with --fallback", async () => {
+    const result = await captureOutput(() =>
+      main(argv("instrument", "noteon", "67", "--preset", "bell", "--length", "0.3", "--fallback")),
+    );
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain("offline pre-render");
+    expect(playAudio).toHaveBeenCalledTimes(1);
+    const [samples, options] = vi.mocked(playAudio).mock.calls[0] as unknown as [Float32Array, { sampleRate: number }];
+    expect(samples).toBeInstanceOf(Float32Array);
+    expect(options.sampleRate).toBe(44100);
+    expect(computeRms(samples)).toBeGreaterThan(0.001);
+  });
+
+  it("rejects --output combined with --fallback", async () => {
+    const result = await captureOutput(() =>
+      main(argv("instrument", "noteon", "60", "--output", "a.wav", "--fallback")),
+    );
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("cannot be combined");
+  });
+
+  it("rejects an unknown preset in offline mode and lists available ones", async () => {
+    const result = await captureOutput(() =>
+      main(argv("instrument", "noteon", "60", "--preset", "nope", "--output", "a.wav")),
+    );
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("Unknown instrument preset 'nope'");
+  });
+
+  it("reports an unwritable --output path with exit 1", async () => {
+    const dir = join(tmpdir(), `tf-ro-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    const { mkdirSync } = await import("node:fs");
+    mkdirSync(dir, { recursive: true });
+    const result = await captureOutput(() =>
+      main(argv("instrument", "noteon", "60", "--output", dir)),
+    );
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("EISDIR");
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("emits JSON with file metadata for --output", async () => {
+    const target = join(tmpdir(), `tf-json-${Date.now()}-${Math.random().toString(36).slice(2)}.wav`);
+    const result = await captureOutput(() =>
+      main(argv("instrument", "noteon", "60", "--length", "0.2", "--output", target, "--json")),
+    );
+    expect(result.code).toBe(0);
+    const parsed = JSON.parse(result.stdout) as {
+      ok: boolean;
+      command: string;
+      file: string;
+      sampleRate: number;
+      duration: number;
+    };
+    expect(parsed).toMatchObject({
+      ok: true,
+      command: "instrument-noteon",
+      sampleRate: 44100,
+    });
+    expect(parsed.file).toContain(".wav");
+    expect(parsed.duration).toBeGreaterThan(0.2);
+    rmSync(target, { force: true });
+    rmSync(parsed.file, { force: true });
   });
 });
