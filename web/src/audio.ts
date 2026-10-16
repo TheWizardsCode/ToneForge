@@ -1,6 +1,10 @@
 import { createRng } from "@toneforge/core/rng.js";
 import { registry } from "@toneforge/recipes/index.js";
 import { OfflineAudioContext } from "@toneforge/audio/web-audio.js";
+import {
+  createRealtimeInstrument,
+  type InstrumentDefinition,
+} from "@toneforge/instruments/index.js";
 import { registerBrowserRecipes } from "./browser-recipe-registry.js";
 
 /**
@@ -20,6 +24,65 @@ function ensureBrowserRecipes(): void {
 }
 
 let realtimeCtx: AudioContext | null = null;
+
+/**
+ * Real-time instruments created for browser playback, keyed by definition id.
+ *
+ * The engine's real-time renderer (`createRealtimeInstrument`) is registered
+ * here lazily: the first {@link getRealtimeInstrument} call creates the
+ * instrument (and its `AudioContext`) once, then reuses the live voice graph
+ * for every subsequent note. All Web Audio creation funnels through
+ * `src/audio/web-audio.ts`, so this module never imports
+ * `node-web-audio-api` directly.
+ */
+const realtimeInstruments = new Map<
+  string,
+  ReturnType<typeof createRealtimeInstrument>
+>();
+
+/**
+ * Get (and lazily register) the real-time instrument for a definition.
+ *
+ * @param definition - The instrument definition.
+ * @returns The live instrument, ready for `noteOn` / `noteOff`.
+ */
+export function getRealtimeInstrument(
+  definition: InstrumentDefinition,
+): ReturnType<typeof createRealtimeInstrument> {
+  let instrument = realtimeInstruments.get(definition.id);
+  if (!instrument) {
+    instrument = createRealtimeInstrument(definition);
+    realtimeInstruments.set(definition.id, instrument);
+  }
+  return instrument;
+}
+
+/**
+ * Play a single note through the engine's real-time renderer.
+ *
+ * Creates the browser `AudioContext` on first use (via
+ * {@link getRealtimeInstrument}) and schedules a Note On; the release is
+ * applied on the same graph so the voice decays instead of clicking.
+ *
+ * @param definition - The instrument definition.
+ * @param note - MIDI note number (0–127).
+ * @param velocity - MIDI velocity (0–127).
+ * @returns True when Web Audio is available and the note was scheduled.
+ */
+export function playInstrumentNote(
+  definition: InstrumentDefinition,
+  note: number,
+  velocity: number,
+): boolean {
+  if (typeof AudioContext === "undefined") {
+    console.warn("Web Audio is not available in this environment.");
+    return false;
+  }
+  const instrument = getRealtimeInstrument(definition);
+  instrument.noteOn(note, velocity);
+  instrument.noteOff(note);
+  return true;
+}
 
 /**
  * Extract seed from a CLI command string.
