@@ -241,6 +241,7 @@ the authoritative specification.
 - [Sound Module Index](docs/modules/index.md) — every ToneGraph sound-node kind grouped by primary function, with use cases and availability.
 - [Casual Game Recipe Book](docs/recipe-book/index.md) — a guided tour of 101 procedural recipes, from single-oscillator blips to layered stings.
 - [Working with the CLI](docs/recipe-book/index.md#working-with-the-cli) — find, evaluate and understand the 101 recipes from the command line.
+- [What each tier's CLI block demonstrates](docs/recipe-book/index.md#what-each-tiers-cli-block-demonstrates) — the pipeline stage introduced by each of the seven recipe tiers.
 - [Browser Runtime Usage](docs/browser-usage.md)
 - [Mixer Rules](docs/mixer-rules.md)
 - [Visualizer](docs/visualizer.md)

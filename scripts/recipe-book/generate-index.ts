@@ -16,6 +16,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { TIER_SURFACES } from "./generate-cli-blocks.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..", "..");
@@ -84,6 +85,50 @@ function loadRoster(): RosterEntry[] {
   entries.sort((a, b) => a.tier - b.tier);
   return entries;
 }
+
+// ── Tier → tooling mapping section ───────────────────────────────────────────
+
+/**
+ * Heading of the generated tier→tooling mapping section.
+ */
+export const TIER_TOOLING_SECTION_HEADING = "## What each tier's CLI block demonstrates";
+
+/**
+ * The generated tier→tooling mapping: for each tier 1–7, name the pipeline
+ * stage(s) its recipe pages demonstrate. The surfaces repeat `TIER_SURFACES`
+ * from the shared block builder so the documentation can never drift from the
+ * commands the pages actually emit.
+ */
+export function renderTierToolingSection(): string[] {
+  const rows = Object.entries(TIER_SURFACES).map(([tier, surfaces]) => {
+    const n = Number(tier);
+    return `| ${n} — ${tierNames[n]!} | ${surfaces.join(", ")} |`;
+  });
+  return [
+    TIER_TOOLING_SECTION_HEADING,
+    "",
+    "Each page's `## ToneForge CLI` block introduces the pipeline stage its tier",
+    "is built around, so reading the book front-to-back teaches the ToneForge",
+    "tooling in the same order as the recipes:",
+    "",
+    "| Tier | Command surfaces — `toneforge <subcommand>` |",
+    "|------|--------------------------------------------|",
+    ...rows,
+    "",
+  ];
+}
+
+// ── Tier names ───────────────────────────────────────────────────────────────
+
+const tierNames: Record<number, string> = {
+  1: "Pure tones & blips",
+  2: "Shaped events",
+  3: "Textured & filtered",
+  4: "Melodic motifs",
+  5: "Character & critter voices",
+  6: "Ambience & loops",
+  7: "Multi-voice stings",
+};
 
 // ── Working with the CLI section ─────────────────────────────────────────────
 
@@ -170,16 +215,6 @@ function renderCliWorkflowSection(): string[] {
 }
 
 // ── Generate index ───────────────────────────────────────────────────────────
-
-const tierNames: Record<number, string> = {
-  1: "Pure tones & blips",
-  2: "Shaped events",
-  3: "Textured & filtered",
-  4: "Melodic motifs",
-  5: "Character & critter voices",
-  6: "Ambience & loops",
-  7: "Multi-voice stings",
-};
 
 interface CapstoneEntry {
   kind: "stacks" | "sequences";
@@ -269,6 +304,10 @@ export function renderIndexContent(): string {
   // Emitted after the catalogue so the capstone links above remain the first
   // occurrence of each capstone name (asserted by recipe-book-capstones.test.ts).
   lines.push(...renderCliWorkflowSection());
+
+  // Tier → tooling mapping — what each tier's CLI block demonstrates. Emitted
+  // after the CLI workflow so readers learn the commands before the mapping.
+  lines.push(...renderTierToolingSection());
 
   return lines.join("\n") + "\n";
 }

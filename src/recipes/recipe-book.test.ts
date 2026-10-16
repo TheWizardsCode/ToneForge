@@ -38,6 +38,7 @@ import {
   renderIndexContent,
   CLI_WORKFLOW_SECTION_HEADING,
   CLI_WORKFLOW_EXAMPLES,
+  TIER_TOOLING_SECTION_HEADING,
 } from "../../scripts/recipe-book/generate-index.js";
 
 /** The twelve capstone arrangement pages that follow the 101 recipes. */
@@ -749,6 +750,24 @@ describe("Working with the CLI section", () => {
     const content = readFileSync(INDEX_PATH, "utf-8");
     expect(content).toContain(CLI_WORKFLOW_SECTION_HEADING);
     expect(content).toBe(renderIndexContent());
+  });
+
+  it("documents the tier→tooling mapping table for every tier, matching the shared builder", () => {
+    const content = readFileSync(INDEX_PATH, "utf-8");
+    expect(content).toContain(TIER_TOOLING_SECTION_HEADING);
+    const tiers = [1, 2, 3, 4, 5, 6, 7] as const;
+    for (const tier of tiers) {
+      const rowRe = new RegExp(`^\\| ${tier} — [^|]+\\| (.+) \\|$`, "m");
+      const m = content.match(rowRe);
+      expect(m, "index must document tier " + tier).not.toBeNull();
+      const documented = m![1]!
+        .split(",")
+        .map((s) => s.trim());
+      expect(
+        documented,
+        `tier ${tier} mapping in the index must match the shared builder`,
+      ).toEqual([...TIER_SURFACES[tier]]);
+    }
   });
 
   it("references every example recipe / stack / sequence name", () => {

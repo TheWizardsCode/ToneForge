@@ -218,3 +218,19 @@ toneforge stack inspect --preset presets/stacks/casual_ui_confirm_stack.json
 toneforge sequence simulate --preset presets/sequences/casual_menu_flow_sequence.json --seed 42
 ```
 
+## What each tier's CLI block demonstrates
+
+Each page's `## ToneForge CLI` block introduces the pipeline stage its tier
+is built around, so reading the book front-to-back teaches the ToneForge
+tooling in the same order as the recipes:
+
+| Tier | Command surfaces — `toneforge <subcommand>` |
+|------|--------------------------------------------|
+| 1 — Pure tones & blips | generate, show, list recipes |
+| 2 — Shaped events | generate, analyze |
+| 3 — Textured & filtered | classify, explore |
+| 4 — Melodic motifs | sequence, library |
+| 5 — Character & critter voices | classify, visualize |
+| 6 — Ambience & loops | sequence, explore |
+| 7 — Multi-voice stings | stack, visualize |
+
