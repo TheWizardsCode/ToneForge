@@ -172,6 +172,20 @@ export async function yargsMain(argv: string[] = process.argv): Promise<number> 
         ...(argv.note !== undefined ? { note: String(argv.note) } : {}),
       }), []);
     });
+    y2.command("play <file>", "Play a Standard MIDI File (.mid) through the instruments engine", (y3) => {
+      y3.positional("file", { type: "string", describe: "Path to a .mid file" })
+        .option("preset", { type: "string", describe: "Instrument preset id" })
+        .option("output", { type: "string", describe: "Render the file offline to a WAV file (no audio device needed)" })
+        .option("fallback", { type: "boolean", describe: "Pre-render the file and play via the system player" })
+        .option("json", { type: "boolean", describe: "Output JSON" });
+    }, async (argv) => {
+      exitCode = await dispatchCommand("instrument", "play", buildFlags(argv, {
+        ...(argv.file !== undefined ? { file: String(argv.file) } : {}),
+        ...(argv.preset !== undefined ? { preset: String(argv.preset) } : {}),
+        ...(argv.output !== undefined ? { output: String(argv.output) } : {}),
+        ...(argv.fallback === true ? { fallback: true } : {}),
+      }), []);
+    });
     y2.command("status", "List currently held notes", (y3) => {
       y3.option("json", { type: "boolean", describe: "Output JSON" });
     }, async (argv) => {

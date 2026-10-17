@@ -5,6 +5,7 @@
  * ```text
  * toneforge instrument noteon <note> [--preset <name>] [--velocity <n>] [--length <s>]
  * toneforge instrument noteoff <note>
+ * toneforge instrument play <file.mid> [--preset <name>] [--output <file.wav>] [--fallback]
  * toneforge instrument status
  * toneforge instrument stop
  * toneforge instrument presets
@@ -19,11 +20,11 @@
  */
 
 import { outputError, outputInfo, outputSuccess, outputMarkdown, outputWarning } from "../../output.js";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { encodeWav } from "../../audio/wav-encoder.js";
 import { playAudio } from "../../audio/player.js";
-import { renderNoteOffline, DEFAULT_NOTE_HOLD_SECONDS } from "../../instruments/offline-demo.js";
+import { renderNoteOffline, DEFAULT_NOTE_HOLD_SECONDS, resolveInstrumentDefinition } from "../../instruments/offline-demo.js";
 import {
   createInstrumentDaemon,
   createNullEngineFactory,
@@ -31,6 +32,8 @@ import {
   DEFAULT_PRESET,
   DEFAULT_VELOCITY,
 } from "../../instruments/daemon.js";
+import { renderInstrument, ENGINE_SAMPLE_RATE, type InstrumentEvent } from "../../instruments/engine.js";
+import { parseMidiToInstrumentEvents } from "../../midi/translate.js";
 import {
   ensureDaemon,
   sendToDaemon,
@@ -38,6 +41,7 @@ import {
 import {
   loadBundledInstrumentPresets,
   listInstrumentSummaries,
+  listInstruments,
 } from "../../instruments/presets.js";
 import {
   buildNoAudioDeviceHint,
@@ -48,7 +52,7 @@ import { MIDI_NOTE_MAX, MIDI_NOTE_MIN, MIDI_VELOCITY_MAX } from "../../instrumen
 
 /** Yargs command metadata (kept in the module for discoverability/help). */
 export const command = "instrument";
-export const desc = "Demo live MIDI note playback on instrument presets (noteon / noteoff)";
+export const desc = "Demo live MIDI note playback on instrument presets (noteon / noteoff / play)";
 
 type Flags = Record<string, string | boolean>;
 
@@ -89,6 +93,45 @@ function noAudioDeviceError(
       `${JSON.stringify({
         ok: false,
         command: "instrument-noteon",
+        code: "no_audio_device",
+        environment: resolved,
+        audioDeviceAvailable: false,
+        error: message,
+      })}\n`,
+    );
+    return 1;
+  }
+  outputError(`Error: ${message}`);
+  return 1;
+}
+
+/**
+ * The actionable no-device error for `instrument play`.
+ *
+ * Mirrors the `noteon` message (naming the environment and suggesting
+ * `--output` / `--fallback`) but references the file being played so the user
+ * can recover with the exact command.
+ */
+function playNoAudioDeviceError(
+  jsonMode: boolean,
+  environment: AudioEnvironment | undefined,
+  file: string,
+): number {
+  const resolved = environment ?? "unknown";
+  const prefix = resolved === "wsl"
+    ? "WSL detected — no live audio device is available."
+    : "No live audio device is available on this system.";
+  const message = [
+    prefix,
+    "Choose an offline alternative:",
+    `  - render the file to a WAV you can play elsewhere: toneforge instrument play ${file} --output note.wav`,
+    `  - play via an offline pre-render (playback starts after a short render delay): toneforge instrument play ${file} --fallback`,
+  ].join("\n");
+  if (jsonMode) {
+    process.stderr.write(
+      `${JSON.stringify({
+        ok: false,
+        command: "instrument-play",
         code: "no_audio_device",
         environment: resolved,
         audioDeviceAvailable: false,
@@ -403,6 +446,206 @@ async function presets(flags: Flags): Promise<number> {
   }
 }
 
+// ── play <file.mid> ──────────────────────────────────────────────
+
+interface PlayArgs {
+  jsonMode: boolean;
+  file: string;
+  preset: string;
+  events: InstrumentEvent[];
+  output: string | undefined;
+  fallback: boolean;
+}
+
+/**
+ * Shared `play` implementation for the offline modes (`--output` / `--fallback`).
+ *
+ * Renders the merged MIDI event stream through `renderInstrument` at the pinned
+ * 44100 Hz (no audio device needed) and either writes a deterministic WAV or
+ * plays it through the system player — the same device-free pattern as
+ * `noteon --output` / `--fallback`, applied to a whole `.mid` file.
+ */
+async function playOffline(args: PlayArgs): Promise<number> {
+  const { jsonMode, file, preset, events, output, fallback } = args;
+  if (output !== undefined && fallback) {
+    return errorOut(jsonMode, "--output and --fallback cannot be combined. Choose one.");
+  }
+  try {
+    await loadBundledInstrumentPresets();
+    const definition = resolveInstrumentDefinition(preset);
+    if (!definition) {
+      return printReplyError(jsonMode, `Unknown instrument preset '${preset}'.`, listInstruments());
+    }
+    const rendered = await renderInstrument(definition, events, {
+      sampleRate: ENGINE_SAMPLE_RATE,
+    });
+
+    if (output !== undefined) {
+      const target = resolve(output);
+      await mkdir(dirname(target), { recursive: true });
+      const wav = encodeWav(rendered.samples, { sampleRate: rendered.sampleRate });
+      await writeFile(target, wav);
+      if (jsonMode) {
+        process.stdout.write(
+          `${JSON.stringify({
+            ok: true,
+            command: "instrument-play",
+            file: target,
+            preset,
+            noteEvents: events.length,
+            sampleRate: rendered.sampleRate,
+            duration: Number(rendered.duration.toFixed(3)),
+          })}\n`,
+        );
+      } else {
+        outputSuccess(`Wrote ${target} (${rendered.duration.toFixed(3)}s, ${rendered.sampleRate} Hz).`);
+        outputInfo(`Play the rendered file with \`toneforge play ${output}\`.`);
+      }
+      return 0;
+    }
+
+    // fallback: pre-render then play via the system player.
+    await playAudio(rendered.samples, { sampleRate: rendered.sampleRate });
+    if (jsonMode) {
+      process.stdout.write(
+        `${JSON.stringify({
+          ok: true,
+          command: "instrument-play",
+          file,
+          preset,
+          noteEvents: events.length,
+          fallback: true,
+          sampleRate: rendered.sampleRate,
+          duration: Number(rendered.duration.toFixed(3)),
+        })}\n`,
+      );
+    } else {
+      outputSuccess(`Played ${file} (${preset}) via offline pre-render (${rendered.duration.toFixed(3)}s).`);
+    }
+    return 0;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return errorOut(jsonMode, message);
+  }
+}
+
+/**
+ * Real-time `play` path: stream the file's note events through the instrument
+ * daemon (which owns a real-time audio engine via `createRealtimeInstrument`).
+ *
+ * Each Note On is sent at its tempo-map onset (delay-scheduled from the first
+ * event) with an **auto-release length** derived from the file's own Note Off
+ * events, so the melody's rhythm is preserved and notes are released by the
+ * daemon at exactly the moment the composer intended. On machines without a
+ * live audio device the daemon rejects the first note with the same actionable
+ * message as `noteon` (naming the environment and suggesting
+ * `--output` / `--fallback`).
+ */
+async function playRealtime(args: PlayArgs): Promise<number> {
+  const { jsonMode, file, preset, events } = args;
+  const socketPath = resolveInstrumentSocketPath();
+  try {
+    await ensureDaemon({ socketPath });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return errorOut(jsonMode, `cannot reach the instrument daemon: ${message}`);
+  }
+
+  // Map each note to its upcoming Note Off times (from the merged stream).
+  const noteOffs = new Map<number, number[]>();
+  for (const event of events) {
+    if (event.type === "midiNoteOff") {
+      const list = noteOffs.get(event.note) ?? [];
+      list.push(event.time);
+      noteOffs.set(event.note, list);
+    }
+  }
+  for (const times of noteOffs.values()) times.sort((a, b) => a - b);
+
+  const onsets = events.filter((event) => event.type === "midiNoteOn");
+  const startTime = onsets.length > 0 ? onsets[0]!.time : 0;
+  const startedAt = Date.now();
+
+  for (const event of onsets) {
+    // Preserve the file's rhythm: wait until this onset relative to the first.
+    const delayMs = Math.max(0, (event.time - startTime) * 1000 - (Date.now() - startedAt));
+    if (delayMs > 0) {
+      await new Promise((resolveWait) => setTimeout(resolveWait, delayMs));
+    }
+    // Auto-release after the matching Note Off; fall back to the default hold
+    // when the file never releases this note.
+    const offTime = noteOffs.get(event.note)?.shift();
+    const length = offTime !== undefined
+      ? Math.max(0, offTime - event.time)
+      : DEFAULT_NOTE_HOLD_SECONDS;
+    const reply = await sendToDaemon(
+      { cmd: "noteon", note: event.note, velocity: event.velocity, preset, length },
+      { socketPath },
+    );
+    if (!reply.ok) {
+      if (reply.code === "no_audio_device") {
+        return playNoAudioDeviceError(jsonMode, reply.environment, file);
+      }
+      return printReplyError(jsonMode, reply.error ?? "Instrument daemon rejected the note.", reply.availablePresets);
+    }
+  }
+  if (jsonMode) {
+    process.stdout.write(
+      `${JSON.stringify({
+        ok: true,
+        command: "instrument-play",
+        file,
+        preset,
+        eventCount: onsets.length,
+        realtime: true,
+      })}\n`,
+    );
+  } else {
+    outputSuccess(`Streaming ${file} (${preset}) to the real-time instrument daemon.`);
+  }
+  return 0;
+}
+
+/**
+ * `instrument play <file.mid>`: parse the SMF with the shipped MIDI import and
+ * play it through the instruments engine — offline (`--output` / `--fallback`)
+ * or streamed live through the real-time daemon (default).
+ */
+async function play(flags: Flags): Promise<number> {
+  const jsonMode = flags.json === true;
+  const file = stringFlag(flags, "file");
+  if (file === undefined) {
+    return errorOut(jsonMode, "instrument play requires a MIDI file path (<file.mid>).");
+  }
+  const preset = stringFlag(flags, "preset") ?? DEFAULT_PRESET;
+  const output = stringFlag(flags, "output");
+
+  let bytes: Uint8Array;
+  try {
+    bytes = new Uint8Array(await readFile(file));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return errorOut(jsonMode, `cannot read MIDI file '${file}': ${message}`);
+  }
+
+  let events: InstrumentEvent[];
+  try {
+    events = parseMidiToInstrumentEvents(bytes);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return errorOut(jsonMode, `invalid MIDI file '${file}': ${message}`);
+  }
+  if (events.length === 0) {
+    return errorOut(jsonMode, `no note events found in '${file}'.`);
+  }
+
+  const args: PlayArgs = { jsonMode, file, preset, events, output, fallback: flags.fallback === true };
+  if (output !== undefined || args.fallback) {
+    return playOffline(args);
+  }
+  return playRealtime(args);
+}
+
 /**
  * Internal daemon entry: run as a long-lived service until stopped.
  *
@@ -530,6 +773,59 @@ toneforge instrument noteon 60
 toneforge instrument noteoff 60
 \`\`\``);
   }
+  if (subcommand === "play") {
+    return outputMarkdown(`# ToneForge instrument play
+
+**Play a Standard MIDI File (\`.mid\`) through the instruments engine**
+
+## Usage
+
+\`\`\`
+toneforge instrument play <file.mid> [--preset <name>] [--output <file.wav>] [--fallback] [--json]
+\`\`\`
+
+## Arguments
+
+- \`<file.mid>\` — Path to a Standard MIDI File (SMF) *(required)*
+
+## Options
+
+- \`--preset <name>\` — Instrument preset id (default: ${DEFAULT_PRESET}), same registry as \`noteon\`
+- \`--output <file.wav>\` — **offline**: render the whole file deterministically to a WAV (no audio device needed; works headless/WSL/containers)
+- \`--fallback\` — **offline**: pre-render the file and play it via the system player (playback starts after a short render delay)
+- \`--json\` — Output JSON
+
+## Behaviour
+
+The file is parsed with the shipped MIDI import (\`src/midi/smf.ts\` +
+\`src/midi/translate.ts\`, TF-0MVBDU0RM007QTNR) and its note events are merged
+into one deterministic stream: delta times are resolved through the tempo map
+(PPQ ticks → seconds, tempo changes honoured) and multi-track files are merged
+sorted by absolute time (release-before-retrigger tie-break). An invalid or
+unreadable file produces a clear error and a non-zero exit — no stack trace.
+
+- **\`--output\`**: renders the merged stream through \`renderInstrument\` at a
+  pinned 44100 Hz and writes a valid WAV — same file + same preset ⇒
+  byte-identical output (platform determinism guarantee).
+- **\`--fallback\`**: renders offline and plays the WAV via the system player
+  (the \`tf play\` path — works on WSL/headless machines).
+- **Default (no \`--output\`/\`--fallback\`)**: streams the note events through
+  the real-time instrument daemon (needs a live audio device). On machines
+  without one, the error is the same actionable message as \`noteon\`, naming
+  the environment and suggesting \`--output\` / \`--fallback\`.
+
+\`--output\` and \`--fallback\` cannot be combined.
+
+## Examples
+
+\`\`\`
+toneforge instrument play song.mid
+toneforge instrument play song.mid --output song.wav
+toneforge instrument play song.mid --preset pad --output pad.wav
+toneforge instrument play song.mid --fallback
+toneforge instrument play song.mid --json
+\`\`\``);
+  }
   return outputMarkdown(`# ToneForge instrument
 
 **Demo live MIDI note playback on instrument presets**
@@ -539,7 +835,9 @@ same note number — notes are polyphonic, so chords and held drones are
 supported across separate invocations. On machines without a live audio device
 (WSL, containers, headless), \`noteon\` (no \`--output\`/\`--fallback\`) fails
 with an actionable message naming the environment and suggesting the offline
-alternatives.
+alternatives. \`play\` plays a Standard MIDI File (\`.mid\`) through the same
+engine — offline to a WAV (\`--output\`), via the system player (\`--fallback\`)
+or live through the daemon (default).
 
 ## Subcommands
 
@@ -547,6 +845,7 @@ alternatives.
 |------------|-------------|
 | **noteon** | Start (and hold) a MIDI note until Note Off |
 | **noteoff** | Release a held MIDI note |
+| **play** | Play a Standard MIDI File (\`.mid\`) through the instruments engine (offline WAV render or live playback) |
 | **status** | List currently held notes |
 | **presets** | List available instrument presets |
 | **stop** | Stop the instrument daemon and release all notes |
@@ -559,6 +858,7 @@ Run \`toneforge instrument <subcommand> --help\` for subcommand-specific help.
 toneforge instrument noteon 60
 toneforge instrument noteon 60 --preset pad --length 1.0
 toneforge instrument noteoff 60
+toneforge instrument play melody.mid --output melody.wav
 toneforge instrument status
 toneforge instrument stop
 \`\`\``);
@@ -578,6 +878,8 @@ export async function runInstrumentCommand(
       return noteOn(flags);
     case "noteoff":
       return noteOff(flags);
+    case "play":
+      return play(flags);
     case "status":
       return status(flags);
     case "presets":

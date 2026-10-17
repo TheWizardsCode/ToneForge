@@ -14,7 +14,7 @@ ToneForge lets developers generate placeholder sounds from recipes and seeds dur
 - **Explore** -- Sweep parameter spaces, discover outliers, rank and cluster variants
 - **Store** -- Structured library with metadata indexing, similarity search, and deterministic regeneration
 - **Deploy** -- Real-time playback engine with seed-based variation and baked fallback, targeting browser and Node.js
-- **Play** -- Demo live MIDI note playback from the terminal (`toneforge instrument noteon` / `noteoff`): polyphonic held notes, chords and automatic Note Off via `--length`
+- **Play** -- Demo live MIDI note playback and Standard MIDI File playback from the terminal (`toneforge instrument noteon` / `noteoff` / `play`): polyphonic held notes, chords, automatic Note Off via `--length`, and deterministic `.mid` → WAV offline render
 - **Sync** -- Deterministic multi-client behavioural synchronisation: compact events resolved locally, with no audio streaming
 - **Integrate** -- Non-interactive CI pipeline (`generate → validate → compile → export`) and engine export via `toneforge sync`
 - **Exchange** -- Browse, install and publish versioned, license-declared procedural packages via the `marketplace` command group
@@ -240,8 +240,8 @@ the authoritative specification.
 - [ToneForge in CI](docs/guides/ci-integration.md) — the `toneforge pipeline` CI workflow
 - [ToneGraph v0.1 Specification](docs/tonegraph.md)
 - [Sound Module Index](docs/modules/index.md) — every ToneGraph sound-node kind grouped by primary function, with use cases and availability.
-- [Instruments](docs/modules/instruments.md) — playable, polyphonic Note On / Note Off instruments with ADSR envelopes, voice management and deterministic Node/browser rendering, plus the `toneforge instrument noteon` / `noteoff` CLI demo.
-- [MIDI file import](docs/modules/midi-import.md) — parse Standard MIDI files (`.mid`) into the instruments engine's note events, with deterministic tempo-map timing.
+- [Instruments](docs/modules/instruments.md) — playable, polyphonic Note On / Note Off instruments with ADSR envelopes, voice management and deterministic Node/browser rendering, plus the `toneforge instrument noteon` / `noteoff` CLI demo and `.mid` file playback (`instrument play`).
+- [MIDI file import](docs/modules/midi-import.md) — parse Standard MIDI files (`.mid`) into the instruments engine's note events, with deterministic tempo-map timing, played via `toneforge instrument play <file.mid>`.
 - [Casual Game Recipe Book](docs/recipe-book/index.md) — a guided tour of 101 procedural recipes, from single-oscillator blips to layered stings.
 - [Working with the CLI](docs/recipe-book/index.md#working-with-the-cli) — find, evaluate and understand the 101 recipes from the command line.
 - [What each tier's CLI block demonstrates](docs/recipe-book/index.md#what-each-tiers-cli-block-demonstrates) — the pipeline stage introduced by each of the seven recipe tiers.

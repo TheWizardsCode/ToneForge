@@ -195,7 +195,7 @@ In the browser, `createRealtimeInstrument` uses the native `AudioContext`;
 the web demo (`web/src/audio.ts`) exposes `playInstrumentNote()` and lazy
 `getRealtimeInstrument()` registration for the engine's real-time renderer.
 
-## CLI — demo live MIDI note playback
+## CLI — demo live MIDI note playback and .mid file playback
 
 The `instrument` command group demos the playable presets from the terminal:
 a note started with `noteon` **keeps sounding until `noteoff` is sent with the
@@ -226,6 +226,38 @@ readable output. Notes ring across invocations; a chord is just several
 `noteon` commands before the matching `noteoff`s. The daemon shuts itself
 down after an idle period once no notes are held, and honours
 `TONEFORGE_INSTRUMENT_SOCKET` for a custom socket path.
+
+### Play a Standard MIDI file
+
+`instrument play <file.mid>` plays a Standard MIDI File through the same
+engine ([TF-0MVBDU0RM007QTNR](midi-import.md) shipped the parse → events
+layer; this item adds the CLI surface on top):
+
+```bash
+# Live playback through the real-time instrument daemon (needs a live device).
+tf instrument play song.mid
+
+# Offline deterministic render to a WAV — no audio device needed.
+tf instrument play song.mid --output song.wav
+
+# Offline pre-render + system player (works on WSL/headless).
+tf instrument play song.mid --fallback
+
+tf instrument play song.mid --preset pad --output pad.wav   # any registered preset
+tf instrument play song.mid --json                         # machine-readable output
+```
+
+The file is parsed with the shipped MIDI import (`src/midi/smf.ts` +
+`src/midi/translate.ts`, TF-0MVBDU0RM007QTNR): delta times are resolved
+through the **tempo map** (PPQ ticks → seconds, tempo changes honoured) and
+multi-track files are merged into one deterministic stream (release-before-
+retrigger tie-break). The offline modes render through `renderInstrument` at
+a pinned 44100 Hz — same file + same preset ⇒ byte-identical WAV. An invalid
+or unreadable file produces a clear UK-English error and non-zero exit, no
+stack trace. `--output` and `--fallback` cannot be combined. On machines
+without a live audio device the real-time path fails with the same actionable
+message as `noteon`, naming the environment and suggesting `--output` /
+`--fallback`.
 
 ### Offline modes: no audio device needed
 

@@ -217,7 +217,7 @@ async function printHelp(): Promise<void> {
 | **stack** | Compose layered sound events from multiple recipes |
 | **show** | Display recipe metadata and parameters |
 | **play** | Play a WAV file through the system audio player |
-| **instrument** | Demo live MIDI note playback (noteon / noteoff) on instrument presets |
+| **instrument** | Demo live MIDI note playback (noteon / noteoff / play) on instrument presets, incl. .mid file playback |
 | **list** | List available resources (e.g. recipes) |
 | **tui** | Interactive wizard for building sound palettes |
 | **visualize** | Generate deterministic, audio-synchronised visual effects |

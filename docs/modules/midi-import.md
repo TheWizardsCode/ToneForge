@@ -93,6 +93,16 @@ The tests assert observable behaviour only: parse results against the raw
 header/track data, exact event ordering after the merge, rendered pitch via
 dominant-frequency estimation, and byte-identical output for identical input.
 
+## CLI playback surface
+
+`toneforge instrument play <file.mid>` (TF-0MVCSYRQM008P812) plays a `.mid`
+file through the instruments engine: parse → events → offline WAV render
+(`--output`), offline pre-render + system player (`--fallback`) or live
+streaming through the real-time instrument daemon (default). The parse →
+events translation in this module is reused as-is — no new parser and no
+new engine work — and the same determinism guarantee (same file + same preset
+⇒ byte-identical WAV) holds. See [Instruments — CLI](instruments.md#cli--demo-live-midi-note-playback-and-mid-file-playback).
+
 ## Limitations and follow-ups
 
 - File import only — no Web MIDI hardware binding, velocity curves, pitch
@@ -100,3 +110,5 @@ dominant-frequency estimation, and byte-identical output for identical input.
   epic TF-0MV9PIBNV008C00R intake).
 - Chords and notes sound through the instrument's fixed velocity→gain mapping;
   per-note expressive control is future work.
+- The CLI surface for playing a `.mid` file (`toneforge instrument play`) ships
+  in TF-0MVCSYRQM008P812 — this item is the parse → events layer only.
