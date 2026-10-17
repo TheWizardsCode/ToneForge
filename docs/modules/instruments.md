@@ -248,6 +248,34 @@ WAV. Without `--length` the note holds for 1 s (`DEFAULT_NOTE_HOLD_SECONDS`)
 before the automatic Note Off, which keeps renders finite. `--output` and
 `--fallback` cannot be combined.
 
+### WSL / device-less detection
+
+At startup the daemon probes real-time audio availability exactly once
+(`src/instruments/audio-probe.ts`), attempting to construct the real-time
+engine through the injectable factory. When no live output device is reachable
+(a missing ALSA card, no JACK/PipeWire, `node-web-audio-api` throwing
+`DeviceNotAvailable` / ALSA `Unknown PCM default`), it records
+`audioDeviceAvailable: false` and also classifies the environment (WSL is
+detected from a Microsoft `/proc/version`, or from `WSL_DISTRO_NAME` /
+`WSL_INTEROP`).
+
+So on WSL, in a container or on any headless machine:
+
+```bash
+# Fails fast with an actionable message that names the environment and
+# suggests both alternatives — no raw cpal/ALSA traceback.
+tf instrument noteon 60
+
+# The message suggests these two recoverable alternatives:
+tf instrument noteon 60 --output note.wav   # render a WAV to play elsewhere
+tf instrument noteon 60 --fallback           # offline pre-render playback
+
+tf instrument status --json   # includes environment, audioDeviceAvailable, notes
+```
+
+Metadata commands (`status`, `stop`, `presets`, `noteoff`) never crash on a
+missing device; `status` shows a hint when audio is unavailable.
+
 ## Starter preset family
 
 Five purpose-crafted presets ship as YAML files in `presets/instruments/`

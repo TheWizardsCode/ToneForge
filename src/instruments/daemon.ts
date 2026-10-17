@@ -28,6 +28,14 @@ import type { InstrumentDefinition } from "./schema.js";
 import { createRealtimeInstrument } from "./engine.js";
 import { AudioContext } from "../audio/web-audio.js";
 import {
+  createAudioProbe,
+  detectEnvironment,
+  type AudioEnvironment,
+  type AudioProbe,
+  type AudioProbeResult,
+  type SystemInfo,
+} from "./audio-probe.js";
+import {
   getInstrument,
   listInstruments,
   loadBundledInstrumentPresets,
@@ -52,7 +60,8 @@ export type DaemonErrorCode =
   | "invalid_velocity"
   | "invalid_length"
   | "unknown_preset"
-  | "note_not_held";
+  | "note_not_held"
+  | "no_audio_device";
 
 /** A request from a CLI client to the daemon. */
 export type DaemonRequest =
@@ -98,6 +107,10 @@ export interface DaemonReply {
   readonly notes?: DaemonNoteInfo[];
   readonly instrument?: string;
   readonly availablePresets?: string[];
+  /** Detected host environment (e.g. `wsl`, `linux`). */
+  readonly environment?: AudioEnvironment;
+  /** Whether a live real-time output device is available. */
+  readonly audioDeviceAvailable?: boolean;
 }
 
 // ── Injectable engine + clock ─────────────────────────────────────
@@ -181,6 +194,13 @@ export interface InstrumentDaemonOptions {
   idleTimeoutMs?: number;
   /** Logger for non-fatal warnings (default `console`). */
   logger?: Pick<Console, "warn" | "error">;
+  /**
+   * Injectable audio-availability probe (default: attempt the real-time engine
+   * once via {@link createEngine} and the {@link SystemInfo} source).
+   */
+  probeAudio?: AudioProbe;
+  /** Injectable system-information source (default the live host). */
+  systemInfo?: SystemInfo;
 }
 
 /** A running (or runnable) instrument daemon. */
@@ -223,9 +243,14 @@ export function createInstrumentDaemon(
   const defaultPreset = options.defaultPreset ?? DEFAULT_PRESET;
   const idleTimeoutMs = options.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS;
   const logger = options.logger ?? console;
+  const systemInfo = options.systemInfo;
+  const probeAudio =
+    options.probeAudio
+    ?? createAudioProbe({ createEngine, ...(systemInfo ? { systemInfo } : {}) });
 
   const engines = new Map<string, InstrumentEngine>();
   const held = new Map<number, HeldNote>();
+  let probeResult: AudioProbeResult | null = null;
 
   let presetsLoaded = false;
   let running = false;
@@ -235,6 +260,32 @@ export function createInstrumentDaemon(
   let stopReason: string | null = null;
   let resolveStop: ((reason: string) => void) | null = null;
   let stopPromise: Promise<string> | null = null;
+
+  /**
+   * Probe real-time audio availability exactly once (idempotent).
+   *
+   * Called by {@link start}; `status` and `noteon` read the cached result so
+   * the injectable engine factory is never invoked more than once for probing.
+   */
+  async function ensureProbe(): Promise<AudioProbeResult> {
+    if (probeResult === null) {
+      probeResult = await probeAudio();
+    }
+    return probeResult;
+  }
+
+  /**
+   * The current probe result, or an optimistic default when the daemon has not
+   * been started (direct `handle()` calls in unit tests). The environment is
+   * still classified so `status` can report it.
+   */
+  function currentProbe(): AudioProbeResult {
+    if (probeResult !== null) return probeResult;
+    return {
+      environment: detectEnvironment(systemInfo),
+      audioDeviceAvailable: true,
+    };
+  }
 
   async function ensurePresets(): Promise<void> {
     if (presetsLoaded) return;
@@ -331,7 +382,40 @@ export function createInstrumentDaemon(
       };
     }
 
-    const engine = await getEngine(presetId);
+    // A missing live output device is reported up front (the probe ran at
+    // startup), so a sustained note never fails mid-construction with a raw
+    // cpal/ALSA traceback.
+    const probe = currentProbe();
+    if (!probe.audioDeviceAvailable) {
+      return {
+        id,
+        ok: false,
+        cmd: "noteon",
+        code: "no_audio_device",
+        environment: probe.environment,
+        error: "No live audio device is available.",
+      };
+    }
+
+    let engine: InstrumentEngine | null;
+    try {
+      engine = await getEngine(presetId);
+    } catch {
+      // A device that disappears between the startup probe and now must not
+      // surface a raw cpal/ALSA traceback mid-note.
+      probeResult = {
+        environment: currentProbe().environment,
+        audioDeviceAvailable: false,
+      };
+      return {
+        id,
+        ok: false,
+        cmd: "noteon",
+        code: "no_audio_device",
+        environment: probeResult.environment,
+        error: "No live audio device is available.",
+      };
+    }
     if (!engine) {
       return {
         id,
@@ -415,15 +499,19 @@ export function createInstrumentDaemon(
     switch (request.cmd) {
       case "ping":
         return { id: request.id, ok: true, cmd: "ping" };
-      case "status":
+      case "status": {
         await ensurePresets();
+        const probe = currentProbe();
         return {
           id: request.id,
           ok: true,
           cmd: "status",
           instrument: defaultPreset,
+          environment: probe.environment,
+          audioDeviceAvailable: probe.audioDeviceAvailable,
           notes: heldNotes(),
         };
+      }
       case "noteon":
         return handleNoteOn(request);
       case "noteoff":
@@ -491,6 +579,7 @@ export function createInstrumentDaemon(
 
   async function start(): Promise<string> {
     if (running && socketPath) return socketPath;
+    await ensureProbe();
     await ensurePresets();
     const path = socketPath ?? resolveInstrumentSocketPath();
     socketPath = path;

@@ -18,7 +18,7 @@
  * Work item: TF-0MVBECXFJ006SSW4 (parent epic TF-0MV9PIBNV008C00R).
  */
 
-import { outputError, outputInfo, outputSuccess, outputMarkdown } from "../../output.js";
+import { outputError, outputInfo, outputSuccess, outputMarkdown, outputWarning } from "../../output.js";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { encodeWav } from "../../audio/wav-encoder.js";
@@ -39,6 +39,11 @@ import {
   loadBundledInstrumentPresets,
   listInstrumentSummaries,
 } from "../../instruments/presets.js";
+import {
+  buildNoAudioDeviceHint,
+  buildNoAudioDeviceMessage,
+  type AudioEnvironment,
+} from "../../instruments/audio-probe.js";
 import { MIDI_NOTE_MAX, MIDI_NOTE_MIN, MIDI_VELOCITY_MAX } from "../../instruments/instrument.js";
 
 /** Yargs command metadata (kept in the module for discoverability/help). */
@@ -66,6 +71,34 @@ function printReplyError(jsonMode: boolean, error: string, available?: string[])
     ? ` Available presets: ${available.join(", ")}.`
     : "";
   return errorOut(jsonMode, `${error}${suffix}`);
+}
+
+/**
+ * The actionable error shown when a sustained note is requested but no live
+ * audio device is available (WSL, container, headless).
+ */
+function noAudioDeviceError(
+  jsonMode: boolean,
+  environment: AudioEnvironment | undefined,
+  note: number,
+): number {
+  const resolved = environment ?? "unknown";
+  const message = buildNoAudioDeviceMessage(resolved, note);
+  if (jsonMode) {
+    process.stderr.write(
+      `${JSON.stringify({
+        ok: false,
+        command: "instrument-noteon",
+        code: "no_audio_device",
+        environment: resolved,
+        audioDeviceAvailable: false,
+        error: message,
+      })}\n`,
+    );
+    return 1;
+  }
+  outputError(`Error: ${message}`);
+  return 1;
 }
 
 /** Parse the `<note>` positional (0–127 integer). */
@@ -241,6 +274,9 @@ async function noteOn(flags: Flags): Promise<number> {
       { socketPath },
     );
     if (!reply.ok) {
+      if (reply.code === "no_audio_device") {
+        return noAudioDeviceError(jsonMode, reply.environment, note);
+      }
       return printReplyError(jsonMode, reply.error ?? "Instrument daemon rejected the note.", reply.availablePresets);
     }
     if (jsonMode) {
@@ -298,17 +334,25 @@ async function status(flags: Flags): Promise<number> {
     const reply = await sendToDaemon({ cmd: "status" }, { socketPath });
     if (!reply.ok) return printReplyError(jsonMode, reply.error ?? "status failed.");
     const notes = reply.notes ?? [];
+    const environment = reply.environment ?? "unknown";
+    const audioDeviceAvailable = reply.audioDeviceAvailable !== false;
     if (jsonMode) {
-      process.stdout.write(`${JSON.stringify({ ok: true, command: "instrument-status", instrument: reply.instrument, notes })}\n`);
-    } else if (notes.length === 0) {
-      outputInfo("No notes are currently held.");
+      process.stdout.write(`${JSON.stringify({ ok: true, command: "instrument-status", instrument: reply.instrument, environment, audioDeviceAvailable, notes })}\n`);
     } else {
-      outputInfo(`Instrument: ${reply.instrument}`);
-      for (const held of notes) {
-        const auto = held.length === null ? "held" : `auto-release in ${held.length}s`;
-        outputInfo(
-          `  note ${held.note}  velocity ${held.velocity}  preset ${held.preset}  held ${held.heldFor.toFixed(2)}s  (${auto})`,
-        );
+      if (!audioDeviceAvailable) {
+        outputWarning(buildNoAudioDeviceHint(environment));
+        outputInfo("Use `--output <file.wav>` to render a WAV, or `--fallback` to play via an offline pre-render (playback starts after a short render delay).");
+      }
+      if (notes.length === 0) {
+        outputInfo("No notes are currently held.");
+      } else {
+        outputInfo(`Instrument: ${reply.instrument}`);
+        for (const held of notes) {
+          const auto = held.length === null ? "held" : `auto-release in ${held.length}s`;
+          outputInfo(
+            `  note ${held.note}  velocity ${held.velocity}  preset ${held.preset}  held ${held.heldFor.toFixed(2)}s  (${auto})`,
+          );
+        }
       }
     }
     return 0;
@@ -438,6 +482,10 @@ Default (no \`--output\`/\`--fallback\`): starts a real-time note that keeps
 sounding until \`toneforge instrument noteoff <note>\` (needs a live audio
 device). With \`--length\`, a Note Off is sent automatically.
 
+**No live audio device detected** (WSL, containers, headless machines): the
+command exits with a clear message naming the environment and suggesting
+\`--output\` or \`--fallback\` — no raw audio-driver traceback is printed.
+
 **Offline modes** work on machines with no live audio device (WSL, headless,
 containers): the note is rendered deterministically through the engine and
 written to a file, or played back through the system player
@@ -488,7 +536,10 @@ toneforge instrument noteoff 60
 
 A note started with \`noteon\` keeps sounding until \`noteoff\` is sent with the
 same note number — notes are polyphonic, so chords and held drones are
-supported across separate invocations.
+supported across separate invocations. On machines without a live audio device
+(WSL, containers, headless), \`noteon\` (no \`--output\`/\`--fallback\`) fails
+with an actionable message naming the environment and suggesting the offline
+alternatives.
 
 ## Subcommands
 
