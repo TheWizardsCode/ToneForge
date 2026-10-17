@@ -25,6 +25,10 @@ Note Off voices, ADSR envelopes and polyphony)? See the
 [Instruments module](instruments.md) — a distinct, complementary capability to
 one-shot recipes.
 
+Importing an existing **Standard MIDI file** (`.mid`) so those instruments can
+play it? See the [MIDI file import](midi-import.md) module — SMF parsing with
+deterministic tempo-map timing into the same note-event API.
+
 ## Node kinds at a glance
 
 | Primary function | Node kinds |

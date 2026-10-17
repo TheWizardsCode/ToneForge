@@ -16,8 +16,9 @@ API on a deterministic, sample-accurate voice engine that runs in both Node
 (`node-web-audio-api`) and the browser (native Web Audio).
 
 > **Scope boundary:** this item ships the **programmatic Note On / Note Off
-> API only**. There is no raw MIDI byte decoder, no Web MIDI API hardware
-> binding and no MIDI file playback (those are recorded follow-ups). See the
+> API only**. There is no raw MIDI byte decoder and no Web MIDI API hardware
+> binding (those are recorded follow-ups) in this item. MIDI **file** playback
+> ships separately — see [MIDI file import](midi-import.md). Refer to the
 > intake decisions in the parent epic TF-0MV9PIBNV008C00R.
 
 ## Quick start
@@ -303,8 +304,9 @@ in envelope shape.
 
 ## Limitations and follow-ups
 
-- Programmatic API only — no raw MIDI bytes, Web MIDI hardware, MIDI files,
-  pitch bend, channel pressure, or aftertouch in this item.
+- Programmatic API only — no raw MIDI bytes, Web MIDI hardware, pitch bend,
+  channel pressure, or aftertouch in this item (MIDI **file** playback ships in
+  the separate [MIDI file import](midi-import.md) module).
 - Real-time Web Audio requires a live audio sink (headless Node environments
   fall back to offline rendering in tests).
 - The starter family can grow through follow-up items; the registry and

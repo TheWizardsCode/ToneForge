@@ -21,7 +21,8 @@
     "demo": "tsx scripts/demo/run.ts",
     "dev:web": "node scripts/dev-web.mjs",
     "postinstall": "node ./scripts/postinstall-cli-link.mjs",
-    "regenerate:determinism-fixtures": "tsx scripts/instruments/regenerate-determinism-fixtures.ts"
+    "regenerate:determinism-fixtures": "tsx scripts/instruments/regenerate-determinism-fixtures.ts",
+    "regenerate:midi-fixtures": "tsx scripts/midi/regenerate-fixtures.ts"
   },
   "keywords": [
     "audio",
@@ -40,6 +41,7 @@
     "js-yaml": "^4.1.0",
     "marked": "^15.0.12",
     "marked-terminal": "^7.3.0",
+    "midi-file": "1.2.4",
     "remark-gfm": "^4.0.1",
     "remark-parse": "^11.0.0",
     "unified": "^11.0.5",
