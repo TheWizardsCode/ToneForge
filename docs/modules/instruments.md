@@ -216,7 +216,7 @@ tf instrument noteoff 60
 
 # Inspect / control the daemon.
 tf instrument status     # list held notes
-tf instrument presets   # pluck, pad, bass, bell, string-lead
+tf instrument presets   # pluck, pad, bass, bell, string-lead, percussion
 tf instrument stop      # stop the daemon and release everything
 ```
 
@@ -311,14 +311,14 @@ missing device; `status` shows a hint when audio is unavailable.
 
 ## Starter preset family
 
-Five purpose-crafted presets ship as YAML files in `presets/instruments/`
+Six purpose-crafted presets ship as YAML files in `presets/instruments/`
 (schema-valid, following the recipe-preset convention), discoverable through:
 
 ```ts
 import { loadBundledInstrumentPresets, listInstruments, getInstrument } from "../instruments/presets.js";
 
 await loadBundledInstrumentPresets();      // Node only (browser: no-op)
-listInstruments();                          // ["pluck", "pad", "bass", "bell", "string-lead"]
+listInstruments();                          // ["pluck", "pad", "bass", "bell", "string-lead", "percussion"]
 getInstrument("pluck")?.definition.envelope; // { attack, decay, sustain, release }
 ```
 
@@ -329,6 +329,7 @@ getInstrument("pluck")?.definition.envelope; // { attack, decay, sustain, releas
 | `bass` | square | Fast attack, medium decay, solid sustain |
 | `bell` | sine | Near-instant attack, long decay, very low sustain |
 | `string-lead` | sawtooth | Medium attack, warm sustain, expressive release |
+| `percussion` | sine | Near-instant attack, fast decay to silence, low-passed — a tuned drum voice covering the kit register (low = kick, high = hat) |
 
 Each preset renders deterministic, non-silent audio (verified per-preset by
 `src/instruments/presets.test.ts`), and pluck is observably distinct from pad

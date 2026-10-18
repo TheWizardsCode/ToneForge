@@ -27,7 +27,10 @@ one-shot recipes.
 
 Importing an existing **Standard MIDI file** (`.mid`) so those instruments can
 play it? See the [MIDI file import](midi-import.md) module — SMF parsing with
-deterministic tempo-map timing into the same note-event API.
+deterministic tempo-map timing into the same note-event API. Want to **write**
+a `.mid` file instead? See the [Authoring leitmotif game sequences as
+MIDI](../guides/midi-sequences-howto.md) guide — the `src/midi/writer.ts` util
+plus two worked 8-bar sequences.
 
 ## Node kinds at a glance
 

@@ -17,7 +17,9 @@ synthesis — the engine plays the import like any other note sequence.
 > **Scope boundary:** this module ships **file import only** — parsing an SMF
 > file into engine events. Web MIDI API hardware binding
 > (`navigator.requestMIDIAccess`), velocity curves and pitch bend / CC /
-> aftertouch transport are separate follow-ups, not this slice.
+> aftertouch transport are separate follow-ups, not this slice. Writing files
+> is covered by the new `src/midi/writer.ts` util (`writeSmfBytes`) and the
+> [MIDI sequences how-to guide](midi-sequences-howto.md).
 
 ## Quick start
 
@@ -56,8 +58,9 @@ const rendered = await renderInstrument(
 
 - **Parsing** — SMF bytes are parsed by the pinned, MIT-licensed
   `midi-file` dependency (pure array-based JavaScript, zero dependencies, no
-  Node built-ins), wrapped behind `src/midi/smf.ts` so nothing else in the
-  codebase touches the parser directly.
+  Node built-ins), wrapped behind `src/midi/smf.ts` (parser) and
+  `src/midi/writer.ts` (writer) so nothing else in the codebase touches the
+  library directly.
 - **Tempo map** — every `setTempo` meta event across all tracks is gathered in
   absolute-tick order; between tempo changes the tempo is constant, so
   `seconds = segmentStart + (tick − segmentStartTick) × µsPerBeat /

@@ -1,0 +1,26 @@
+# Instrument preset — Percussion
+# Tuned percussive drum voice for driving rhythm parts: a near-instant-attack
+# sine with a fast exponential-style decay to silence, low-pass filtered so
+# the body dominates and the hit reads as a drum rather than a tone. The one
+# preset covers the whole kit register — low notes sound like kick/toms, high
+# notes like hats — because the instrument schema is oscillator-based (no
+# noise) and this keeps the drum family holistic.
+#
+# Used by the action sequence (TF-0MVDQP78X007OZNA): channel 9 (GM percussion)
+# carries kick/snare/hat/crash hits voiced by MIDI note number.
+
+id: percussion
+name: Percussion
+category: Percussion
+oscillator:
+  type: sine
+  detune: 0
+envelope:
+  attack: 0.002
+  decay: 0.22
+  sustain: 0.0
+  release: 0.08
+filter:
+  type: lowpass
+  frequency: 1500
+  Q: 0.7
