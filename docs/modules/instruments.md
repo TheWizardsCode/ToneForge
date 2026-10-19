@@ -245,6 +245,11 @@ tf instrument play song.mid --fallback
 
 tf instrument play song.mid --preset pad --output pad.wav   # any registered preset
 tf instrument play song.mid --json                         # machine-readable output
+
+# Isolate one voice of a multi-track file (audition the bass on its own).
+tf instrument play song.mid --track 3 --output bass.wav
+tf instrument play song.mid --channel 9 --output drums.wav # by MIDI channel instead
+tf instrument play song.mid --track 1,2 --output top.wav    # several tracks
 ```
 
 The file is parsed with the shipped MIDI import (`src/midi/smf.ts` +
@@ -268,6 +273,51 @@ file positional and reported the misleading
 `instrument play requires a MIDI file path (<file.mid>).` Every Note On is sent
 with its own auto-release length, so notes already scheduled keep their
 daemon-side auto-release and none is left held after the CLI exits.
+
+#### Isolate a single voice: `--track` / `--channel`
+
+Multi-track files merge every track into one stream by default. Two selectors
+restrict the **parsed note events** before that merge
+(TF-0MVEWJCRP006IXGC, discovered from TF-0MVDQP78X007OZNA):
+
+- `--track <n>` — keep only the given **track index** (0-based, SMF file
+  order; track 0 is usually the conductor).
+- `--channel <n>` — keep only events on the given **MIDI channel** (0–15).
+
+Both accept several values, comma-separated (`--track 1,3`) or repeated
+(`--track 1 --track 3`). Multiple values select the union on each axis;
+combining the flags selects the **intersection** — events whose track is
+selected *and* whose channel is selected. With neither flag the full mixed
+stream is unchanged (byte-identical renders).
+
+The filter is a pure selection step: it happens before the deterministic merge
+and never touches the engine, the tempo map or the merge logic. Tempo and
+metre events live on the conductor track and are **always honoured**, so a
+filtered voice keeps the file's original tempo map and duration. A filter that
+leaves no note events (for example `--track 0`, the conductor track) reports
+the existing `no note events found in '<file>'` error.
+
+All three output paths — `--output`, `--fallback` and the live daemon — accept
+a filtered stream. `--output` keeps the byte-identical determinism guarantee
+within a fixed filter: same file + same preset + same selector ⇒ identical
+WAV. Validation is explicit and UK-English: an out-of-range track names the
+file's track count (`file has 6 tracks (0–5); got 7`), and out-of-range or
+non-numeric channels report `expected a MIDI channel between 0 and 15` — never
+a stack trace.
+
+For the shipped leitmotif files the track/channel map is documented in
+[MIDI sequences — §4](../../guides/midi-sequences-howto.md#4-arrange-give-each-voice-a-job)
+and [§10](../../guides/midi-sequences-howto.md#10-using-the-files): for example
+`leitmotif-action.mid` track 5 / channel 9 is the percussion voice (111 notes)
+and `leitmotif-menu.mid` track 3 / channel 3 is the bass.
+
+```bash
+# Only the percussion voice of the action cue.
+tf instrument play assets/music/leitmotif-action.mid --track 5 --output drums.wav
+# The same voice, selected by channel.
+tf instrument play assets/music/leitmotif-action.mid --channel 9 --output drums.wav
+
+```
 
 ### Offline modes: no audio device needed
 

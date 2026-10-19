@@ -120,6 +120,93 @@ describe("smfToInstrumentEvents", () => {
   });
 });
 
+describe("smfToInstrumentEvents voice isolation filter", () => {
+  const noteTuple = (event: { type: string; note: number; time: number }) =>
+    ({ type: event.type, note: event.note, time: Math.round(event.time * 100) / 100 });
+
+  it("selects a single track (melody fixture track 1)", () => {
+    const parsed = parseMidiFile(loadFixture("melody.mid"));
+    const events = smfToInstrumentEvents(parsed, { tracks: [1] });
+
+    expect(events).toHaveLength(10);
+    expect(events.filter((event) => event.type === "midiNoteOn")).toHaveLength(5);
+    expect(
+      [...new Set(events.filter((event) => event.type === "midiNoteOn").map((event) => event.note))]
+        .sort((a, b) => a - b),
+    ).toEqual([69, 72, 74, 76, 77]);
+  });
+
+  it("keeps the file's tempo map when a non-conductor track is selected", () => {
+    const parsed = parseMidiFile(loadFixture("melody.mid"));
+    const full = smfToInstrumentEvents(parsed);
+    const melodyOnly = smfToInstrumentEvents(parsed, { tracks: [1] });
+
+    // The A4 (note 69) onset/release straddles the 120 → 60 BPM change on the
+    // conductor track (0), so a filtered voice keeps the original timing.
+    const onset = melodyOnly.find(
+      (event) => event.type === "midiNoteOn" && event.note === 69,
+    )!;
+    const release = melodyOnly.find(
+      (event) => event.type === "midiNoteOff" && event.note === 69,
+    )!;
+    expect(onset.time).toBeCloseTo(2.0, 9);
+    expect(release.time).toBeCloseTo(4.0, 9);
+
+    // Filtering is a pure selection: every surviving event is in the full mix
+    // at exactly the same time.
+    const fullTimes = new Set(full.map((event) => `${event.type}:${event.note}:${event.time}`));
+    for (const event of melodyOnly) {
+      expect(fullTimes.has(`${event.type}:${event.note}:${event.time}`)).toBe(true);
+    }
+  });
+
+  it("selects by MIDI channel (melody fixture track 2 is channel 2)", () => {
+    const parsed = parseMidiFile(loadFixture("melody.mid"));
+    const events = smfToInstrumentEvents(parsed, { channels: [2] });
+
+    expect(events).toHaveLength(2);
+    expect(events.map(noteTuple)).toEqual([
+      { type: "midiNoteOn", note: 48, time: 0 },
+      { type: "midiNoteOff", note: 48, time: 1 },
+    ]);
+  });
+
+  it("treats --track and --channel as an intersection", () => {
+    const parsed = parseMidiFile(loadFixture("melody.mid"));
+
+    // Track 1 is channel 1 and track 2 is channel 2: the mismatched pair is empty.
+    expect(smfToInstrumentEvents(parsed, { tracks: [1], channels: [2] })).toEqual([]);
+
+    // The matching pair keeps only the bass (track 2).
+    const bass = smfToInstrumentEvents(parsed, { tracks: [1, 2], channels: [2] });
+    expect(bass.map(noteTuple)).toEqual([
+      { type: "midiNoteOn", note: 48, time: 0 },
+      { type: "midiNoteOff", note: 48, time: 1 },
+    ]);
+  });
+
+  it("supports multiple channel values", () => {
+    const parsed = parseMidiFile(loadFixture("melody.mid"));
+    const events = smfToInstrumentEvents(parsed, { channels: [1, 2] });
+    expect(events).toHaveLength(12);
+  });
+
+  it("is byte-identical to the unfiltered path when no filter is given", () => {
+    const bytes = loadFixture("chord.mid");
+    const parsed = parseMidiFile(bytes);
+    const unfiltered = smfToInstrumentEvents(parsed);
+
+    expect(parseMidiToInstrumentEvents(bytes)).toEqual(unfiltered);
+    expect(parseMidiToInstrumentEvents(bytes, {})).toEqual(unfiltered);
+    expect(smfToInstrumentEvents(parsed, { tracks: [], channels: [] })).toEqual(unfiltered);
+  });
+
+  it("returns an empty stream for the conductor track (no note events)", () => {
+    const parsed = parseMidiFile(loadFixture("melody.mid"));
+    expect(smfToInstrumentEvents(parsed, { tracks: [0] })).toEqual([]);
+  });
+});
+
 describe("offline render of a known fixture (pinned 44100 Hz)", () => {
   it("renders the chord non-silent with release-to-silence", async () => {
     const events = parseMidiToInstrumentEvents(loadFixture("chord.mid"));

@@ -78,6 +78,19 @@ function buildFlags(
   return f;
 }
 
+/**
+ * Normalise a possibly repeated yargs option into the comma-separated string
+ * form `dispatchCommand` expects (`--track 1 --track 2` ⇒ `"1,2"`).
+ *
+ * @param value - A yargs option value (scalar or array).
+ * @returns The comma-joined string, or `undefined` when the flag was absent.
+ */
+function multiFlag(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  if (Array.isArray(value)) return value.map(String).join(",");
+  return String(value);
+}
+
 export async function yargsMain(argv: string[] = process.argv): Promise<number> {
   const raw = hideBin(argv);
 
@@ -199,6 +212,8 @@ export async function yargsMain(argv: string[] = process.argv): Promise<number> 
     });
     y2.command("play <file>", "Play a Standard MIDI File (.mid) through the instruments engine", (y3) => {
       y3.positional("file", { type: "string", describe: "Path to a .mid file" })
+        .option("track", { type: "array", describe: "Play only these track indexes (0-based; repeatable or comma-separated)" })
+        .option("channel", { type: "array", describe: "Play only these MIDI channels (0-15; repeatable or comma-separated)" })
         .option("preset", { type: "string", describe: "Instrument preset id" })
         .option("output", { type: "string", describe: "Render the file offline to a WAV file (no audio device needed)" })
         .option("fallback", { type: "boolean", describe: "Pre-render the file and play via the system player" })
@@ -206,6 +221,8 @@ export async function yargsMain(argv: string[] = process.argv): Promise<number> 
     }, async (argv) => {
       exitCode = await dispatchCommand("instrument", "play", buildFlags(argv, {
         ...(argv.file !== undefined ? { file: String(argv.file) } : {}),
+        ...(multiFlag(argv.track) !== undefined ? { track: multiFlag(argv.track)! } : {}),
+        ...(multiFlag(argv.channel) !== undefined ? { channel: multiFlag(argv.channel)! } : {}),
         ...(argv.preset !== undefined ? { preset: String(argv.preset) } : {}),
         ...(argv.output !== undefined ? { output: String(argv.output) } : {}),
         ...(argv.fallback === true ? { fallback: true } : {}),

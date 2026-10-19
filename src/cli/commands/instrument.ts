@@ -33,7 +33,8 @@ import {
   DEFAULT_VELOCITY,
 } from "../../instruments/daemon.js";
 import { renderInstrument, ENGINE_SAMPLE_RATE, type InstrumentEvent } from "../../instruments/engine.js";
-import { parseMidiToInstrumentEvents } from "../../midi/translate.js";
+import { smfToInstrumentEvents, type MidiVoiceFilter } from "../../midi/translate.js";
+import { parseMidiFile, type ParsedMidi } from "../../midi/smf.js";
 import {
   ensureDaemon,
   sendToDaemon,
@@ -499,6 +500,101 @@ interface PlayArgs {
   fallback: boolean;
 }
 
+/** A parsed, validated `--track` / `--channel` voice selection. */
+type VoiceSelection = MidiVoiceFilter;
+
+/**
+ * Split a repeatable/comma-separated flag into its raw tokens.
+ *
+ * `--track 1,3` and `--track 1 --track 3` are both accepted; the repeated form
+ * arrives here already joined with commas (see `parseArgs` / `buildFlags`).
+ */
+function flagTokens(flags: Flags, key: string): string[] | undefined {
+  const raw = stringFlag(flags, key);
+  if (raw === undefined) return undefined;
+  return raw
+    .split(",")
+    .map((token) => token.trim())
+    .filter((token) => token.length > 0);
+}
+
+/**
+ * Parse the `--track` selector (0-based track indexes).
+ *
+ * Only the *shape* is validated here; the upper bound depends on the parsed
+ * file and is checked by {@link validateTrackSelection}.
+ */
+function parseTrackSelection(
+  flags: Flags,
+  jsonMode: boolean,
+): { tracks?: number[] } | { error: number } {
+  const tokens = flagTokens(flags, "track");
+  if (tokens === undefined) return {};
+  if (tokens.length === 0) {
+    return { error: errorOut(jsonMode, "--track requires at least one track index.") };
+  }
+  const tracks: number[] = [];
+  for (const token of tokens) {
+    if (!/^\d+$/.test(token)) {
+      return {
+        error: errorOut(
+          jsonMode,
+          `invalid --track '${token}': expected a non-negative integer track index (0-based).`,
+        ),
+      };
+    }
+    tracks.push(Number(token));
+  }
+  return { tracks };
+}
+
+/** Parse the `--channel` selector (MIDI channels 0–15). */
+function parseChannelSelection(
+  flags: Flags,
+  jsonMode: boolean,
+): { channels?: number[] } | { error: number } {
+  const tokens = flagTokens(flags, "channel");
+  if (tokens === undefined) return {};
+  if (tokens.length === 0) {
+    return { error: errorOut(jsonMode, "--channel requires at least one MIDI channel.") };
+  }
+  const channels: number[] = [];
+  for (const token of tokens) {
+    const value = /^\d+$/.test(token) ? Number(token) : Number.NaN;
+    if (!Number.isInteger(value) || value < 0 || value > 15) {
+      return {
+        error: errorOut(
+          jsonMode,
+          `invalid --channel '${token}': expected a MIDI channel between 0 and 15.`,
+        ),
+      };
+    }
+    channels.push(value);
+  }
+  return { channels };
+}
+
+/**
+ * Reject a `--track` index outside the parsed file's track list.
+ *
+ * @returns An exit code when invalid, otherwise `undefined`.
+ */
+function validateTrackSelection(
+  tracks: readonly number[] | undefined,
+  parsed: ParsedMidi,
+  jsonMode: boolean,
+): number | undefined {
+  if (tracks === undefined) return undefined;
+  const count = parsed.tracks.length;
+  for (const track of tracks) {
+    if (track >= count) {
+      const available = count === 0 ? "no tracks" : `${count} tracks (0–${count - 1})`;
+      return errorOut(jsonMode, `invalid --track ${track}: file has ${available}; got ${track}.`);
+    }
+  }
+  return undefined;
+}
+
 /**
  * Shared `play` implementation for the offline modes (`--output` / `--fallback`).
  *
@@ -666,6 +762,11 @@ async function playRealtime(args: PlayArgs): Promise<number> {
  * `instrument play <file.mid>`: parse the SMF with the shipped MIDI import and
  * play it through the instruments engine — offline (`--output` / `--fallback`)
  * or streamed live through the real-time daemon (default).
+ *
+ * `--track` / `--channel` isolate one voice of a multi-track file: the note
+ * events are filtered at the parse layer (before the deterministic merge), so
+ * every downstream path — WAV render, offline pre-render, live daemon — plays
+ * only the selected tracks/channels while keeping the file's tempo map.
  */
 async function play(flags: Flags): Promise<number> {
   const jsonMode = flags.json === true;
@@ -676,6 +777,15 @@ async function play(flags: Flags): Promise<number> {
   const preset = stringFlag(flags, "preset") ?? DEFAULT_PRESET;
   const output = stringFlag(flags, "output");
 
+  const trackSelection = parseTrackSelection(flags, jsonMode);
+  if ("error" in trackSelection) return trackSelection.error;
+  const channelSelection = parseChannelSelection(flags, jsonMode);
+  if ("error" in channelSelection) return channelSelection.error;
+  const filter: VoiceSelection = {
+    ...(trackSelection.tracks !== undefined ? { tracks: trackSelection.tracks } : {}),
+    ...(channelSelection.channels !== undefined ? { channels: channelSelection.channels } : {}),
+  };
+
   let bytes: Uint8Array;
   try {
     bytes = new Uint8Array(await readFile(file));
@@ -684,9 +794,20 @@ async function play(flags: Flags): Promise<number> {
     return errorOut(jsonMode, `cannot read MIDI file '${file}': ${message}`);
   }
 
+  let parsed: ParsedMidi;
+  try {
+    parsed = parseMidiFile(bytes);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return errorOut(jsonMode, `invalid MIDI file '${file}': ${message}`);
+  }
+
+  const rangeError = validateTrackSelection(filter.tracks, parsed, jsonMode);
+  if (rangeError !== undefined) return rangeError;
+
   let events: InstrumentEvent[];
   try {
-    events = parseMidiToInstrumentEvents(bytes);
+    events = smfToInstrumentEvents(parsed, filter);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return errorOut(jsonMode, `invalid MIDI file '${file}': ${message}`);
@@ -837,7 +958,7 @@ toneforge instrument noteoff 60
 ## Usage
 
 \`\`\`
-toneforge instrument play <file.mid> [--preset <name>] [--output <file.wav>] [--fallback] [--json]
+toneforge instrument play <file.mid> [--track <n>] [--channel <n>] [--preset <name>] [--output <file.wav>] [--fallback] [--json]
 \`\`\`
 
 ## Arguments
@@ -846,6 +967,8 @@ toneforge instrument play <file.mid> [--preset <name>] [--output <file.wav>] [--
 
 ## Options
 
+- \`--track <n>\` — play only the given **track index** (0-based, SMF order: 0 is usually the conductor track). Repeatable or comma-separated for several tracks (e.g. \`--track 1,3\`).
+- \`--channel <n>\` — play only events on the given **MIDI channel** (0–15). Repeatable or comma-separated for several channels (e.g. \`--channel 1,2\`).
 - \`--preset <name>\` — Instrument preset id (default: ${DEFAULT_PRESET}), same registry as \`noteon\`
 - \`--output <file.wav>\` — **offline**: render the whole file deterministically to a WAV (no audio device needed; works headless/WSL/containers)
 - \`--fallback\` — **offline**: pre-render the file and play it via the system player (playback starts after a short render delay)
@@ -860,15 +983,31 @@ into one deterministic stream: delta times are resolved through the tempo map
 sorted by absolute time (release-before-retrigger tie-break). An invalid or
 unreadable file produces a clear error and a non-zero exit — no stack trace.
 
-- **\`--output\`**: renders the merged stream through \`renderInstrument\` at a
-  pinned 44100 Hz and writes a valid WAV — same file + same preset ⇒
-  byte-identical output (platform determinism guarantee).
+### Isolate one voice (\`--track\` / \`--channel\`)
+
+\`--track\` and \`--channel\` restrict the parsed note stream **before** the
+merge, so you can audition a single part (bass, melody, percussion, …) of a
+multi-track file. Multiple values select the union on each axis; combining both
+flags selects the **intersection** (events matching a selected track *and* a
+selected channel). With neither flag the full mixed stream plays exactly as
+before. Tempo and metre events on the conductor track are always honoured, so a
+filtered voice keeps the file's original tempo map and duration. A filter that
+leaves no notes (e.g. \`--track 0\`, the conductor track) reports
+\`no note events found\`.
+
+For the shipped leitmotif files the track/channel map is documented in
+\`docs/guides/midi-sequences-howto.md\` — e.g. \`leitmotif-action.mid\` track 5
+(percussion) is MIDI channel 9, and \`leitmotif-menu.mid\` track 3 is the bass.
+
+- **\`--output\`**: renders the selected stream through \`renderInstrument\` at a
+  pinned 44100 Hz and writes a valid WAV — same file + same preset + same
+  filter ⇒ byte-identical output (platform determinism guarantee).
 - **\`--fallback\`**: renders offline and plays the WAV via the system player
   (the \`tf play\` path — works on WSL/headless machines).
-- **Default (no \`--output\`/\`--fallback\`)**: streams the note events through
-  the real-time instrument daemon (needs a live audio device). On machines
-  without one, the error is the same actionable message as \`noteon\`, naming
-  the environment and suggesting \`--output\` / \`--fallback\`.
+- **Default (no \`--output\`/\`--fallback\`)**: streams the selected note events
+  through the real-time instrument daemon (needs a live audio device). On
+  machines without one, the error is the same actionable message as \`noteon\`,
+  naming the environment and suggesting \`--output\` / \`--fallback\`.
 
 If the daemon becomes unreachable **while the file is playing** (killed or
 unlinked mid-stream), playback stops and the command exits non-zero with an
@@ -886,6 +1025,9 @@ toneforge instrument play song.mid --output song.wav
 toneforge instrument play song.mid --preset pad --output pad.wav
 toneforge instrument play song.mid --fallback
 toneforge instrument play song.mid --json
+toneforge instrument play leitmotif-action.mid --track 5 --output drums.wav
+toneforge instrument play leitmotif-action.mid --track 2,3 --output melody-bass.wav
+toneforge instrument play leitmotif-action.mid --channel 9 --output drums.wav
 \`\`\``);
   }
   return outputMarkdown(`# ToneForge instrument
@@ -907,7 +1049,7 @@ or live through the daemon (default).
 |------------|-------------|
 | **noteon** | Start (and hold) a MIDI note until Note Off |
 | **noteoff** | Release a held MIDI note |
-| **play** | Play a Standard MIDI File (\`.mid\`) through the instruments engine (offline WAV render or live playback) |
+| **play** | Play a Standard MIDI File (\`.mid\`) through the instruments engine (offline WAV render or live playback; \`--track\`/\`--channel\` isolate a voice) |
 | **status** | List currently held notes |
 | **presets** | List available instrument presets |
 | **stop** | Stop the instrument daemon and release all notes |

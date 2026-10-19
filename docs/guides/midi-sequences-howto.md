@@ -126,22 +126,26 @@ is the difference between a lullaby and a chase.
 
 A full mix is a division of labour. Every track answers one question:
 
-| Track (menu) | Role | ToneForge preset | GM program |
-| --- | --- | --- | --- |
-| Conductor | Tempo + metre | — | — |
-| Pad | Sustained harmony | `pad` | 89 Warm Pad |
-| Melody | The motif and its answers | `string-lead` | 48 String Ensemble 1 |
-| Bass | Harmonic foundation | `bass` | 32 Acoustic Bass |
-| Bell | Sparse sparkle / accents | `bell` | 10 Music Box |
+| Track (menu) | # | MIDI channel | Role | ToneForge preset | GM program |
+| --- | --- | --- | --- | --- | --- |
+| Conductor | 0 | — | Tempo + metre | — | — |
+| Pad | 1 | 1 | Sustained harmony | `pad` | 89 Warm Pad |
+| Melody | 2 | 2 | The motif and its answers | `string-lead` | 48 String Ensemble 1 |
+| Bass | 3 | 3 | Harmonic foundation | `bass` | 32 Acoustic Bass |
+| Bell | 4 | 4 | Sparse sparkle / accents | `bell` | 10 Music Box |
 
-| Track (action) | Role | ToneForge preset | GM program |
-| --- | --- | --- | --- |
-| Conductor | Tempo + metre | — | — |
-| Pad | Sustained harmony | `pad` | 89 Warm Pad |
-| Melody | Motif engine | `pluck` | 45 Pizzicato Strings |
-| Bass | Driving eighth-note line | `bass` | 38 Synth Bass 1 |
-| Bell | Octave shimmer | `bell` | 9 Glockenspiel |
-| Percussion | Kit rhythm | `percussion` | 0 Standard Kit (GM channel 10) |
+| Track (action) | # | MIDI channel | Role | ToneForge preset | GM program |
+| --- | --- | --- | --- | --- | --- |
+| Conductor | 0 | — | Tempo + metre | — | — |
+| Pad | 1 | 1 | Sustained harmony | `pad` | 89 Warm Pad |
+| Melody | 2 | 2 | Motif engine | `pluck` | 45 Pizzicato Strings |
+| Bass | 3 | 3 | Driving eighth-note line | `bass` | 38 Synth Bass 1 |
+| Bell | 4 | 4 | Octave shimmer | `bell` | 9 Glockenspiel |
+| Percussion | 5 | 9 | Kit rhythm | `percussion` | 0 Standard Kit (GM channel 10) |
+
+The **#** column is the 0-based SMF track index and the **MIDI channel**
+column is the zero-based channel — exactly what `toneforge instrument play
+--track <n>` / `--channel <n>` select ([§10](#10-using-the-files)).
 
 Each track sets its **track name to the ToneForge preset it is voiced for**
 (e.g. `melody (ToneForge: pluck, GM 45)`), so the same file is both a DAW-ready
@@ -360,6 +364,32 @@ loop.
 toneforge instrument play assets/music/leitmotif-menu.mid --preset pad --output menu.wav
 toneforge instrument play assets/music/leitmotif-action.mid --preset pluck --output action.wav
 ```
+
+**Audition one voice at a time:** `instrument play --track <n>` / `--channel <n>`
+restricts the note stream to the selected track(s)/channel(s) before the merge,
+so a single part can be heard in isolation without a DAW. The track numbers and
+channels are in the tables in [§4](#4-arrange-give-each-voice-a-job):
+
+```bash
+# Action cue: only the percussion track (track 5, MIDI channel 9).
+toneforge instrument play assets/music/leitmotif-action.mid --track 5 --output drums.wav
+
+# The same voice selected by channel instead of track.
+toneforge instrument play assets/music/leitmotif-action.mid --channel 9 --output drums.wav
+
+# Several tracks at once (melody + bass), comma-separated or repeated.
+toneforge instrument play assets/music/leitmotif-action.mid --track 2,3 --output top-and-bottom.wav
+
+# Menu cue: only the bass line (track 3).
+toneforge instrument play assets/music/leitmotif-menu.mid --track 3 --output bass.wav
+```
+
+Both flags accept multiple values and, when combined, select the intersection
+(a selected track **and** a selected channel). Tempo/metre events on the
+conductor track (track 0) are always honoured, so every isolated voice keeps
+the file's original tempo and duration. See
+[Instruments — Play a Standard MIDI file](../modules/instruments.md#play-a-standard-midi-file)
+for the full CLI semantics.
 
 **Multi-voice rendering:** route each MIDI channel to the preset named in its
 track title (`pad`, `string-lead`/`pluck`, `bass`, `bell`, `percussion`) for

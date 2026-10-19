@@ -35,6 +35,9 @@ import { renderInstrument, getInstrument } from "./instruments/index.js";
 const bytes = new Uint8Array(readFileSync("melody.mid"));
 const events = parseMidiToInstrumentEvents(bytes);   // → InstrumentEvent[]
 
+// Optional voice isolation: keep only track 2 and MIDI channel 2 (intersection).
+const melody = parseMidiToInstrumentEvents(bytes, { tracks: [2], channels: [2] });
+
 const rendered = await renderInstrument(
   getInstrument("pluck")!.definition,
   events,
@@ -50,8 +53,9 @@ const rendered = await renderInstrument(
 
 | Export (from `src/midi/translate.ts`) | Purpose |
 | --- | --- |
-| `smfToInstrumentEvents(parsed)` | Translate a parsed file into time-sorted `midiNoteOn` / `midiNoteOff` `InstrumentEvent[]` |
-| `parseMidiToInstrumentEvents(bytes)` | Parse + translate in one step |
+| `smfToInstrumentEvents(parsed, filter?)` | Translate a parsed file into time-sorted `midiNoteOn` / `midiNoteOff` `InstrumentEvent[]`; an optional `MidiVoiceFilter` restricts the note stream to selected tracks/channels before the merge |
+| `parseMidiToInstrumentEvents(bytes, filter?)` | Parse + translate in one step (optional voice filter) |
+| `MidiVoiceFilter` | `{ tracks?: number[]; channels?: number[] }` — 0-based track indexes and MIDI channels (0–15) |
 | `compareInstrumentEvents(a, b)` | The documented deterministic sort |
 
 ## How it works
@@ -76,6 +80,14 @@ const rendered = await renderInstrument(
   documented: `midiNoteOff` before `midiNoteOn` (so a release clears the voice
   before a same-instant retrigger), then note ascending, then velocity
   ascending.
+- **Voice isolation (optional)** — `smfToInstrumentEvents(parsed, filter)` and
+  `parseMidiToInstrumentEvents(bytes, filter)` accept a `MidiVoiceFilter`
+  (`{ tracks?, channels? }`) that keeps only note events matching a selected
+  track index and/or MIDI channel. Both flags are unions on their own axis;
+  together they intersect. The tempo map is still built from the **whole
+  file** (tempo events are never filtered), so an isolated voice keeps the
+  original timing and duration. Omitting the filter is byte-identical to the
+  original full-mix path (TF-0MVEWJCRP006IXGC).
 - **Determinism** — parsing and translation read no clock and touch no global
   state: the same `.mid` bytes always produce byte-identical events and
   renders (verified by the committed-fixture tests at a pinned 44100 Hz).
@@ -104,8 +116,13 @@ file through the instruments engine: parse → events → offline WAV render
 streaming through the real-time instrument daemon (default). The parse →
 events translation in this module is reused as-is — no new parser and no
 new engine work — and the same determinism guarantee (same file + same preset
-⇒ byte-identical WAV) holds. If the real-time daemon becomes unreachable
-mid-stream, playback stops with an actionable daemon error (suggesting
+⇒ byte-identical WAV) holds. **`--track <n>` / `--channel <n>`**
+(TF-0MVEWJCRP006IXGC) pass a `MidiVoiceFilter` into this layer to audition a
+single voice of a multi-track file; the CLI component of that feature is
+documented in
+[Instruments — Play a Standard MIDI file](instruments.md#play-a-standard-midi-file).
+If the real-time daemon becomes unreachable mid-stream,
+playback stops with an actionable daemon error (suggesting
 `--output` / `--fallback`) rather than a misleading missing-file message
 (TF-0MVEYTTJ10067O90). See [Instruments — CLI](instruments.md#cli--demo-live-midi-note-playback-and-mid-file-playback).
 

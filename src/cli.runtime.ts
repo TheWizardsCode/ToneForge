@@ -142,6 +142,15 @@ import * as syncCmd from "./cli/commands/sync.js";
 import * as pipelineCmd from "./cli/commands/pipeline.js";
 import { runInstrumentCommand } from "./cli/commands/instrument.js";
 
+/**
+ * Flags that accept several values (comma-separated or repeated).
+ *
+ * Repeating one joins the values with commas, which is the form the command
+ * handlers expect (`--track 1 --track 3` ⇒ `"1,3"`). Other flags keep the
+ * historical last-value-wins behaviour.
+ */
+const MULTI_VALUE_FLAGS = new Set(["track", "channel"]);
+
 /** Parse command-line arguments into a structured map. */
 export function parseArgs(argv: string[]): {
   command: string | undefined;
@@ -177,7 +186,12 @@ export function parseArgs(argv: string[]): {
       const key = arg.slice(2);
       const next = args[i + 1];
       if (next !== undefined && !next.startsWith("--")) {
-        flags[key] = next;
+        if (MULTI_VALUE_FLAGS.has(key)) {
+          const previous = flags[key];
+          flags[key] = typeof previous === "string" ? `${previous},${next}` : next;
+        } else {
+          flags[key] = next;
+        }
         i++;
       } else {
         flags[key] = true;
