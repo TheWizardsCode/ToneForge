@@ -259,6 +259,16 @@ without a live audio device the real-time path fails with the same actionable
 message as `noteon`, naming the environment and suggesting `--output` /
 `--fallback`.
 
+If the daemon becomes unreachable **while the file is playing** — it is killed,
+a rival daemon rebinds the socket, or a send times out — playback stops and the
+command exits non-zero with an actionable error naming the daemon failure and
+suggesting `--output` / `--fallback` (TF-0MVEYTTJ10067O90). Earlier versions
+re-dispatched the raw argv through the hand-rolled parser, which dropped the
+file positional and reported the misleading
+`instrument play requires a MIDI file path (<file.mid>).` Every Note On is sent
+with its own auto-release length, so notes already scheduled keep their
+daemon-side auto-release and none is left held after the CLI exits.
+
 ### Offline modes: no audio device needed
 
 Real-time playback needs a live output device (`node-web-audio-api`). On WSL,

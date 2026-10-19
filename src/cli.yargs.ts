@@ -2,7 +2,8 @@
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 import type { Arguments } from "yargs";
-import { dispatchCommand, parseArgs } from "./cli.runtime.js";
+import { dispatchCommand as dispatchCommandImpl, parseArgs } from "./cli.runtime.js";
+import { outputError } from "./output.js";
 import { truncateTags } from "./cli/helpers.js";
 
 import * as generateCmd from "./cli/commands/generate.js";
@@ -88,11 +89,31 @@ export async function yargsMain(argv: string[] = process.argv): Promise<number> 
     if (raw.includes("--help") || raw.includes("-h")) globalFlags.help = true;
     if (raw.includes("--version") || raw.includes("-V")) globalFlags.version = true;
     if (raw.includes("--json")) globalFlags.json = true;
-    return dispatchCommand(undefined, undefined, globalFlags, []);
+    return dispatchCommandImpl(undefined, undefined, globalFlags, []);
   }
 
   const y = yargs(raw).scriptName("toneforge");
   let exitCode: number | undefined;
+
+  // Set as soon as a *matched* command handler starts. If such a handler
+  // rejects, its own error/exit code is authoritative: re-dispatching the raw
+  // argv through `parseArgs` would drop positionals (it only records the
+  // command and one subcommand) and fabricate a bogus "missing argument" error
+  // — e.g. `instrument play requires a MIDI file path` for a valid invocation
+  // (TF-0MVEYTTJ10067O90).
+  let handlerEntered = false;
+  let handlerFailure: unknown;
+
+  /** `dispatchCommand` wrapper that records that a matched handler ran. */
+  const dispatchCommand = (
+    command: string | undefined,
+    subcommand: string | undefined,
+    flags: Record<string, string | boolean>,
+    layers: string[],
+  ): Promise<number> => {
+    handlerEntered = true;
+    return dispatchCommandImpl(command, subcommand, flags, layers);
+  };
 
   // Prevent yargs from calling process.exit() or printing its own error messages.
   // dispatchCommand is the authoritative error handler for all commands.
@@ -100,7 +121,11 @@ export async function yargsMain(argv: string[] = process.argv): Promise<number> 
   y.showHelpOnFail(false);
   y.version(false);
   y.help(false);
-  y.fail((_msg, _err) => { /* noop */ });
+  y.fail((_msg, err) => {
+    // yargs routes a rejected command handler here with the error object;
+    // parse/validation errors arrive with no error (handled by the fallback).
+    if (err !== undefined) handlerFailure = err;
+  });
 
   // ── generate ──────────────────────────────────────────────────────────────
   y.command(generateCmd.command, generateCmd.desc, generateCmd.builder, async (argv) => {
@@ -786,12 +811,27 @@ export async function yargsMain(argv: string[] = process.argv): Promise<number> 
     // No handler matched (e.g. unknown command) — re-parse and dispatch so
     // dispatchCommand can output the proper error message.
     const parsed = parseArgs(["node", "cli.ts", ...raw]);
-    return dispatchCommand(parsed.command, parsed.subcommand, parsed.flags, parsed.layers);
-  } catch {
+    return dispatchCommandImpl(parsed.command, parsed.subcommand, parsed.flags, parsed.layers);
+  } catch (error) {
+    if (handlerEntered) {
+      // A matched command handler already ran with its positional arguments
+      // intact. Surface its real error/exit code instead of re-dispatching raw
+      // argv through `parseArgs` (which drops positionals and used to fabricate
+      // a misleading "missing argument" error).
+      if (typeof exitCode === "number") return exitCode;
+      const failure = handlerFailure ?? error;
+      const message = failure instanceof Error ? failure.message : String(failure);
+      if (raw.includes("--json")) {
+        process.stderr.write(`${JSON.stringify({ ok: false, error: message })}\n`);
+      } else {
+        outputError(`Error: ${message}`);
+      }
+      return 1;
+    }
     // Edge-case yargs parse error — fall through to dispatchCommand for
     // consistent error output.
     const parsed = parseArgs(["node", "cli.ts", ...raw]);
-    return dispatchCommand(parsed.command, parsed.subcommand, parsed.flags, parsed.layers);
+    return dispatchCommandImpl(parsed.command, parsed.subcommand, parsed.flags, parsed.layers);
   }
 }
 

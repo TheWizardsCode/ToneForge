@@ -104,7 +104,10 @@ file through the instruments engine: parse → events → offline WAV render
 streaming through the real-time instrument daemon (default). The parse →
 events translation in this module is reused as-is — no new parser and no
 new engine work — and the same determinism guarantee (same file + same preset
-⇒ byte-identical WAV) holds. See [Instruments — CLI](instruments.md#cli--demo-live-midi-note-playback-and-mid-file-playback).
+⇒ byte-identical WAV) holds. If the real-time daemon becomes unreachable
+mid-stream, playback stops with an actionable daemon error (suggesting
+`--output` / `--fallback`) rather than a misleading missing-file message
+(TF-0MVEYTTJ10067O90). See [Instruments — CLI](instruments.md#cli--demo-live-midi-note-playback-and-mid-file-playback).
 
 ## Limitations and follow-ups
 

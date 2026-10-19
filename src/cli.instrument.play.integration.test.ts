@@ -15,6 +15,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { rmSync, existsSync, readFileSync, mkdtempSync, writeFileSync } from "node:fs";
+import { createServer, type Server } from "node:net";
 
 // The --fallback path plays through the system player; mock it so the test
 // runs headless and can assert the rendered buffer handed to the player.
@@ -113,6 +114,7 @@ function createFakeClock(startMs = 0) {
 
 let socketPath: string;
 let daemon: InstrumentDaemon | null = null;
+let flakyDaemon: Server | null = null;
 let clock: ReturnType<typeof createFakeClock>;
 let prevSocketEnv: string | undefined;
 
@@ -141,6 +143,66 @@ async function startDeviceLessDaemon(): Promise<void> {
   await daemon.start();
 }
 
+/**
+ * Stub instrument daemon that dies mid-stream.
+ *
+ * It answers the CLI's `ping` and `noteon` messages, then on the
+ * `failOnNoteOn`-th Note On drops the connection **without replying** — the
+ * same observable behaviour as a daemon process being killed while a file is
+ * playing. Every Note On it receives is recorded so a test can assert the
+ * auto-release length was scheduled before the failure (no note-left-held).
+ */
+async function startFlakyDaemon(options: { failOnNoteOn: number }): Promise<{
+  noteOns: Array<{ note: number; velocity: number; preset: string; length: unknown }>;
+}> {
+  preStart();
+  const noteOns: Array<{ note: number; velocity: number; preset: string; length: unknown }> = [];
+  const server = createServer((socket) => {
+    let buffer = "";
+    socket.setEncoding("utf8");
+    socket.on("error", () => { /* the client may reset the connection */ });
+    socket.on("data", (chunk: string) => {
+      buffer += chunk;
+      let index = buffer.indexOf("\n");
+      while (index >= 0) {
+        const line = buffer.slice(0, index);
+        buffer = buffer.slice(index + 1);
+        const request = JSON.parse(line) as {
+          cmd: string;
+          note?: number;
+          velocity?: number;
+          preset?: string;
+          length?: number;
+        };
+        if (request.cmd === "noteon") {
+          noteOns.push({
+            note: request.note ?? -1,
+            velocity: request.velocity ?? -1,
+            preset: request.preset ?? "",
+            length: request.length,
+          });
+          if (noteOns.length === options.failOnNoteOn) {
+            // The daemon dies mid-stream: drop the socket with no reply.
+            socket.destroy();
+            return;
+          }
+        }
+        socket.write(`${JSON.stringify({ ok: true, notes: [] })}\n`);
+        index = buffer.indexOf("\n");
+      }
+    });
+  });
+  await new Promise<void>((resolveListen, reject) => {
+    server.once("error", reject);
+    server.listen(socketPath, () => {
+      server.off("error", reject);
+      resolveListen();
+    });
+  });
+  flakyDaemon = server;
+  return { noteOns };
+}
+
 function preStart(): void {
   instrumentRegistry.clear();
   socketPath = join(
@@ -156,6 +218,11 @@ afterEach(async () => {
   if (daemon) {
     await daemon.stop("test-cleanup");
     daemon = null;
+  }
+  if (flakyDaemon) {
+    const server = flakyDaemon;
+    flakyDaemon = null;
+    await new Promise<void>((resolveClose) => server.close(() => resolveClose()));
   }
   if (prevSocketEnv === undefined) {
     delete process.env.TONEFORGE_INSTRUMENT_SOCKET;
@@ -454,5 +521,66 @@ describe("instrument play real-time path (device-less)", () => {
 
     clock.advance(1500);
     expect(daemon?.heldNotes().length ?? 0).toBe(0);
+  });
+
+  it("keeps the healthy-daemon success message unchanged", async () => {
+    await startDaemon();
+    const result = await captureOutput(() =>
+      main(argv("instrument", "play", CHORD)),
+    );
+    expect(result.code).toBe(0);
+    expect(result.stdout).toBe(
+      `Streaming ${CHORD} (pluck) to the real-time instrument daemon.`,
+    );
+  });
+});
+
+// ── Real-time path (daemon dies mid-stream) ───────────────────────
+
+describe("instrument play real-time path (daemon fails mid-stream)", () => {
+  it("reports the daemon failure instead of a bogus missing-file error", async () => {
+    const flaky = await startFlakyDaemon({ failOnNoteOn: 2 });
+    const result = await captureOutput(() =>
+      main(argv("instrument", "play", CHORD)),
+    );
+
+    expect(result.code).toBe(1);
+    // The actionable daemon error — never the misleading positional error.
+    expect(result.stderr).toMatch(/instrument daemon/i);
+    expect(result.stderr).toMatch(/mid-stream|unreachable/i);
+    expect(result.stderr).toContain("--output");
+    expect(result.stderr).toContain("--fallback");
+    expect(result.stderr).not.toContain("requires a MIDI file path");
+    expect(result.stderr).not.toMatch(/\s+at /);
+
+    // The failure stops playback: the two Note Ons that reached the daemon each
+    // carried their auto-release length, so no note is left held after exit.
+    expect(flaky.noteOns).toHaveLength(2);
+    for (const sent of flaky.noteOns) {
+      expect(typeof sent.length).toBe("number");
+      expect(sent.length as number).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it("emits the mid-stream failure as JSON with code daemon_unreachable", async () => {
+    await startFlakyDaemon({ failOnNoteOn: 1 });
+    const result = await captureOutput(() =>
+      main(argv("instrument", "play", CHORD, "--json")),
+    );
+    expect(result.code).toBe(1);
+    const parsed = JSON.parse(result.stderr) as {
+      ok: boolean;
+      command: string;
+      code: string;
+      error: string;
+    };
+    expect(parsed).toMatchObject({
+      ok: false,
+      command: "instrument-play",
+      code: "daemon_unreachable",
+    });
+    expect(parsed.error).toContain("--output");
+    expect(parsed.error).toContain("--fallback");
+    expect(parsed.error).not.toContain("requires a MIDI file path");
   });
 });

@@ -144,6 +144,48 @@ function playNoAudioDeviceError(
   return 1;
 }
 
+/**
+ * The actionable error shown when the instrument daemon becomes unreachable
+ * **while** a `.mid` file is streaming.
+ *
+ * `playRealtime` sends one Note On per event; a daemon that is killed (or whose
+ * socket is unlinked by a rival daemon rebinding the same path) makes the next
+ * send reject. Reporting that rejection as a missing positional argument (the
+ * old yargs re-dispatch behaviour, TF-0MVEYTTJ10067O90) hid the real cause, so
+ * the failure is named here and the offline alternatives are suggested —
+ * mirroring the `noteon` "cannot reach the instrument daemon" style.
+ *
+ * Every Note On carries its own auto-release length, so notes the daemon has
+ * already scheduled are released by the daemon even though the client is gone.
+ */
+function playDaemonUnreachableError(
+  jsonMode: boolean,
+  file: string,
+  detail: string,
+): number {
+  const message = [
+    `Playback stopped mid-stream: the instrument daemon became unreachable (${detail}).`,
+    "Notes already scheduled keep their daemon-scheduled auto-release — none are left held.",
+    "Choose an offline alternative:",
+    `  - render the file to a WAV you can play elsewhere: toneforge instrument play ${file} --output note.wav`,
+    `  - play via an offline pre-render (playback starts after a short render delay): toneforge instrument play ${file} --fallback`,
+  ].join("\n");
+  if (jsonMode) {
+    process.stderr.write(
+      `${JSON.stringify({
+        ok: false,
+        command: "instrument-play",
+        code: "daemon_unreachable",
+        file,
+        error: message,
+      })}\n`,
+    );
+    return 1;
+  }
+  outputError(`Error: cannot reach the instrument daemon: ${message}`);
+  return 1;
+}
+
 /** Parse the `<note>` positional (0–127 integer). */
 function parseNote(flags: Flags, jsonMode: boolean): { note: number } | { error: number } {
   const raw = stringFlag(flags, "note");
@@ -540,6 +582,11 @@ async function playOffline(args: PlayArgs): Promise<number> {
  * live audio device the daemon rejects the first note with the same actionable
  * message as `noteon` (naming the environment and suggesting
  * `--output` / `--fallback`).
+ *
+ * If the daemon becomes unreachable **mid-stream** (killed, socket unlinked,
+ * connection reset or send timeout) the send loop stops and the command exits
+ * non-zero with an actionable daemon error — never a misleading "missing file"
+ * message (TF-0MVEYTTJ10067O90).
  */
 async function playRealtime(args: PlayArgs): Promise<number> {
   const { jsonMode, file, preset, events } = args;
@@ -566,28 +613,37 @@ async function playRealtime(args: PlayArgs): Promise<number> {
   const startTime = onsets.length > 0 ? onsets[0]!.time : 0;
   const startedAt = Date.now();
 
-  for (const event of onsets) {
-    // Preserve the file's rhythm: wait until this onset relative to the first.
-    const delayMs = Math.max(0, (event.time - startTime) * 1000 - (Date.now() - startedAt));
-    if (delayMs > 0) {
-      await new Promise((resolveWait) => setTimeout(resolveWait, delayMs));
-    }
-    // Auto-release after the matching Note Off; fall back to the default hold
-    // when the file never releases this note.
-    const offTime = noteOffs.get(event.note)?.shift();
-    const length = offTime !== undefined
-      ? Math.max(0, offTime - event.time)
-      : DEFAULT_NOTE_HOLD_SECONDS;
-    const reply = await sendToDaemon(
-      { cmd: "noteon", note: event.note, velocity: event.velocity, preset, length },
-      { socketPath },
-    );
-    if (!reply.ok) {
-      if (reply.code === "no_audio_device") {
-        return playNoAudioDeviceError(jsonMode, reply.environment, file);
+  try {
+    for (const event of onsets) {
+      // Preserve the file's rhythm: wait until this onset relative to the first.
+      const delayMs = Math.max(0, (event.time - startTime) * 1000 - (Date.now() - startedAt));
+      if (delayMs > 0) {
+        await new Promise((resolveWait) => setTimeout(resolveWait, delayMs));
       }
-      return printReplyError(jsonMode, reply.error ?? "Instrument daemon rejected the note.", reply.availablePresets);
+      // Auto-release after the matching Note Off; fall back to the default hold
+      // when the file never releases this note.
+      const offTime = noteOffs.get(event.note)?.shift();
+      const length = offTime !== undefined
+        ? Math.max(0, offTime - event.time)
+        : DEFAULT_NOTE_HOLD_SECONDS;
+      const reply = await sendToDaemon(
+        { cmd: "noteon", note: event.note, velocity: event.velocity, preset, length },
+        { socketPath },
+      );
+      if (!reply.ok) {
+        if (reply.code === "no_audio_device") {
+          return playNoAudioDeviceError(jsonMode, reply.environment, file);
+        }
+        return printReplyError(jsonMode, reply.error ?? "Instrument daemon rejected the note.", reply.availablePresets);
+      }
     }
+  } catch (error) {
+    // The daemon vanished while the file was playing: name that failure instead
+    // of letting the rejection bubble out (where the yargs fallback used to
+    // fabricate a "requires a MIDI file path" error). Notes already scheduled
+    // keep the daemon-side auto-release they were sent with.
+    const message = error instanceof Error ? error.message : String(error);
+    return playDaemonUnreachableError(jsonMode, file, message);
   }
   if (jsonMode) {
     process.stdout.write(
@@ -813,6 +869,12 @@ unreadable file produces a clear error and a non-zero exit — no stack trace.
   the real-time instrument daemon (needs a live audio device). On machines
   without one, the error is the same actionable message as \`noteon\`, naming
   the environment and suggesting \`--output\` / \`--fallback\`.
+
+If the daemon becomes unreachable **while the file is playing** (killed or
+unlinked mid-stream), playback stops and the command exits non-zero with an
+actionable message naming the daemon failure and suggesting \`--output\` /
+\`--fallback\`. Notes already scheduled keep their daemon-side auto-release,
+so no note is left held after the CLI exits.
 
 \`--output\` and \`--fallback\` cannot be combined.
 
