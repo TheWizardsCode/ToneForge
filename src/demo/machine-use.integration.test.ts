@@ -28,6 +28,26 @@ const REPORT_SCRIPT = join(PROJECT_ROOT, "scripts", "report-available-sounds.sh"
 /** Path to the committed fixture. */
 const FIXTURE_FILE = join(PROJECT_ROOT, "demos", "fixtures", "used-sounds.txt");
 
+/**
+ * Per-spawn budget for the reporting script and the CLI it shells out to.
+ *
+ * Each invocation cold-boots the CLI from source (`bin/dev-cli.js` registers
+ * `tsx`, then imports the whole command tree) and `npx` adds its own package
+ * resolution, so a single spawn costs ~1-3 s on an idle host. Under the load
+ * averages recorded for TF-0MVE3Y3AG0016TUC (~33 on a 16-core host) the
+ * empty-candidate test exceeded its previous 30 s budget, because the test
+ * spawns twice (the `npx toneforge list recipes` call that builds the all-used
+ * file, then the script itself) while sharing one test budget. 60 s per spawn
+ * bounds a genuine hang without reintroducing the load-induced false failure.
+ */
+const SCRIPT_SPAWN_TIMEOUT_MS = 60_000;
+
+/**
+ * Per-test budget for the empty-candidate case: two spawns plus filtering and
+ * assertion overhead, with headroom for scheduler contention.
+ */
+const EMPTY_CANDIDATE_TEST_TIMEOUT_MS = 150_000;
+
 /** Verify paths at import time to catch mistakes early. */
 if (!existsSync(REPORT_SCRIPT)) {
   throw new Error(
@@ -49,7 +69,7 @@ function runScript(args: string[] = []): { code: number; stdout: string; stderr:
   const result = execFileSync("bash", [REPORT_SCRIPT, ...args], {
     cwd: PROJECT_ROOT,
     encoding: "utf-8",
-    timeout: 30_000,
+    timeout: SCRIPT_SPAWN_TIMEOUT_MS,
   });
   return { code: 0, stdout: result, stderr: "" };
 }
@@ -60,7 +80,7 @@ function runScriptThrows(args: string[] = []): { code: number; stdout: string; s
     const stdout = execFileSync("bash", [REPORT_SCRIPT, ...args], {
       cwd: PROJECT_ROOT,
       encoding: "utf-8",
-      timeout: 30_000,
+      timeout: SCRIPT_SPAWN_TIMEOUT_MS,
     });
     return { code: 0, stdout, stderr: "" };
   } catch (err: unknown) {
@@ -180,7 +200,7 @@ describe("report-available-sounds.sh", () => {
       const allRecipes = execFileSync(
         "npx",
         ["toneforge", "list", "recipes", "--category", "card-game", "--json"],
-        { cwd: PROJECT_ROOT, encoding: "utf-8", timeout: 30_000 },
+        { cwd: PROJECT_ROOT, encoding: "utf-8", timeout: SCRIPT_SPAWN_TIMEOUT_MS },
       );
       const recipeNames = JSON.parse(allRecipes)
         .recipes.map((r: { name: string }) => r.name)
@@ -199,7 +219,7 @@ describe("report-available-sounds.sh", () => {
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }
-  }, 30_000); // Spawns several CLI calls (incl. `npx` resolution); 30s matches the helper execFile budget and absorbs full-suite parallel load
+  }, EMPTY_CANDIDATE_TEST_TIMEOUT_MS); // Two cold CLI spawns (incl. `npx` resolution); see SCRIPT_SPAWN_TIMEOUT_MS for the load evidence
 
   // -----------------------------------------------------------------------
   // AC2: error — missing used-sounds file exits non-zero
