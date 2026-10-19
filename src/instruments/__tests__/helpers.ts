@@ -11,8 +11,14 @@
  *
  * The file also exposes analysis helpers — peak / RMS, silence detection and
  * dominant-frequency estimation — used by later features to assert pitch and
- * loudness. RMS / peak and the silence threshold reuse the existing
- * production analysis extractors (`src/analyze`) so the harness never
+ * loudness. For noise-based and percussive voices (which have no single
+ * dominant frequency) it additionally exposes band-energy, decay-time and
+ * spectral-difference helpers: {@link computeBandEnergy} measures how much
+ * energy sits in a frequency band, {@link computeDecayTime} measures how long
+ * a burst takes to fall to a fraction of its peak, and
+ * {@link describeSpectralDifference} compares two buffers and reports whether
+ * they are measurably distinct. Every helper delegates to the existing
+ * production extractors / FFT utilities (`src/analyze`) so the harness never
  * re-implements platform analysis logic.
  *
  * Naming, layout and import conventions mirror the existing shared test
@@ -22,7 +28,11 @@
  */
 
 import { OfflineAudioContext } from "../../audio/web-audio.js";
-import { TimeDomainExtractor } from "../../analyze/index.js";
+import {
+  SpectralCentroidExtractor,
+  TimeDomainExtractor,
+} from "../../analyze/index.js";
+import { computeMagnitudeSpectrum } from "../../analyze/fft-utils.js";
 import { SILENCE_RMS_THRESHOLD } from "../../analyze/extractors/quality-flags.js";
 
 // ── Constants ─────────────────────────────────────────────────────
@@ -47,6 +57,45 @@ export const DEFAULT_VOICE_RELEASE = 0.05;
  * float32 rounding for the non-synthetic buffers later features render.
  */
 export const DOMINANT_FREQUENCY_TOLERANCE_RATIO = 0.02;
+
+/**
+ * Frequency bands (Hz, inclusive edges) used by
+ * {@link describeSpectralDifference} to compare the tonal balance of two
+ * buffers. The split mirrors the way a listener hears a drum or noise voice:
+ * *low* is the body, *mid* the presence, *high* the air/brilliance.
+ */
+export const SPECTRAL_BANDS = {
+  low: { lowHz: 20, highHz: 250 },
+  mid: { lowHz: 250, highHz: 2000 },
+  high: { lowHz: 2000, highHz: 8000 },
+} as const;
+
+/**
+ * Relative spectral-centroid difference above which
+ * {@link describeSpectralDifference} reports two buffers as distinct (10% of
+ * the louder centroid).
+ */
+export const SPECTRAL_CENTROID_DISTINCT_RATIO = 0.1;
+
+/**
+ * Band-energy ratio outside which {@link describeSpectralDifference} reports
+ * two buffers as distinct. A ratio in `[1/1.5, 1.5]` counts as "same balance"
+ * for the band in question.
+ */
+export const SPECTRAL_RATIO_DISTINCT_THRESHOLD = 1.5;
+
+/**
+ * Fraction of the peak envelope at which {@link computeDecayTime} considers a
+ * burst decayed, by default. 0.1 is −20 dB.
+ */
+export const DEFAULT_DECAY_RATIO = 0.1;
+
+/**
+ * Default envelope window length for {@link computeDecayTime}, in seconds.
+ * 10 ms averages a few cycles of a typical drum voice without smearing a
+ * 0.2 s decay.
+ */
+export const DEFAULT_DECAY_WINDOW_SECONDS = 0.01;
 
 // ── Pitch / loudness mapping (test utilities) ─────────────────────
 
@@ -331,4 +380,311 @@ export function estimateDominantFrequency(
 
   const seconds = (lastCrossing - firstCrossing) / rate;
   return (crossings - 1) / (2 * seconds);
+}
+
+// ── Spectral band energy ──────────────────────────────────────────
+
+/**
+ * Summed FFT magnitude energy in a frequency band.
+ *
+ * Delegates to the production `computeMagnitudeSpectrum` (the same FFT the
+ * `SpectralCentroidExtractor` uses) and sums the squared magnitude of every
+ * bin whose centre frequency falls inside `[lowHz, highHz]`. Squaring makes
+ * the result a spectral *energy* (Parseval-consistent) rather than an
+ * amplitude sum, so band energies can be compared and ratioed.
+ *
+ * Returns 0 for empty or all-zero buffers.
+ *
+ * @param samples - Mono audio samples.
+ * @param lowHz - Lower band edge in Hz (inclusive).
+ * @param highHz - Upper band edge in Hz (inclusive).
+ * @param sampleRate - Sample rate in Hz (defaults to
+ *                     {@link HARNESS_SAMPLE_RATE}).
+ * @throws {TypeError} If the edges are not finite or `highHz < lowHz`.
+ */
+export function computeBandEnergy(
+  samples: Float32Array,
+  lowHz: number,
+  highHz: number,
+  sampleRate?: number,
+): number {
+  assertBand(lowHz, highHz);
+  if (samples.length === 0) return 0;
+
+  const rate = sampleRate ?? HARNESS_SAMPLE_RATE;
+  const magnitudes = computeMagnitudeSpectrum(samples);
+  return bandEnergyFromMagnitudes(magnitudes, rate, lowHz, highHz);
+}
+
+/**
+ * Sum squared magnitudes for the bins inside `[lowHz, highHz]`.
+ *
+ * Shared by {@link computeBandEnergy} and
+ * {@link describeSpectralDifference} so a single FFT per buffer serves all
+ * three bands.
+ */
+function bandEnergyFromMagnitudes(
+  magnitudes: Float64Array,
+  sampleRate: number,
+  lowHz: number,
+  highHz: number,
+): number {
+  const fftSize = (magnitudes.length - 1) * 2;
+  const binWidth = sampleRate / fftSize;
+
+  let energy = 0;
+  for (let bin = 0; bin < magnitudes.length; bin++) {
+    const frequency = bin * binWidth;
+    if (frequency >= lowHz && frequency <= highHz) {
+      const magnitude = magnitudes[bin]!;
+      energy += magnitude * magnitude;
+    }
+  }
+  return energy;
+}
+
+/** Validate a frequency band's edges. */
+function assertBand(lowHz: number, highHz: number): void {
+  if (!Number.isFinite(lowHz) || !Number.isFinite(highHz) || highHz < lowHz) {
+    throw new TypeError(
+      `computeBandEnergy: invalid band ${lowHz}–${highHz} Hz; ` +
+        "expected finite edges with highHz >= lowHz.",
+    );
+  }
+}
+
+// ── Envelope decay ────────────────────────────────────────────────
+
+/** Options for {@link computeDecayTime}. */
+export interface DecayTimeOptions {
+  /** Sample rate in Hz (defaults to {@link HARNESS_SAMPLE_RATE}). */
+  sampleRate?: number;
+  /**
+   * Fraction of the peak envelope at which the burst counts as decayed.
+   * Defaults to {@link DEFAULT_DECAY_RATIO} (0.1).
+   */
+  ratio?: number;
+  /**
+   * Envelope window length in seconds. The envelope is a centred sliding RMS
+   * over this window; defaults to {@link DEFAULT_DECAY_WINDOW_SECONDS}.
+   */
+  windowSeconds?: number;
+}
+
+/**
+ * Seconds from the envelope peak until the burst has decayed below a fraction
+ * of that peak and stays there.
+ *
+ * The envelope is a centred sliding RMS over `windowSeconds`, so individual
+ * carrier cycles and isolated noise samples do not create spurious crossings.
+ * The decay time is measured from the envelope's peak to the **final**
+ * crossing below `ratio × peak` — i.e. the signal counts as decayed once it
+ * has fallen below the threshold and never rises back above it. This makes the
+ * measurement robust for monotonic percussive decays; a later re-hit (or a
+ * sustained tail) extends the measured time, so render each voice in
+ * isolation when asserting its decay.
+ *
+ * Returns 0 for empty or silent buffers, and for buffers that stay at or above
+ * the threshold until the end.
+ *
+ * @param samples - Mono audio samples.
+ * @param options - Rate / threshold-ratio / window overrides.
+ */
+export function computeDecayTime(
+  samples: Float32Array,
+  options?: DecayTimeOptions,
+): number {
+  if (samples.length === 0) return 0;
+
+  const rate = options?.sampleRate ?? HARNESS_SAMPLE_RATE;
+  const ratio = options?.ratio ?? DEFAULT_DECAY_RATIO;
+  const windowSeconds = options?.windowSeconds ?? DEFAULT_DECAY_WINDOW_SECONDS;
+
+  if (computePeak(samples) === 0) return 0;
+
+  const windowSamples = Math.max(1, Math.round(windowSeconds * rate));
+  const envelope = slidingRms(samples, windowSamples);
+
+  let peakIndex = 0;
+  let peakLevel = envelope[0]!;
+  for (let i = 1; i < envelope.length; i++) {
+    if (envelope[i]! > peakLevel) {
+      peakLevel = envelope[i]!;
+      peakIndex = i;
+    }
+  }
+  if (peakLevel === 0) return 0;
+
+  const threshold = ratio * peakLevel;
+
+  // Find the last sample still at/above the threshold; the burst has decayed by
+  // the sample after it (and never returns above it, by construction).
+  let lastAbove = -1;
+  for (let i = peakIndex; i < envelope.length; i++) {
+    if (envelope[i]! >= threshold) lastAbove = i;
+  }
+  if (lastAbove < 0 || lastAbove >= envelope.length - 1) return 0;
+
+  return (lastAbove + 1 - peakIndex) / rate;
+}
+
+/**
+ * Centred sliding RMS envelope over `windowSamples`, computed in O(n) via
+ * prefix sums. Near the buffer edges the window is clamped, never padded.
+ */
+function slidingRms(samples: Float32Array, windowSamples: number): Float32Array {
+  const length = samples.length;
+  const envelope = new Float32Array(length);
+  const half = Math.floor(windowSamples / 2);
+
+  const prefix = new Float64Array(length + 1);
+  for (let i = 0; i < length; i++) {
+    prefix[i + 1] = prefix[i]! + samples[i]! * samples[i]!;
+  }
+
+  for (let i = 0; i < length; i++) {
+    const start = Math.max(0, i - half);
+    const end = Math.min(length - 1, i + half);
+    const count = end - start + 1;
+    envelope[i] = Math.sqrt((prefix[end + 1]! - prefix[start]!) / count);
+  }
+  return envelope;
+}
+
+// ── Spectral difference ───────────────────────────────────────────
+
+/** Per-band energy ratio `A / B` returned by {@link describeSpectralDifference}. */
+export interface BandEnergyRatios {
+  /** Low band (`SPECTRAL_BANDS.low`) energy ratio. */
+  low: number;
+  /** Mid band (`SPECTRAL_BANDS.mid`) energy ratio. */
+  mid: number;
+  /** High band (`SPECTRAL_BANDS.high`) energy ratio. */
+  high: number;
+}
+
+/** Structured spectral comparison returned by {@link describeSpectralDifference}. */
+export interface SpectralDifference {
+  /** Spectral centroid of the first buffer, in Hz. */
+  centroidA: number;
+  /** Spectral centroid of the second buffer, in Hz. */
+  centroidB: number;
+  /** Signed centroid delta in Hz (`centroidB − centroidA`). */
+  centroidDeltaHz: number;
+  /**
+   * Per-band energy ratios of the buffers' **normalised** band shares. Using
+   * shares (each band's fraction of that buffer's total band energy) keeps a
+   * global loudness difference from being mistaken for a timbral one. A ratio
+   * above 1 means A puts proportionally more of its energy in that band than
+   * B; `Infinity` / `0` mean only one buffer has energy there.
+   */
+  bandEnergyRatios: BandEnergyRatios;
+  /**
+   * True when the buffers are measurably distinct: their centroids differ by
+   * more than {@link SPECTRAL_CENTROID_DISTINCT_RATIO}, or any band-energy
+   * ratio lies outside
+   * `[1 / SPECTRAL_RATIO_DISTINCT_THRESHOLD, SPECTRAL_RATIO_DISTINCT_THRESHOLD]`.
+   * Identical buffers are therefore never reported distinct.
+   */
+  distinct: boolean;
+}
+
+/**
+ * Compare two buffers' spectral character: centroid delta plus low/mid/high
+ * band-energy ratios, with a documented {@link SpectralDifference.distinct}
+ * verdict.
+ *
+ * Centroids come from the production `SpectralCentroidExtractor` and band
+ * energies from {@link computeBandEnergy}'s FFT, so this helper introduces no
+ * new analysis maths. It is the shared basis for asserting that two
+ * noise-based or percussive voices are (or are not) distinct.
+ *
+ * @param a - First buffer.
+ * @param b - Second buffer.
+ * @param sampleRate - Sample rate in Hz (defaults to
+ *                     {@link HARNESS_SAMPLE_RATE}).
+ */
+export function describeSpectralDifference(
+  a: Float32Array,
+  b: Float32Array,
+  sampleRate?: number,
+): SpectralDifference {
+  const rate = sampleRate ?? HARNESS_SAMPLE_RATE;
+  const centroidExtractor = new SpectralCentroidExtractor();
+  const centroidA = centroidExtractor.extract(a, rate)["spectralCentroid"] as number;
+  const centroidB = centroidExtractor.extract(b, rate)["spectralCentroid"] as number;
+
+  const shareA = bandShares(a, rate);
+  const shareB = bandShares(b, rate);
+
+  const bandEnergyRatios: BandEnergyRatios = {
+    low: safeRatio(shareA.low, shareB.low),
+    mid: safeRatio(shareA.mid, shareB.mid),
+    high: safeRatio(shareA.high, shareB.high),
+  };
+
+  const loudestCentroid = Math.max(centroidA, centroidB);
+  const centroidRelativeDelta =
+    loudestCentroid > 0 ? Math.abs(centroidB - centroidA) / loudestCentroid : 0;
+
+  const ratios = [bandEnergyRatios.low, bandEnergyRatios.mid, bandEnergyRatios.high];
+  const bandDistinct = ratios.some(
+    (ratio) =>
+      ratio > SPECTRAL_RATIO_DISTINCT_THRESHOLD ||
+      ratio < 1 / SPECTRAL_RATIO_DISTINCT_THRESHOLD,
+  );
+
+  return {
+    centroidA,
+    centroidB,
+    centroidDeltaHz: centroidB - centroidA,
+    bandEnergyRatios,
+    distinct: bandDistinct || centroidRelativeDelta > SPECTRAL_CENTROID_DISTINCT_RATIO,
+  };
+}
+
+/** Each documented band's share of a buffer's total band energy (0 when silent). */
+function bandShares(
+  samples: Float32Array,
+  sampleRate: number,
+): { low: number; mid: number; high: number } {
+  if (samples.length === 0) return { low: 0, mid: 0, high: 0 };
+
+  const magnitudes = computeMagnitudeSpectrum(samples);
+  const low = bandEnergyFromMagnitudes(
+    magnitudes,
+    sampleRate,
+    SPECTRAL_BANDS.low.lowHz,
+    SPECTRAL_BANDS.low.highHz,
+  );
+  const mid = bandEnergyFromMagnitudes(
+    magnitudes,
+    sampleRate,
+    SPECTRAL_BANDS.mid.lowHz,
+    SPECTRAL_BANDS.mid.highHz,
+  );
+  const high = bandEnergyFromMagnitudes(
+    magnitudes,
+    sampleRate,
+    SPECTRAL_BANDS.high.lowHz,
+    SPECTRAL_BANDS.high.highHz,
+  );
+
+  const total = low + mid + high;
+  if (total <= 0) return { low: 0, mid: 0, high: 0 };
+  return { low: low / total, mid: mid / total, high: high / total };
+}
+
+/** Magnitude below which a share counts as "no energy" for ratio guards. */
+const SHARE_EPSILON = 1e-12;
+
+/**
+ * `a / b` with explicit handling of zero-energy bands: two empty bands are
+ * equal (1), an empty denominator is `Infinity`, an empty numerator is 0.
+ */
+function safeRatio(a: number, b: number): number {
+  if (a <= SHARE_EPSILON && b <= SHARE_EPSILON) return 1;
+  if (b <= SHARE_EPSILON) return Infinity;
+  if (a <= SHARE_EPSILON) return 0;
+  return a / b;
 }
