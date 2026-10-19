@@ -81,15 +81,47 @@ quit
 const PROJECT_ROOT = resolve(import.meta.dirname, "..");
 
 /**
+ * How long a spawned CLI child may take to become ready.
+ *
+ * Every serve test cold-boots the CLI from source: `bin/dev-cli.js` registers
+ * `tsx`, then imports the whole command tree before the service installs its
+ * SIGINT/SIGTERM handlers. Cached full-suite runs put one such spawn at
+ * ~1.8-2.5 s on an idle host and up to ~6.5 s under parallel load, but the
+ * triage run for TF-0MVE3XFZ5005TPHP saw host load averages of 33-39 on a
+ * 16-core box. A short fixed fallback therefore fired *before* the handlers
+ * existed, so Node's default SIGTERM terminated the child (exit code `null`, no
+ * `runtime serve` summary). This budget only bounds a genuine hang; the
+ * readiness marker is what actually triggers the signal in the happy path.
+ */
+const SERVE_READY_TIMEOUT_MS = 60_000;
+
+/**
+ * Per-test budget for a serve spawn: the readiness budget plus time for the
+ * child to boot, process input, shut down and flush its JSON summary, with
+ * headroom for scheduler contention. Without it the global 20 s `testTimeout`
+ * (vitest.config.ts) leaves no margin once the host is saturated.
+ */
+const SERVE_TEST_TIMEOUT_MS = 120_000;
+
+/**
+ * Extra time a signalled child gets before the harness escalates to SIGKILL.
+ * Prevents a stuck child from outliving the test and leaving an orphan behind.
+ */
+const KILL_ESCALATION_MS = 5_000;
+
+/**
  * Spawn `runtime start --serve --json`, feed *input* to stdin, then send
  * *signal* once the child is ready (when *readyMarker* appears on stdout) or
- * after *fallbackMs*. Resolves once the child exits.
+ * after *fallbackMs* as a safety net. Resolves once the child exits.
+ *
+ * *stderr* is captured so a failure reports *why* the child died instead of
+ * just its exit code.
  */
 async function runServeUntilSignal(
   input: string,
   signal: NodeJS.Signals,
   opts: { readyMarker?: string; fallbackMs?: number } = {},
-): Promise<{ code: number | null; stdout: string }> {
+): Promise<{ code: number | null; stdout: string; stderr: string }> {
   return new Promise((resolvePromise, reject) => {
     const child = spawn(
       process.execPath,
@@ -103,23 +135,33 @@ async function runServeUntilSignal(
       { cwd: PROJECT_ROOT, stdio: ["pipe", "pipe", "pipe"] },
     );
     let stdout = "";
+    let stderr = "";
     let signalled = false;
+    let escalation: NodeJS.Timeout | undefined;
     const sendSignal = (): void => {
       if (signalled) return;
       signalled = true;
       child.kill(signal);
+      escalation = setTimeout(() => child.kill("SIGKILL"), KILL_ESCALATION_MS);
     };
     child.stdout.on("data", (chunk) => {
       stdout += String(chunk);
       if (opts.readyMarker && stdout.includes(opts.readyMarker)) sendSignal();
     });
+    child.stderr.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
     child.on("error", reject);
     child.on("exit", (code) => {
       clearTimeout(fallback);
-      resolvePromise({ code, stdout });
+      if (escalation) clearTimeout(escalation);
+      resolvePromise({ code, stdout, stderr });
     });
     child.stdin.end(input);
-    const fallback = setTimeout(sendSignal, opts.fallbackMs ?? 8000);
+    const fallback = setTimeout(
+      sendSignal,
+      opts.fallbackMs ?? SERVE_READY_TIMEOUT_MS,
+    );
   });
 }
 
@@ -318,24 +360,33 @@ describe("CLI runtime start — --serve", () => {
   it("stays alive after stdin closes and shuts down cleanly on SIGTERM", async () => {
     // `state walk` proves the runtime is live and processing input; stdin then
     // closes, but the service must keep running until the signal arrives.
-    const { code, stdout } = await runServeUntilSignal("state walk\n", "SIGTERM", {
-      readyMarker: "state_change",
-    });
-    expect(code).toBe(0);
+    const { code, stdout, stderr } = await runServeUntilSignal(
+      "state walk\n",
+      "SIGTERM",
+      { readyMarker: "state_change" },
+    );
+    expect(code, `child exited abnormally; stderr:\n${stderr}`).toBe(0);
 
     const records = stdout.split("\n").filter(Boolean).map((l) => JSON.parse(l));
+    // Liveness: the signal is only sent once this event has been observed, so
+    // its presence proves the service was up and processing stdin rather than
+    // being killed during boot by the harness' safety net.
+    expect(records.map((r) => r.event?.type)).toContain("state_change");
     const summary = records.find((r) => r.command === "runtime serve");
     expect(summary).toBeDefined();
     expect(summary.shutdownReason).toBe("signal:SIGTERM");
-  }, 30_000);
+  }, SERVE_TEST_TIMEOUT_MS);
 
   it("shuts down cleanly on a quit command", async () => {
-    const { code, stdout } = await runServeUntilSignal(
+    // No readiness marker: the child must exit on its own once it has consumed
+    // the piped `quit`. The fallback is only a safety net for a genuine hang;
+    // its previous 10 s budget could fire before a loaded cold boot had
+    // processed `quit`, killing the child with SIGKILL (exit code `null`).
+    const { code, stdout, stderr } = await runServeUntilSignal(
       "state walk\nparam footstep-stone gain 0.5\nquit\n",
       "SIGKILL",
-      { fallbackMs: 10_000 },
     );
-    expect(code).toBe(0);
+    expect(code, `child exited abnormally; stderr:\n${stderr}`).toBe(0);
 
     const records = stdout.split("\n").filter(Boolean).map((l) => JSON.parse(l));
     const summary = records.find((r) => r.command === "runtime serve");
@@ -345,7 +396,7 @@ describe("CLI runtime start — --serve", () => {
       (r) => r.command === "runtime event" && r.event.type === "parameter_change",
     );
     expect(paramEvents).toHaveLength(1);
-  }, 30_000);
+  }, SERVE_TEST_TIMEOUT_MS);
 });
 
 // ── Continuous transport ──────────────────────────────────────────
