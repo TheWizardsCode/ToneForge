@@ -22,6 +22,30 @@ import type { Rng } from "../core/rng.js";
 import { createRng } from "../core/rng.js";
 import { loadSequencePreset } from "../sequence/preset-loader.js";
 
+/**
+ * Per-test timeout for the render-heavy cases in this file.
+ *
+ * Every test carrying this override executes a real in-process render
+ * (`renderRecipe`/`renderPreset`/`renderStack`/`renderSequence`), which is
+ * CPU-bound: rendering the shipped `tableau_play_card_with_landing` preset
+ * pushes tens of thousands of samples through an OfflineAudioContext. Cached
+ * full-suite runs (66 entries, 16-worker parallel load) put the heaviest test
+ * here (`simulates and renders end-to-end with a non-empty, finite buffer`) at
+ * 2.3 s (min) → 3.0 s (median) → 7.0 s (p90) → **14.5 s (worst pass)** against
+ * the global 20 s `testTimeout` (`vitest.config.ts`) — a tail at 73 % of the
+ * budget, which is how it flaked (TF-0MVE3YK580008IVP). `clamps output to
+ * [-1, 1]` reaches 11.7 s in the same runs.
+ *
+ * 60 s gives ~4x headroom over the worst observed pass while still surfacing a
+ * genuine hang, and matches the audited per-test-override precedent for
+ * load-flaky tests: `MULTI_PROCESS_TEST_TIMEOUT` in
+ * `src/cli.marketplace.integration.test.ts` (TF-0MVE3X79Q004NNVJ) and
+ * `CLI_SPAWN_TEST_TIMEOUT` in `src/visualizer/cli.integration.test.ts`
+ * (TF-0MVE3YXLK001Z4WX). Mocking the renders was rejected for the same reason
+ * those tests avoid mocking: exercising the real audio pipeline is the point.
+ */
+const RENDER_TEST_TIMEOUT = 60_000;
+
 // ── Test helpers ──────────────────────────────────────────────────
 
 /** A minimal stack definition for testing — cheap to render. */
@@ -171,7 +195,7 @@ describe("stack wrapper — duration agreement", () => {
     // Wrapper duration must be >= the actual renderStack duration
     // so renderRecipe() doesn't truncate the stack output.
     expect(wrapperDuration).toBeGreaterThanOrEqual(stackResult.duration);
-  });
+  }, RENDER_TEST_TIMEOUT);
 
   // Helper: re-implement the analytical duration computation so the test
   // can verify getDuration against renderStack with the same seed.
@@ -231,7 +255,7 @@ describe("stack wrapper — sample injection", () => {
     // Verify the output is not all zeros
     const nonZero = result.samples.filter((s) => s !== 0).length;
     expect(nonZero).toBeGreaterThan(0);
-  });
+  }, RENDER_TEST_TIMEOUT);
 
   it("renders byte-identical audio for the same seed", async () => {
     const name = "inject-determinism-" + Date.now();
@@ -244,7 +268,7 @@ describe("stack wrapper — sample injection", () => {
     for (let i = 0; i < r1.samples.length; i++) {
       expect(r1.samples[i]).toBe(r2.samples[i]);
     }
-  });
+  }, RENDER_TEST_TIMEOUT);
 
   it("renders different audio for different seeds", async () => {
     const name = "inject-variation-" + Date.now();
@@ -261,7 +285,7 @@ describe("stack wrapper — sample injection", () => {
       if (r1.samples[i] !== r2.samples[i]) diffCount++;
     }
     expect(diffCount).toBeGreaterThan(0);
-  });
+  }, RENDER_TEST_TIMEOUT);
 
   it("clamps output to [-1, 1]", async () => {
     const name = "inject-clamp-" + Date.now();
@@ -274,7 +298,7 @@ describe("stack wrapper — sample injection", () => {
       expect(v).toBeGreaterThanOrEqual(-1);
       expect(v).toBeLessThanOrEqual(1);
     }
-  });
+  }, RENDER_TEST_TIMEOUT);
 });
 
 // ── Integration: full sequence render ─────────────────────────────
@@ -318,7 +342,7 @@ describe("stack wrapper — sequence integration", () => {
     for (let i = 0; i < result.samples.length; i++) {
       expect(result.samples[i]).toBe(result2.samples[i]);
     }
-  });
+  }, RENDER_TEST_TIMEOUT);
 
   it("handles a multi-event sequence mixing stack-wrapper with plain recipes", async () => {
     const wrapperName = "multi-event-wrapper-" + Date.now();
@@ -368,7 +392,7 @@ describe("stack wrapper — sequence integration", () => {
     for (let i = 0; i < result.samples.length; i++) {
       expect(result.samples[i]).toBe(result2.samples[i]);
     }
-  });
+  }, RENDER_TEST_TIMEOUT);
 });
 
 // ── Gain override ─────────────────────────────────────────────────
@@ -396,7 +420,7 @@ describe("stack wrapper — gain override", () => {
     expect(fullPeak).toBeGreaterThan(0);
     expect(quietPeak).toBeGreaterThan(0);
     expect(quietPeak).toBeCloseTo(fullPeak * 0.3, 5);
-  });
+  }, RENDER_TEST_TIMEOUT);
 });
 
 // ── getParams ─────────────────────────────────────────────────────
@@ -478,7 +502,7 @@ describe("shipped preset — tableau_play_card_with_landing", () => {
       if (v !== 0) nonZero++;
     }
     expect(nonZero).toBeGreaterThan(0);
-  });
+  }, RENDER_TEST_TIMEOUT);
 
   it("produces byte-identical output across two seeded runs", async () => {
     const def = await loadSequencePreset(PRESET_PATH);
@@ -490,7 +514,7 @@ describe("shipped preset — tableau_play_card_with_landing", () => {
     for (let i = 0; i < result1.samples.length; i++) {
       expect(result1.samples[i]).toBe(result2.samples[i]);
     }
-  });
+  }, RENDER_TEST_TIMEOUT);
 
   it("has a duration at least as long as the wrapped stack event", async () => {
     const def = await loadSequencePreset(PRESET_PATH);
@@ -520,7 +544,7 @@ describe("shipped preset — tableau_play_card_with_landing", () => {
 
     const wrapperEnd = wrapperEvent.time_ms / 1000 + stackResult.duration;
     expect(result.duration).toBeGreaterThanOrEqual(wrapperEnd - 1e-6);
-  });
+  }, RENDER_TEST_TIMEOUT);
 });
 
 // ── Error handling ────────────────────────────────────────────────
