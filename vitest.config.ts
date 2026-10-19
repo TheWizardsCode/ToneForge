@@ -14,6 +14,10 @@ export default defineConfig({
     // full-suite parallel load (16 workers) they can exceed 5s even though they
     // finish in ~2s in isolation. 20s gives ~4x headroom over the worst
     // observed contention while still failing genuine hangs in reasonable time.
+    // Tests that spawn several cold CLI processes in sequence go further and
+    // set an explicit per-test timeout (e.g. `MULTI_PROCESS_TEST_TIMEOUT` in
+    // `src/cli.marketplace.integration.test.ts`), keeping this systemic default
+    // tight for the rest of the suite (TF-0MVE3X79Q004NNVJ).
     testTimeout: 20_000,
     // Vitest resolves setupFiles relative to the project root — use a plain
     // repository-relative path so resolution works in all environments.

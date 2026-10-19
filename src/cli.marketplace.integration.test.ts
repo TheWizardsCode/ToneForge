@@ -9,6 +9,13 @@
  * `search`, `install` and `publish` (work item TF-0MUZX3ZU3008FQH3, verifying
  * the contracts documented in `docs/guides/marketplace.md`), and guard the
  * read-only bundled fixtures against accidental mutation.
+ *
+ * Tests that spawn several cold CLI processes in sequence override the global
+ * `testTimeout` (20 s, `vitest.config.ts`) with an explicit per-test timeout:
+ * each spawn boots `tsx` from source, so multi-spawn cases can exceed the
+ * global budget under full-suite parallel load without any real hang
+ * (TF-0MVE3X79Q004NNVJ). Mocking the child processes is deliberately avoided —
+ * the cross-process guarantee is what these tests exist to prove.
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -26,6 +33,19 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { runCli } from "../test/run-yargs-child.js";
+
+/**
+ * Per-test timeout for the multi-spawn cross-process cases below.
+ *
+ * Each invocation boots the CLI from source via `bin/dev-cli.js` (which
+ * registers `tsx` before importing the yargs entrypoint), so a cold spawn costs
+ * seconds. Cached full-suite runs put this file's three-spawn test at a median
+ * of ~7.8 s but up to ~19.2 s under heavy parallel load — within a second of the
+ * global 20 s `testTimeout`, which made it flake. 60 s gives ~3x headroom over
+ * the worst observed duration while still surfacing genuine hangs; this matches
+ * the precedent in `src/stack/renderer.test.ts` (TF-0MVE3X79Q004NNVJ).
+ */
+const MULTI_PROCESS_TEST_TIMEOUT = 60_000;
 
 /** Bundled, read-only demo registry (fixtures). */
 const REPO_FIXTURES = join(import.meta.dirname, "test-utils/fixtures/marketplace");
@@ -280,7 +300,7 @@ describe("marketplace CLI integration", () => {
 
     // Same seed => byte-identical output across separate processes.
     expect(readFileSync(outA)).toEqual(readFileSync(outB));
-  });
+  }, MULTI_PROCESS_TEST_TIMEOUT); // install + two cold renders
 
   it("a new process renders an installed stack (AC1, AC4)", async () => {
     // The bundled `plasma_rifles` stack fixture is listing-only and does not
@@ -333,7 +353,7 @@ describe("marketplace CLI integration", () => {
     expect(renderData.samples).toBeGreaterThan(0);
     expect(existsSync(output)).toBe(true);
     expect(statSync(output).size).toBeGreaterThan(0);
-  });
+  }, MULTI_PROCESS_TEST_TIMEOUT); // install + cold render
 
   // -----------------------------------------------------------------
   // publish
