@@ -14,7 +14,11 @@
  */
 
 import type { InstrumentDefinition } from "./schema.js";
-import { validateInstrumentDefinition, DEFAULT_NOISE_SEED } from "./schema.js";
+import {
+  definitionForNote,
+  validateInstrumentDefinition,
+  DEFAULT_NOISE_SEED,
+} from "./schema.js";
 import type { Instrument } from "./instrument.js";
 import { midiNoteToFrequency, velocityToGain, MIDI_NOTE_MAX, MIDI_NOTE_MIN } from "./instrument.js";
 import { AdsrEnvelope } from "./envelope.js";
@@ -82,7 +86,22 @@ interface ActiveVoice {
   readonly velocity: number;
   readonly startTime: number;
   releaseTime: number | null;
+  /**
+   * The voice definition resolved for this note (the definition itself for a
+   * single-voice instrument, or the mapped `voices` entry for a multi-timbral
+   * one).
+   */
+  readonly definition: VoiceDefinition;
 }
+
+/**
+ * The parts of a definition that describe one voice.
+ *
+ * Per-note dispatch resolves each note to (possibly) a different oscillator,
+ * envelope and filter; every audio builder accepts just these sections so the
+ * single-voice and multi-timbral paths share one implementation.
+ */
+type VoiceDefinition = Pick<InstrumentDefinition, "oscillator" | "envelope" | "filter">;
 
 function assertEvent(event: InstrumentEvent): void {
   if (!Number.isFinite(event.note) || event.note < MIDI_NOTE_MIN || event.note > MIDI_NOTE_MAX) {
@@ -132,7 +151,7 @@ interface BuildVoiceOptions {
  */
 function buildVoiceNodes(
   ctx: OfflineAudioContext | AudioContext,
-  definition: InstrumentDefinition,
+  definition: VoiceDefinition,
   options: BuildVoiceOptions = {},
 ): VoiceNodes {
   const oscillator = definition.oscillator;
@@ -186,7 +205,7 @@ function connectVoice(
  * from its (relative) start to the end of its release tail.
  */
 function buildEnvelopeCurve(
-  definition: InstrumentDefinition,
+  definition: VoiceDefinition,
   voice: ActiveVoice,
   relativeStart: number,
   relativeRelease: number,
@@ -215,11 +234,11 @@ function buildEnvelopeCurve(
 /** Schedule one voice on an offline context at render-relative times. */
 function scheduleOfflineVoice(
   ctx: OfflineAudioContext,
-  definition: InstrumentDefinition,
   voice: ActiveVoice,
   offset: number,
   sampleRate: number,
 ): void {
+  const definition = voice.definition;
   const relativeStart = voice.startTime - offset;
   const relativeRelease =
     (voice.releaseTime ?? voice.startTime) - offset;
@@ -254,6 +273,11 @@ function scheduleOfflineVoice(
  * oldest-voice-first stealing), and the result is rendered through
  * `OfflineAudioContext` (always via `src/audio/web-audio.ts`).
  *
+ * When the definition carries a per-note `voices` map, each Note On is voiced
+ * by its mapped entry and notes without an entry are ignored — no voice is
+ * allocated and they contribute silence. A definition without `voices` voices
+ * every note with its top-level oscillator/envelope/filter, exactly as before.
+ *
  * @param definition - The instrument definition.
  * @param events - The note events to render (sorted internally by time).
  * @param options - Render options.
@@ -264,7 +288,7 @@ export async function renderInstrument(
   events: InstrumentEvent[],
   options: RenderInstrumentOptions = {},
 ): Promise<RenderedInstrument> {
-  validateInstrumentDefinition(definition);
+  const validated = validateInstrumentDefinition(definition);
   const sampleRate = options.sampleRate ?? ENGINE_SAMPLE_RATE;
   const tail = options.tail ?? ENGINE_DEFAULT_TAIL;
   const maxVoices = options.maxVoices ?? 16;
@@ -285,6 +309,11 @@ export async function renderInstrument(
   for (const event of sorted) {
     lastEventTime = Math.max(lastEventTime, event.time);
     if (event.type === "midiNoteOn") {
+      const voiceDefinition = definitionForNote(validated, event.note);
+      if (voiceDefinition === null) {
+        // Unmapped note in a multi-timbral definition: ignore it entirely.
+        continue;
+      }
       const allocation = manager.noteOn(event.note, event.velocity, event.time);
       if (allocation.stolen) {
         const stolen = voicesById.get(allocation.stolen.id);
@@ -299,6 +328,7 @@ export async function renderInstrument(
         velocity: allocation.voice.velocity,
         startTime: allocation.voice.time,
         releaseTime: null,
+        definition: voiceDefinition,
       });
     } else {
       const released = manager.noteOff(event.note);
@@ -317,7 +347,7 @@ export async function renderInstrument(
     if (voice.releaseTime !== null) {
       renderEnd = Math.max(
         renderEnd,
-        voice.releaseTime + definition.envelope.release,
+        voice.releaseTime + voice.definition.envelope.release,
       );
     }
   }
@@ -326,7 +356,7 @@ export async function renderInstrument(
   const ctx = options.context ?? new OfflineAudioContext(1, length, sampleRate);
 
   for (const voice of voicesById.values()) {
-    scheduleOfflineVoice(ctx, definition, voice, offset, sampleRate);
+    scheduleOfflineVoice(ctx, voice, offset, sampleRate);
   }
 
   const audioBuffer = await ctx.startRendering();
@@ -357,6 +387,8 @@ export interface RealtimeInstrumentOptions {
 interface RealtimeVoice {
   readonly gain: GainNode;
   readonly source: VoiceSource;
+  /** The voice definition this note was resolved to (per-note dispatch). */
+  readonly definition: VoiceDefinition;
 }
 
 /**
@@ -370,7 +402,8 @@ interface RealtimeVoice {
  * Note On starts a voice through {@link VoiceManager}; Note Off releases it
  * (an attack→decay→sustain ramp on the gain, then a release ramp to 0); at the
  * voice limit the oldest sounding voice is stolen (the same policy as the
- * offline path).
+ * offline path). When the definition carries a per-note `voices` map, each
+ * Note On is voiced by its mapped entry and unmapped notes are ignored.
  *
  * @param definition - The instrument definition.
  * @param options - Instrument options.
@@ -380,14 +413,17 @@ export function createRealtimeInstrument(
   definition: InstrumentDefinition,
   options: RealtimeInstrumentOptions = {},
 ): Instrument {
-  validateInstrumentDefinition(definition);
+  const validated = validateInstrumentDefinition(definition);
   const maxVoices = options.maxVoices ?? 16;
   const context = options.context ?? new AudioContext();
   const manager = new VoiceManager({ maxVoices });
   const live = new Map<number, RealtimeVoice>();
 
   const release = (voice: RealtimeVoice, at: number): void => {
-    const releaseTime = Math.max(definition.envelope.release, MIN_STAGE_SECONDS);
+    const releaseTime = Math.max(
+      voice.definition.envelope.release,
+      MIN_STAGE_SECONDS,
+    );
     const current = voice.gain.gain.value;
     voice.gain.gain.cancelScheduledValues(at);
     voice.gain.gain.setValueAtTime(current, at);
@@ -396,9 +432,14 @@ export function createRealtimeInstrument(
   };
 
   return {
-    id: definition.id,
+    id: validated.id,
     noteOn(midiNote: number, velocity: number, time?: number): void {
       const at = time ?? context.currentTime;
+      const voiceDefinition = definitionForNote(validated, midiNote);
+      if (voiceDefinition === null) {
+        // Unmapped note in a multi-timbral definition: ignore it entirely.
+        return;
+      }
       const allocation = manager.noteOn(midiNote, velocity, at);
       if (allocation.stolen) {
         const stolenVoice = live.get(allocation.stolen.id);
@@ -408,20 +449,27 @@ export function createRealtimeInstrument(
         }
       }
 
-      const nodes = buildVoiceNodes(context, definition);
+      const nodes = buildVoiceNodes(context, voiceDefinition);
       const peak = velocityToGain(velocity);
-      const attackEnd = at + Math.max(definition.envelope.attack, MIN_STAGE_SECONDS);
-      const decayEnd = attackEnd + Math.max(definition.envelope.decay, MIN_STAGE_SECONDS);
+      const attackEnd = at + Math.max(voiceDefinition.envelope.attack, MIN_STAGE_SECONDS);
+      const decayEnd = attackEnd + Math.max(voiceDefinition.envelope.decay, MIN_STAGE_SECONDS);
       nodes.gain.gain.setValueAtTime(0, at);
       nodes.gain.gain.linearRampToValueAtTime(peak, attackEnd);
-      nodes.gain.gain.linearRampToValueAtTime(peak * definition.envelope.sustain, decayEnd);
+      nodes.gain.gain.linearRampToValueAtTime(
+        peak * voiceDefinition.envelope.sustain,
+        decayEnd,
+      );
       if (nodes.oscillator) {
         nodes.oscillator.frequency.value = midiNoteToFrequency(midiNote);
       }
       connectVoice(context, nodes);
       nodes.source.start(at);
 
-      live.set(allocation.voice.id, { gain: nodes.gain, source: nodes.source });
+      live.set(allocation.voice.id, {
+        gain: nodes.gain,
+        source: nodes.source,
+        definition: voiceDefinition,
+      });
     },
     noteOff(midiNote: number, time?: number): void {
       const released = manager.noteOff(midiNote);

@@ -21,6 +21,7 @@ import { compareBuffers, formatCompareResult } from "../test-utils/buffer-compar
 import {
   computeBandEnergy,
   computeRms,
+  describeSpectralDifference,
   estimateDominantFrequency,
   isSilent,
 } from "./__tests__/helpers.js";
@@ -468,5 +469,222 @@ describe("createRealtimeInstrument (noise voice)", () => {
     expect(fake.bufferSources).toHaveLength(0);
     expect(fake.oscillators).toHaveLength(1);
     expect(fake.oscillators[0]!.startedAt).toEqual([0]);
+  });
+});
+
+// ── Per-note voice dispatch ──────────────────────────────────────
+
+/**
+ * A kit-like definition: a pitched kick (36), a high-passed noise snare (38)
+ * and a short high-passed noise hat (42). The top-level sections are unused
+ * for every mapped note and are deliberately different from all three voices,
+ * so a render proves the per-note entry was selected rather than the default.
+ */
+const PER_NOTE_KIT: InstrumentDefinition = {
+  id: "test.kit",
+  name: "Test Per-Note Kit",
+  oscillator: { type: "sawtooth" },
+  envelope: { attack: 0.005, decay: 0.1, sustain: 0.5, release: 0.2 },
+  voices: {
+    36: {
+      oscillator: { type: "sine" },
+      envelope: { attack: 0.001, decay: 0.03, sustain: 0.8, release: 0.05 },
+    },
+    38: {
+      oscillator: { type: "noise", color: "white", seed: 7 },
+      envelope: { attack: 0.001, decay: 0.05, sustain: 0.3, release: 0.05 },
+      filter: { type: "highpass", frequency: 1500 },
+    },
+    42: {
+      oscillator: { type: "noise", color: "white", seed: 9 },
+      envelope: { attack: 0.001, decay: 0.01, sustain: 0.1, release: 0.01 },
+      filter: { type: "highpass", frequency: 5000 },
+    },
+  },
+};
+
+describe("renderInstrument offline (per-note voices)", () => {
+  it("renders each mapped note with its own voice (measurably distinct renders)", async () => {
+    const kick = await renderHeldNote(PER_NOTE_KIT, 36, 110, 0.2, 0.15);
+    const snare = await renderHeldNote(PER_NOTE_KIT, 38, 110, 0.2, 0.15);
+
+    expect(isSilent(kick)).toBe(false);
+    expect(isSilent(snare)).toBe(false);
+    expect(
+      describeSpectralDifference(kick, snare).distinct,
+      "a pitched kick and a noise snare must render measurably different spectra",
+    ).toBe(true);
+  });
+
+  it("overrides the top-level oscillator for a mapped note", async () => {
+    const definition: InstrumentDefinition = {
+      id: "test.override",
+      name: "Override",
+      oscillator: { type: "noise", color: "white", seed: 3 },
+      envelope: { attack: 0.001, decay: 0.05, sustain: 0.6, release: 0.1 },
+      voices: {
+        60: {
+          oscillator: { type: "sine" },
+          envelope: { attack: 0.001, decay: 0.05, sustain: 0.6, release: 0.1 },
+        },
+      },
+    };
+
+    const samples = await renderHeldNote(definition, 60, 100, 0.3, 0.2);
+    const dominant = estimateDominantFrequency(samples, ENGINE_SAMPLE_RATE);
+    const expected = 261.63; // C4, note 60
+    expect(dominant).toBeGreaterThan(expected * 0.98);
+    expect(dominant).toBeLessThan(expected * 1.02);
+  });
+
+  it("renders silence for a sequence of only unmapped notes", async () => {
+    const rendered = await renderInstrument(
+      PER_NOTE_KIT,
+      [
+        { type: "midiNoteOn", note: 60, velocity: 100, time: 0 },
+        { type: "midiNoteOn", note: 64, velocity: 100, time: 0.1 },
+        { type: "midiNoteOff", note: 60, velocity: 100, time: 0.3 },
+        { type: "midiNoteOff", note: 64, velocity: 100, time: 0.3 },
+      ],
+      { sampleRate: ENGINE_SAMPLE_RATE, tail: 0.2 },
+    );
+
+    expect(rendered.samples.length).toBeGreaterThan(0);
+    expect(isSilent(rendered.samples)).toBe(true);
+  });
+
+  it("keeps unmapped notes silent while mapped notes in the same sequence sound", async () => {
+    const rendered = await renderInstrument(
+      PER_NOTE_KIT,
+      [
+        { type: "midiNoteOn", note: 60, velocity: 100, time: 0 }, // unmapped
+        { type: "midiNoteOn", note: 36, velocity: 100, time: 0.2 }, // mapped kick
+        { type: "midiNoteOff", note: 60, velocity: 100, time: 0.5 },
+        { type: "midiNoteOff", note: 36, velocity: 100, time: 0.5 },
+      ],
+      { sampleRate: ENGINE_SAMPLE_RATE, tail: 0.2 },
+    );
+    const sr = ENGINE_SAMPLE_RATE;
+
+    // Only the unmapped note exists before the kick starts → silence.
+    expect(isSilent(rendered.samples.slice(0, Math.round(0.15 * sr)))).toBe(true);
+    // The mapped kick sounds while it is held.
+    expect(
+      isSilent(rendered.samples.slice(Math.round(0.22 * sr), Math.round(0.45 * sr))),
+    ).toBe(false);
+  });
+
+  it("keeps simultaneous kit voices independent (polyphony)", async () => {
+    const both = await renderInstrument(
+      PER_NOTE_KIT,
+      [
+        { type: "midiNoteOn", note: 36, velocity: 100, time: 0 }, // kick, held
+        { type: "midiNoteOn", note: 42, velocity: 100, time: 0 }, // hat, short
+        { type: "midiNoteOff", note: 42, velocity: 100, time: 0.1 },
+        { type: "midiNoteOff", note: 36, velocity: 100, time: 0.4 },
+      ],
+      { sampleRate: ENGINE_SAMPLE_RATE, tail: 0.2 },
+    );
+    const kickAlone = await renderHeldNote(PER_NOTE_KIT, 36, 100, 0.4, 0.2);
+    const sr = ENGINE_SAMPLE_RATE;
+
+    // After the short hat has released, the still-held kick keeps sounding.
+    expect(
+      isSilent(both.samples.slice(Math.round(0.2 * sr), Math.round(0.35 * sr))),
+    ).toBe(false);
+    // The simultaneous hat measurably changed the render.
+    expect(compareBuffers(both.samples, kickAlone).identical).toBe(false);
+    // Once the kick is released, the tail returns to silence.
+    expect(isSilent(both.samples.slice(Math.round(0.47 * sr)))).toBe(true);
+  });
+
+  it("still applies the voice limit across different mapped voices", async () => {
+    const rendered = await renderInstrument(
+      PER_NOTE_KIT,
+      [
+        { type: "midiNoteOn", note: 36, velocity: 100, time: 0 },
+        { type: "midiNoteOn", note: 42, velocity: 100, time: 0.05 },
+        { type: "midiNoteOn", note: 38, velocity: 100, time: 0.1 },
+        { type: "midiNoteOff", note: 36, velocity: 100, time: 0.3 },
+        { type: "midiNoteOff", note: 42, velocity: 100, time: 0.3 },
+        { type: "midiNoteOff", note: 38, velocity: 100, time: 0.3 },
+      ],
+      { maxVoices: 2, tail: 0.2 },
+    );
+
+    // A steal across kit voices trims, not silences, the render.
+    expect(isSilent(rendered.samples)).toBe(false);
+    expect(rendered.samples.length).toBeGreaterThan(0);
+  });
+
+  it("renders a definition without voices exactly as its single-voice equivalent", async () => {
+    const single: InstrumentDefinition = {
+      id: "test.single",
+      name: "Test Single",
+      oscillator: { type: "triangle" },
+      envelope: { attack: 0.005, decay: 0.05, sustain: 0.6, release: 0.12 },
+    };
+    const withMappedVoice: InstrumentDefinition = {
+      ...single,
+      voices: {
+        60: { oscillator: single.oscillator, envelope: single.envelope },
+      },
+    };
+
+    const before = await renderHeldNote(single, 60, 100, 0.3, 0.2);
+    const mapped = await renderHeldNote(withMappedVoice, 60, 100, 0.3, 0.2);
+    expect(compareBuffers(before, mapped).identical).toBe(true);
+  });
+});
+
+describe("createRealtimeInstrument (per-note voices)", () => {
+  it("builds the mapped voice source for each note and ignores unmapped notes", () => {
+    const fake = new FakeAudioContext();
+    const instrument = createRealtimeInstrument(PER_NOTE_KIT, {
+      context: asAudioContext(fake),
+      maxVoices: 4,
+    });
+
+    instrument.noteOn(36, 100, 0); // sine kick → oscillator
+    instrument.noteOn(38, 100, 0); // noise snare → buffer source
+    instrument.noteOn(60, 100, 0); // unmapped → ignored
+
+    expect(fake.oscillators).toHaveLength(1);
+    expect(fake.bufferSources).toHaveLength(1);
+    expect(fake.oscillators[0]!.startedAt).toEqual([0]);
+    expect(fake.bufferSources[0]!.startedAt).toEqual([0]);
+    expect(fake.bufferSources[0]!.loop).toBe(true);
+  });
+
+  it("releases a mapped voice using its own envelope release time", () => {
+    const fake = new FakeAudioContext();
+    const instrument = createRealtimeInstrument(PER_NOTE_KIT, {
+      context: asAudioContext(fake),
+      maxVoices: 4,
+    });
+
+    instrument.noteOn(38, 100, 0); // snare release = 0.05 s
+    instrument.noteOff(38, 0.5);
+
+    const source = fake.bufferSources[0]!;
+    expect(source.stoppedAt).toHaveLength(1);
+    expect(source.stoppedAt[0]).toBeCloseTo(0.5 + 0.05 + 0.001, 3);
+  });
+
+  it("still steals the oldest voice across mapped notes", () => {
+    const fake = new FakeAudioContext();
+    const instrument = createRealtimeInstrument(PER_NOTE_KIT, {
+      context: asAudioContext(fake),
+      maxVoices: 1,
+    });
+
+    instrument.noteOn(36, 100, 0);
+    instrument.noteOn(38, 100, 0.25);
+
+    const stolen = fake.oscillators[0]!;
+    expect(stolen.stoppedAt).toHaveLength(1);
+    expect(stolen.stoppedAt[0]).toBeGreaterThan(0.25);
+    expect(fake.bufferSources[0]!.startedAt).toEqual([0.25]);
+    expect(fake.bufferSources[0]!.stoppedAt).toHaveLength(0);
   });
 });

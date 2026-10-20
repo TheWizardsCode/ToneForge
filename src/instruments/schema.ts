@@ -13,11 +13,18 @@
  * integer `seed`). Both feed the same envelope and filter wiring in the
  * engine.
  *
+ * An optional per-note `voices` map turns one definition into a multi-timbral
+ * instrument (a drum kit, for example): each entry overrides the oscillator,
+ * envelope and (optionally) filter for one MIDI note, while notes with no
+ * entry are ignored by the engine. A definition without `voices` keeps the
+ * original single-voice behaviour byte-for-byte.
+ *
  * No Web Audio usage here — this module establishes the data contract that
  * the envelope engine and instrument engine build on.
  */
 
 import { NOISE_COLORS, isNoiseColor, type NoiseColor } from "../audio/noise.js";
+import { MIDI_NOTE_MAX, MIDI_NOTE_MIN } from "./instrument.js";
 
 /** Supported oscillator waveforms. */
 export type OscillatorWave = "sine" | "square" | "sawtooth" | "triangle";
@@ -83,6 +90,28 @@ export interface InstrumentFilter {
 }
 
 /**
+ * A single per-note voice: the oscillator, envelope and optional filter that
+ * replace the definition's top-level sections for one MIDI note.
+ */
+export interface InstrumentVoice {
+  /** Oscillator section for this note. */
+  oscillator: InstrumentOscillator;
+  /** ADSR envelope section for this note. */
+  envelope: InstrumentEnvelope;
+  /** Optional filter section for this note. */
+  filter?: InstrumentFilter;
+}
+
+/**
+ * A per-note voice map: MIDI note number (0–127, integer keys) → voice.
+ *
+ * Keys are integers at runtime; YAML and JSON inevitably spell them as
+ * strings, so validation accepts the canonical integer spelling only and
+ * rejects anything else (for example `"kick"`, `"36.5"` or `"128"`).
+ */
+export type InstrumentVoiceMap = Record<number, InstrumentVoice>;
+
+/**
  * A schema-valid instrument definition: oscillator + ADSR + optional filter.
  */
 export interface InstrumentDefinition {
@@ -98,6 +127,13 @@ export interface InstrumentDefinition {
   filter?: InstrumentFilter;
   /** Optional family/category label (e.g. "pluck", "pad", "bass"). */
   category?: string;
+  /**
+   * Optional per-note voice overrides, keyed by MIDI note number.
+   *
+   * When present, the engine voices **only** the mapped notes and ignores the
+   * others; when absent, every note uses the top-level sections above.
+   */
+  voices?: InstrumentVoiceMap;
 }
 
 /** Top-level keys accepted by an instrument definition. */
@@ -108,7 +144,11 @@ const KNOWN_TOP_LEVEL_KEYS = new Set<string>([
   "envelope",
   "filter",
   "category",
+  "voices",
 ]);
+
+/** Keys accepted by one `voices` entry. */
+const VOICE_KEYS = new Set<string>(["oscillator", "envelope", "filter"]);
 
 const OSCILLATOR_WAVES: readonly OscillatorWave[] = ["sine", "square", "sawtooth", "triangle"];
 const OSCILLATOR_TYPES: readonly string[] = [...OSCILLATOR_WAVES, "noise"];
@@ -204,8 +244,7 @@ function assertOneOf(
   }
 }
 
-function validateOscillator(value: unknown): InstrumentOscillator {
-  const path = "oscillator";
+function validateOscillator(value: unknown, path = "oscillator"): InstrumentOscillator {
   assertRecord(value, path);
 
   assertOneOf(value.type, `${path}.type`, OSCILLATOR_TYPES);
@@ -238,8 +277,7 @@ function validateOscillator(value: unknown): InstrumentOscillator {
   return { type: value.type as OscillatorWave, detune: detune ?? 0 };
 }
 
-function validateEnvelope(value: unknown): InstrumentEnvelope {
-  const path = "envelope";
+function validateEnvelope(value: unknown, path = "envelope"): InstrumentEnvelope {
   assertRecord(value, path);
 
   // Every stage is required.
@@ -263,8 +301,7 @@ function validateEnvelope(value: unknown): InstrumentEnvelope {
   };
 }
 
-function validateFilter(value: unknown): InstrumentFilter {
-  const path = "filter";
+function validateFilter(value: unknown, path = "filter"): InstrumentFilter {
   assertRecord(value, path);
 
   assertOneOf(value.type, `${path}.type`, FILTER_TYPES);
@@ -281,6 +318,68 @@ function validateFilter(value: unknown): InstrumentFilter {
     frequency: value.frequency,
     ...(q !== undefined ? { Q: q } : {}),
   };
+}
+
+/**
+ * Validate one `voices` entry, reusing the top-level section validators.
+ *
+ * The `path` names the note (for example `voices[36]`) so an error points the
+ * author straight at the offending entry.
+ */
+function validateVoice(value: unknown, path: string): InstrumentVoice {
+  assertRecord(value, path);
+  assertKnownKeys(value, path, VOICE_KEYS);
+
+  if (value.oscillator === undefined) {
+    throw new Error(`${path}.oscillator is required.`);
+  }
+  const oscillator = validateOscillator(value.oscillator, `${path}.oscillator`);
+
+  if (value.envelope === undefined) {
+    throw new Error(`${path}.envelope is required.`);
+  }
+  const envelope = validateEnvelope(value.envelope, `${path}.envelope`);
+
+  const filter =
+    value.filter === undefined ? undefined : validateFilter(value.filter, `${path}.filter`);
+
+  return {
+    oscillator,
+    envelope,
+    ...(filter !== undefined ? { filter } : {}),
+  };
+}
+
+/**
+ * Validate the optional per-note `voices` map.
+ *
+ * Keys must be canonical integer MIDI note numbers (0–127); every value must
+ * validate as a voice override. Errors are actionable UK-English messages
+ * naming the offending note and field.
+ */
+function validateVoices(value: unknown): InstrumentVoiceMap {
+  const path = "voices";
+  assertRecord(value, path);
+
+  const voices: InstrumentVoiceMap = {};
+  for (const [key, entry] of Object.entries(value)) {
+    const note = Number(key);
+    // Accept the canonical integer spelling only, so "36" is valid while
+    // "036", "+36", " 36", "36.5" and "kick" are rejected loudly.
+    if (!Number.isInteger(note) || String(note) !== key) {
+      throw new Error(
+        `${path} contains an invalid MIDI note key "${key}". `
+          + "Keys must be canonical integer MIDI note numbers (0–127).",
+      );
+    }
+    if (note < MIDI_NOTE_MIN || note > MIDI_NOTE_MAX) {
+      throw new Error(
+        `${path} key "${key}" must be within ${MIDI_NOTE_MIN}–${MIDI_NOTE_MAX}.`,
+      );
+    }
+    voices[note] = validateVoice(entry, `${path}[${key}]`);
+  }
+  return voices;
 }
 
 /**
@@ -332,6 +431,8 @@ export function validateInstrumentDefinition(value: unknown): InstrumentDefiniti
     category = value.category;
   }
 
+  const voices = value.voices === undefined ? undefined : validateVoices(value.voices);
+
   return {
     id: value.id,
     name: value.name,
@@ -339,5 +440,45 @@ export function validateInstrumentDefinition(value: unknown): InstrumentDefiniti
     envelope,
     ...(filter !== undefined ? { filter } : {}),
     ...(category !== undefined ? { category } : {}),
+    ...(voices !== undefined ? { voices } : {}),
+  };
+}
+
+/**
+ * Resolve the voice definition the engine should use for one MIDI note.
+ *
+ * - A definition **without** a `voices` map has one voice: the definition
+ *   itself is returned unchanged (so the single-voice path stays identical).
+ * - A definition **with** a `voices` map is multi-timbral: the mapped entry is
+ *   returned as a definition-shaped object (inheriting `id`, `name` and
+ *   `category` so callers keep a complete definition), or `null` when the note
+ *   has no entry — an unmapped note is ignored, never voiced.
+ *
+ * The returned definition is a new object when a voice entry is resolved, so
+ * callers can pass it to the oscillator/envelope/filter builders without
+ * mutating the source definition.
+ *
+ * @param definition - A schema-valid instrument definition.
+ * @param note - MIDI note number (0–127).
+ * @returns The definition to voice the note, or `null` when it is unmapped.
+ */
+export function definitionForNote(
+  definition: InstrumentDefinition,
+  note: number,
+): InstrumentDefinition | null {
+  if (definition.voices === undefined) {
+    return definition;
+  }
+  const voice = definition.voices[note];
+  if (voice === undefined) {
+    return null;
+  }
+  return {
+    id: definition.id,
+    name: definition.name,
+    oscillator: voice.oscillator,
+    envelope: voice.envelope,
+    ...(voice.filter !== undefined ? { filter: voice.filter } : {}),
+    ...(definition.category !== undefined ? { category: definition.category } : {}),
   };
 }

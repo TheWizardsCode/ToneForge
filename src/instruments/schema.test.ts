@@ -10,6 +10,7 @@
 import { describe, it, expect } from "vitest";
 import {
   validateInstrumentDefinition,
+  definitionForNote,
   DEFAULT_NOISE_SEED,
   NOISE_SEED_MAX,
   type InstrumentDefinition,
@@ -217,6 +218,266 @@ describe("validateInstrumentDefinition", () => {
         waveform: "sine",
       }),
     ).toThrow(/unknown|waveform/);
+  });
+
+  // ── Per-note voices ─────────────────────────────────────────────
+
+  it("accepts a definition without a voices map (single-voice path)", () => {
+    const result = validateInstrumentDefinition(VALID_DEFINITION);
+    expect(result.voices).toBeUndefined();
+  });
+
+  it("accepts a per-note voices map with wave and noise entries", () => {
+    const result = validateInstrumentDefinition({
+      ...VALID_DEFINITION,
+      voices: {
+        36: {
+          oscillator: { type: "sine" },
+          envelope: { attack: 0.001, decay: 0.05, sustain: 0.5, release: 0.1 },
+        },
+        38: {
+          oscillator: { type: "noise", color: "white", seed: 7 },
+          envelope: { attack: 0.001, decay: 0.08, sustain: 0.2, release: 0.05 },
+          filter: { type: "highpass", frequency: 1200, Q: 0.7 },
+        },
+      },
+    });
+
+    expect(result.voices).toBeDefined();
+    expect(Object.keys(result.voices!)).toEqual(["36", "38"]);
+    expect(result.voices![36]!.oscillator).toMatchObject({ type: "sine", detune: 0 });
+    expect(result.voices![38]!.oscillator).toMatchObject({
+      type: "noise",
+      color: "white",
+      seed: 7,
+    });
+    expect(result.voices![38]!.filter).toEqual({
+      type: "highpass",
+      frequency: 1200,
+      Q: 0.7,
+    });
+  });
+
+  it("defaults an omitted noise seed inside a voice entry", () => {
+    const result = validateInstrumentDefinition({
+      ...VALID_DEFINITION,
+      voices: {
+        42: {
+          oscillator: { type: "noise", color: "pink" },
+          envelope: { attack: 0, decay: 0.02, sustain: 0.1, release: 0.02 },
+        },
+      },
+    });
+    expect(result.voices![42]!.oscillator).toMatchObject({
+      type: "noise",
+      color: "pink",
+      seed: DEFAULT_NOISE_SEED,
+    });
+  });
+
+  it("accepts the MIDI range bounds as voice keys", () => {
+    const voice = {
+      oscillator: { type: "sine" },
+      envelope: { attack: 0, decay: 0.1, sustain: 0.5, release: 0.1 },
+    };
+    const result = validateInstrumentDefinition({
+      ...VALID_DEFINITION,
+      voices: { 0: voice, 127: voice },
+    });
+    expect(Object.keys(result.voices!)).toEqual(["0", "127"]);
+  });
+
+  it("rejects non-integer voice keys, naming the offending key", () => {
+    for (const key of ["kick", "36.5", "036", "+36", " 36", ""]) {
+      let caught: unknown;
+      try {
+        validateInstrumentDefinition({
+          ...VALID_DEFINITION,
+          voices: {
+            [key]: {
+              oscillator: { type: "sine" },
+              envelope: { attack: 0, decay: 0.1, sustain: 0.5, release: 0.1 },
+            },
+          },
+        });
+      } catch (error) {
+        caught = error;
+      }
+      expect(caught).toBeInstanceOf(Error);
+      const message = (caught as Error).message;
+      expect(message).toMatch(/invalid MIDI note key/);
+      expect(message).toContain(`"${key}"`);
+    }
+  });
+
+  it("rejects out-of-range voice keys, naming the key and range", () => {
+    for (const key of ["-1", "128"]) {
+      expect(() =>
+        validateInstrumentDefinition({
+          ...VALID_DEFINITION,
+          voices: {
+            [key]: {
+              oscillator: { type: "sine" },
+              envelope: { attack: 0, decay: 0.1, sustain: 0.5, release: 0.1 },
+            },
+          },
+        }),
+      ).toThrow(new RegExp(`key "${key}" must be within 0–127`));
+    }
+  });
+
+  it("rejects a voices map that is not an object", () => {
+    for (const voices of [[], "kit", 42, null]) {
+      expect(() =>
+        // @ts-expect-error deliberately invalid voices value
+        validateInstrumentDefinition({ ...VALID_DEFINITION, voices }),
+      ).toThrow(/voices must be an object/);
+    }
+  });
+
+  it("requires oscillator and envelope in a voice entry, naming the note", () => {
+    expect(() =>
+      validateInstrumentDefinition({
+        ...VALID_DEFINITION,
+        voices: {
+          38: {
+            // @ts-expect-error deliberately missing oscillator
+            envelope: { attack: 0, decay: 0.1, sustain: 0.5, release: 0.1 },
+          },
+        },
+      }),
+    ).toThrow(/voices\[38\]\.oscillator is required/);
+
+    expect(() =>
+      validateInstrumentDefinition({
+        ...VALID_DEFINITION,
+        voices: {
+          38: {
+            oscillator: { type: "sine" },
+            // @ts-expect-error deliberately missing envelope
+          },
+        },
+      }),
+    ).toThrow(/voices\[38\]\.envelope is required/);
+  });
+
+  it("rejects an invalid oscillator inside a voice, naming the note and field", () => {
+    expect(() =>
+      validateInstrumentDefinition({
+        ...VALID_DEFINITION,
+        voices: {
+          38: {
+            oscillator: { type: "fancy" },
+            envelope: { attack: 0, decay: 0.1, sustain: 0.5, release: 0.1 },
+          },
+        },
+      }),
+    ).toThrow(/voices\[38\]\.oscillator\.type must be one of/);
+  });
+
+  it("rejects an invalid envelope inside a voice, naming the note and field", () => {
+    expect(() =>
+      validateInstrumentDefinition({
+        ...VALID_DEFINITION,
+        voices: {
+          38: {
+            oscillator: { type: "sine" },
+            envelope: { attack: -1, decay: 0.1, sustain: 0.5, release: 0.1 },
+          },
+        },
+      }),
+    ).toThrow(/voices\[38\]\.envelope\.attack/);
+  });
+
+  it("rejects an invalid filter inside a voice, naming the note and field", () => {
+    expect(() =>
+      validateInstrumentDefinition({
+        ...VALID_DEFINITION,
+        voices: {
+          42: {
+            oscillator: { type: "noise", color: "white" },
+            envelope: { attack: 0, decay: 0.1, sustain: 0.5, release: 0.1 },
+            filter: { type: "highpass", frequency: 0 },
+          },
+        },
+      }),
+    ).toThrow(/voices\[42\]\.filter\.frequency must be greater than 0/);
+  });
+
+  it("rejects unknown fields inside a voice entry, naming the note", () => {
+    expect(() =>
+      validateInstrumentDefinition({
+        ...VALID_DEFINITION,
+        voices: {
+          36: {
+            oscillator: { type: "sine" },
+            envelope: { attack: 0, decay: 0.1, sustain: 0.5, release: 0.1 },
+            // @ts-expect-error deliberately unknown voice field
+            id: "kick",
+          },
+        },
+      }),
+    ).toThrow(/voices\[36\] contains an unknown field "id"/);
+  });
+});
+
+// ── Per-note resolution ───────────────────────────────────────────
+
+describe("definitionForNote", () => {
+  /** A definition with two per-note voices. */
+  const KIT: InstrumentDefinition = {
+    id: "test.kit",
+    name: "Test Kit",
+    category: "percussion",
+    oscillator: { type: "sine" },
+    envelope: { attack: 0.01, decay: 0.2, sustain: 0.4, release: 0.3 },
+    voices: {
+      36: {
+        oscillator: { type: "sine" },
+        envelope: { attack: 0.001, decay: 0.02, sustain: 0.9, release: 0.03 },
+      },
+      38: {
+        oscillator: { type: "noise", color: "white", seed: 7 },
+        envelope: { attack: 0.001, decay: 0.08, sustain: 0.2, release: 0.05 },
+        filter: { type: "highpass", frequency: 1200 },
+      },
+    },
+  };
+
+  it("returns the definition unchanged when it has no voices map", () => {
+    const single: InstrumentDefinition = {
+      id: "test.pluck",
+      name: "Test Pluck",
+      oscillator: { type: "triangle" },
+      envelope: { attack: 0.005, decay: 0.2, sustain: 0.3, release: 0.5 },
+    };
+    expect(definitionForNote(single, 60)).toBe(single);
+  });
+
+  it("returns the mapped entry's sections and inherits identity fields", () => {
+    const resolved = definitionForNote(KIT, 38);
+    expect(resolved).not.toBeNull();
+    expect(resolved).not.toBe(KIT);
+    expect(resolved!.id).toBe("test.kit");
+    expect(resolved!.name).toBe("Test Kit");
+    expect(resolved!.category).toBe("percussion");
+    expect(resolved!.oscillator).toEqual(KIT.voices![38]!.oscillator);
+    expect(resolved!.envelope).toEqual(KIT.voices![38]!.envelope);
+    expect(resolved!.filter).toEqual({ type: "highpass", frequency: 1200 });
+    expect(resolved!.voices).toBeUndefined();
+  });
+
+  it("returns null for a note with no entry when a voices map is present", () => {
+    expect(definitionForNote(KIT, 60)).toBeNull();
+  });
+
+  it("is deterministic and side-effect free", () => {
+    const first = definitionForNote(KIT, 36);
+    const second = definitionForNote(KIT, 36);
+    expect(first).toEqual(second);
+    // Resolving a voice never mutates the source definition.
+    expect(KIT.oscillator.type).toBe("sine");
+    expect(KIT.envelope.release).toBe(0.3);
   });
 });
 
