@@ -20,6 +20,7 @@ import type { AudioContext } from "../audio/web-audio.js";
 import { compareBuffers, formatCompareResult } from "../test-utils/buffer-compare.js";
 import {
   computeBandEnergy,
+  computeDecayTime,
   computeRms,
   describeSpectralDifference,
   estimateDominantFrequency,
@@ -325,10 +326,16 @@ describe("renderInstrument offline (noise oscillator)", () => {
 /** A scheduling parameter that tracks the most recently scheduled value. */
 class FakeParam {
   value = 0;
+  /** Values scheduled through exponential ramps (pitch sweeps), in order. */
+  readonly exponentialRamps: number[] = [];
   setValueAtTime(value: number): void {
     this.value = value;
   }
   linearRampToValueAtTime(value: number): void {
+    this.value = value;
+  }
+  exponentialRampToValueAtTime(value: number): void {
+    this.exponentialRamps.push(value);
     this.value = value;
   }
   cancelScheduledValues(): void {}
@@ -686,5 +693,162 @@ describe("createRealtimeInstrument (per-note voices)", () => {
     expect(stolen.stoppedAt[0]).toBeGreaterThan(0.25);
     expect(fake.bufferSources[0]!.startedAt).toEqual([0.25]);
     expect(fake.bufferSources[0]!.stoppedAt).toHaveLength(0);
+  });
+});
+
+// ── Pitch sweeps, layers and one-shot voices ─────────────────────
+
+/**
+ * A layered percussive definition: a pitch-dropping sine body plus a delayed,
+ * short high-passed noise transient. Used to prove the engine's optional
+ * voice facilities independently of the drum kit content.
+ */
+const LAYERED_KICK: InstrumentDefinition = {
+  id: "test.layered-kick",
+  name: "Test Layered Kick",
+  oscillator: { type: "sine" },
+  envelope: { attack: 0.001, decay: 0.2, sustain: 0, release: 0.03 },
+  filter: { type: "lowpass", frequency: 200 },
+  oneShot: true,
+  pitch: { fromCents: 2400, time: 0.04 },
+  layers: [
+    {
+      oscillator: { type: "noise", color: "white", seed: 77 },
+      envelope: { attack: 0.001, decay: 0.008, sustain: 0, release: 0.004 },
+      filter: { type: "highpass", frequency: 3000 },
+      gain: 0.4,
+      delay: 0.005,
+      oneShot: true,
+    },
+  ],
+};
+
+describe("renderInstrument (pitch sweeps, layers, one-shots)", () => {
+  it("renders a pitch-swept voice differently from the same voice without a sweep", async () => {
+    const swept = await renderHeldNote(LAYERED_KICK, 36, 110, 0.05, 0.2);
+    const flat = await renderHeldNote(
+      { ...LAYERED_KICK, pitch: undefined },
+      36,
+      110,
+      0.05,
+      0.2,
+    );
+
+    expect(isSilent(swept)).toBe(false);
+    expect(isSilent(flat)).toBe(false);
+    expect(compareBuffers(swept, flat).identical).toBe(false);
+  });
+
+  it("mixes extra layers over the main voice", async () => {
+    const layered = await renderHeldNote(LAYERED_KICK, 36, 110, 0.05, 0.2);
+    const plain = await renderHeldNote(
+      { ...LAYERED_KICK, layers: undefined },
+      36,
+      110,
+      0.05,
+      0.2,
+    );
+
+    expect(compareBuffers(layered, plain).identical).toBe(false);
+    // The click layer adds high-band energy to the low-passed body.
+    const layeredHigh = computeBandEnergy(layered, 3000, 8000);
+    const plainHigh = computeBandEnergy(plain, 3000, 8000);
+    expect(layeredHigh).toBeGreaterThan(plainHigh);
+  });
+
+  it("plays a one-shot hit in full even when note-off arrives immediately", async () => {
+    const early = await renderInstrument(
+      LAYERED_KICK,
+      [
+        { type: "midiNoteOn", note: 36, velocity: 110, time: 0 },
+        { type: "midiNoteOff", note: 36, velocity: 110, time: 0.005 },
+      ],
+      { sampleRate: ENGINE_SAMPLE_RATE, tail: 0.05 },
+    );
+    const late = await renderInstrument(
+      LAYERED_KICK,
+      [
+        { type: "midiNoteOn", note: 36, velocity: 110, time: 0 },
+        { type: "midiNoteOff", note: 36, velocity: 110, time: 0.5 },
+      ],
+      { sampleRate: ENGINE_SAMPLE_RATE, tail: 0.05 },
+    );
+
+    // Compare the audible span; the late render's extra tail is silence.
+    const sameSpan = late.samples.slice(0, early.samples.length);
+    expect(compareBuffers(early.samples, sameSpan).identical).toBe(true);
+    expect(computeDecayTime(early.samples)).toBeGreaterThan(0.1);
+  });
+
+  it("starts one attenuated source per layer, delayed by the layer's delay", () => {
+    const fake = new FakeAudioContext();
+    const instrument = createRealtimeInstrument(LAYERED_KICK, {
+      context: asAudioContext(fake),
+      maxVoices: 4,
+    });
+
+    instrument.noteOn(36, 100, 0);
+
+    // Body sine at t=0, click noise at t=0.005.
+    expect(fake.oscillators).toHaveLength(1);
+    expect(fake.bufferSources).toHaveLength(1);
+    expect(fake.oscillators[0]!.startedAt).toEqual([0]);
+    expect(fake.bufferSources[0]!.startedAt).toEqual([0.005]);
+
+    // The pitch sweep falls from above the played frequency to it.
+    const sweep = fake.oscillators[0]!.frequency.exponentialRamps;
+    expect(sweep).toHaveLength(1);
+    expect(sweep[0]).toBeCloseTo(65.4, 0); // note 36
+  });
+
+  it("stops one-shot sources on their own schedule and ignores note-off", () => {
+    const fake = new FakeAudioContext();
+    const instrument = createRealtimeInstrument(LAYERED_KICK, {
+      context: asAudioContext(fake),
+      maxVoices: 4,
+    });
+
+    instrument.noteOn(36, 100, 0);
+    expect(fake.oscillators[0]!.stoppedAt).toHaveLength(1);
+    const selfStop = fake.oscillators[0]!.stoppedAt[0]!;
+    // attack (0.001) + decay (0.2) + a 1 ms safety margin.
+    expect(selfStop).toBeCloseTo(0.202, 3);
+
+    instrument.noteOff(36, 0.01);
+    // One-shot voices are already scheduled to finish: note-off adds no stop.
+    expect(fake.oscillators[0]!.stoppedAt).toHaveLength(1);
+    expect(fake.bufferSources[0]!.stoppedAt).toHaveLength(1);
+  });
+
+  it("releases a non-one-shot layer on note-off", () => {
+    const sustained: InstrumentDefinition = {
+      id: "test.sustained-layer",
+      name: "Test Sustained Layer",
+      oscillator: { type: "sine" },
+      envelope: { attack: 0.001, decay: 0.05, sustain: 0.5, release: 0.1 },
+      layers: [
+        {
+          oscillator: { type: "triangle" },
+          envelope: { attack: 0.001, decay: 0.05, sustain: 0.4, release: 0.2 },
+        },
+      ],
+    };
+    const fake = new FakeAudioContext();
+    const instrument = createRealtimeInstrument(sustained, {
+      context: asAudioContext(fake),
+      maxVoices: 4,
+    });
+
+    instrument.noteOn(60, 100, 0);
+    expect(fake.oscillators).toHaveLength(2);
+    expect(fake.oscillators[1]!.startedAt).toEqual([0]);
+
+    instrument.noteOff(60, 0.3);
+    expect(fake.oscillators[0]!.stoppedAt).toHaveLength(1);
+    expect(fake.oscillators[1]!.stoppedAt).toHaveLength(1);
+    // The layer's own (longer) release drives its stop time.
+    expect(fake.oscillators[1]!.stoppedAt[0]).toBeGreaterThan(
+      fake.oscillators[0]!.stoppedAt[0]!,
+    );
   });
 });

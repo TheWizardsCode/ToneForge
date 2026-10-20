@@ -80,3 +80,11 @@ export {
   type InstrumentSummary,
   type LoadInstrumentPresetsOptions,
 } from "./presets.js";
+
+export {
+  DRUM_KIT_DEFINITION,
+  DRUM_KIT_NOTES,
+  DRUM_KIT_NOTE_MAP,
+  DRUM_KIT_PRESET_ID,
+  DRUM_KIT_VOICES,
+} from "./drum-kit.js";

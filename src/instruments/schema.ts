@@ -19,6 +19,23 @@
  * entry are ignored by the engine. A definition without `voices` keeps the
  * original single-voice behaviour byte-for-byte.
  *
+ * Three optional voice-level facilities let percussive voices sound like a real
+ * kit instead of a single fixed tone:
+ *
+ * - **`pitch`** sweeps a waveform oscillator's frequency from an initial
+ *   offset down to the played note — the fast pitch drop of a kick drum.
+ * - **`layers`** mix one or more additional oscillator/envelope/filter
+ *   components over the main voice — a click transient on a kick, the noise
+ *   body of a snare, or the staggered short bursts of a hand clap. Each layer
+ *   is a full voice in miniature (with an optional mix `gain` and `delay`).
+ * - **`oneShot`** marks a percussive voice that always plays its full
+ *   attack→decay and ignores note-off, so a short MIDI note never truncates
+ *   a drum hit. One-shot voices must decay to silence (`sustain: 0`).
+ *
+ * All three are strictly optional; a definition that uses none of them keeps
+ * the original single-voice behaviour byte-for-byte, and every committed
+ * golden hash therefore stays unchanged.
+ *
  * No Web Audio usage here — this module establishes the data contract that
  * the envelope engine and instrument engine build on.
  */
@@ -90,8 +107,52 @@ export interface InstrumentFilter {
 }
 
 /**
+ * An optional pitch sweep applied to a waveform oscillator at note-on.
+ *
+ * The oscillator starts `fromCents` above the played note and falls
+ * exponentially to the note over `time` seconds — the classic kick-drum
+ * pitch drop. Noise oscillators have no pitch and reject a sweep.
+ */
+export interface InstrumentPitchSweep {
+  /** Initial offset in cents above the played note (e.g. 1200 = one octave). */
+  fromCents: number;
+  /** Sweep duration in seconds (> 0). */
+  time: number;
+}
+
+/**
+ * An additional synthesis component mixed over a voice's main oscillator.
+ *
+ * A layer is a full voice in miniature: its own oscillator, ADSR envelope and
+ * optional filter, plus a per-layer mix `gain` and a `delay` after note-on.
+ * Layers let a single note combine multiple sound sources deterministically
+ * (a kick's click transient, a snare's noise body, a clap's staggered
+ * bursts).
+ */
+export interface InstrumentVoiceLayer {
+  /** Oscillator section for this layer. */
+  oscillator: InstrumentOscillator;
+  /** ADSR envelope section for this layer. */
+  envelope: InstrumentEnvelope;
+  /** Optional filter section for this layer. */
+  filter?: InstrumentFilter;
+  /** Mix gain for this layer relative to the main voice (default 1). */
+  gain?: number;
+  /** Seconds after note-on before this layer starts (default 0). */
+  delay?: number;
+  /**
+   * Play this layer as a one-shot: always run its full attack→decay and
+   * ignore note-off. Requires `envelope.sustain: 0` (default false).
+   */
+  oneShot?: boolean;
+  /** Optional pitch sweep for a waveform oscillator layer. */
+  pitch?: InstrumentPitchSweep;
+}
+
+/**
  * A single per-note voice: the oscillator, envelope and optional filter that
- * replace the definition's top-level sections for one MIDI note.
+ * replace the definition's top-level sections for one MIDI note, plus the
+ * optional `pitch` sweep and `layers` described above.
  */
 export interface InstrumentVoice {
   /** Oscillator section for this note. */
@@ -100,6 +161,20 @@ export interface InstrumentVoice {
   envelope: InstrumentEnvelope;
   /** Optional filter section for this note. */
   filter?: InstrumentFilter;
+  /** Mix gain for the main oscillator relative to the layers (default 1). */
+  gain?: number;
+  /**
+   * Play the main oscillator as a one-shot: always run its full attack→decay
+   * and ignore note-off. Requires `envelope.sustain: 0` (default false).
+   */
+  oneShot?: boolean;
+  /**
+   * Optional pitch sweep for a waveform oscillator: the voice starts above
+   * the note and falls to it exponentially (kick-drum pitch drop).
+   */
+  pitch?: InstrumentPitchSweep;
+  /** Optional extra synthesis components mixed over the main oscillator. */
+  layers?: InstrumentVoiceLayer[];
 }
 
 /**
@@ -127,6 +202,22 @@ export interface InstrumentDefinition {
   filter?: InstrumentFilter;
   /** Optional family/category label (e.g. "pluck", "pad", "bass"). */
   category?: string;
+  /** Mix gain for the main oscillator relative to its layers (default 1). */
+  gain?: number;
+  /**
+   * Play the main oscillator as a one-shot (see {@link InstrumentVoice.oneShot}).
+   */
+  oneShot?: boolean;
+  /**
+   * Optional pitch sweep for the single-voice path (see {@link InstrumentVoice.pitch}).
+   */
+  pitch?: InstrumentPitchSweep;
+  /**
+   * Optional extra synthesis components for the single-voice path (see
+   * {@link InstrumentVoice.layers}). Rejected when `voices` is present — a
+   * multi-timbral definition must carry pitch/layers per voice entry.
+   */
+  layers?: InstrumentVoiceLayer[];
   /**
    * Optional per-note voice overrides, keyed by MIDI note number.
    *
@@ -144,11 +235,37 @@ const KNOWN_TOP_LEVEL_KEYS = new Set<string>([
   "envelope",
   "filter",
   "category",
+  "gain",
+  "oneShot",
+  "pitch",
+  "layers",
   "voices",
 ]);
 
 /** Keys accepted by one `voices` entry. */
-const VOICE_KEYS = new Set<string>(["oscillator", "envelope", "filter"]);
+const VOICE_KEYS = new Set<string>([
+  "oscillator",
+  "envelope",
+  "filter",
+  "gain",
+  "oneShot",
+  "pitch",
+  "layers",
+]);
+
+/** Keys accepted by one `layers` entry. */
+const LAYER_KEYS = new Set<string>([
+  "oscillator",
+  "envelope",
+  "filter",
+  "gain",
+  "delay",
+  "oneShot",
+  "pitch",
+]);
+
+/** Keys accepted by a `pitch` sweep. */
+const PITCH_SWEEP_KEYS = new Set<string>(["fromCents", "time"]);
 
 const OSCILLATOR_WAVES: readonly OscillatorWave[] = ["sine", "square", "sawtooth", "triangle"];
 const OSCILLATOR_TYPES: readonly string[] = [...OSCILLATOR_WAVES, "noise"];
@@ -321,6 +438,136 @@ function validateFilter(value: unknown, path = "filter"): InstrumentFilter {
 }
 
 /**
+ * Validate an optional pitch sweep.
+ *
+ * A sweep on a noise oscillator is rejected: noise has no pitch to sweep, so
+ * silently ignoring it would hide an authoring mistake.
+ */
+function validatePitchSweep(
+  value: unknown,
+  path: string,
+  oscillator: InstrumentOscillator,
+): InstrumentPitchSweep {
+  assertRecord(value, path);
+  assertKnownKeys(value, path, PITCH_SWEEP_KEYS);
+
+  if (oscillator.type === "noise") {
+    throw new Error(
+      `${path} is not supported on a noise oscillator: noise has no pitch. `
+        + "Improve the noise colour or filter instead of sweeping pitch.",
+    );
+  }
+
+  if (value.fromCents === undefined) {
+    throw new Error(`${path}.fromCents is required.`);
+  }
+  assertFiniteNumber(value.fromCents, `${path}.fromCents`);
+  if (value.fromCents <= 0) {
+    throw new Error(`${path}.fromCents must be greater than 0 (the sweep falls to the note).`);
+  }
+
+  if (value.time === undefined) {
+    throw new Error(`${path}.time is required.`);
+  }
+  assertInRange(value.time, `${path}.time`, 0, Number.POSITIVE_INFINITY);
+  if (value.time === 0) {
+    throw new Error(`${path}.time must be greater than 0 (a sweep needs a duration).`);
+  }
+
+  return { fromCents: value.fromCents, time: value.time };
+}
+
+/**
+ * Validate an optional `oneShot` flag.
+ *
+ * A one-shot voice ignores note-off and always runs its full attack→decay, so
+ * it must decay to silence: a non-zero sustain would never end. Rejecting the
+ * combination keeps a drum hit from sustaining forever by accident.
+ */
+function validateOneShot(
+  value: unknown,
+  path: string,
+  envelope: InstrumentEnvelope,
+): boolean {
+  if (typeof value !== "boolean") {
+    throw new Error(`${path} must be a boolean.`);
+  }
+  if (value && envelope.sustain !== 0) {
+    throw new Error(
+      `${path} requires envelope.sustain to be 0: a one-shot voice ignores note-off, `
+        + "so a non-zero sustain would never decay to silence.",
+    );
+  }
+  return value;
+}
+
+/**
+ * Validate one additional synthesis layer, reusing the voice validators.
+ *
+ * The `path` names the layer's position (for example `voices[36].layers[0]`)
+ * so an error points the author straight at the offending entry.
+ */
+function validateLayer(value: unknown, path: string): InstrumentVoiceLayer {
+  assertRecord(value, path);
+  assertKnownKeys(value, path, LAYER_KEYS);
+
+  if (value.oscillator === undefined) {
+    throw new Error(`${path}.oscillator is required.`);
+  }
+  const oscillator = validateOscillator(value.oscillator, `${path}.oscillator`);
+
+  if (value.envelope === undefined) {
+    throw new Error(`${path}.envelope is required.`);
+  }
+  const envelope = validateEnvelope(value.envelope, `${path}.envelope`);
+
+  const filter =
+    value.filter === undefined ? undefined : validateFilter(value.filter, `${path}.filter`);
+
+  let gain: number | undefined;
+  if (value.gain !== undefined) {
+    assertInRange(value.gain, `${path}.gain`, 0, Number.POSITIVE_INFINITY);
+    gain = value.gain;
+  }
+
+  let delay: number | undefined;
+  if (value.delay !== undefined) {
+    assertInRange(value.delay, `${path}.delay`, 0, Number.POSITIVE_INFINITY);
+    delay = value.delay;
+  }
+
+  let oneShot: boolean | undefined;
+  if (value.oneShot !== undefined) {
+    oneShot = validateOneShot(value.oneShot, `${path}.oneShot`, envelope);
+  }
+
+  const pitch =
+    value.pitch === undefined
+      ? undefined
+      : validatePitchSweep(value.pitch, `${path}.pitch`, oscillator);
+
+  return {
+    oscillator,
+    envelope,
+    ...(filter !== undefined ? { filter } : {}),
+    ...(gain !== undefined ? { gain } : {}),
+    ...(delay !== undefined ? { delay } : {}),
+    ...(oneShot !== undefined ? { oneShot } : {}),
+    ...(pitch !== undefined ? { pitch } : {}),
+  };
+}
+
+/**
+ * Validate an optional `layers` array, naming each layer position in errors.
+ */
+function validateLayers(value: unknown, path = "layers"): InstrumentVoiceLayer[] {
+  if (!Array.isArray(value)) {
+    throw new Error(`${path} must be an array of voice layers.`);
+  }
+  return value.map((layer, index) => validateLayer(layer, `${path}[${index}]`));
+}
+
+/**
  * Validate one `voices` entry, reusing the top-level section validators.
  *
  * The `path` names the note (for example `voices[36]`) so an error points the
@@ -343,10 +590,35 @@ function validateVoice(value: unknown, path: string): InstrumentVoice {
   const filter =
     value.filter === undefined ? undefined : validateFilter(value.filter, `${path}.filter`);
 
+  let gain: number | undefined;
+  if (value.gain !== undefined) {
+    assertInRange(value.gain, `${path}.gain`, 0, Number.POSITIVE_INFINITY);
+    gain = value.gain;
+  }
+
+  let oneShot: boolean | undefined;
+  if (value.oneShot !== undefined) {
+    oneShot = validateOneShot(value.oneShot, `${path}.oneShot`, envelope);
+  }
+
+  const pitch =
+    value.pitch === undefined
+      ? undefined
+      : validatePitchSweep(value.pitch, `${path}.pitch`, oscillator);
+
+  const layers =
+    value.layers === undefined
+      ? undefined
+      : validateLayers(value.layers, `${path}.layers`);
+
   return {
     oscillator,
     envelope,
     ...(filter !== undefined ? { filter } : {}),
+    ...(gain !== undefined ? { gain } : {}),
+    ...(oneShot !== undefined ? { oneShot } : {}),
+    ...(pitch !== undefined ? { pitch } : {}),
+    ...(layers !== undefined ? { layers } : {}),
   };
 }
 
@@ -431,7 +703,39 @@ export function validateInstrumentDefinition(value: unknown): InstrumentDefiniti
     category = value.category;
   }
 
+  let gain: number | undefined;
+  if (value.gain !== undefined) {
+    assertInRange(value.gain, "gain", 0, Number.POSITIVE_INFINITY);
+    gain = value.gain;
+  }
+
+  let oneShot: boolean | undefined;
+  if (value.oneShot !== undefined) {
+    oneShot = validateOneShot(value.oneShot, "oneShot", envelope);
+  }
+
   const voices = value.voices === undefined ? undefined : validateVoices(value.voices);
+
+  const pitch =
+    value.pitch === undefined
+      ? undefined
+      : validatePitchSweep(value.pitch, "pitch", oscillator);
+
+  const layers =
+    value.layers === undefined ? undefined : validateLayers(value.layers, "layers");
+
+  // Pitch/gain/oneShot/layers are single-voice facilities: a multi-timbral
+  // definition must declare them per voice entry, so a top-level sweep is
+  // never silently ignored for every mapped note.
+  if (
+    voices !== undefined
+    && (pitch !== undefined || layers !== undefined || gain !== undefined || oneShot !== undefined)
+  ) {
+    throw new Error(
+      "pitch, gain, oneShot and layers must be declared inside each voices entry, not at the top "
+        + "level when a voices map is present.",
+    );
+  }
 
   return {
     id: value.id,
@@ -440,6 +744,10 @@ export function validateInstrumentDefinition(value: unknown): InstrumentDefiniti
     envelope,
     ...(filter !== undefined ? { filter } : {}),
     ...(category !== undefined ? { category } : {}),
+    ...(gain !== undefined ? { gain } : {}),
+    ...(oneShot !== undefined ? { oneShot } : {}),
+    ...(pitch !== undefined ? { pitch } : {}),
+    ...(layers !== undefined ? { layers } : {}),
     ...(voices !== undefined ? { voices } : {}),
   };
 }
@@ -479,6 +787,10 @@ export function definitionForNote(
     oscillator: voice.oscillator,
     envelope: voice.envelope,
     ...(voice.filter !== undefined ? { filter: voice.filter } : {}),
+    ...(voice.gain !== undefined ? { gain: voice.gain } : {}),
+    ...(voice.oneShot !== undefined ? { oneShot: voice.oneShot } : {}),
+    ...(voice.pitch !== undefined ? { pitch: voice.pitch } : {}),
+    ...(voice.layers !== undefined ? { layers: voice.layers } : {}),
     ...(definition.category !== undefined ? { category: definition.category } : {}),
   };
 }

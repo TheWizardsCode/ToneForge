@@ -604,3 +604,141 @@ describe("validateInstrumentDefinition noise oscillator", () => {
     ).toThrow(/oscillator.*unknown field "color"/);
   });
 });
+
+describe("validateInstrumentDefinition: pitch sweeps, layers and one-shots", () => {
+  /** A percussive base: a zero-sustain voice that decays to silence. */
+  const PERCUSSIVE: InstrumentDefinition = {
+    id: "test.percussive",
+    name: "Test Percussive",
+    oscillator: { type: "sine" },
+    envelope: { attack: 0.001, decay: 0.2, sustain: 0, release: 0.05 },
+  };
+
+  it("accepts a pitch sweep, extra layers, mix gains and one-shot flags", () => {
+    const definition: InstrumentDefinition = {
+      ...PERCUSSIVE,
+      gain: 0.8,
+      oneShot: true,
+      pitch: { fromCents: 2400, time: 0.05 },
+      layers: [
+        {
+          oscillator: { type: "noise", color: "white", seed: 7 },
+          envelope: { attack: 0.001, decay: 0.01, sustain: 0, release: 0.005 },
+          filter: { type: "highpass", frequency: 2500 },
+          gain: 0.5,
+          delay: 0.002,
+          oneShot: true,
+        },
+      ],
+    };
+
+    const result = validateInstrumentDefinition(definition);
+    expect(result.pitch).toEqual({ fromCents: 2400, time: 0.05 });
+    expect(result.gain).toBe(0.8);
+    expect(result.oneShot).toBe(true);
+    expect(result.layers).toHaveLength(1);
+    expect(result.layers![0]!.gain).toBe(0.5);
+    expect(result.layers![0]!.delay).toBe(0.002);
+    expect(result.layers![0]!.oneShot).toBe(true);
+  });
+
+  it("accepts a per-note voice with a pitch sweep and layers", () => {
+    const result = validateInstrumentDefinition({
+      ...PERCUSSIVE,
+      voices: {
+        36: {
+          oscillator: { type: "sine" },
+          envelope: { attack: 0.001, decay: 0.3, sustain: 0, release: 0.05 },
+          pitch: { fromCents: 2400, time: 0.045 },
+          layers: [
+            {
+              oscillator: { type: "noise", color: "white", seed: 11 },
+              envelope: { attack: 0.001, decay: 0.005, sustain: 0, release: 0.002 },
+            },
+          ],
+        },
+      },
+    });
+
+    const voice = definitionForNote(result, 36);
+    expect(voice?.pitch).toEqual({ fromCents: 2400, time: 0.045 });
+    expect(voice?.layers).toHaveLength(1);
+  });
+
+  it("rejects a pitch sweep on a noise oscillator, saying noise has no pitch", () => {
+    expect(() =>
+      validateInstrumentDefinition({
+        ...PERCUSSIVE,
+        oscillator: { type: "noise", color: "white", seed: 1 },
+        pitch: { fromCents: 1200, time: 0.05 },
+      }),
+    ).toThrow(/pitch is not supported on a noise oscillator.*noise has no pitch/);
+  });
+
+  it("rejects a pitch sweep without a positive duration or offset", () => {
+    expect(() =>
+      validateInstrumentDefinition({ ...PERCUSSIVE, pitch: { fromCents: 2400, time: 0 } }),
+    ).toThrow(/pitch\.time must be greater than 0/);
+    expect(() =>
+      validateInstrumentDefinition({ ...PERCUSSIVE, pitch: { fromCents: 0, time: 0.05 } }),
+    ).toThrow(/pitch\.fromCents must be greater than 0/);
+  });
+
+  it("rejects a one-shot voice that keeps a non-zero sustain", () => {
+    expect(() =>
+      validateInstrumentDefinition({ ...VALID_DEFINITION, oneShot: true }),
+    ).toThrow(/oneShot requires envelope\.sustain to be 0/);
+  });
+
+  it("rejects unknown layer fields, naming the layer position", () => {
+    expect(() =>
+      validateInstrumentDefinition({
+        ...PERCUSSIVE,
+        layers: [
+          {
+            oscillator: { type: "noise", color: "white", seed: 3 },
+            envelope: { attack: 0.001, decay: 0.01, sustain: 0, release: 0.002 },
+            // @ts-expect-error sweep is not a layer field
+            sweep: 1,
+          },
+        ],
+      }),
+    ).toThrow(/layers\[0\] contains an unknown field "sweep"/);
+  });
+
+  it("rejects a non-array layers value", () => {
+    expect(() =>
+      validateInstrumentDefinition({
+        ...PERCUSSIVE,
+        // @ts-expect-error layers must be an array
+        layers: { 0: {} },
+      }),
+    ).toThrow(/layers must be an array of voice layers/);
+  });
+
+  it("rejects top-level pitch or layers alongside a voices map", () => {
+    expect(() =>
+      validateInstrumentDefinition({
+        ...PERCUSSIVE,
+        pitch: { fromCents: 1200, time: 0.05 },
+        voices: {
+          36: { oscillator: { type: "sine" }, envelope: PERCUSSIVE.envelope },
+        },
+      }),
+    ).toThrow(/must be declared inside each voices entry/);
+    expect(() =>
+      validateInstrumentDefinition({
+        ...PERCUSSIVE,
+        layers: [
+          {
+            oscillator: { type: "noise", color: "white", seed: 5 },
+            envelope: PERCUSSIVE.envelope,
+          },
+        ],
+        voices: {
+          36: { oscillator: { type: "sine" }, envelope: PERCUSSIVE.envelope },
+        },
+      }),
+    ).toThrow(/must be declared inside each voices entry/);
+  });
+});

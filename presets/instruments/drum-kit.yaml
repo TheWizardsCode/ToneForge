@@ -1,0 +1,258 @@
+# Instrument preset — Drum Kit
+# Six-voice General MIDI drum kit: one instrument whose note-on dispatches to
+# a per-note voice (the schema's `voices` map). Kick is pitched (a fast
+# pitch-drop body plus a short click transient); snare is a pitched body plus
+# noise; closed/open hats and crash are filtered noise with increasing decay;
+# clap is a noise burst envelope with several short bursts.
+#
+# Every noise source is seeded (per voice), so a hit renders deterministically
+# at any sample rate with no clocks and no Math.random. Every voice is a
+# one-shot: a short MIDI note-off never truncates a hit — it always decays to
+# silence on its own.
+#
+# GM note map (the six core voices, per the epic's scope cap):
+#   36 — kick drum 1      (pitched body + click)
+#   38 — acoustic snare   (pitched body + noise)
+#   39 — hand clap        (staggered noise bursts + tail)
+#   42 — closed hi-hat    (bright filtered noise, short decay)
+#   46 — open hi-hat      (bright filtered noise, longer decay)
+#   49 — crash cymbal 1   (bright filtered noise, longest decay)
+#
+# Notes outside this map are ignored deterministically, so playing a melodic
+# MIDI file through the kit yields silence for non-kit notes — useful for
+# auditioning a drum track on its own. This preset is the multi-voice
+# successor to the legacy single-voice `percussion` preset, which stays
+# registered as a fallback.
+#
+# This file mirrors `src/instruments/drum-kit.ts`; `drum-kit.test.ts` asserts
+# the two stay in lockstep.
+
+id: drum-kit
+name: Drum Kit
+category: Drums
+# The top-level voice is never used: every kit note is voiced by its `voices`
+# entry and every other note is ignored.
+oscillator:
+  type: sine
+envelope:
+  attack: 0.001
+  decay: 0.1
+  sustain: 0.0
+  release: 0.05
+voices:
+  # 36 — Kick: sine body swept down two octaves in 45 ms through a low-pass
+  # filter (the thump) plus a short high-passed noise click.
+  "36":
+    oscillator:
+      type: sine
+    envelope:
+      attack: 0.001
+      decay: 0.3
+      sustain: 0.0
+      release: 0.06
+    filter:
+      type: lowpass
+      frequency: 180
+      Q: 0.7
+    oneShot: true
+    pitch:
+      fromCents: 2400
+      time: 0.045
+    layers:
+      - oscillator:
+          type: noise
+          color: white
+          seed: 101
+        envelope:
+          attack: 0.0005
+          decay: 0.006
+          sustain: 0.0
+          release: 0.004
+        filter:
+          type: highpass
+          frequency: 2500
+        gain: 0.35
+        oneShot: true
+
+  # 38 — Snare: triangle shell tone pitched +1900 cents (~220 Hz) with a fast
+  # decay, plus a high-passed white-noise rattle.
+  "38":
+    oscillator:
+      type: triangle
+      detune: 1900
+    envelope:
+      attack: 0.001
+      decay: 0.1
+      sustain: 0.0
+      release: 0.03
+    filter:
+      type: lowpass
+      frequency: 600
+      Q: 0.6
+    oneShot: true
+    layers:
+      - oscillator:
+          type: noise
+          color: white
+          seed: 202
+        envelope:
+          attack: 0.001
+          decay: 0.14
+          sustain: 0.0
+          release: 0.02
+        filter:
+          type: highpass
+          frequency: 1800
+        gain: 0.9
+        oneShot: true
+
+  # 39 — Hand clap: quiet band-passed noise tail (~1.1 kHz) plus four short
+  # band-passed bursts staggered 0/10/20/32 ms apart.
+  "39":
+    oscillator:
+      type: noise
+      color: white
+      seed: 606
+    envelope:
+      attack: 0.001
+      decay: 0.22
+      sustain: 0.0
+      release: 0.05
+    filter:
+      type: bandpass
+      frequency: 1100
+      Q: 0.9
+    gain: 0.3
+    oneShot: true
+    layers:
+      - oscillator:
+          type: noise
+          color: white
+          seed: 607
+        envelope:
+          attack: 0.0005
+          decay: 0.005
+          sustain: 0.0
+          release: 0.004
+        filter:
+          type: bandpass
+          frequency: 1200
+          Q: 1.2
+        gain: 0.7
+        oneShot: true
+        delay: 0.0
+      - oscillator:
+          type: noise
+          color: white
+          seed: 608
+        envelope:
+          attack: 0.0005
+          decay: 0.005
+          sustain: 0.0
+          release: 0.004
+        filter:
+          type: bandpass
+          frequency: 1300
+          Q: 1.2
+        gain: 0.7
+        oneShot: true
+        delay: 0.01
+      - oscillator:
+          type: noise
+          color: white
+          seed: 609
+        envelope:
+          attack: 0.0005
+          decay: 0.005
+          sustain: 0.0
+          release: 0.004
+        filter:
+          type: bandpass
+          frequency: 1400
+          Q: 1.2
+        gain: 0.7
+        oneShot: true
+        delay: 0.02
+      - oscillator:
+          type: noise
+          color: white
+          seed: 610
+        envelope:
+          attack: 0.0005
+          decay: 0.005
+          sustain: 0.0
+          release: 0.004
+        filter:
+          type: bandpass
+          frequency: 1200
+          Q: 1.2
+        gain: 0.7
+        oneShot: true
+        delay: 0.032
+
+  # 42 — Closed hi-hat: white noise high-passed at 7 kHz with a very fast decay.
+  "42":
+    oscillator:
+      type: noise
+      color: white
+      seed: 303
+    envelope:
+      attack: 0.0005
+      decay: 0.045
+      sustain: 0.0
+      release: 0.01
+    filter:
+      type: highpass
+      frequency: 7000
+      Q: 0.7
+    oneShot: true
+
+  # 46 — Open hi-hat: the same bright recipe with a much longer decay.
+  "46":
+    oscillator:
+      type: noise
+      color: white
+      seed: 404
+    envelope:
+      attack: 0.001
+      decay: 0.32
+      sustain: 0.0
+      release: 0.03
+    filter:
+      type: highpass
+      frequency: 6500
+      Q: 0.7
+    oneShot: true
+
+  # 49 — Crash cymbal: bright high-passed white noise plus a softer pink wash,
+  # decaying over more than a second — the longest voice in the kit.
+  "49":
+    oscillator:
+      type: noise
+      color: white
+      seed: 505
+    envelope:
+      attack: 0.002
+      decay: 1.1
+      sustain: 0.0
+      release: 0.1
+    filter:
+      type: highpass
+      frequency: 4500
+      Q: 0.7
+    oneShot: true
+    layers:
+      - oscillator:
+          type: noise
+          color: pink
+          seed: 506
+        envelope:
+          attack: 0.002
+          decay: 0.9
+          sustain: 0.0
+          release: 0.1
+        filter:
+          type: highpass
+          frequency: 8000
+        gain: 0.4
+        oneShot: true
