@@ -296,8 +296,17 @@ export function composeActionDocument(): SmfDocument {
     n(7, 2, MOTIF_E5, 96), n(7, 2.5, 84, 112), n(7, 3, 79, 96), n(7, 3.5, 84, 96, 230),
   ];
 
-  // Percussion — GM channel 9 (index 9 = GM channel 10) drum kit:
-  // kick 36, snare 38, closed hat 42, crash 49.
+  // Percussion — GM channel 9 (index 9 = GM channel 10), voiced by the six-voice
+  // ToneForge drum kit (`--preset drum-kit`). This is a re-voicing of the
+  // arrangement below, not a re-composition: notes, velocities and ticks are
+  // unchanged from the pre-kit version, only the instrument that voices them
+  // changed.
+  //
+  // GM note → drum-kit voice:
+  //   36 kick · 38 snare · 39 clap · 42 closed hi-hat · 46 open hi-hat ·
+  //   49 crash · (any other note is ignored deterministically by the kit).
+  // This cue uses kick 36, snare 38, closed hat 42 and crash 49; the kit's
+  // clap (39) and open hat (46) voices are available but not composed here.
   const percussionNotes: VoiceNote[] = [];
   const kick = (bar: number, beat: number, dur = 300): void =>
     percussionNotes.push(n(bar, beat, 36, 110, dur));
@@ -339,7 +348,8 @@ export function composeActionDocument(): SmfDocument {
   ];
 
   // Channels: 0 conductor, 1 pad, 2 melody (pluck), 3 bass, 4 bell,
-  // 9 percussion (GM channel 10 — drums by definition; program 0 = Standard Kit).
+  // 9 percussion (GM channel 10 — drums by definition, voiced by the six-voice
+  // ToneForge drum kit; program 0 = Standard Kit).
   // GM programs: 89 Warm Pad, 45 Pizzicato Strings, 38 Synth Bass 1,
   // 9 Glockenspiel, 0 Standard Kit (drums).
   return {
@@ -351,7 +361,7 @@ export function composeActionDocument(): SmfDocument {
       voiceTrack("melody (ToneForge: pluck, GM 45)", melodyNotes, 2, 45, 100),
       voiceTrack("bass (ToneForge: bass, GM 38)", bassNotes, 3, 38, 92),
       voiceTrack("bell (ToneForge: bell, GM 9)", bellNotes, 4, 9, 95),
-      voiceTrack("percussion (ToneForge: percussion, GM ch9)", percussionNotes, 9, 0, 90),
+      voiceTrack("percussion (ToneForge: drum-kit, GM ch9)", percussionNotes, 9, 0, 90),
     ],
   };
 }
