@@ -14,7 +14,7 @@ ToneForge lets developers generate placeholder sounds from recipes and seeds dur
 - **Explore** -- Sweep parameter spaces, discover outliers, rank and cluster variants
 - **Store** -- Structured library with metadata indexing, similarity search, and deterministic regeneration
 - **Deploy** -- Real-time playback engine with seed-based variation and baked fallback, targeting browser and Node.js
-- **Play** -- Demo live MIDI note playback and Standard MIDI File playback from the terminal (`toneforge instrument noteon` / `noteoff` / `play`): polyphonic held notes, chords, automatic Note Off via `--length`, and deterministic `.mid` → WAV offline render
+- **Play** -- Demo live MIDI note playback and Standard MIDI File playback from the terminal (`toneforge instrument noteon` / `noteoff` / `play`): polyphonic held notes, chords, automatic Note Off via `--length`, a seeded white/pink/brown noise oscillator and a six-voice GM drum kit (`--preset drum-kit`), plus deterministic `.mid` → WAV offline render
 - **Sync** -- Deterministic multi-client behavioural synchronisation: compact events resolved locally, with no audio streaming
 - **Integrate** -- Non-interactive CI pipeline (`generate → validate → compile → export`) and engine export via `toneforge sync`
 - **Exchange** -- Browse, install and publish versioned, license-declared procedural packages via the `marketplace` command group
@@ -240,7 +240,7 @@ the authoritative specification.
 - [ToneForge in CI](docs/guides/ci-integration.md) — the `toneforge pipeline` CI workflow
 - [ToneGraph v0.1 Specification](docs/tonegraph.md)
 - [Sound Module Index](docs/modules/index.md) — every ToneGraph sound-node kind grouped by primary function, with use cases and availability.
-- [Instruments](docs/modules/instruments.md) — playable, polyphonic Note On / Note Off instruments with ADSR envelopes, voice management and deterministic Node/browser rendering, plus the `toneforge instrument noteon` / `noteoff` CLI demo and `.mid` file playback (`instrument play`).
+- [Instruments](docs/modules/instruments.md) — playable, polyphonic Note On / Note Off instruments with ADSR envelopes, a seeded noise oscillator, a six-voice drum kit (`--preset drum-kit`), voice management and deterministic Node/browser rendering, plus the `toneforge instrument noteon` / `noteoff` CLI demo and `.mid` file playback (`instrument play`).
 - [MIDI file import](docs/modules/midi-import.md) — parse Standard MIDI files (`.mid`) into the instruments engine's note events, with deterministic tempo-map timing, played via `toneforge instrument play <file.mid>`.
 - [Authoring leitmotif game sequences as MIDI](docs/guides/midi-sequences-howto.md) — compose two 8-bar game loops (calm menu + driving action) from one shared leitmotif, with form, harmony, arrangement, voicing and MIDI implementation, delivered as regenerable `.mid` files under `assets/music/`.
 - [Casual Game Recipe Book](docs/recipe-book/index.md) — a guided tour of 101 procedural recipes, from single-oscillator blips to layered stings.

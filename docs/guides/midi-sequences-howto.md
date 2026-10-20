@@ -141,7 +141,7 @@ A full mix is a division of labour. Every track answers one question:
 | Melody | 2 | 2 | Motif engine | `pluck` | 45 Pizzicato Strings |
 | Bass | 3 | 3 | Driving eighth-note line | `bass` | 38 Synth Bass 1 |
 | Bell | 4 | 4 | Octave shimmer | `bell` | 9 Glockenspiel |
-| Percussion | 5 | 9 | Kit rhythm | `percussion` | 0 Standard Kit (GM channel 10) |
+| Percussion | 5 | 9 | Kit rhythm | `drum-kit` | 0 Standard Kit (GM channel 10) |
 
 The **#** column is the 0-based SMF track index and the **MIDI channel**
 column is the zero-based channel — exactly what `toneforge instrument play
@@ -270,27 +270,73 @@ no automation — so the timeline is trivially reproducible.
   tables in [§4](#4-arrange-give-each-voice-a-job)), so the file sounds
   appropriate in any DAW or General MIDI synth.
 - **Percussion** uses **channel 9 (zero-based)** — GM channel 10 — where MIDI
-  note numbers select the kit: 36 kick, 38 snare, 42 closed hat, 49 crash.
+  note numbers select the kit: 36 kick, 38 snare, 42 closed hi-hat, 46 open
+  hi-hat, 49 crash and 39 clap. ToneForge voices channel 9 through the
+  six-voice [`drum-kit`](../../presets/instruments/drum-kit.yaml) preset (see
+  [The drum kit](#the-drum-kit)).
   A program change of 0 selects the Standard Kit (GM ignores programs on the
   drum channel, but the message is harmless and some hosts expect it).
 - **CC7** sets per-channel volume for a balanced mix.
 - Note-offs are written explicitly as `0x80` Note Off events (not Note On
   with velocity 0), and running-status compression is disabled — both choices
   keep the byte stream unambiguous and reproducible.
-- ToneForge's engine is monophonic-per-preset when previewed from the CLI,
-  so the *same file* can be auditioned through any single preset; a
-  multi-voice render routes each channel to its own preset (channel 9 →
-  `percussion`).
+- ToneForge's engine renders a whole file through one preset when previewed
+  from the CLI, so the *same file* can be auditioned through any single
+  preset; the drum kit voices channel 9 correctly while ignoring melodic
+  notes, and a multi-voice render routes each channel to its own preset
+  (channel 9 → `drum-kit`).
 
-### The percussion preset
+### The drum kit
 
-The instrument schema is **oscillator + ADSR + optional filter** — there is no
-noise generator — so the new
-[`percussion`](../../presets/instruments/percussion.yaml) preset is a tuned,
-fast-decaying sine with a low-pass filter. One preset covers the whole kit
-register: low notes land like a kick, mid notes read as snare/tom, high notes
-as a hat. It is deliberately holistic rather than one preset per drum part; a
-noise-based kit is a natural follow-up.
+The instrument schema is **oscillator + ADSR + optional filter**, and the
+oscillator is either one of the four classic waveforms or a **seeded noise
+generator** (`{ type: "noise", color: "white" | "pink" | "brown", seed? }`).
+Noise makes believable drums, cymbals and foley possible without shipping
+samples.
+
+The [`drum-kit`](../../presets/instruments/drum-kit.yaml) preset is one
+instrument whose note-on dispatches to a **per-note voice** (the schema's
+`voices` map). It ships the six core General MIDI voices:
+
+| GM note | Voice | Synthesis approach |
+| --- | --- | --- |
+| 36 | Kick | Pitched sine body with a fast pitch drop plus a high-passed noise click |
+| 38 | Snare | Pitched triangle shell tone plus a high-passed white-noise rattle |
+| 39 | Clap | Four short band-passed noise bursts spaced a few milliseconds apart, with a longer noise tail |
+| 42 | Closed hi-hat | White noise high-passed around 7 kHz with a very fast decay |
+| 46 | Open hi-hat | The same bright recipe with a much longer decay |
+| 49 | Crash | Bright high-passed noise plus a pink-noise wash, decaying over more than a second |
+
+Every noise source is **seeded** (one fixed seed per voice), so a hit renders
+byte-identically on every machine and run — no clocks, no `Math.random`. Each
+voice is a **one-shot**: a short MIDI note-off never truncates a hit; it
+always decays to silence on its own.
+
+Notes outside the six-voice map are **ignored deterministically**. That is
+deliberate: rendering a melodic file through the kit yields silence for the
+melodic notes, so a GM drum track can be auditioned on its own. Select the kit
+from the CLI with `--preset drum-kit`:
+
+```bash
+# Render the action cue's drums (melodic notes are ignored).
+toneforge instrument play assets/music/leitmotif-action.mid --preset drum-kit --output drums.wav
+
+# Or audition the drum track alone first (see §10), then render it through the kit.
+toneforge instrument play assets/music/leitmotif-action.mid --track 5 --preset drum-kit --output drums.wav
+
+# A single kick hit.
+toneforge instrument noteon 36 --preset drum-kit --output kick.wav
+```
+
+The action cue's percussion track (channel 9) is voiced by this kit: kick 36,
+snare 38, closed hi-hat 42 and crash 49 (the arrangement uses four of the six
+voices). The notes, velocities and timings are unchanged from the pre-kit
+version — only the instrument that voices them changed.
+
+The legacy single-voice
+[`percussion`](../../presets/instruments/percussion.yaml) preset remains
+registered as a fallback: one tuned, fast-decaying sine with a low-pass
+filter, where low notes land like a kick and high notes read as a hat.
 
 ## 8. Write it with the MIDI writer
 
@@ -392,7 +438,7 @@ the file's original tempo and duration. See
 for the full CLI semantics.
 
 **Multi-voice rendering:** route each MIDI channel to the preset named in its
-track title (`pad`, `string-lead`/`pluck`, `bass`, `bell`, `percussion`) for
+track title (`pad`, `string-lead`/`pluck`, `bass`, `bell`, `drum-kit`) for
 the intended balance. The mapping is in the file itself.
 
 ## Reference

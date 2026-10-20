@@ -6,7 +6,10 @@
  * TF-0MV9PIBNV008C00R):
  *
  * - {@link validateInstrumentDefinition} — the ToneGraph-shaped instrument
- *   schema (oscillator + ADSR + optional filter).
+ *   schema (oscillator + ADSR + optional filter). The oscillator is a
+ *   waveform or a seeded white/pink/brown noise generator, and an optional
+ *   per-note `voices` map dispatches one instrument by MIDI note (the
+ *   six-voice drum kit).
  * - {@link midiNoteToFrequency} / {@link velocityToGain} and the structured
  *   `midiNoteOn` / `midiNoteOff` message builders plus the {@link Instrument}
  *   interface.
