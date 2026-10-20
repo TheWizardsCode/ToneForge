@@ -10,8 +10,11 @@
 import { describe, it, expect } from "vitest";
 import {
   validateInstrumentDefinition,
+  DEFAULT_NOISE_SEED,
+  NOISE_SEED_MAX,
   type InstrumentDefinition,
 } from "./schema.js";
+import { NOISE_COLORS } from "../audio/noise.js";
 
 /** A minimal valid definition every positive test starts from. */
 const VALID_DEFINITION: Omit<InstrumentDefinition, "filter"> & {
@@ -214,5 +217,129 @@ describe("validateInstrumentDefinition", () => {
         waveform: "sine",
       }),
     ).toThrow(/unknown|waveform/);
+  });
+});
+
+// ── Noise oscillator variant ──────────────────────────────────────
+
+/** A minimal valid noise definition every noise test starts from. */
+const NOISE_DEFINITION: InstrumentDefinition = {
+  id: "test.noise",
+  name: "Test Noise",
+  oscillator: { type: "noise", color: "white" },
+  envelope: { attack: 0.001, decay: 0.05, sustain: 0.5, release: 0.1 },
+};
+
+describe("validateInstrumentDefinition noise oscillator", () => {
+  it("accepts every supported noise colour", () => {
+    for (const color of NOISE_COLORS) {
+      const result = validateInstrumentDefinition({
+        ...NOISE_DEFINITION,
+        oscillator: { type: "noise", color },
+      });
+      expect(result.oscillator.type).toBe("noise");
+      expect(result.oscillator).toMatchObject({ type: "noise", color });
+    }
+  });
+
+  it("defaults the seed to the fixed default when it is omitted", () => {
+    const result = validateInstrumentDefinition(NOISE_DEFINITION);
+    expect(result.oscillator).toMatchObject({
+      type: "noise",
+      color: "white",
+      seed: DEFAULT_NOISE_SEED,
+    });
+  });
+
+  it("accepts an explicit integer seed, including the range bounds", () => {
+    for (const seed of [0, 7, NOISE_SEED_MAX]) {
+      const result = validateInstrumentDefinition({
+        ...NOISE_DEFINITION,
+        oscillator: { type: "noise", color: "brown", seed },
+      });
+      expect(result.oscillator).toMatchObject({ type: "noise", color: "brown", seed });
+    }
+  });
+
+  it("narrows the oscillator to the noise variant", () => {
+    const result = validateInstrumentDefinition({
+      ...NOISE_DEFINITION,
+      oscillator: { type: "noise", color: "pink", seed: 11 },
+    });
+    // The union discriminates on `type`, so this compiles only when narrowed.
+    if (result.oscillator.type !== "noise") {
+      throw new Error("expected the noise oscillator variant");
+    }
+    expect(result.oscillator.color).toBe("pink");
+    expect(result.oscillator.seed).toBe(11);
+  });
+
+  it("rejects an unknown noise colour, naming the field and accepted values", () => {
+    expect(() =>
+      validateInstrumentDefinition({
+        ...NOISE_DEFINITION,
+        oscillator: { type: "noise", color: "green" },
+      }),
+    ).toThrow(/oscillator\.color.*white, pink, brown/);
+  });
+
+  it("rejects a missing noise colour", () => {
+    expect(() =>
+      validateInstrumentDefinition({
+        ...NOISE_DEFINITION,
+        // @ts-expect-error deliberately missing colour
+        oscillator: { type: "noise" },
+      }),
+    ).toThrow(/oscillator\.color.*required/);
+  });
+
+  it("rejects a non-integer seed, naming the field and accepted range", () => {
+    for (const seed of [1.5, Number.NaN, Number.POSITIVE_INFINITY, "7"]) {
+      expect(() =>
+        validateInstrumentDefinition({
+          ...NOISE_DEFINITION,
+          // @ts-expect-error deliberately invalid seed
+          oscillator: { type: "noise", color: "white", seed },
+        }),
+      ).toThrow(/oscillator\.seed.*integer.*0–4294967295/);
+    }
+  });
+
+  it("rejects an out-of-range seed, naming the field and accepted range", () => {
+    for (const seed of [-1, NOISE_SEED_MAX + 1]) {
+      expect(() =>
+        validateInstrumentDefinition({
+          ...NOISE_DEFINITION,
+          oscillator: { type: "noise", color: "white", seed },
+        }),
+      ).toThrow(/oscillator\.seed.*0–4294967295/);
+    }
+  });
+
+  it("rejects unknown oscillator fields on the noise variant", () => {
+    expect(() =>
+      validateInstrumentDefinition({
+        ...NOISE_DEFINITION,
+        oscillator: {
+          type: "noise",
+          color: "white",
+          // @ts-expect-error detune is not a noise field
+          detune: 5,
+        },
+      }),
+    ).toThrow(/oscillator.*unknown field "detune"/);
+  });
+
+  it("rejects unknown oscillator fields on the waveform variant", () => {
+    expect(() =>
+      validateInstrumentDefinition({
+        ...VALID_DEFINITION,
+        oscillator: {
+          type: "sine",
+          // @ts-expect-error colour is not a waveform field
+          color: "white",
+        },
+      }),
+    ).toThrow(/oscillator.*unknown field "color"/);
   });
 });

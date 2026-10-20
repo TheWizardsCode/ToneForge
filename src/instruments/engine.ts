@@ -14,11 +14,13 @@
  */
 
 import type { InstrumentDefinition } from "./schema.js";
-import { validateInstrumentDefinition } from "./schema.js";
+import { validateInstrumentDefinition, DEFAULT_NOISE_SEED } from "./schema.js";
 import type { Instrument } from "./instrument.js";
 import { midiNoteToFrequency, velocityToGain, MIDI_NOTE_MAX, MIDI_NOTE_MIN } from "./instrument.js";
 import { AdsrEnvelope } from "./envelope.js";
 import { VoiceManager } from "./voice-manager.js";
+import { generateNoiseBuffer } from "../audio/noise.js";
+import { createRng } from "../core/rng.js";
 import {
   AudioContext,
   OfflineAudioContext,
@@ -30,6 +32,12 @@ export const ENGINE_SAMPLE_RATE = 44100;
 
 /** Extra silence appended after the final event, in seconds. */
 export const ENGINE_DEFAULT_TAIL = 0.2;
+
+/**
+ * Length of the looping noise buffer used by real-time noise voices, in
+ * seconds. Notes longer than this wrap around deterministically.
+ */
+export const NOISE_LOOP_SECONDS = 1;
 
 /** Shortest non-zero stage length used when a config declares a zero time. */
 const MIN_STAGE_SECONDS = 0.001;
@@ -90,15 +98,44 @@ function assertEvent(event: InstrumentEvent): void {
   }
 }
 
-/** Build the Web Audio node graph for one voice (unconnected). */
+/** A source node that can be started and stopped (oscillator or noise). */
+type VoiceSource = OscillatorNode | AudioBufferSourceNode;
+
+/** The Web Audio node graph for one voice (unconnected). */
+interface VoiceNodes {
+  /** Startable/stoppable source: an oscillator or a noise buffer source. */
+  readonly source: VoiceSource;
+  /**
+   * The oscillator node when the voice is waveform-based, or `null` for a
+   * noise voice (which has no frequency to set).
+   */
+  readonly oscillator: OscillatorNode | null;
+  readonly gain: GainNode;
+  readonly filter: BiquadFilterNode | null;
+}
+
+/** Options for {@link buildVoiceNodes}. */
+interface BuildVoiceOptions {
+  /** Length of the generated noise buffer, in seconds (default 1). */
+  noiseBufferSeconds?: number;
+  /** Whether the noise buffer loops (default true). */
+  loopNoise?: boolean;
+}
+
+/**
+ * Build the Web Audio node graph for one voice (unconnected).
+ *
+ * Waveform oscillators create an `OscillatorNode` exactly as before. Noise
+ * oscillators create an `AudioBufferSourceNode` filled by the shared seeded
+ * generator ({@link generateNoiseBuffer}), so both share the same envelope and
+ * filter wiring while the oscillator path stays byte-identical.
+ */
 function buildVoiceNodes(
   ctx: OfflineAudioContext | AudioContext,
   definition: InstrumentDefinition,
-): { oscillator: OscillatorNode; gain: GainNode; filter: BiquadFilterNode | null } {
-  const oscillator = ctx.createOscillator();
-  oscillator.type = definition.oscillator.type;
-  oscillator.detune.value = definition.oscillator.detune ?? 0;
-
+  options: BuildVoiceOptions = {},
+): VoiceNodes {
+  const oscillator = definition.oscillator;
   const gain = ctx.createGain();
 
   let filter: BiquadFilterNode | null = null;
@@ -111,19 +148,35 @@ function buildVoiceNodes(
     }
   }
 
-  return { oscillator, gain, filter };
+  if (oscillator.type === "noise") {
+    const source = ctx.createBufferSource();
+    source.buffer = generateNoiseBuffer(
+      ctx,
+      options.noiseBufferSeconds ?? NOISE_LOOP_SECONDS,
+      oscillator.color,
+      createRng(oscillator.seed ?? DEFAULT_NOISE_SEED),
+    );
+    source.loop = options.loopNoise ?? true;
+    return { source, oscillator: null, gain, filter };
+  }
+
+  const wave = ctx.createOscillator();
+  wave.type = oscillator.type;
+  wave.detune.value = oscillator.detune ?? 0;
+
+  return { source: wave, oscillator: wave, gain, filter };
 }
 
-/** Connect oscillator → (filter →) gain → destination. */
+/** Connect source → (filter →) gain → destination. */
 function connectVoice(
   ctx: OfflineAudioContext | AudioContext,
-  nodes: { oscillator: OscillatorNode; gain: GainNode; filter: BiquadFilterNode | null },
+  nodes: VoiceNodes,
 ): void {
   if (nodes.filter) {
-    nodes.oscillator.connect(nodes.filter);
+    nodes.source.connect(nodes.filter);
     nodes.filter.connect(nodes.gain);
   } else {
-    nodes.oscillator.connect(nodes.gain);
+    nodes.source.connect(nodes.gain);
   }
   nodes.gain.connect(ctx.destination);
 }
@@ -179,14 +232,18 @@ function scheduleOfflineVoice(
   );
   const curveDuration = curve.length / sampleRate;
 
-  const nodes = buildVoiceNodes(ctx, definition);
-  const frequency = midiNoteToFrequency(voice.note);
-  nodes.oscillator.frequency.value = frequency;
+  const nodes = buildVoiceNodes(ctx, definition, {
+    noiseBufferSeconds: curveDuration,
+    loopNoise: false,
+  });
+  if (nodes.oscillator) {
+    nodes.oscillator.frequency.value = midiNoteToFrequency(voice.note);
+  }
   nodes.gain.gain.setValueCurveAtTime(curve, relativeStart, curveDuration);
   connectVoice(ctx, nodes);
 
-  nodes.oscillator.start(relativeStart);
-  nodes.oscillator.stop(relativeStart + curveDuration + 0.001);
+  nodes.source.start(relativeStart);
+  nodes.source.stop(relativeStart + curveDuration + 0.001);
 }
 
 /**
@@ -296,10 +353,10 @@ export interface RealtimeInstrumentOptions {
   context?: AudioContext;
 }
 
-/** A live real-time voice: its gain node and oscillator. */
+/** A live real-time voice: its gain node and startable/stoppable source. */
 interface RealtimeVoice {
   readonly gain: GainNode;
-  readonly oscillator: OscillatorNode;
+  readonly source: VoiceSource;
 }
 
 /**
@@ -335,7 +392,7 @@ export function createRealtimeInstrument(
     voice.gain.gain.cancelScheduledValues(at);
     voice.gain.gain.setValueAtTime(current, at);
     voice.gain.gain.linearRampToValueAtTime(0, at + releaseTime);
-    voice.oscillator.stop(at + releaseTime + 0.001);
+    voice.source.stop(at + releaseTime + 0.001);
   };
 
   return {
@@ -358,11 +415,13 @@ export function createRealtimeInstrument(
       nodes.gain.gain.setValueAtTime(0, at);
       nodes.gain.gain.linearRampToValueAtTime(peak, attackEnd);
       nodes.gain.gain.linearRampToValueAtTime(peak * definition.envelope.sustain, decayEnd);
-      nodes.oscillator.frequency.value = midiNoteToFrequency(midiNote);
+      if (nodes.oscillator) {
+        nodes.oscillator.frequency.value = midiNoteToFrequency(midiNote);
+      }
       connectVoice(context, nodes);
-      nodes.oscillator.start(at);
+      nodes.source.start(at);
 
-      live.set(allocation.voice.id, { gain: nodes.gain, oscillator: nodes.oscillator });
+      live.set(allocation.voice.id, { gain: nodes.gain, source: nodes.source });
     },
     noteOff(midiNote: number, time?: number): void {
       const released = manager.noteOff(midiNote);

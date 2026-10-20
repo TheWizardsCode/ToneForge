@@ -18,10 +18,15 @@
 
 export {
   validateInstrumentDefinition,
+  DEFAULT_NOISE_SEED,
+  NOISE_SEED_MIN,
+  NOISE_SEED_MAX,
   type InstrumentDefinition,
   type InstrumentEnvelope,
   type InstrumentFilter,
   type InstrumentOscillator,
+  type InstrumentWaveOscillator,
+  type InstrumentNoiseOscillator,
   type OscillatorWave,
   type FilterType,
 } from "./schema.js";

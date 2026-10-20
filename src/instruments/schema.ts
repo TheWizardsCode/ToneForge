@@ -7,9 +7,17 @@
  * actionable message (naming the offending field and the expected values)
  * for every malformed input.
  *
+ * The oscillator is a discriminated union: the four classic waveforms
+ * (`sine`/`square`/`sawtooth`/`triangle`, with an optional `detune`) or a
+ * seeded noise generator (`type: "noise"` with a `color` and optional
+ * integer `seed`). Both feed the same envelope and filter wiring in the
+ * engine.
+ *
  * No Web Audio usage here — this module establishes the data contract that
  * the envelope engine and instrument engine build on.
  */
+
+import { NOISE_COLORS, isNoiseColor, type NoiseColor } from "../audio/noise.js";
 
 /** Supported oscillator waveforms. */
 export type OscillatorWave = "sine" | "square" | "sawtooth" | "triangle";
@@ -17,13 +25,40 @@ export type OscillatorWave = "sine" | "square" | "sawtooth" | "triangle";
 /** Supported filter types. */
 export type FilterType = "lowpass" | "highpass" | "bandpass";
 
-/** The oscillator section of an instrument definition. */
-export interface InstrumentOscillator {
+/**
+ * The fixed noise seed used when an instrument omits `oscillator.seed`.
+ *
+ * A fixed default keeps noise output reproducible without requiring every
+ * definition to declare a seed.
+ */
+export const DEFAULT_NOISE_SEED = 42;
+
+/** Smallest accepted noise seed (inclusive). */
+export const NOISE_SEED_MIN = 0;
+
+/** Largest accepted noise seed (inclusive): the 32-bit unsigned maximum. */
+export const NOISE_SEED_MAX = 0xffffffff;
+
+/** The waveform (pitched) oscillator section of an instrument definition. */
+export interface InstrumentWaveOscillator {
   /** Waveform shape. */
   type: OscillatorWave;
   /** Detune in cents (default 0). */
   detune?: number;
 }
+
+/** The noise oscillator section of an instrument definition. */
+export interface InstrumentNoiseOscillator {
+  /** Noise generator discriminant. */
+  type: "noise";
+  /** Noise colour: white (flat), pink (1/f) or brown (1/f²). */
+  color: NoiseColor;
+  /** Seeded RNG seed (integer, defaults to {@link DEFAULT_NOISE_SEED}). */
+  seed?: number;
+}
+
+/** The oscillator section of an instrument definition (discriminated union). */
+export type InstrumentOscillator = InstrumentWaveOscillator | InstrumentNoiseOscillator;
 
 /** The ADSR envelope of an instrument definition. */
 export interface InstrumentEnvelope {
@@ -76,6 +111,9 @@ const KNOWN_TOP_LEVEL_KEYS = new Set<string>([
 ]);
 
 const OSCILLATOR_WAVES: readonly OscillatorWave[] = ["sine", "square", "sawtooth", "triangle"];
+const OSCILLATOR_TYPES: readonly string[] = [...OSCILLATOR_WAVES, "noise"];
+const WAVE_OSCILLATOR_KEYS = new Set<string>(["type", "detune"]);
+const NOISE_OSCILLATOR_KEYS = new Set<string>(["type", "color", "seed"]);
 const FILTER_TYPES: readonly FilterType[] = ["lowpass", "highpass", "bandpass"];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -127,6 +165,34 @@ function assertPositive(value: unknown, path: string): asserts value is number {
   }
 }
 
+/** Assert an integer within `[min, max]` (inclusive), naming the range. */
+function assertIntegerInRange(
+  value: unknown,
+  path: string,
+  min: number,
+  max: number,
+): asserts value is number {
+  if (typeof value !== "number" || !Number.isInteger(value)) {
+    throw new Error(`${path} must be an integer within ${min}–${max} (received ${String(value)}).`);
+  }
+  if (value < min || value > max) {
+    throw new Error(`${path} must be within ${min}–${max} (received ${value}).`);
+  }
+}
+
+/** Reject any object key outside `allowed`, naming the first offender. */
+function assertKnownKeys(
+  value: Record<string, unknown>,
+  path: string,
+  allowed: ReadonlySet<string>,
+): void {
+  for (const key of Object.keys(value)) {
+    if (!allowed.has(key)) {
+      throw new Error(`${path} contains an unknown field "${key}".`);
+    }
+  }
+}
+
 function assertOneOf(
   value: unknown,
   path: string,
@@ -142,7 +208,26 @@ function validateOscillator(value: unknown): InstrumentOscillator {
   const path = "oscillator";
   assertRecord(value, path);
 
-  assertOneOf(value.type, `${path}.type`, OSCILLATOR_WAVES);
+  assertOneOf(value.type, `${path}.type`, OSCILLATOR_TYPES);
+
+  if (value.type === "noise") {
+    assertKnownKeys(value, path, NOISE_OSCILLATOR_KEYS);
+
+    if (value.color === undefined) {
+      throw new Error(`${path}.color is required when oscillator type is "noise".`);
+    }
+    assertOneOf(value.color, `${path}.color`, NOISE_COLORS);
+
+    let seed: number = DEFAULT_NOISE_SEED;
+    if (value.seed !== undefined) {
+      assertIntegerInRange(value.seed, `${path}.seed`, NOISE_SEED_MIN, NOISE_SEED_MAX);
+      seed = value.seed;
+    }
+
+    return { type: "noise", color: value.color as NoiseColor, seed };
+  }
+
+  assertKnownKeys(value, path, WAVE_OSCILLATOR_KEYS);
 
   let detune: number | undefined;
   if (value.detune !== undefined) {

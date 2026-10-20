@@ -16,7 +16,10 @@ import {
   type InstrumentEvent,
 } from "./engine.js";
 import { OfflineAudioContext, isNodeRuntime } from "../audio/web-audio.js";
+import type { AudioContext } from "../audio/web-audio.js";
+import { compareBuffers, formatCompareResult } from "../test-utils/buffer-compare.js";
 import {
+  computeBandEnergy,
   computeRms,
   estimateDominantFrequency,
   isSilent,
@@ -194,5 +197,276 @@ describe("createRealtimeInstrument (Node real-time path)", () => {
     instrument.noteOn(60, 100);
     instrument.noteOff(60);
     instrument.noteOff(60);
+  });
+});
+
+// ── Noise oscillator ──────────────────────────────────────────────
+
+/** A noise definition used across the noise tests. */
+const NOISE: InstrumentDefinition = {
+  id: "test.noise",
+  name: "Test Noise",
+  oscillator: { type: "noise", color: "white", seed: 42 },
+  envelope: { attack: 0.001, decay: 0.05, sustain: 0.6, release: 0.1 },
+};
+
+/** Render a single held noise note and return its samples. */
+async function renderNoiseNote(
+  definition: InstrumentDefinition,
+  holdSeconds = 0.3,
+  tail = 0.2,
+): Promise<Float32Array> {
+  const rendered = await renderInstrument(
+    definition,
+    [
+      { type: "midiNoteOn", note: 60, velocity: 100, time: 0 },
+      { type: "midiNoteOff", note: 60, velocity: 100, time: holdSeconds },
+    ],
+    { sampleRate: ENGINE_SAMPLE_RATE, tail },
+  );
+  return rendered.samples;
+}
+
+/** RMS of a time window, in seconds, within a rendered buffer. */
+function windowRms(samples: Float32Array, startSeconds: number, endSeconds: number): number {
+  return computeRms(
+    samples.slice(
+      Math.round(startSeconds * ENGINE_SAMPLE_RATE),
+      Math.round(endSeconds * ENGINE_SAMPLE_RATE),
+    ),
+  );
+}
+
+describe("renderInstrument offline (noise oscillator)", () => {
+  it("renders non-silent noise deterministically for the same seed", async () => {
+    const first = await renderNoiseNote(NOISE);
+    const second = await renderNoiseNote(NOISE);
+
+    expect(isSilent(first)).toBe(false);
+    expect(computeRms(first)).toBeGreaterThan(0.01);
+
+    const comparison = compareBuffers(first, second);
+    expect(
+      comparison.identical,
+      `noise determinism drifted between runs\n${formatCompareResult(comparison)}`,
+    ).toBe(true);
+  });
+
+  it("changes the samples when only the seed changes", async () => {
+    const base = await renderNoiseNote(NOISE);
+    const otherSeed = await renderNoiseNote({
+      ...NOISE,
+      oscillator: { type: "noise", color: "white", seed: 43 },
+    });
+    expect(compareBuffers(base, otherSeed).identical).toBe(false);
+  });
+
+  it("changes the samples when only the colour changes", async () => {
+    const white = await renderNoiseNote(NOISE);
+    for (const color of ["pink", "brown"] as const) {
+      const other = await renderNoiseNote({
+        ...NOISE,
+        oscillator: { type: "noise", color, seed: 42 },
+      });
+      expect(
+        compareBuffers(white, other).identical,
+        `white and ${color} noise must render different samples`,
+      ).toBe(false);
+    }
+  });
+
+  it("honours a fast-decay ADSR envelope and returns to silence on release", async () => {
+    const sustained = await renderNoiseNote(
+      {
+        ...NOISE,
+        envelope: { attack: 0.05, decay: 0.05, sustain: 0.4, release: 0.05 },
+      },
+      0.5,
+      0.2,
+    );
+
+    // Peak window straddles the end of the attack; the decay has barely
+    // started, so its RMS approximates the peak envelope level.
+    const peak = windowRms(sustained, 0.045, 0.055);
+    const sustainEarly = windowRms(sustained, 0.2, 0.3);
+    const sustainLate = windowRms(sustained, 0.35, 0.45);
+
+    // White noise RMS is statistically stable over 0.1 s windows, so the
+    // sustain-to-peak ratio recovers the declared sustain gain (~0.4).
+    expect(sustainEarly / peak).toBeGreaterThan(0.3);
+    expect(sustainEarly / peak).toBeLessThan(0.55);
+
+    // Once decayed, the envelope stays at the sustain level.
+    expect(sustainLate / sustainEarly).toBeGreaterThan(0.85);
+    expect(sustainLate / sustainEarly).toBeLessThan(1.15);
+
+    // Note-off at 0.5 s + 0.05 s release: silence from 0.6 s onwards.
+    expect(isSilent(sustained.slice(Math.round(0.6 * ENGINE_SAMPLE_RATE)))).toBe(true);
+  });
+
+  it("reduces high-band energy when a low-pass filter is applied", async () => {
+    const unfiltered = await renderNoiseNote(NOISE);
+    const filtered = await renderNoiseNote({
+      ...NOISE,
+      filter: { type: "lowpass", frequency: 500, Q: 0.7 },
+    });
+
+    const highUnfiltered = computeBandEnergy(unfiltered, 2000, 8000);
+    const highFiltered = computeBandEnergy(filtered, 2000, 8000);
+
+    expect(highUnfiltered).toBeGreaterThan(0);
+    expect(highFiltered).toBeLessThan(highUnfiltered * 0.25);
+  });
+});
+
+// ── Real-time noise voice (mock context) ──────────────────────────
+
+/** A scheduling parameter that tracks the most recently scheduled value. */
+class FakeParam {
+  value = 0;
+  setValueAtTime(value: number): void {
+    this.value = value;
+  }
+  linearRampToValueAtTime(value: number): void {
+    this.value = value;
+  }
+  cancelScheduledValues(): void {}
+  setValueCurveAtTime(curve: Float32Array): void {
+    this.value = curve[curve.length - 1] ?? 0;
+  }
+}
+
+/** Base for connectable fake nodes. */
+class FakeNode {
+  connect(target: unknown): unknown {
+    return target;
+  }
+}
+
+/** A startable/stoppable fake source that records its scheduling calls. */
+class FakeSourceNode extends FakeNode {
+  readonly startedAt: number[] = [];
+  readonly stoppedAt: number[] = [];
+  start(when = 0): void {
+    this.startedAt.push(when);
+  }
+  stop(when = 0): void {
+    this.stoppedAt.push(when);
+  }
+}
+
+class FakeOscillatorNode extends FakeSourceNode {
+  type = "sine";
+  readonly frequency = new FakeParam();
+  readonly detune = new FakeParam();
+}
+
+class FakeBufferSourceNode extends FakeSourceNode {
+  buffer: unknown = null;
+  loop = false;
+}
+
+class FakeGainNode extends FakeNode {
+  readonly gain = new FakeParam();
+}
+
+class FakeFilterNode extends FakeNode {
+  type = "lowpass";
+  readonly frequency = new FakeParam();
+  readonly Q = new FakeParam();
+}
+
+/** Minimal AudioContext double recording every created source node. */
+class FakeAudioContext {
+  readonly sampleRate = ENGINE_SAMPLE_RATE;
+  currentTime = 0;
+  readonly destination = new FakeNode();
+  readonly oscillators: FakeOscillatorNode[] = [];
+  readonly bufferSources: FakeBufferSourceNode[] = [];
+
+  createOscillator(): FakeOscillatorNode {
+    const node = new FakeOscillatorNode();
+    this.oscillators.push(node);
+    return node;
+  }
+  createBufferSource(): FakeBufferSourceNode {
+    const node = new FakeBufferSourceNode();
+    this.bufferSources.push(node);
+    return node;
+  }
+  createGain(): FakeGainNode {
+    return new FakeGainNode();
+  }
+  createBiquadFilter(): FakeFilterNode {
+    return new FakeFilterNode();
+  }
+  createBuffer(_channels: number, length: number, sampleRate: number) {
+    const data = new Float32Array(length);
+    return {
+      sampleRate,
+      length,
+      numberOfChannels: 1,
+      getChannelData: () => data,
+    };
+  }
+}
+
+/** Cast the fake onto the engine's injected-context parameter type. */
+function asAudioContext(fake: FakeAudioContext): AudioContext {
+  return fake as unknown as AudioContext;
+}
+
+describe("createRealtimeInstrument (noise voice)", () => {
+  it("starts a looping noise buffer source on note-on and stops it on note-off", () => {
+    const fake = new FakeAudioContext();
+    const instrument = createRealtimeInstrument(NOISE, {
+      context: asAudioContext(fake),
+      maxVoices: 4,
+    });
+
+    instrument.noteOn(60, 100, 0);
+    expect(fake.oscillators).toHaveLength(0);
+    expect(fake.bufferSources).toHaveLength(1);
+    const source = fake.bufferSources[0]!;
+    expect(source.buffer).not.toBeNull();
+    expect(source.loop).toBe(true);
+    expect(source.startedAt).toEqual([0]);
+
+    instrument.noteOff(60, 0.5);
+    expect(source.stoppedAt).toHaveLength(1);
+    expect(source.stoppedAt[0]).toBeGreaterThan(0.5);
+  });
+
+  it("releases the stolen noise voice when the voice limit is exceeded", () => {
+    const fake = new FakeAudioContext();
+    const instrument = createRealtimeInstrument(NOISE, {
+      context: asAudioContext(fake),
+      maxVoices: 1,
+    });
+
+    instrument.noteOn(60, 100, 0);
+    instrument.noteOn(64, 100, 0.25);
+
+    expect(fake.bufferSources).toHaveLength(2);
+    const [stolen, fresh] = fake.bufferSources;
+    // The stolen voice is released (stopped after the steal time).
+    expect(stolen!.stoppedAt).toHaveLength(1);
+    expect(stolen!.stoppedAt[0]).toBeGreaterThan(0.25);
+    // The fresh voice starts at the steal time and is still sounding.
+    expect(fresh!.startedAt).toEqual([0.25]);
+    expect(fresh!.stoppedAt).toHaveLength(0);
+  });
+
+  it("still builds oscillator sources for waveform voices", () => {
+    const fake = new FakeAudioContext();
+    const instrument = createRealtimeInstrument(PLUCK, {
+      context: asAudioContext(fake),
+      maxVoices: 2,
+    });
+
+    instrument.noteOn(60, 100, 0);
+    expect(fake.bufferSources).toHaveLength(0);
+    expect(fake.oscillators).toHaveLength(1);
+    expect(fake.oscillators[0]!.startedAt).toEqual([0]);
   });
 });
