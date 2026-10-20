@@ -4,6 +4,8 @@
   "generatedBy": "npm run regenerate:determinism-fixtures",
   "cases": {
     "pluck-chord-seed-42": "1f908cfcee5102432510fdeb5d7e89d38466526cfde95eefa056f9fe17e9dc73",
-    "bell-melody-seed-7": "f7d23be47b75de0cb99508fac2466f524257c1c1744c78e8b45a20a08bc94262"
+    "bell-melody-seed-7": "f7d23be47b75de0cb99508fac2466f524257c1c1744c78e8b45a20a08bc94262",
+    "hat-white-noise-seed-11": "f655970c648a7e6ac501f3344950a4c708ebdb31dcf41a2b044d09a1e68c6137",
+    "kit-six-voices-seed-5": "a5ae47d0fb79411e263b9ed2733b73a67b128c367f71f47d4a9270e81bb845bd"
   }
 }

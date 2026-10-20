@@ -22,6 +22,7 @@ import { resolve } from "node:path";
 import { hashBuffer } from "../../test-utils/buffer-compare.js";
 import { compareBuffers, formatCompareResult } from "../../test-utils/buffer-compare.js";
 import { ENGINE_SAMPLE_RATE, renderInstrument } from "../engine.js";
+import { DRUM_KIT_DEFINITION } from "../drum-kit.js";
 import {
   DETERMINISM_CASES,
   DETERMINISM_TAIL_SECONDS,
@@ -113,5 +114,36 @@ describe("instrument determinism snapshots", () => {
       hashes.size,
       "different seeds + different sequences must not collide to identical audio",
     ).toBe(DETERMINISM_CASES.length);
+  });
+
+  it("renders same-note kit retriggers deterministically", async () => {
+    // Retrigger the kick (GM 36) three times in quick succession: a Note On for
+    // a note still sounding replaces that note's own voice. The whole sequence
+    // — including the replacement — must hash identically across runs and
+    // still match the golden registry pattern (repeat renders byte-identical).
+    const events = [
+      { type: "midiNoteOn", note: 36, velocity: 110, time: 0 },
+      { type: "midiNoteOn", note: 36, velocity: 110, time: 0.05 },
+      { type: "midiNoteOn", note: 36, velocity: 110, time: 0.1 },
+      { type: "midiNoteOff", note: 36, velocity: 0, time: 0.15 },
+    ] as const;
+    const render = () =>
+      renderInstrument(DRUM_KIT_DEFINITION, events as never, {
+        sampleRate: ENGINE_SAMPLE_RATE,
+        tail: DETERMINISM_TAIL_SECONDS,
+      });
+
+    const first = await render();
+    const second = await render();
+    const firstHash = hashBuffer(new Uint8Array(first.samples.buffer));
+    const secondHash = hashBuffer(new Uint8Array(second.samples.buffer));
+
+    expect(firstHash, "same-note kit retriggering must be deterministic").toBe(secondHash);
+    expect(
+      compareBuffers(first.samples, second.samples).identical,
+      "same-note kit retriggering must produce byte-identical samples",
+    ).toBe(true);
+    // A retriggered kick is audible, not silence.
+    expect(first.samples.some((sample) => Math.abs(sample) > 0.001)).toBe(true);
   });
 });

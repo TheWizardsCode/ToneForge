@@ -11,7 +11,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { rmSync, existsSync } from "node:fs";
 
 // The --fallback path plays through the system player; mock it so the test
@@ -22,7 +22,7 @@ vi.mock("./audio/player.js", () => ({
 
 import { main } from "./cli.js";
 import { decodeWavFile } from "./audio/wav-decoder.js";
-import { computeRms } from "./instruments/__tests__/helpers.js";
+import { computeRms, isSilent } from "./instruments/__tests__/helpers.js";
 import { playAudio } from "./audio/player.js";
 import {
   createInstrumentDaemon,
@@ -311,7 +311,7 @@ describe("instrument status, presets and stop", () => {
   it("lists the bundled instrument presets", async () => {
     const { code, stdout } = await captureOutput(() => main(argv("instrument", "presets")));
     expect(code).toBe(0);
-    for (const id of ["pluck", "pad", "bass", "bell", "string-lead"]) {
+    for (const id of ["pluck", "pad", "bass", "bell", "string-lead", "drum-kit", "percussion"]) {
       expect(stdout).toContain(id);
     }
   });
@@ -338,6 +338,102 @@ describe("instrument status, presets and stop", () => {
   it("rejects an unknown subcommand", async () => {
     const result = await captureOutput(() => main(argv("instrument", "nope")));
     expect(result.code).toBe(1);
+  });
+});
+
+// ── Drum kit CLI integration (offline renders) ────────────────────
+
+/** The shipped action leitmotif: carries GM drums (36/38/42/49) plus melody. */
+const ACTION_MIDI = resolve(import.meta.dirname, "../assets/music/leitmotif-action.mid");
+
+/** The melodic fixture used to prove non-kit notes are ignored. */
+const DRUM_FREE_MIDI = resolve(import.meta.dirname, "test-utils/fixtures/midi/chord.mid");
+
+describe("instrument drum kit (offline renders, per-note voices)", () => {
+  beforeEach(async () => {
+    await loadBundledInstrumentPresets();
+    vi.mocked(playAudio).mockClear();
+  });
+
+  it("renders the kick (note 36) non-silent via noteon --preset drum-kit", async () => {
+    const target = join(tmpdir(), `tf-kick-${Date.now()}-${Math.random().toString(36).slice(2)}.wav`);
+    const result = await captureOutput(() =>
+      main(argv("instrument", "noteon", "36", "--preset", "drum-kit", "--length", "0.05", "--output", target)),
+    );
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain("Wrote");
+
+    const wav = await decodeWavFile(target);
+    expect(wav.sampleRate).toBe(44100);
+    expect(computeRms(wav.samples)).toBeGreaterThan(0.001);
+    rmSync(target, { force: true });
+  });
+
+  it("renders leitmotif-action.mid through the kit: drums audible, oblivious to length", async () => {
+    const target = join(tmpdir(), `tf-action-kit-${Date.now()}-${Math.random().toString(36).slice(2)}.wav`);
+    const result = await captureOutput(() =>
+      main(argv("instrument", "play", ACTION_MIDI, "--preset", "drum-kit", "--output", target)),
+    );
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain("Wrote");
+
+    const wav = await decodeWavFile(target);
+    expect(wav.sampleRate).toBe(44100);
+    expect(wav.samples.length).toBeGreaterThan(0);
+    // GM drums (36/38/42/49) hit their one-shot kit voices: audible.
+    expect(computeRms(wav.samples)).toBeGreaterThan(0.001);
+    rmSync(target, { force: true });
+  });
+
+  it("ignores non-kit notes deterministically (melodic file renders silent)", async () => {
+    const target = join(tmpdir(), `tf-mel-kit-${Date.now()}-${Math.random().toString(36).slice(2)}.wav`);
+    const result = await captureOutput(() =>
+      main(argv("instrument", "play", DRUM_FREE_MIDI, "--preset", "drum-kit", "--output", target)),
+    );
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain("Wrote");
+
+    // chord.mid contains notes 60/64/67 — none are kit notes, so the kit
+    // deliberately renders silence for the whole file (documented behaviour:
+    // auditioning the drum track alone).
+    const wav = await decodeWavFile(target);
+    expect(wav.samples.length).toBeGreaterThan(0);
+    expect(isSilent(wav.samples)).toBe(true);
+    rmSync(target, { force: true });
+  });
+
+  it("is deterministic: two kit renders of the action cue are byte-identical", async () => {
+    const a = join(tmpdir(), `tf-kit-a-${Date.now()}.wav`);
+    const b = join(tmpdir(), `tf-kit-b-${Date.now()}.wav`);
+    const runOne = await captureOutput(() =>
+      main(argv("instrument", "play", ACTION_MIDI, "--preset", "drum-kit", "--output", a)),
+    );
+    const runTwo = await captureOutput(() =>
+      main(argv("instrument", "play", ACTION_MIDI, "--preset", "drum-kit", "--output", b)),
+    );
+    expect(runOne.code).toBe(0);
+    expect(runTwo.code).toBe(0);
+    const { readFileSync } = await import("node:fs");
+    expect(readFileSync(a).equals(readFileSync(b))).toBe(true);
+    rmSync(a, { force: true });
+    rmSync(b, { force: true });
+  });
+
+  it("renders distinct kit voices for different GM notes", async () => {
+    const kick = join(tmpdir(), `tf-kick-${Date.now()}.wav`);
+    const hat = join(tmpdir(), `tf-hat-${Date.now()}.wav`);
+    const runKick = await captureOutput(() =>
+      main(argv("instrument", "noteon", "36", "--preset", "drum-kit", "--length", "0.05", "--output", kick)),
+    );
+    const runHat = await captureOutput(() =>
+      main(argv("instrument", "noteon", "42", "--preset", "drum-kit", "--length", "0.05", "--output", hat)),
+    );
+    expect(runKick.code).toBe(0);
+    expect(runHat.code).toBe(0);
+    const { readFileSync } = await import("node:fs");
+    expect(readFileSync(kick).equals(readFileSync(hat))).toBe(false);
+    rmSync(kick, { force: true });
+    rmSync(hat, { force: true });
   });
 });
 

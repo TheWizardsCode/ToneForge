@@ -20,6 +20,7 @@
 
 import type { InstrumentDefinition } from "../schema.js";
 import type { InstrumentEvent } from "../engine.js";
+import { DRUM_KIT_DEFINITION } from "../drum-kit.js";
 
 /** A determinism case: a definition + representative note/velocity sequence. */
 export interface DeterminismCase {
@@ -58,6 +59,20 @@ const BELL: InstrumentDefinition = {
 };
 
 /**
+ * A noise-only percussion voice: seeded white noise, high-passed, short decay.
+ *
+ * Exercises the seeded noise-buffer path end to end (white colour, explicit
+ * seed, ADSR + filter) without any pitched component.
+ */
+const NOISE_HAT: InstrumentDefinition = {
+  id: "determinism.noise-hat",
+  name: "Determinism Noise Hat",
+  oscillator: { type: "noise", color: "white", seed: 11 },
+  envelope: { attack: 0.0005, decay: 0.05, sustain: 0.0, release: 0.02 },
+  filter: { type: "highpass", frequency: 6000, Q: 0.7 },
+};
+
+/**
  * The golden cases. Two representative sequences (a three-note chord and a
  * short five-note melody) with different seeds, definitions and velocities.
  */
@@ -90,6 +105,34 @@ export const DETERMINISM_CASES: DeterminismCase[] = [
       { type: "midiNoteOff", note: 67, velocity: 100, time: 0.95 },
       { type: "midiNoteOn", note: 64, velocity: 92, time: 1.0 },
       { type: "midiNoteOff", note: 64, velocity: 92, time: 1.2 },
+    ],
+  },
+  {
+    name: "hat-white-noise-seed-11",
+    seed: 11,
+    definition: NOISE_HAT,
+    events: [
+      { type: "midiNoteOn", note: 60, velocity: 100, time: 0 },
+      { type: "midiNoteOff", note: 60, velocity: 100, time: 0.08 },
+    ],
+  },
+  {
+    name: "kit-six-voices-seed-5",
+    seed: 5,
+    definition: DRUM_KIT_DEFINITION,
+    events: [
+      { type: "midiNoteOn", note: 36, velocity: 110, time: 0 },
+      { type: "midiNoteOff", note: 36, velocity: 110, time: 0.04 },
+      { type: "midiNoteOn", note: 38, velocity: 100, time: 0.12 },
+      { type: "midiNoteOff", note: 38, velocity: 100, time: 0.16 },
+      { type: "midiNoteOn", note: 42, velocity: 90, time: 0.24 },
+      { type: "midiNoteOff", note: 42, velocity: 90, time: 0.28 },
+      { type: "midiNoteOn", note: 46, velocity: 90, time: 0.36 },
+      { type: "midiNoteOff", note: 46, velocity: 90, time: 0.4 },
+      { type: "midiNoteOn", note: 49, velocity: 95, time: 0.48 },
+      { type: "midiNoteOff", note: 49, velocity: 95, time: 0.52 },
+      { type: "midiNoteOn", note: 39, velocity: 105, time: 0.6 },
+      { type: "midiNoteOff", note: 39, velocity: 105, time: 0.64 },
     ],
   },
 ];

@@ -17,7 +17,7 @@ import {
 } from "./presets.js";
 import { ENGINE_SAMPLE_RATE, renderInstrument, type InstrumentEvent } from "./engine.js";
 import { validateInstrumentDefinition } from "./schema.js";
-import { compareBuffers } from "../test-utils/buffer-compare.js";
+import { compareBuffers, hashBuffer } from "../test-utils/buffer-compare.js";
 import { computeRms, estimateDominantFrequency, isSilent } from "./__tests__/helpers.js";
 
 /** The five required starter presets. */
@@ -57,6 +57,15 @@ describe("instrument family: discovery and schema", () => {
       expect(instrumentRegistry.has(id), `missing required preset "${id}"`).toBe(true);
     }
     expect(listInstruments().length).toBeGreaterThanOrEqual(5);
+  });
+
+  it("also registers the drum kit and the legacy percussion fallback", () => {
+    expect(listInstruments(), "kit must be discoverable via listInstruments()").toContain("drum-kit");
+    expect(listInstruments(), "legacy percussion preset must stay registered").toContain("percussion");
+    const kit = getInstrument("drum-kit");
+    expect(kit, "drum-kit preset must be registered").toBeDefined();
+    expect(kit!.definition.voices, "drum-kit must dispatch per note").toBeDefined();
+    expect(Object.keys(kit!.definition.voices!).length).toBe(6);
   });
 
   it("is discoverable via the public API with id, name and category", () => {
@@ -152,5 +161,39 @@ describe("instrument family: offline render snapshots", () => {
         ).toBe(false);
       }
     }
+  });
+
+  it("keeps the legacy percussion preset byte-identical (backward compatibility)", async () => {
+    // The single-voice sine `percussion` fallback must render exactly as it did
+    // before the noise/drum-kit feature: the oscillator path is untouched, so
+    // the committed golden hash is the pre-change baseline (hashBuffer of the
+    // pinned render below), and any drift fails loudly.
+    const events: InstrumentEvent[] = [
+      { type: "midiNoteOn", note: 36, velocity: 100, time: 0 },
+      { type: "midiNoteOff", note: 36, velocity: 100, time: 0.4 },
+    ];
+    const { samples } = await renderInstrument(getInstrument("percussion")!.definition, events, {
+      sampleRate: ENGINE_SAMPLE_RATE,
+      tail: 0.3,
+    });
+    const hash = hashBuffer(new Uint8Array(samples.buffer));
+    expect(hash).toBe(
+      "2d759c91e33fe6db7533b65f2fcaa86b11c015ab20eaa336bd9967c2c890ab15",
+    );
+  });
+
+  it("renders the drum kit's kick through its per-note voice map", async () => {
+    // A kit note hits its own one-shot voice (non-silent, decays itself), while
+    // the top-level sine is never used — proving the per-note dispatch path.
+    const events: InstrumentEvent[] = [
+      { type: "midiNoteOn", note: 36, velocity: 110, time: 0 },
+      { type: "midiNoteOff", note: 36, velocity: 110, time: 0.03 },
+    ];
+    const { samples } = await renderInstrument(getInstrument("drum-kit")!.definition, events, {
+      sampleRate: ENGINE_SAMPLE_RATE,
+      tail: 0.3,
+    });
+    expect(isSilent(samples)).toBe(false);
+    expect(computeRms(samples)).toBeGreaterThan(0.005);
   });
 });
