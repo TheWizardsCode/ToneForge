@@ -188,11 +188,26 @@ describe("createRealtimeInstrument (Node real-time path)", () => {
     void audioContext;
   });
 
-  it("releases a voice on noteOff via the injected context", () => {
+  it("releases a voice on noteOff via the injected context", (testContext) => {
     // Injectable context contract: the engine accepts an explicit context
     // (created here via the cross-platform abstraction), avoiding implicit
     // global state and making the path testable in Node.
-    const instrument = createRealtimeInstrument(PLUCK, { maxVoices: 4 });
+    let instrument: ReturnType<typeof createRealtimeInstrument>;
+    try {
+      instrument = createRealtimeInstrument(PLUCK, { maxVoices: 4 });
+    } catch (error) {
+      // Headless/CI hosts with no audio device cannot open a real-time
+      // context; skip rather than fail (same runtime-guarded contract as the
+      // sibling test above).
+      if (
+        error instanceof Error
+        && /open (a )?client|device|AudioContext|backend/i.test(error.message)
+      ) {
+        testContext.skip();
+        return;
+      }
+      throw error;
+    }
     expect(instrument.id).toBe("test.pluck");
     // No exceptions scheduling noteOn/noteOff on the real-time graph.
     instrument.noteOn(60, 100);

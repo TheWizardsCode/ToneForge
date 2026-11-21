@@ -359,10 +359,10 @@ describe("CLI library list — external recipes", () => {
     expect(code).toBe(0);
     expect(stdout).toContain("listed-human");
     expect(stdout).toContain("external");
-    // The source column word-wraps long paths, so assert on the intact
-    // temp-root prefix and the "external" kind rather than the full path.
-    expect(stdout).toContain(tmpRoot);
-    expect(stdout).toContain("external");
+    // The source column (36 cols) force-wraps long paths, so the full temp
+    // root is split across lines on hosts with a long TMPDIR. Assert on a
+    // short intact prefix instead, matching the documented intent above.
+    expect(stdout).toContain(tmpRoot.slice(0, 24));
   });
 });
 
